@@ -1,4 +1,5 @@
 [workspace]
 members = [
     "anni",
+    "anni-flac"
 ]

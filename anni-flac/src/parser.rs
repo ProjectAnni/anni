@@ -1,0 +1,544 @@
+use nom::{IResult, Err, Needed};
+use nom::number::streaming::{be_u8, be_u16, be_u24, be_u32, be_u64, le_u32};
+
+/// https://xiph.org/flac/format.html
+#[derive(Debug)]
+pub struct Stream {
+    pub metadata_blocks: Vec<MetadataBlock>,
+    // pub frames: Vec<Frame>
+}
+
+pub fn flac(input: &[u8]) -> IResult<&[u8], Stream> {
+    if input.len() < 4 {
+        return Err(Err::Incomplete(Needed::new(4)));
+    }
+
+    // Magic number
+    let (mut remaining, _) = tag!(input, "fLaC")?;
+    let mut result = Stream { metadata_blocks: Vec::new() };
+    loop {
+        let (_remaining, block) = metadata_block(remaining)?;
+
+        let is_last = block.is_last;
+        result.metadata_blocks.push(block);
+        remaining = _remaining;
+
+        if is_last {
+            break;
+        }
+    }
+
+    Ok((&input[(input.len() - remaining.len())..], result))
+}
+
+#[derive(Debug)]
+pub struct MetadataBlock {
+    pub is_last: bool,
+    pub length: u32,
+    pub block: MetadataBlockData,
+}
+
+macro_rules! block_data {
+    ($i:expr, $block_type: expr, $size: expr) => ({
+        block_data($block_type, $size as usize)($i)
+    });
+}
+
+named!(pub metadata_block<MetadataBlock>, do_parse!(
+    first_byte: be_u8 >>
+    length: be_u24 >>
+    block: block_data!(first_byte & 0b01111111, length) >>
+    (MetadataBlock {
+        is_last: first_byte & 0b10000000 > 0,
+        length: length,
+        block: block,
+    })
+));
+
+#[derive(Debug)]
+pub enum MetadataBlockData {
+    StreamInfo(MetadataBlockStreamInfo),
+    Padding,
+    Application(MetadataBlockApplication),
+    SeekTable(MetadataBlockSeekTable),
+    VorbisComment(MetadataBlockVorbisComment),
+    CueSheet(MetadataBlockCueSheet),
+    Picture(MetadataBlockPicture),
+    Invalid,
+}
+
+pub fn block_data(block_type: u8, size: usize) -> impl Fn(&[u8]) -> IResult<&[u8], MetadataBlockData> {
+    move |input: &[u8]| {
+        match block_type {
+            0 => map!(input, |i| metadata_block_stream_info(i), |v| MetadataBlockData::StreamInfo(v)),
+            1 => value!(input, MetadataBlockData::Padding),
+            2 => map!(input, |i| metadata_block_application(i, size), |v| MetadataBlockData::Application(v)),
+            3 => map!(input, |i| metadata_block_seektable(i, size), |v| MetadataBlockData::SeekTable(v)),
+            4 => map!(input, |i| metadata_block_vorbis_comment(i), |v| MetadataBlockData::VorbisComment(v)),
+            // 5 => MetadataBlockData::CueSheet,
+            6 => map!(input, |i| metadata_block_picture(i), |v| MetadataBlockData::Picture(v)),
+            _ => map!(input, |i| take!(i, size), |_v| MetadataBlockData::Invalid),
+        }
+    }
+}
+
+/// Notes:
+/// FLAC specifies a minimum block size of 16 and a maximum block size of 65535,
+/// meaning the bit patterns corresponding to the numbers 0-15 in the minimum blocksize and maximum blocksize fields are invalid.
+#[derive(Debug)]
+pub struct MetadataBlockStreamInfo {
+    /// <16> The minimum block size (in samples) used in the stream.
+    pub min_block_size: u16,
+    /// <16> The maximum block size (in samples) used in the stream.
+    pub max_block_size: u16,
+    /// <24> The minimum frame size (in bytes) used in the stream. May be 0 to imply the value is not known.
+    pub min_frame_size: u32,
+    /// <24> The maximum frame size (in bytes) used in the stream. May be 0 to imply the value is not known.
+    pub max_frame_size: u32,
+    /// <20> Sample rate in Hz.
+    /// Though 20 bits are available, the maximum sample rate is limited by the structure of frame headers to 655350Hz.
+    /// Also, a value of 0 is invalid.
+    pub sample_rate: u32,
+    /// <3> (number of channels)-1.
+    /// FLAC supports from 1 to 8 channels
+    pub channels: u8,
+    /// <5> (bits per sample)-1.
+    /// FLAC supports from 4 to 32 bits per sample.
+    /// Currently the reference encoder and decoders only support up to 24 bits per sample.
+    pub bits_per_sample: u8,
+    /// <36> Total samples in stream.
+    /// 'Samples' means inter-channel sample, i.e. one second of 44.1Khz audio will have 44100 samples regardless of the number of channels.
+    /// A value of zero here means the number of total samples is unknown.
+    pub total_samples: u64,
+    /// <128> MD5 signature of the unencoded audio data.
+    /// This allows the decoder to determine if an error exists in the audio data even when the error does not result in an invalid bitstream.
+    pub md5_signature: [u8; 16],
+}
+
+impl MetadataBlockStreamInfo {
+    /// (Minimum blocksize == maximum blocksize) implies a fixed-blocksize stream.
+    pub fn is_fixed_blocksize_stream(&self) -> bool {
+        self.min_block_size == self.max_block_size
+    }
+}
+
+named!(pub metadata_block_stream_info<MetadataBlockStreamInfo>, do_parse!(
+    min_block_size: be_u16 >>
+    max_block_size: be_u16 >>
+    min_frame_size: be_u24 >>
+    max_frame_size: be_u24 >>
+    sample_region: take!(8) >>
+    signature: take!(16) >>
+    (MetadataBlockStreamInfo {
+        min_block_size: min_block_size,
+        max_block_size: max_block_size,
+        min_frame_size: min_frame_size,
+        max_frame_size: max_frame_size,
+        // 20 bits
+        sample_rate: ((sample_region[0] as u32) << 12)
+                   + ((sample_region[1] as u32) << 4)
+                   + ((sample_region[2] as u32) >> 4),
+        // 3 bits
+        channels: (sample_region[2] >> 1) & 0b00000111,
+        // 5 bits
+        bits_per_sample: ((sample_region[2] & 0b00000001) << 4) + (sample_region[3] >> 4),
+        // 36 bits
+        total_samples: ((sample_region[3] as u64 & 0b00001111) << 32)
+                     + ((sample_region[4] as u64) << 24)
+                     + ((sample_region[5] as u64) << 16)
+                     + ((sample_region[6] as u64) << 8)
+                     + (sample_region[7] as u64),
+        md5_signature: {
+            let mut arr: [u8;16] = Default::default();
+            arr.copy_from_slice(signature);
+            arr
+        },
+    })
+));
+
+#[derive(Debug)]
+pub struct MetadataBlockApplication {
+    /// Registered application ID.
+    /// (Visit the [registration page](https://xiph.org/flac/id.html) to register an ID with FLAC.)
+    pub application_id: u32,
+    /// Application data (n must be a multiple of 8)
+    pub data: Vec<u8>,
+}
+
+pub fn metadata_block_application(input: &[u8], size: usize) -> IResult<&[u8], MetadataBlockApplication> {
+    if input.len() < size {
+        return Err(Err::Incomplete(Needed::new(size)));
+    }
+
+    if size < 4 {
+        // Application id
+        return Err(Err::Incomplete(Needed::new(4)));
+    }
+
+    let (_remaining, application_id) = be_u32(input)?;
+    Ok((&input[size..], MetadataBlockApplication {
+        application_id,
+        data: Vec::from(&input[4..size]),
+    }))
+}
+
+#[derive(Debug)]
+pub struct MetadataBlockSeekTable {
+    pub seek_points: Vec<SeekPoint>,
+}
+
+/// Notes:
+/// - For placeholder points, the second and third field values are undefined.
+/// - Seek points within a table must be sorted in ascending order by sample number.
+/// - Seek points within a table must be unique by sample number, with the exception of placeholder points.
+/// - The previous two notes imply that there may be any number of placeholder points, but they must all occur at the end of the table.
+#[derive(Debug)]
+pub struct SeekPoint {
+    // Sample number of first sample in the target frame, or 0xFFFFFFFFFFFFFFFF for a placeholder point.
+    pub sample_number: u64,
+    // Offset (in bytes) from the first byte of the first frame header to the first byte of the target frame's header.
+    pub sample_offset: u64,
+    // Number of samples in the target frame.
+    pub frame_samples: u16,
+}
+
+impl SeekPoint {
+    pub fn is_placehoder(&self) -> bool {
+        self.sample_number == 0xFFFFFFFFFFFFFFFF
+    }
+}
+
+pub fn metadata_block_seektable(input: &[u8], size: usize) -> IResult<&[u8], MetadataBlockSeekTable> {
+    if input.len() < size {
+        return Err(Err::Incomplete(Needed::new(size)));
+    }
+
+    let mut result: MetadataBlockSeekTable = MetadataBlockSeekTable { seek_points: Vec::new() };
+
+    let mut remaining = input;
+    let mut table_offset = 0;
+    let step = 8 + 8 + 2;
+
+    while table_offset < size {
+        let (_remaining, first_sample) = be_u64(remaining)?;
+        let (_remaining, offset) = be_u64(_remaining)?;
+        let (_remaining, sample_number) = be_u16(_remaining)?;
+        result.seek_points.push(SeekPoint {
+            sample_number: first_sample,
+            sample_offset: offset,
+            frame_samples: sample_number,
+        });
+        table_offset += step;
+        remaining = _remaining;
+    }
+
+    Ok((&input[size..], result))
+}
+
+
+/// Also known as FLAC tags, the contents of a vorbis comment packet as specified here (without the framing bit).
+/// Note that the vorbis comment spec allows for on the order of 2 ^ 64 bytes of data where as the FLAC metadata block is limited to 2 ^ 24 bytes.
+/// Given the stated purpose of vorbis comments, i.e. human-readable textual information, this limit is unlikely to be restrictive.
+/// Also note that the 32-bit field lengths are **little-endian** coded according to the vorbis spec, as opposed to the usual big-endian coding of fixed-length integers in the rest of FLAC.
+///
+/// The Vorbis text comment header is the second (of three) header packets that begin a Vorbis bitstream.
+/// It is meant for short, text comments, not arbitrary metadata; arbitrary metadata belongs in a separate logical bitstream (usually an XML stream type) that provides greater structure and machine parseability.
+///
+/// The comment field is meant to be used much like someone jotting a quick note on the bottom of a CDR.
+/// It should be a little information to remember the disc by and explain it to others; a short, to-the-point text note that need not only be a couple words, but isn't going to be more than a short paragraph.
+///
+/// The essentials, in other words, whatever they turn out to be, eg:
+///     "Honest Bob and the Factory-to-Dealer-Incentives, _I'm Still Around_, opening for Moxy Früvous, 1997"
+#[derive(Debug)]
+pub struct MetadataBlockVorbisComment {
+    /// [vendor_length] = read an unsigned integer of 32 bits
+    pub vendor_length: u32,
+    /// [vendor_string] = read a UTF-8 vector as [vendor_length] octets
+    pub vendor_string: String,
+    /// [user_comment_list_length] = read an unsigned integer of 32 bits
+    pub comment_number: u32,
+    /// iterate [user_comment_list_length] times
+    pub comments: Vec<UserComment>,
+
+    // [framing_bit] = read a single bit as boolean
+    // if ( [framing_bit] unset or end of packet ) then ERROR
+}
+
+#[derive(Debug)]
+pub struct UserComment {
+    /// [length] = read an unsigned integer of 32 bits
+    pub length: u32,
+    /// this iteration's user comment = read a UTF-8 vector as [length] octets
+    pub comment: String,
+}
+
+macro_rules! user_comment {
+    ($i:expr, $count: expr) => ({
+        user_comment($i, $count)
+    });
+}
+
+named!(pub metadata_block_vorbis_comment<MetadataBlockVorbisComment>, do_parse!(
+    vendor_length: le_u32 >>
+    vendor_string: take!(vendor_length) >>
+    comment_number: le_u32 >>
+    comments: user_comment!(comment_number) >>
+    (MetadataBlockVorbisComment {
+        vendor_length: vendor_length,
+        vendor_string: String::from_utf8(vendor_string.to_vec()).expect("Invalid UTF-8 description."),
+        comment_number: comment_number,
+        comments: comments,
+    })
+));
+
+pub fn user_comment(input: &[u8], count: u32) -> IResult<&[u8], Vec<UserComment>> {
+    let mut result: Vec<UserComment> = Vec::new();
+    let mut remaining = input;
+    let mut offset: usize = 0;
+    for _i in 0..count {
+        let (_remaining, length) = le_u32(remaining)?;
+        let (_remaining, comment) = take!(_remaining, length as usize)?;
+        result.push(UserComment {
+            length,
+            comment: String::from_utf8(comment.to_vec()).expect("Invalid UTF-8 description."),
+        });
+        offset += (length + 4) as usize;
+        remaining = _remaining;
+    }
+
+    Ok((&input[offset..], result))
+}
+
+#[derive(Debug)]
+pub struct MetadataBlockCueSheet {
+    /// <128*8> Media catalog number, in ASCII printable characters 0x20-0x7e.
+    /// In general, the media catalog number may be 0 to 128 bytes long; any unused characters should be right-padded with NUL characters.
+    /// For CD-DA, this is a thirteen digit number, followed by 115 NUL bytes.
+    pub catalog_number: [u8; 128],
+    /// <64> The number of lead-in samples.
+    /// This field has meaning only for CD-DA cuesheets; for other uses it should be 0.
+    /// For CD-DA, the lead-in is the TRACK 00 area where the table of contents is stored;
+    /// more precisely, it is the number of samples from the first sample of the media to the first sample of the first index point of the first track.
+    /// According to the Red Book, the lead-in must be silence and CD grabbing software does not usually store it;
+    /// additionally, the lead-in must be at least two seconds but may be longer.
+    /// For these reasons the lead-in length is stored here so that the absolute position of the first track can be computed.
+    /// Note that the lead-in stored here is the number of samples up to the first index point of the first track, not necessarily to INDEX 01 of the first track;
+    /// even the first track may have INDEX 00 data.
+    pub leadin_samples: u64,
+    /// <1> 1 if the CUESHEET corresponds to a Compact Disc, else 0.
+    pub compact_disc: bool,
+    /// <7+258*8> Reserved. All bits must be set to zero.
+
+    /// <8> The number of tracks.
+    /// Must be at least 1 (because of the requisite lead-out track).
+    /// For CD-DA, this number must be no more than 100 (99 regular tracks and one lead-out track).
+    pub track_number: u8,
+
+    /// One or more tracks.
+    /// A CUESHEET block is required to have a lead-out track; it is always the last track in the CUESHEET.
+    /// For CD-DA, the lead-out track number must be 170 as specified by the Red Book, otherwise is must be 255.
+    pub tracks: Vec<CueSheetTrack>,
+}
+
+#[derive(Debug)]
+pub struct CueSheetTrack {
+    /// <64> Track offset in samples, relative to the beginning of the FLAC audio stream.
+    /// It is the offset to the first index point of the track.
+    /// (Note how this differs from CD-DA, where the track's offset in the TOC is that of the track's INDEX 01 even if there is an INDEX 00.)
+    /// For CD-DA, the offset must be evenly divisible by 588 samples (588 samples = 44100 samples/sec * 1/75th of a sec).
+    pub track_offset: u64,
+    /// <8> Track number.
+    /// A track number of 0 is not allowed to avoid conflicting with the CD-DA spec, which reserves this for the lead-in.
+    /// For CD-DA the number must be 1-99, or 170 for the lead-out; for non-CD-DA, the track number must for 255 for the lead-out.
+    /// It is not required but encouraged to start with track 1 and increase sequentially.
+    /// Track numbers must be unique within a CUESHEET.
+    pub track_number: u8,
+    /// <12*8> Track ISRC.
+    /// This is a 12-digit alphanumeric code; see here and here.
+    /// A value of 12 ASCII NUL characters may be used to denote absence of an ISRC.
+    pub track_isrc: [u8; 12],
+    /// <1> The track type: 0 for audio, 1 for non-audio.
+    /// This corresponds to the CD-DA Q-channel control bit 3.
+    pub is_audio: bool,
+    /// <1> The pre-emphasis flag: 0 for no pre-emphasis, 1 for pre-emphasis.
+    /// This corresponds to the CD-DA Q-channel control bit 5; see [here](http://www.chipchapin.com/CDMedia/cdda9.php3).
+    pub pre_emphasis_flag: bool,
+    /// <6+13*8>	Reserved. All bits must be set to zero.
+
+    /// <8> The number of track index points.
+    /// There must be at least one index in every track in a CUESHEET except for the lead-out track, which must have zero.
+    /// For CD-DA, this number may be no more than 100.
+    pub track_index_point_number: u8,
+
+    /// For all tracks except the lead-out track, one or more track index points.
+    pub track_index: Vec<CueSheetTrackIndex>,
+}
+
+#[derive(Debug)]
+pub struct CueSheetTrackIndex {
+    /// <64> Offset in samples, relative to the track offset, of the index point.
+    /// For CD-DA, the offset must be evenly divisible by 588 samples (588 samples = 44100 samples/sec * 1/75th of a sec).
+    /// Note that the offset is from the beginning of the track, not the beginning of the audio data.
+    pub sample_offset: u64,
+    /// <8> The index point number.
+    /// For CD-DA, an index number of 0 corresponds to the track pre-gap.
+    /// The first index in a track must have a number of 0 or 1, and subsequently, index numbers must increase by 1.
+    /// Index numbers must be unique within a track.
+    pub index_point: u8,
+    // <3*8> Reserved. All bits must be set to zero.
+}
+
+/// The picture type according to the ID3v2 APIC frame:
+/// Others are reserved and should not be used. There may only be one each of picture type 1 and 2 in a file.
+#[derive(Debug)]
+pub enum PictureType {
+    /// 0 - Other
+    Other,
+    /// 1 - 32x32 pixels 'file icon' (PNG only)
+    FileIcon,
+    /// 2 - Other file icon
+    OtherFileIcon,
+    /// 3 - Cover (front)
+    CoverFront,
+    /// 4 - Cover (back)
+    CoverBack,
+    /// 5 - Leaflet page
+    LeafletPage,
+    /// 6 - Media (e.g. label side of CD)
+    Media,
+    /// 7 - Lead artist/lead performer/soloist
+    LeadArtist,
+    /// 8 - Artist/performer
+    Artist,
+    /// 9 - Conductor
+    Conductor,
+    /// 10 - Band/Orchestra
+    Band,
+    /// 11 - Composer
+    Composer,
+    /// 12 - Lyricist/text writer
+    Lyricist,
+    /// 13 - Recording Location
+    RecordingLocation,
+    /// 14 - During recording
+    DuringRecording,
+    /// 15 - During performance
+    DuringPerformance,
+    /// 16 - Movie/video screen capture
+    MovieVideoScreenCapture,
+    /// 17 - A bright coloured fish
+    BrightColoredFish,
+    /// 18 - Illustration
+    Illustration,
+    /// 19 - Band/artist logotype
+    BandArtistLogotype,
+    /// 20 - Publisher/Studio logotype
+    PublisherStudioLogotype,
+}
+
+#[derive(Debug)]
+pub struct MetadataBlockPicture {
+    /// <32> The picture type according to the ID3v2 APIC frame
+    /// Others are reserved and should not be used.
+    /// There may only be one each of picture type 1 and 2 in a file.
+    pub picture_type: PictureType,
+    /// <32> The length of the MIME type string in bytes.
+    pub mime_type_length: u32,
+    /// <n*8> The MIME type string, in printable ASCII characters 0x20-0x7e.
+    /// The MIME type may also be --> to signify that the data part is a URL of the picture instead of the picture data itself.
+    pub mime_type: String,
+    /// <32> The length of the description string in bytes.
+    pub description_length: u32,
+    /// <n*8> The description of the picture, in UTF-8.
+    pub description: String,
+    /// <32> The width of the picture in pixels.
+    pub width: u32,
+    /// <32> The height of the picture in pixels.
+    pub height: u32,
+    /// <32> The color depth of the picture in bits-per-pixel.
+    pub depth: u32,
+    /// <32> For indexed-color pictures (e.g. GIF), the number of colors used, or 0 for non-indexed pictures.
+    pub colors: u32,
+    /// <32> The length of the picture data in bytes.
+    pub data_length: u32,
+    /// <n*8> The binary picture data.
+    pub data: Vec<u8>,
+}
+
+named!(pub metadata_block_picture<MetadataBlockPicture>, do_parse!(
+    picture_type: be_u32 >>
+    mime_type_length: be_u32 >>
+    mime_type: take!(mime_type_length) >>
+    description_length: be_u32 >>
+    description: take!(description_length) >>
+    width: be_u32 >>
+    height: be_u32 >>
+    color_depth: be_u32 >>
+    number_of_colors: be_u32 >>
+    picture_length: be_u32 >>
+    picture_data: take!(picture_length) >>
+    (MetadataBlockPicture {
+        picture_type: match picture_type {
+            1 => PictureType::FileIcon,
+            2 => PictureType::OtherFileIcon,
+            3 => PictureType::CoverFront,
+            4 => PictureType::CoverBack,
+            5 => PictureType::LeafletPage,
+            6 => PictureType::Media,
+            7 => PictureType::LeadArtist,
+            8 => PictureType::Artist,
+            9 => PictureType::Conductor,
+            10 => PictureType::Band,
+            11 => PictureType::Composer,
+            12 => PictureType::Lyricist,
+            13 => PictureType::RecordingLocation,
+            14 => PictureType::DuringRecording,
+            15 => PictureType::DuringPerformance,
+            16 => PictureType::MovieVideoScreenCapture,
+            17 => PictureType::BrightColoredFish,
+            18 => PictureType::Illustration,
+            19 => PictureType::BandArtistLogotype,
+            20 => PictureType::PublisherStudioLogotype,
+            _ => PictureType::Other,
+        },
+        mime_type_length: mime_type_length,
+        mime_type: String::from_utf8(mime_type.to_vec()).expect("Invalid UTF-8 description."),
+        description_length: description_length,
+        description: String::from_utf8(description.to_vec()).expect("Invalid UTF-8 description."),
+        width: width,
+        height: height,
+        depth: color_depth,
+        colors: number_of_colors,
+        data_length: picture_length,
+        data: picture_data.to_vec(),
+    })
+));
+
+#[cfg(test)]
+mod tests {
+    use crate::parser::{metadata_block, MetadataBlockData, flac};
+    use std::io::Read;
+
+    #[test]
+    fn metadata_block_application() {
+        let (_remaining, block) = metadata_block(&[2, 0, 0, 5, 0, 0x99, 0x99, 0xff, 255]).unwrap();
+        assert_eq!(_remaining.len(), 0);
+        assert_eq!(block.is_last, false);
+        assert_eq!(block.length, 5);
+        assert!(match block.block {
+            MetadataBlockData::Application(data) => {
+                data.application_id == 0x009999ff && data.data.len() == 1 && data.data[0] == 255
+            }
+            _ => false
+        });
+    }
+
+    #[test]
+    fn parse_file() {
+        use std::fs::File;
+        let mut file = File::open("test.flac").expect("Failed to open file.");
+        let mut data = Vec::new();
+        file.read_to_end(&mut data).expect("Failed to read file.");
+        let _stream = flac(&data).unwrap();
+    }
+}
