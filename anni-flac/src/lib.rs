@@ -3,4 +3,4 @@ extern crate nom;
 
 mod parser;
 
-pub use parser::flac;
+pub use parser::*;

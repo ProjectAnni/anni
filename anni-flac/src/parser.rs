@@ -8,7 +8,7 @@ pub struct Stream {
     // pub frames: Vec<Frame>
 }
 
-pub fn flac(input: &[u8]) -> IResult<&[u8], Stream> {
+pub fn parse_flac(input: &[u8]) -> IResult<&[u8], Stream> {
     if input.len() < 4 {
         return Err(Err::Incomplete(Needed::new(4)));
     }
@@ -35,7 +35,7 @@ pub fn flac(input: &[u8]) -> IResult<&[u8], Stream> {
 pub struct MetadataBlock {
     pub is_last: bool,
     pub length: u32,
-    pub block: MetadataBlockData,
+    pub data: MetadataBlockData,
 }
 
 macro_rules! block_data {
@@ -51,7 +51,7 @@ named!(pub metadata_block<MetadataBlock>, do_parse!(
     (MetadataBlock {
         is_last: first_byte & 0b10000000 > 0,
         length: length,
-        block: block,
+        data: block,
     })
 ));
 
@@ -65,6 +65,36 @@ pub enum MetadataBlockData {
     CueSheet(MetadataBlockCueSheet),
     Picture(MetadataBlockPicture),
     Invalid,
+}
+
+impl From<&MetadataBlockData> for u8 {
+    fn from(data: &MetadataBlockData) -> Self {
+        match data {
+            MetadataBlockData::StreamInfo(_) => 0,
+            MetadataBlockData::Padding => 1,
+            MetadataBlockData::Application(_) => 2,
+            MetadataBlockData::SeekTable(_) => 3,
+            MetadataBlockData::VorbisComment(_) => 4,
+            MetadataBlockData::CueSheet(_) => 5,
+            MetadataBlockData::Picture(_) => 6,
+            _ => 127,
+        }
+    }
+}
+
+impl ToString for MetadataBlockData {
+    fn to_string(&self) -> String {
+        match self {
+            MetadataBlockData::StreamInfo(_) => "STREAMINFO".to_string(),
+            MetadataBlockData::Padding => "PADDING".to_string(),
+            MetadataBlockData::Application(_) => "APPLICATION".to_string(),
+            MetadataBlockData::SeekTable(_) => "SEEKTABLE".to_string(),
+            MetadataBlockData::VorbisComment(_) => "VORBIS_COMMENT".to_string(),
+            MetadataBlockData::CueSheet(_) => "CUESHEET".to_string(),
+            MetadataBlockData::Picture(_) => "PICTURE".to_string(),
+            _ => "INVALID".to_string(),
+        }
+    }
 }
 
 pub fn block_data(block_type: u8, size: usize) -> impl Fn(&[u8]) -> IResult<&[u8], MetadataBlockData> {
@@ -139,9 +169,9 @@ named!(pub metadata_block_stream_info<MetadataBlockStreamInfo>, do_parse!(
                    + ((sample_region[1] as u32) << 4)
                    + ((sample_region[2] as u32) >> 4),
         // 3 bits
-        channels: (sample_region[2] >> 1) & 0b00000111,
+        channels: ((sample_region[2] >> 1) & 0b00000111) + 1,
         // 5 bits
-        bits_per_sample: ((sample_region[2] & 0b00000001) << 4) + (sample_region[3] >> 4),
+        bits_per_sample: ((sample_region[2] & 0b00000001) << 4) + (sample_region[3] >> 4) + 1,
         // 36 bits
         total_samples: ((sample_region[3] as u64 & 0b00001111) << 32)
                      + ((sample_region[4] as u64) << 24)
@@ -197,7 +227,7 @@ pub struct SeekPoint {
     // Sample number of first sample in the target frame, or 0xFFFFFFFFFFFFFFFF for a placeholder point.
     pub sample_number: u64,
     // Offset (in bytes) from the first byte of the first frame header to the first byte of the target frame's header.
-    pub sample_offset: u64,
+    pub stream_offset: u64,
     // Number of samples in the target frame.
     pub frame_samples: u16,
 }
@@ -220,13 +250,13 @@ pub fn metadata_block_seektable(input: &[u8], size: usize) -> IResult<&[u8], Met
     let step = 8 + 8 + 2;
 
     while table_offset < size {
-        let (_remaining, first_sample) = be_u64(remaining)?;
-        let (_remaining, offset) = be_u64(_remaining)?;
-        let (_remaining, sample_number) = be_u16(_remaining)?;
+        let (_remaining, sample_number) = be_u64(remaining)?;
+        let (_remaining, stream_offset) = be_u64(_remaining)?;
+        let (_remaining, frame_samples) = be_u16(_remaining)?;
         result.seek_points.push(SeekPoint {
-            sample_number: first_sample,
-            sample_offset: offset,
-            frame_samples: sample_number,
+            sample_number,
+            stream_offset,
+            frame_samples,
         });
         table_offset += step;
         remaining = _remaining;
@@ -314,7 +344,7 @@ pub struct MetadataBlockCueSheet {
     /// <128*8> Media catalog number, in ASCII printable characters 0x20-0x7e.
     /// In general, the media catalog number may be 0 to 128 bytes long; any unused characters should be right-padded with NUL characters.
     /// For CD-DA, this is a thirteen digit number, followed by 115 NUL bytes.
-    pub catalog_number: [u8; 128],
+    pub catalog_number: String,
     /// <64> The number of lead-in samples.
     /// This field has meaning only for CD-DA cuesheets; for other uses it should be 0.
     /// For CD-DA, the lead-in is the TRACK 00 area where the table of contents is stored;
@@ -326,7 +356,7 @@ pub struct MetadataBlockCueSheet {
     /// even the first track may have INDEX 00 data.
     pub leadin_samples: u64,
     /// <1> 1 if the CUESHEET corresponds to a Compact Disc, else 0.
-    pub compact_disc: bool,
+    pub is_cd: bool,
     /// <7+258*8> Reserved. All bits must be set to zero.
 
     /// <8> The number of tracks.
@@ -436,6 +466,62 @@ pub enum PictureType {
     PublisherStudioLogotype,
 }
 
+impl From<&PictureType> for u8 {
+    fn from(data: &PictureType) -> Self {
+        match data {
+            PictureType::Other => 0,
+            PictureType::FileIcon => 1,
+            PictureType::OtherFileIcon => 2,
+            PictureType::CoverFront => 3,
+            PictureType::CoverBack => 4,
+            PictureType::LeafletPage => 5,
+            PictureType::Media => 6,
+            PictureType::LeadArtist => 7,
+            PictureType::Artist => 8,
+            PictureType::Conductor => 9,
+            PictureType::Band => 10,
+            PictureType::Composer => 11,
+            PictureType::Lyricist => 12,
+            PictureType::RecordingLocation => 13,
+            PictureType::DuringRecording => 14,
+            PictureType::DuringPerformance => 15,
+            PictureType::MovieVideoScreenCapture => 16,
+            PictureType::BrightColoredFish => 17,
+            PictureType::Illustration => 18,
+            PictureType::BandArtistLogotype => 19,
+            PictureType::PublisherStudioLogotype => 20,
+        }
+    }
+}
+
+impl ToString for PictureType {
+    fn to_string(&self) -> String {
+        match self {
+            PictureType::Other => "Other".to_string(),
+            PictureType::FileIcon => "32x32 pixels 'file icon' (PNG only)".to_string(),
+            PictureType::OtherFileIcon => "Other file icon".to_string(),
+            PictureType::CoverFront => "Cover (front)".to_string(),
+            PictureType::CoverBack => "Cover (back)".to_string(),
+            PictureType::LeafletPage => "Leaflet page".to_string(),
+            PictureType::Media => "Media (e.g. label side of CD)".to_string(),
+            PictureType::LeadArtist => "Lead artist/lead performer/soloist".to_string(),
+            PictureType::Artist => "Artist/performer".to_string(),
+            PictureType::Conductor => "Conductor".to_string(),
+            PictureType::Band => "Band/Orchestra".to_string(),
+            PictureType::Composer => "Composer".to_string(),
+            PictureType::Lyricist => "Lyricist/text writer".to_string(),
+            PictureType::RecordingLocation => "Recording Location".to_string(),
+            PictureType::DuringRecording => "During recording".to_string(),
+            PictureType::DuringPerformance => "During performance".to_string(),
+            PictureType::MovieVideoScreenCapture => "Movie/video screen capture".to_string(),
+            PictureType::BrightColoredFish => "A bright coloured fish".to_string(),
+            PictureType::Illustration => "Illustration".to_string(),
+            PictureType::BandArtistLogotype => "Band/artist logotype".to_string(),
+            PictureType::PublisherStudioLogotype => "Publisher/Studio logotype".to_string(),
+        }
+    }
+}
+
 #[derive(Debug)]
 pub struct MetadataBlockPicture {
     /// <32> The picture type according to the ID3v2 APIC frame
@@ -463,6 +549,12 @@ pub struct MetadataBlockPicture {
     pub data_length: u32,
     /// <n*8> The binary picture data.
     pub data: Vec<u8>,
+}
+
+impl MetadataBlockPicture {
+    pub fn color_indexed(&self) -> bool {
+        self.colors != 0
+    }
 }
 
 named!(pub metadata_block_picture<MetadataBlockPicture>, do_parse!(
@@ -516,7 +608,7 @@ named!(pub metadata_block_picture<MetadataBlockPicture>, do_parse!(
 
 #[cfg(test)]
 mod tests {
-    use crate::parser::{metadata_block, MetadataBlockData, flac};
+    use crate::parser::{metadata_block, MetadataBlockData, parse_flac};
     use std::io::Read;
 
     #[test]
@@ -525,7 +617,7 @@ mod tests {
         assert_eq!(_remaining.len(), 0);
         assert_eq!(block.is_last, false);
         assert_eq!(block.length, 5);
-        assert!(match block.block {
+        assert!(match block.data {
             MetadataBlockData::Application(data) => {
                 data.application_id == 0x009999ff && data.data.len() == 1 && data.data[0] == 255
             }
@@ -539,6 +631,6 @@ mod tests {
         let mut file = File::open("test.flac").expect("Failed to open file.");
         let mut data = Vec::new();
         file.read_to_end(&mut data).expect("Failed to read file.");
-        let _stream = flac(&data).unwrap();
+        let _stream = parse_flac(&data).unwrap();
     }
 }
