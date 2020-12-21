@@ -3,7 +3,6 @@ use anni_flac::{MetadataBlockData, Stream};
 pub(crate) fn info_list(stream: Stream) {
     for (i, block) in stream.metadata_blocks.iter().enumerate() {
         println!("METADATA block #{}", i);
-
         println!("  type: {} ({1})", u8::from(&block.data), block.data.to_string());
         println!("  is last: {}", block.is_last);
         println!("  length: {}", block.length);
