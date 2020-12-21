@@ -1,4 +1,4 @@
-use nom::{IResult, Err, Needed};
+use nom::{IResult, Err, Needed, error};
 use nom::number::streaming::{be_u8, be_u16, be_u24, be_u32, be_u64, le_u32};
 
 /// https://xiph.org/flac/format.html
@@ -8,7 +8,9 @@ pub struct Stream {
     // pub frames: Vec<Frame>
 }
 
-pub fn parse_flac(input: &[u8]) -> IResult<&[u8], Stream> {
+pub type ParseResult<I, O> = Result<O, Err<error::Error<I>>>;
+
+pub fn parse_flac(input: &[u8]) -> ParseResult<&[u8], Stream> {
     if input.len() < 4 {
         return Err(Err::Incomplete(Needed::new(4)));
     }
@@ -28,7 +30,7 @@ pub fn parse_flac(input: &[u8]) -> IResult<&[u8], Stream> {
         }
     }
 
-    Ok((&input[(input.len() - remaining.len())..], result))
+    Ok(result)
 }
 
 #[derive(Debug)]
@@ -64,7 +66,7 @@ pub enum MetadataBlockData {
     VorbisComment(MetadataBlockVorbisComment),
     CueSheet(MetadataBlockCueSheet),
     Picture(MetadataBlockPicture),
-    Invalid,
+    Invalid((u8, Vec<u8>)),
 }
 
 impl From<&MetadataBlockData> for u8 {
@@ -77,7 +79,7 @@ impl From<&MetadataBlockData> for u8 {
             MetadataBlockData::VorbisComment(_) => 4,
             MetadataBlockData::CueSheet(_) => 5,
             MetadataBlockData::Picture(_) => 6,
-            _ => 127,
+            MetadataBlockData::Invalid((t, _)) => *t,
         }
     }
 }
@@ -107,7 +109,7 @@ pub fn block_data(block_type: u8, size: usize) -> impl Fn(&[u8]) -> IResult<&[u8
             4 => map!(input, |i| metadata_block_vorbis_comment(i), |v| MetadataBlockData::VorbisComment(v)),
             // 5 => MetadataBlockData::CueSheet,
             6 => map!(input, |i| metadata_block_picture(i), |v| MetadataBlockData::Picture(v)),
-            _ => map!(input, |i| take!(i, size), |_v| MetadataBlockData::Invalid),
+            _ => map!(input, |i| take!(i, size), |v| MetadataBlockData::Invalid((block_type, v.to_vec()))),
         }
     }
 }

@@ -1,9 +1,6 @@
 mod flac;
 
-use std::fs::File;
-use std::io::Read;
 use clap::{Arg, App, SubCommand, crate_version, crate_authors, AppSettings, ArgGroup};
-use anni_flac::{parse_flac};
 
 fn main() {
     let matches = App::new("Project Annivers@ry")
@@ -25,12 +22,14 @@ fn main() {
                 .short("i")
                 .alias("add")
                 .takes_value(true)
+                .empty_values(false)
                 .multiple(true)
             )
             .arg(Arg::with_name("flac.edit")
                 .long("edit")
                 .short("e")
                 .takes_value(true)
+                .empty_values(false)
                 .multiple(true)
             )
             .arg(Arg::with_name("flac.delete")
@@ -38,10 +37,11 @@ fn main() {
                 .short("d")
                 .alias("remove")
                 .takes_value(true)
+                .empty_values(false)
                 .multiple(true)
             )
             .group(ArgGroup::with_name("group.flac").args(&["flac.list", "flac.tags"]))
-            .group(ArgGroup::with_name("group.flac.tags").args(&["flac.tags", "flac.insert", "flac.edit", "flac.delete"]).multiple(true))
+            .group(ArgGroup::with_name("group.flac.operation").args(&["flac.insert", "flac.edit", "flac.delete"]).multiple(true))
         )
         .subcommand(SubCommand::with_name("split")
             .arg(Arg::with_name("split.cue")
@@ -50,22 +50,19 @@ fn main() {
                 .requires("Filename")
             )
         )
-        .arg(Arg::with_name("Filename").index(1).takes_value(true).multiple(true).global(true))
+        .arg(Arg::with_name("Filename").index(1).takes_value(true).empty_values(false).multiple(true).global(true))
         .setting(AppSettings::ColoredHelp)
         .get_matches();
 
     if let Some(matches) = matches.subcommand_matches("flac") {
         if let Some(files) = matches.values_of("Filename") {
             for filename in files {
-                let mut file = File::open(filename).expect(&format!("Failed to open file: {}", filename));
-                let mut data = Vec::new();
-                file.read_to_end(&mut data).expect(&format!("Failed to read file: {}", filename));
-                let (_, stream) = parse_flac(&data).unwrap();
+                let stream = flac::parse_file(filename);
 
                 if matches.is_present("flac.list") {
                     flac::info_list(stream);
                 } else if matches.is_present("flac.tags") {
-                    if matches.is_present("group.flac.tags") {
+                    if matches.is_present("group.flac.operation") {
                         // TODO: handle input in order
                         println!("{}", matches.value_of("flac.insert").unwrap())
                     } else {

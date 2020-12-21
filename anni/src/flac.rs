@@ -1,4 +1,13 @@
-use anni_flac::{MetadataBlockData, Stream};
+use anni_flac::{MetadataBlockData, Stream, parse_flac};
+use std::fs::File;
+use std::io::Read;
+
+pub(crate) fn parse_file(filename: &str) -> Stream {
+    let mut file = File::open(filename).expect(&format!("Failed to open file: {}", filename));
+    let mut data = Vec::new();
+    file.read_to_end(&mut data).expect(&format!("Failed to read file: {}", filename));
+    parse_flac(&data).unwrap()
+}
 
 pub(crate) fn info_list(stream: Stream) {
     for (i, block) in stream.metadata_blocks.iter().enumerate() {
