@@ -1,4 +1,5 @@
 mod flac;
+mod encoding;
 
 use clap::{Arg, App, SubCommand, crate_version, crate_authors, AppSettings, ArgGroup};
 

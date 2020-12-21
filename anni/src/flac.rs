@@ -3,9 +3,11 @@ use std::fs;
 use std::fs::File;
 use std::io::Read;
 use std::ops::Add;
+use crate::encoding;
 
 const MUST_TAGS: &[&str] = &["TITLE", "ARTIST", "ALBUM", "DATE", "TRACKNUMBER", "TRACKTOTAL", "DISCNUMBER", "DISCTOTAL"];
 const OPTIONAL_TAGS: &[&str] = &["PERFORMER"];
+const UNRECOMMENDED_TAGS: &[(&str, usize)] = &[("TOTALTRACKS", 5), ("TOTALDISCS", 7)];
 
 pub(crate) fn parse_file(filename: &str) -> Result<Stream, String> {
     let mut file = File::open(filename).expect(&format!("Failed to open file: {}", filename));
@@ -134,7 +136,12 @@ pub(crate) fn tags_check(filename: &str, stream: &Stream) {
                     let mut splitter = c.comment.splitn(2, "=");
                     let key = splitter.next().unwrap().to_ascii_uppercase();
                     match splitter.next() {
-                        Some(_) => {}
+                        Some(val) => {
+                            if let Some(dot) = encoding::middle_dot_valid(val) {
+                                init_hasproblem!(has_problem, filename);
+                                println!("- Invalid middle dot `{}` in: {}={}", &dot, key, val);
+                            }
+                        }
                         None => {
                             init_hasproblem!(has_problem, filename);
                             println!("- Empty value for tag: {}", key);
@@ -149,9 +156,19 @@ pub(crate) fn tags_check(filename: &str, stream: &Stream) {
                             needed[i] = true;
                         }
                         None => {
-                            if !OPTIONAL_TAGS.contains(&&*key) {
-                                init_hasproblem!(has_problem, filename);
-                                println!("- Unnecessary tag: {}", key);
+                            if UNRECOMMENDED_TAGS.iter().all(|(k, i)| {
+                                if k == &key {
+                                    init_hasproblem!(has_problem, filename);
+                                    println!("- Unrecommended tag: {}, use {} instead", key, MUST_TAGS[*i]);
+                                    false
+                                } else {
+                                    true
+                                }
+                            }) {
+                                if !OPTIONAL_TAGS.contains(&&*key) {
+                                    init_hasproblem!(has_problem, filename);
+                                    println!("- Unnecessary tag: {}", key);
+                                }
                             }
                         }
                     }
