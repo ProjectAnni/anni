@@ -1,15 +1,37 @@
 use anni_flac::{MetadataBlockData, Stream, parse_flac};
+use std::fs;
 use std::fs::File;
 use std::io::Read;
+use std::ops::Add;
 
-pub(crate) fn parse_file(filename: &str) -> Stream {
+const MUST_TAGS: &[&str] = &["TITLE", "ARTIST", "ALBUM", "DATE", "TRACKNUMBER", "TRACKTOTAL", "DISCNUMBER", "DISCTOTAL"];
+const OPTIONAL_TAGS: &[&str] = &["PERFORMER"];
+
+pub(crate) fn parse_file(filename: &str) -> Result<Stream, String> {
     let mut file = File::open(filename).expect(&format!("Failed to open file: {}", filename));
     let mut data = Vec::new();
     file.read_to_end(&mut data).expect(&format!("Failed to read file: {}", filename));
-    parse_flac(&data).unwrap()
+    parse_flac(&data).map_err(|o| o.to_string())
 }
 
-pub(crate) fn info_list(stream: Stream) {
+pub(crate) fn parse_input(input: &str, callback: impl Fn(&str, &Stream)) {
+    if let Ok(meta) = fs::metadata(input) {
+        if meta.is_dir() {
+            for file in glob::glob(&input.to_string().add("/**/*.flac")).unwrap() {
+                let filename = file.unwrap().to_str().unwrap().to_string();
+                if let Ok(stream) = parse_file(&filename) {
+                    callback(&filename, &stream);
+                }
+            }
+        } else if meta.is_file() {
+            if let Ok(stream) = parse_file(input) {
+                callback(input, &stream);
+            }
+        }
+    }
+}
+
+pub(crate) fn info_list(stream: &Stream) {
     for (i, block) in stream.metadata_blocks.iter().enumerate() {
         println!("METADATA block #{}", i);
         println!("  type: {} ({1})", u8::from(&block.data), block.data.to_string());
@@ -31,6 +53,7 @@ pub(crate) fn info_list(stream: Stream) {
                 println!("  application ID: {:x}", s.application_id);
                 println!("  data contents:");
                 // TODO: hexdump
+                println!("  <TODO>");
             }
             MetadataBlockData::SeekTable(s) => {
                 println!("  seek points: {}", s.seek_points.len());
@@ -69,20 +92,75 @@ pub(crate) fn info_list(stream: Stream) {
                 println!("  depth: {}", s.depth);
                 println!("  colors: {}{}", s.colors, if s.color_indexed() { "" } else { " (unindexed)" });
                 println!("  data length: {}", s.data_length);
-                println!("  data:")
+                println!("  data:");
                 // TODO: hexdump
+                println!("  <TODO>");
             }
             _ => {}
         }
     }
 }
 
-pub(crate) fn tags(stream: Stream) {
+pub(crate) fn tags(stream: &Stream) {
     for block in stream.metadata_blocks.iter() {
         match &block.data {
             MetadataBlockData::VorbisComment(s) => {
                 for c in s.comments.iter() {
                     println!("{}", c.comment);
+                }
+                break;
+            }
+            _ => {}
+        }
+    }
+}
+
+macro_rules! init_hasproblem {
+    ($has_problem: ident, $filename: expr) => {
+        if !$has_problem {
+            println!("## File {}:", $filename);
+            $has_problem = true;
+        }
+    };
+}
+
+pub(crate) fn tags_check(filename: &str, stream: &Stream) {
+    for block in stream.metadata_blocks.iter() {
+        match &block.data {
+            MetadataBlockData::VorbisComment(s) => {
+                let mut has_problem = false;
+                let mut needed: [bool; 8] = [false; 8];
+                for c in s.comments.iter() {
+                    let mut splitter = c.comment.splitn(2, "=");
+                    let key = splitter.next().unwrap().to_ascii_uppercase();
+                    match splitter.next() {
+                        Some(_) => {}
+                        None => {
+                            init_hasproblem!(has_problem, filename);
+                            println!("- Empty value for tag: {}", key);
+                        }
+                    };
+                    match MUST_TAGS.iter().position(|&s| s == key) {
+                        Some(i) => {
+                            if needed[i] {
+                                init_hasproblem!(has_problem, filename);
+                                println!("- Duplicated tag: {}", key);
+                            }
+                            needed[i] = true;
+                        }
+                        None => {
+                            if !OPTIONAL_TAGS.contains(&&*key) {
+                                init_hasproblem!(has_problem, filename);
+                                println!("- Unnecessary tag: {}", key);
+                            }
+                        }
+                    }
+                }
+                for (i, val) in needed.iter().enumerate() {
+                    if !val {
+                        init_hasproblem!(has_problem, filename);
+                        println!("- Missing tag: {}", MUST_TAGS[i]);
+                    }
                 }
                 break;
             }

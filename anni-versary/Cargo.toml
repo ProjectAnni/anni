@@ -1,5 +1,5 @@
 [package]
-name = "anni"
+name = "anni-versary"
 version = "0.1.0"
 authors = ["Yesterday17 <t@yesterday17.cn>"]
 edition = "2018"
@@ -7,7 +7,4 @@ edition = "2018"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-clap = "2.33.3"
-hex = "0.4.2"
-glob = "0.3.0"
-anni-flac = { path = "../anni-flac" }
+actix-web = "3.3.2"
