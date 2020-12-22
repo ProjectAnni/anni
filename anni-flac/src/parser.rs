@@ -207,7 +207,7 @@ pub fn metadata_block_application(input: &[u8], size: usize) -> IResult<&[u8], M
         return Err(Err::Incomplete(Needed::new(4)));
     }
 
-    let (_remaining, application_id) = be_u32(input)?;
+    let (_, application_id) = be_u32(input)?;
     Ok((&input[size..], MetadataBlockApplication {
         application_id,
         data: Vec::from(&input[4..size]),
@@ -248,10 +248,10 @@ pub fn metadata_block_seektable(input: &[u8], size: usize) -> IResult<&[u8], Met
     let mut result: MetadataBlockSeekTable = MetadataBlockSeekTable { seek_points: Vec::new() };
 
     let mut remaining = input;
-    let mut table_offset = 0;
-    let step = 8 + 8 + 2;
+    // The number of seek points is implied by the metadata header 'length' field, i.e. equal to length / 18.
+    let points = size / 18;
 
-    while table_offset < size {
+    for _ in 0..points {
         let (_remaining, sample_number) = be_u64(remaining)?;
         let (_remaining, stream_offset) = be_u64(_remaining)?;
         let (_remaining, frame_samples) = be_u16(_remaining)?;
@@ -260,7 +260,6 @@ pub fn metadata_block_seektable(input: &[u8], size: usize) -> IResult<&[u8], Met
             stream_offset,
             frame_samples,
         });
-        table_offset += step;
         remaining = _remaining;
     }
 
