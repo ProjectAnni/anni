@@ -397,7 +397,7 @@ pub struct CueSheetTrack {
     /// <1> The pre-emphasis flag: 0 for no pre-emphasis, 1 for pre-emphasis.
     /// This corresponds to the CD-DA Q-channel control bit 5; see [here](http://www.chipchapin.com/CDMedia/cdda9.php3).
     pub pre_emphasis_flag: bool,
-    /// <6+13*8>	Reserved. All bits must be set to zero.
+    /// <6+13*8> Reserved. All bits must be set to zero.
 
     /// <8> The number of track index points.
     /// There must be at least one index in every track in a CUESHEET except for the lead-out track, which must have zero.
@@ -744,7 +744,8 @@ pub enum SubframeType {
 #[derive(Debug)]
 pub struct SubframeFixed {
     // TODO: check type
-    pub warm_up: u16,
+    /// <n> Unencoded warm-up samples (n = frame's bits-per-sample * predictor order).
+    pub warm_up: Vec<i32>,
     /// Encoded residual
     pub residual: Residual,
 }

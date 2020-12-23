@@ -55,6 +55,7 @@ fn main() {
                 .requires("Filename")
             )
         )
+        .subcommand(SubCommand::with_name("play"))
         .arg(Arg::with_name("Filename").index(1).takes_value(true).empty_values(false).multiple(true).global(true))
         .setting(AppSettings::ColoredHelp)
         .get_matches();
@@ -77,6 +78,10 @@ fn main() {
                     }
                 });
             }
+        }
+    } else if let Some(matches) = matches.subcommand_matches("play") {
+        if let Some(_files) = matches.values_of("Filename") {
+            // TODO
         }
     }
 }

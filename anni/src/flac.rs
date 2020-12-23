@@ -5,9 +5,9 @@ use std::io::Read;
 use std::ops::Add;
 use crate::encoding;
 
-const MUST_TAGS: &[&str] = &["TITLE", "ARTIST", "ALBUM", "DATE", "TRACKNUMBER", "TRACKTOTAL", "DISCNUMBER", "DISCTOTAL"];
-const OPTIONAL_TAGS: &[&str] = &["PERFORMER"];
-const UNRECOMMENDED_TAGS: &[(&str, usize)] = &[("TOTALTRACKS", 5), ("TOTALDISCS", 7)];
+const MUST_TAGS: &[&str] = &["TITLE", "ARTIST", "ALBUM", "DATE", "TRACKNUMBER", "TRACKTOTAL"];
+const OPTIONAL_TAGS: &[&str] = &["PERFORMER", "DISCNUMBER", "DISCTOTAL"];
+const UNRECOMMENDED_TAGS: &[(&str, &str)] = &[("TOTALTRACKS", "TRACKTOTAL"), ("TOTALDISCS", "DISCTOTAL")];
 
 pub(crate) fn parse_file(filename: &str) -> Result<Stream, String> {
     let mut file = File::open(filename).expect(&format!("Failed to open file: {}", filename));
@@ -159,7 +159,7 @@ pub(crate) fn tags_check(filename: &str, stream: &Stream) {
                             if UNRECOMMENDED_TAGS.iter().all(|(k, i)| {
                                 if k == &key {
                                     init_hasproblem!(has_problem, filename);
-                                    println!("- Unrecommended tag: {}, use {} instead", key, MUST_TAGS[*i]);
+                                    println!("- Unrecommended tag: {}, use {} instead", key, i);
                                     false
                                 } else {
                                     true
