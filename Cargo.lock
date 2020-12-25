@@ -320,7 +320,6 @@ dependencies = [
  "anni-flac",
  "clap",
  "cpal",
- "glob",
  "hex",
 ]
 

@@ -1,12 +1,12 @@
 use anni_flac::{MetadataBlockData, Stream, parse_flac};
-use std::fs;
 use std::fs::File;
 use std::io::Read;
-use std::ops::Add;
-use crate::encoding;
+use crate::{encoding, fs};
+use std::path::PathBuf;
+use std::ffi::OsStr;
 
 const MUST_TAGS: &[&str] = &["TITLE", "ARTIST", "ALBUM", "DATE", "TRACKNUMBER", "TRACKTOTAL"];
-const OPTIONAL_TAGS: &[&str] = &["PERFORMER", "DISCNUMBER", "DISCTOTAL"];
+const OPTIONAL_TAGS: &[&str] = &["ALBUMARTIST", "DISCNUMBER", "DISCTOTAL"];
 const UNRECOMMENDED_TAGS: &[(&str, &str)] = &[("TOTALTRACKS", "TRACKTOTAL"), ("TOTALDISCS", "DISCTOTAL")];
 
 pub(crate) fn parse_file(filename: &str) -> Result<Stream, String> {
@@ -16,21 +16,28 @@ pub(crate) fn parse_file(filename: &str) -> Result<Stream, String> {
     parse_flac(&data).map_err(|o| o.to_string())
 }
 
-pub(crate) fn parse_input(input: &str, callback: impl Fn(&str, &Stream)) {
-    if let Ok(meta) = fs::metadata(input) {
-        if meta.is_dir() {
-            for file in glob::glob(&input.to_string().add("/**/*.flac")).unwrap() {
-                let filename = file.unwrap().to_str().unwrap().to_string();
-                if let Ok(stream) = parse_file(&filename) {
-                    callback(&filename, &stream);
+pub(crate) fn parse_input(input: &str, callback: impl Fn(&str, &Stream) -> bool) {
+    fs::walk_path(PathBuf::from(input), true, |file| {
+        // ignore non-flac files
+        match file.extension() {
+            None => return true,
+            Some(ext) => {
+                if ext != "flac" {
+                    return true;
                 }
             }
-        } else if meta.is_file() {
-            if let Ok(stream) = parse_file(input) {
-                callback(input, &stream);
+        };
+
+        let filename = file.to_str().unwrap();
+        let stream = parse_file(filename);
+        match stream {
+            Ok(stream) => callback(filename, &stream),
+            Err(err) => {
+                println!("{}", err);
+                false
             }
         }
-    }
+    });
 }
 
 pub(crate) fn info_list(stream: &Stream) {
@@ -131,7 +138,7 @@ pub(crate) fn tags_check(filename: &str, stream: &Stream) {
         match &block.data {
             MetadataBlockData::VorbisComment(s) => {
                 let mut has_problem = false;
-                let mut needed: [bool; 8] = [false; 8];
+                let mut needed: [bool; 6] = [false; 6];
                 for c in s.comments.iter() {
                     let mut splitter = c.comment.splitn(2, "=");
                     let key = splitter.next().unwrap().to_ascii_uppercase();
