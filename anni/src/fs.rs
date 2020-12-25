@@ -2,7 +2,7 @@ use std::path::PathBuf;
 use std::fs::{read_dir};
 pub use std::fs::metadata;
 
-fn fs_walk_path(path: PathBuf, recursive: bool, callback: impl Fn(PathBuf) -> bool + Copy) -> Result<bool, String> {
+fn fs_walk_path(path: PathBuf, recursive: bool, callback: &impl Fn(PathBuf) -> bool) -> Result<bool, String> {
     let meta = metadata(&path).map_err(|e| e.to_string())?;
     if meta.is_dir() && recursive {
         let dir = read_dir(path).map_err(|e| e.to_string())?;
@@ -18,7 +18,7 @@ fn fs_walk_path(path: PathBuf, recursive: bool, callback: impl Fn(PathBuf) -> bo
     }
 }
 
-pub(crate) fn walk_path(path: PathBuf, recursive: bool, callback: impl Fn(PathBuf) -> bool + Copy) -> Result<(), String> {
-    let _ = fs_walk_path(path, recursive, callback)?;
+pub(crate) fn walk_path(path: PathBuf, recursive: bool, callback: impl Fn(PathBuf) -> bool) -> Result<(), String> {
+    let _ = fs_walk_path(path, recursive, &callback)?;
     Ok(())
 }

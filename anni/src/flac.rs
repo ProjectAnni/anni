@@ -3,7 +3,6 @@ use std::fs::File;
 use std::io::Read;
 use crate::{encoding, fs};
 use std::path::PathBuf;
-use std::ffi::OsStr;
 
 const MUST_TAGS: &[&str] = &["TITLE", "ARTIST", "ALBUM", "DATE", "TRACKNUMBER", "TRACKTOTAL"];
 const OPTIONAL_TAGS: &[&str] = &["ALBUMARTIST", "DISCNUMBER", "DISCTOTAL"];
@@ -17,7 +16,7 @@ pub(crate) fn parse_file(filename: &str) -> Result<Stream, String> {
 }
 
 pub(crate) fn parse_input(input: &str, callback: impl Fn(&str, &Stream) -> bool) {
-    fs::walk_path(PathBuf::from(input), true, |file| {
+    let _ = fs::walk_path(PathBuf::from(input), true, |file| {
         // ignore non-flac files
         match file.extension() {
             None => return true,
