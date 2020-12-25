@@ -77,7 +77,7 @@ pub(crate) fn info_list(stream: &Stream) {
                 println!("  vendor string: {}", s.vendor_string);
                 println!("  comments: {}", s.comment_number);
                 for (i, c) in s.comments.iter().enumerate() {
-                    println!("    comment[{}]: {}", i, c.comment);
+                    println!("    comment[{}]: {}={}", i, c.comment_key, c.comment_value);
                 }
             }
             MetadataBlockData::CueSheet(s) => {
@@ -114,7 +114,7 @@ pub(crate) fn tags(stream: &Stream) {
         match &block.data {
             MetadataBlockData::VorbisComment(s) => {
                 for c in s.comments.iter() {
-                    println!("{}", c.comment);
+                    println!("{}={}", c.comment_key, c.comment_value);
                 }
                 break;
             }
@@ -139,49 +139,42 @@ pub(crate) fn tags_check(filename: &str, stream: &Stream) {
                 let mut has_problem = false;
                 let mut needed: [bool; 6] = [false; 6];
                 for c in s.comments.iter() {
-                    let mut splitter = c.comment.splitn(2, "=");
-                    let key = splitter.next().unwrap();
-
-                    let key_upper = key.to_ascii_uppercase();
-                    if key != key_upper {
+                    if c.comment_key != c.comment_key.to_ascii_uppercase() {
                         init_hasproblem!(has_problem, filename);
-                        println!("- [Warning] Tag in lowercase: {}", key);
+                        println!("- [Warning] Tag in lowercase: {}", c.comment_key);
                     }
 
-                    let key = key_upper;
-                    match splitter.next() {
-                        Some(val) => {
-                            if let Some(dot) = encoding::middle_dot_valid(val) {
-                                init_hasproblem!(has_problem, filename);
-                                println!("- Invalid middle dot `{}` in: {}={}", &dot, key, val);
-                            }
-                        }
-                        None => {
-                            init_hasproblem!(has_problem, filename);
-                            println!("- Empty value for tag: {}", key);
-                        }
-                    };
-                    match MUST_TAGS.iter().position(|&s| s == key) {
+                    if c.comment_value.len() == 0 {
+                        init_hasproblem!(has_problem, filename);
+                        println!("- Empty value for tag: {}", c.comment_key);
+                    }
+
+                    if let Some(dot) = encoding::middle_dot_valid(&c.comment_value) {
+                        init_hasproblem!(has_problem, filename);
+                        println!("- Invalid middle dot `{}` in: {}={}", &dot, c.comment_key, c.comment_value);
+                    }
+
+                    match MUST_TAGS.iter().position(|&s| s == c.comment_key) {
                         Some(i) => {
                             if needed[i] {
                                 init_hasproblem!(has_problem, filename);
-                                println!("- Duplicated tag: {}", key);
+                                println!("- Duplicated tag: {}", c.comment_key);
                             }
                             needed[i] = true;
                         }
                         None => {
                             if UNRECOMMENDED_TAGS.iter().all(|(k, i)| {
-                                if k == &key {
+                                if k == &c.comment_key {
                                     init_hasproblem!(has_problem, filename);
-                                    println!("- Unrecommended tag: {}, use {} instead", key, i);
+                                    println!("- Unrecommended tag: {}, use {} instead", c.comment_key, i);
                                     false
                                 } else {
                                     true
                                 }
                             }) {
-                                if !OPTIONAL_TAGS.contains(&&*key) {
+                                if !OPTIONAL_TAGS.contains(&&*c.comment_key) {
                                     init_hasproblem!(has_problem, filename);
-                                    println!("- Unnecessary tag: {}", key);
+                                    println!("- Unnecessary tag: {}", c.comment_key);
                                 }
                             }
                         }

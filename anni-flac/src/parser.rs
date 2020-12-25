@@ -1,5 +1,6 @@
 use nom::{IResult, Err, Needed, error};
 use nom::number::streaming::{be_u8, be_u16, be_u24, be_u32, be_u64, le_u32};
+use nom::lib::std::ops::Shr;
 
 /// https://xiph.org/flac/format.html
 #[derive(Debug)]
@@ -292,10 +293,61 @@ pub struct MetadataBlockVorbisComment {
     /// [user_comment_list_length] = read an unsigned integer of 32 bits
     pub comment_number: u32,
     /// iterate [user_comment_list_length] times
-    pub comments: Vec<UserComment>,
+    pub comments: UserComments,
 
     // [framing_bit] = read a single bit as boolean
     // if ( [framing_bit] unset or end of packet ) then ERROR
+}
+
+#[derive(Debug)]
+pub struct UserComments {
+    comments: Vec<UserComment>,
+}
+
+impl UserComments {
+    pub fn new() -> Self {
+        UserComments {
+            comments: Vec::new(),
+        }
+    }
+
+    pub fn insert(&mut self, comment: UserComment) {
+        self.comments.push(comment);
+    }
+
+    pub fn value_of(&self, key: &str) -> Option<String> {
+        let key = key.to_uppercase();
+        for c in &self.comments {
+            if key == c.comment_key.to_uppercase() {
+                return Some(c.comment_value.to_string());
+            }
+        }
+        None
+    }
+
+    pub fn iter(&self) -> std::slice::Iter<UserComment> {
+        self.comments.iter()
+    }
+}
+
+/// Use Shr(<<) to 'index' comments. For example:
+/// ```rust
+/// use anni_flac::UserComments;
+/// let comments = UserComments::new();
+/// let value = comments << "key";
+/// println!("comments[key]={}", value);
+/// ```
+impl Shr<&str> for UserComments {
+    type Output = String;
+
+    fn shr(self, rhs: &str) -> Self::Output {
+        for c in &self.comments {
+            if c.comment_key.to_ascii_uppercase() == rhs.to_ascii_uppercase() {
+                return c.comment_value.clone();
+            }
+        }
+        String::new()
+    }
 }
 
 #[derive(Debug)]
@@ -303,7 +355,8 @@ pub struct UserComment {
     /// [length] = read an unsigned integer of 32 bits
     pub length: u32,
     /// this iteration's user comment = read a UTF-8 vector as [length] octets
-    pub comment: String,
+    pub comment_key: String,
+    pub comment_value: String,
 }
 
 macro_rules! user_comment {
@@ -325,16 +378,19 @@ named!(pub metadata_block_vorbis_comment<MetadataBlockVorbisComment>, do_parse!(
     })
 ));
 
-pub fn user_comment(input: &[u8], count: u32) -> IResult<&[u8], Vec<UserComment>> {
-    let mut result: Vec<UserComment> = Vec::new();
+pub fn user_comment(input: &[u8], count: u32) -> IResult<&[u8], UserComments> {
+    let mut result = UserComments::new();
     let mut remaining = input;
     let mut offset: usize = 0;
     for _i in 0..count {
         let (_remaining, length) = le_u32(remaining)?;
         let (_remaining, comment) = take!(_remaining, length as usize)?;
-        result.push(UserComment {
+        let comment = String::from_utf8(comment.to_vec()).expect("Invalid UTF-8 description.");
+        let mut splitter = comment.splitn(2, "=");
+        result.insert(UserComment {
             length,
-            comment: String::from_utf8(comment.to_vec()).expect("Invalid UTF-8 description."),
+            comment_key: splitter.next().unwrap().to_string(),
+            comment_value: splitter.next().unwrap_or("").to_string(),
         });
         offset += (length + 4) as usize;
         remaining = _remaining;
