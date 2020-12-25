@@ -16,7 +16,7 @@ pub(crate) fn parse_file(filename: &str) -> Result<Stream, String> {
 }
 
 pub(crate) fn parse_input(input: &str, callback: impl Fn(&str, &Stream) -> bool) {
-    let _ = fs::walk_path(PathBuf::from(input), true, |file| {
+    fs::walk_path(PathBuf::from(input), true, |file| {
         // ignore non-flac files
         match file.extension() {
             None => return true,
@@ -36,7 +36,7 @@ pub(crate) fn parse_input(input: &str, callback: impl Fn(&str, &Stream) -> bool)
                 false
             }
         }
-    });
+    }).unwrap_or_else(|e| panic!(e));
 }
 
 pub(crate) fn info_list(stream: &Stream) {
