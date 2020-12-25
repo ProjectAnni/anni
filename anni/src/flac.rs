@@ -140,7 +140,15 @@ pub(crate) fn tags_check(filename: &str, stream: &Stream) {
                 let mut needed: [bool; 6] = [false; 6];
                 for c in s.comments.iter() {
                     let mut splitter = c.comment.splitn(2, "=");
-                    let key = splitter.next().unwrap().to_ascii_uppercase();
+                    let key = splitter.next().unwrap();
+
+                    let key_upper = key.to_ascii_uppercase();
+                    if key != key_upper {
+                        init_hasproblem!(has_problem, filename);
+                        println!("- [Warning] Tag in lowercase: {}", key);
+                    }
+
+                    let key = key_upper;
                     match splitter.next() {
                         Some(val) => {
                             if let Some(dot) = encoding::middle_dot_valid(val) {
