@@ -54,6 +54,7 @@ fn main() -> Result<(), String> {
             )
         )
         .subcommand(SubCommand::with_name("play"))
+        .subcommand(SubCommand::with_name("versary"))
         .arg(Arg::with_name("Filename")
             .index(1)
             .takes_value(true)
@@ -104,6 +105,8 @@ fn main() -> Result<(), String> {
         if let Some(_files) = matches.values_of("Filename") {
             // TODO
         }
+    } else if let Some(_matches) = matches.subcommand_matches("versary") {
+        let _ = anni_versary::anni_versary();
     }
 
     Ok(())

@@ -11,3 +11,4 @@ clap = "2.33.3"
 cpal = "0.13.1"
 hex = "0.4.2"
 anni-flac = { path = "../anni-flac" }
+anni-versary = { path = "../anni-versary" }
