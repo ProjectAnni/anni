@@ -380,6 +380,8 @@ dependencies = [
  "clap",
  "cpal",
  "hex",
+ "lazy_static",
+ "regex",
 ]
 
 [[package]]

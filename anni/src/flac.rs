@@ -4,9 +4,38 @@ use std::io::Read;
 use crate::{encoding, fs};
 use std::path::PathBuf;
 
-const MUST_TAGS: &[&str] = &["TITLE", "ARTIST", "ALBUM", "DATE", "TRACKNUMBER", "TRACKTOTAL"];
-const OPTIONAL_TAGS: &[&str] = &["ALBUMARTIST", "DISCNUMBER", "DISCTOTAL"];
-const UNRECOMMENDED_TAGS: &[(&str, &str)] = &[("TOTALTRACKS", "TRACKTOTAL"), ("TOTALDISCS", "DISCTOTAL")];
+enum FlacTag {
+    Must(&'static str),
+    Optional(&'static str),
+    Unrecommended(&'static str, &'static str),
+}
+
+impl ToString for FlacTag {
+    fn to_string(&self) -> String {
+        match self {
+            FlacTag::Must(s) => s.to_string(),
+            FlacTag::Optional(s) => s.to_string(),
+            FlacTag::Unrecommended(s, _) => s.to_string(),
+        }
+    }
+}
+
+const TAG_REQUIREMENT: &[&FlacTag] = &[
+    // MUST tags
+    &FlacTag::Must("TITLE"),
+    &FlacTag::Must("ARTIST"),
+    &FlacTag::Must("ALBUM"),
+    &FlacTag::Must("DATE"),
+    &FlacTag::Must("TRACKNUMBER"),
+    &FlacTag::Must("TRACKTOTAL"),
+    // OPTIONAL tags
+    &FlacTag::Optional("ALBUMARTIST"),
+    &FlacTag::Optional("DISCNUMBER"),
+    &FlacTag::Optional("DISCTOTAL"),
+    // UNRECOMMENDED tags with alternatives
+    &FlacTag::Unrecommended("TOTALTRACKS", "TRACKTOTAL"),
+    &FlacTag::Unrecommended("TOTALDISCS", "DISCTOTAL"),
+];
 
 pub(crate) fn parse_file(filename: &str) -> Result<Stream, String> {
     let mut file = File::open(filename).expect(&format!("Failed to open file: {}", filename));
@@ -126,7 +155,7 @@ pub(crate) fn tags(stream: &Stream) {
 macro_rules! init_hasproblem {
     ($has_problem: ident, $filename: expr) => {
         if !$has_problem {
-            println!("## File {}:", $filename);
+            eprintln!("## File {}:", $filename);
             $has_problem = true;
         }
     };
@@ -137,53 +166,59 @@ pub(crate) fn tags_check(filename: &str, stream: &Stream) {
         match &block.data {
             MetadataBlockData::VorbisComment(s) => {
                 let mut has_problem = false;
-                let mut needed: [bool; 6] = [false; 6];
+                let mut needed_exist: [bool; 6] = [false; 6];
                 for c in s.comments.iter() {
-                    if c.comment_key != c.comment_key.to_ascii_uppercase() {
+                    if !encoding::middle_dot_valid(&c.comment_value) {
                         init_hasproblem!(has_problem, filename);
-                        println!("- [Warning] Tag in lowercase: {}", c.comment_key);
+                        eprintln!("- Invalid middle dot in: {}={}", c.comment_key, c.comment_value);
+                        println!("metaflac --remove-tag={} --set-tag='{}={}' '{}'", c.comment_key, c.comment_key, encoding::middle_dot_replace(&c.comment_value), filename);
                     }
 
-                    if c.comment_value.len() == 0 {
-                        init_hasproblem!(has_problem, filename);
-                        println!("- Empty value for tag: {}", c.comment_key);
-                    }
+                    let key = c.comment_key.to_ascii_uppercase();
+                    match TAG_REQUIREMENT.iter().position(|&s| match s {
+                        FlacTag::Must(s) => *s == &key,
+                        FlacTag::Optional(s) => *s == &key,
+                        FlacTag::Unrecommended(s, _) => *s == &key,
+                    }) {
+                        Some(tag) => {
+                            match TAG_REQUIREMENT[tag] {
+                                FlacTag::Must(_) | FlacTag::Optional(_) => {
+                                    if c.comment_value.len() == 0 {
+                                        init_hasproblem!(has_problem, filename);
+                                        eprintln!("- Empty value for tag: {}", c.comment_key);
+                                        println!("metaflac --remove-tag={} '{}'", c.comment_key, filename);
+                                    } else if c.comment_key != key {
+                                        init_hasproblem!(has_problem, filename);
+                                        eprintln!("- Tag in lowercase: {}", c.comment_key);
+                                        println!("metaflac --remove-tag={} --set-tag='{}={}' '{}'", c.comment_key, c.comment_key.to_ascii_uppercase(), c.comment_value, filename);
+                                    }
 
-                    if let Some(dot) = encoding::middle_dot_valid(&c.comment_value) {
-                        init_hasproblem!(has_problem, filename);
-                        println!("- Invalid middle dot `{}` in: {}={}", &dot, c.comment_key, c.comment_value);
-                    }
-
-                    match MUST_TAGS.iter().position(|&s| s == c.comment_key) {
-                        Some(i) => {
-                            if needed[i] {
-                                init_hasproblem!(has_problem, filename);
-                                println!("- Duplicated tag: {}", c.comment_key);
+                                    if tag < needed_exist.len() {
+                                        if needed_exist[tag] {
+                                            init_hasproblem!(has_problem, filename);
+                                            eprintln!("- Duplicated tag: {}", c.comment_key);
+                                        }
+                                        needed_exist[tag] = true;
+                                    }
+                                }
+                                FlacTag::Unrecommended(_, alternative) => {
+                                    init_hasproblem!(has_problem, filename);
+                                    eprintln!("- Unrecommended tag: {}, use {} instead", c.comment_key, alternative);
+                                    println!("metadata --remove-tag={} --set-tag='{}={}' '{}'", c.comment_key, alternative, c.comment_value, filename);
+                                }
                             }
-                            needed[i] = true;
                         }
                         None => {
-                            if UNRECOMMENDED_TAGS.iter().all(|(k, i)| {
-                                if k == &c.comment_key {
-                                    init_hasproblem!(has_problem, filename);
-                                    println!("- Unrecommended tag: {}, use {} instead", c.comment_key, i);
-                                    false
-                                } else {
-                                    true
-                                }
-                            }) {
-                                if !OPTIONAL_TAGS.contains(&&*c.comment_key) {
-                                    init_hasproblem!(has_problem, filename);
-                                    println!("- Unnecessary tag: {}", c.comment_key);
-                                }
-                            }
+                            init_hasproblem!(has_problem, filename);
+                            eprintln!("- Unnecessary tag: {}", c.comment_key);
+                            println!("metaflac --remove-tag={} '{}'", c.comment_key, filename);
                         }
                     }
                 }
-                for (i, val) in needed.iter().enumerate() {
-                    if !val {
+                for (i, exist) in needed_exist.iter().enumerate() {
+                    if !exist {
                         init_hasproblem!(has_problem, filename);
-                        println!("- Missing tag: {}", MUST_TAGS[i]);
+                        eprintln!("- Missing tag: {}", TAG_REQUIREMENT[i].to_string());
                     }
                 }
                 break;

@@ -2,6 +2,9 @@ mod flac;
 mod encoding;
 mod fs;
 
+#[macro_use]
+extern crate lazy_static;
+
 use clap::{Arg, App, SubCommand, crate_version, crate_authors, AppSettings, ArgGroup};
 
 fn main() -> Result<(), String> {
@@ -17,35 +20,11 @@ fn main() -> Result<(), String> {
                 .long("tags")
                 .short("t")
             )
-            .arg(Arg::with_name("flac.insert")
-                .long("insert")
-                .short("i")
-                .alias("add")
-                .takes_value(true)
-                .empty_values(false)
-                .multiple(true)
-            )
-            .arg(Arg::with_name("flac.edit")
-                .long("edit")
-                .short("e")
-                .takes_value(true)
-                .empty_values(false)
-                .multiple(true)
-            )
-            .arg(Arg::with_name("flac.delete")
-                .long("delete")
-                .short("d")
-                .alias("remove")
-                .takes_value(true)
-                .empty_values(false)
-                .multiple(true)
-            )
             .arg(Arg::with_name("flac.tag.check")
                 .long("check")
                 .short("c")
             )
             .group(ArgGroup::with_name("group.flac").args(&["flac.list", "flac.tags"]))
-            .group(ArgGroup::with_name("group.flac.operation").args(&["flac.insert", "flac.edit", "flac.delete"]).multiple(true))
         )
         .subcommand(SubCommand::with_name("split")
             .arg(Arg::with_name("split.cue")
@@ -62,7 +41,6 @@ fn main() -> Result<(), String> {
             .multiple(true)
             .global(true)
         )
-        .setting(AppSettings::ColoredHelp)
         .get_matches();
 
     if let Some(matches) = matches.subcommand_matches("flac") {
@@ -87,17 +65,12 @@ fn main() -> Result<(), String> {
             };
             for filename in files {
                 flac::parse_input(filename, |name, stream| {
-                    if matches.is_present("group.flac.operation") {
-                        // TODO: handle input in order
-                        println!("{}", matches.value_of("flac.insert").unwrap());
-                        true
-                    } else if matches.is_present("flac.tag.check") {
+                    if matches.is_present("flac.tag.check") {
                         flac::tags_check(name, stream);
-                        !pwd_used
                     } else {
                         flac::tags(stream);
-                        !pwd_used
                     }
+                    !pwd_used
                 });
             }
         }
