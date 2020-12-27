@@ -16,12 +16,8 @@
         - [ ] `--block-number`
         - [ ] `--block-type`
     - [x] `--export-tags-to=-`
-    - [ ] `--set-tag`
-    - [ ] `--remove-tag`
-    - [ ] `--remove-first-tag`
-    - [ ] `--remove-all-tags`
     - [ ] `--import-picture-from`
     - [ ] `--export-picture-to`
-- [ ] CUE(or other format) split.
+- [ ] Transform between playlist formats(cue, ...).
 - [ ] Built-in Google Drive support.
 - [ ] Airsonic API support.

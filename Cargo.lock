@@ -376,6 +376,7 @@ name = "anni"
 version = "0.1.0"
 dependencies = [
  "anni-flac",
+ "anni-repo",
  "anni-versary",
  "clap",
  "cpal",
@@ -389,6 +390,14 @@ name = "anni-flac"
 version = "0.1.0"
 dependencies = [
  "nom 6.0.1",
+]
+
+[[package]]
+name = "anni-repo"
+version = "0.1.0"
+dependencies = [
+ "serde",
+ "toml",
 ]
 
 [[package]]

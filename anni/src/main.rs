@@ -26,10 +26,10 @@ fn main() -> Result<(), String> {
             )
             .group(ArgGroup::with_name("group.flac").args(&["flac.list", "flac.tags"]))
         )
-        .subcommand(SubCommand::with_name("split")
-            .arg(Arg::with_name("split.cue")
-                .long("cue")
-                .short("c")
+        .subcommand(SubCommand::with_name("repo")
+            .arg(Arg::with_name("repo.new_album")
+                .long("new-album")
+                .short("n")
             )
         )
         .subcommand(SubCommand::with_name("play"))
@@ -77,6 +77,10 @@ fn main() -> Result<(), String> {
     } else if let Some(matches) = matches.subcommand_matches("play") {
         if let Some(_files) = matches.values_of("Filename") {
             // TODO
+        }
+    } else if let Some(matches) = matches.subcommand_matches("repo") {
+        if matches.is_present("repo.new_album") {
+            //
         }
     } else if let Some(_matches) = matches.subcommand_matches("versary") {
         let _ = anni_versary::anni_versary();
