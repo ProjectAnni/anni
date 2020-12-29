@@ -2,6 +2,7 @@ use toml::value::Datetime;
 use serde::{Deserialize, Deserializer, de};
 use std::marker::PhantomData;
 use serde::export::fmt;
+use std::str::FromStr;
 
 #[derive(Debug, Deserialize, PartialEq)]
 pub struct Album {
@@ -9,6 +10,14 @@ pub struct Album {
     album_info: AlbumInfo,
     catalog: Catalog,
     discs: Vec<Disc>,
+}
+
+impl FromStr for Album {
+    type Err = toml::de::Error;
+
+    fn from_str(toml_str: &str) -> Result<Self, Self::Err> {
+        toml::from_str(toml_str)
+    }
 }
 
 #[derive(Debug, Deserialize, PartialEq)]
@@ -36,7 +45,7 @@ struct Catalog {
 }
 
 #[derive(Debug, Deserialize, PartialEq)]
-struct Disc {
+pub struct Disc {
     catalog: Option<String>,
     tracks: Vec<Track>,
 }

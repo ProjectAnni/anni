@@ -1,32 +1,32 @@
 use nom::{IResult, Err, Needed, error};
 use nom::number::streaming::{be_u8, be_u16, be_u24, be_u32, be_u64, le_u32};
-use nom::lib::std::ops::Shr;
 
 /// https://xiph.org/flac/format.html
 #[derive(Debug)]
 pub struct Stream {
+    header_size: usize,
     pub metadata_blocks: Vec<MetadataBlock>,
-    pub frames: Vec<Frame>,
+    pub frames: Frames,
 }
 
 pub type ParseResult<I, O> = Result<O, Err<error::Error<I>>>;
 
-pub fn parse_flac(input: &[u8]) -> ParseResult<&[u8], Stream> {
+pub fn parse_flac(input: &[u8], parse_frames: Option<bool>) -> ParseResult<&[u8], Stream> {
     if input.len() < 4 {
         return Err(Err::Incomplete(Needed::new(4)));
     }
 
+    let mut header_size = 4;
+    let mut metadata_blocks = Vec::new();
+
     // Magic number
     let (mut remaining, _) = tag!(input, "fLaC")?;
-    let mut result = Stream {
-        metadata_blocks: Vec::new(),
-        frames: Vec::new(),
-    };
     loop {
         let (_remaining, block) = metadata_block(remaining)?;
 
         let is_last = block.is_last;
-        result.metadata_blocks.push(block);
+        header_size += (block.length + 4) as usize;
+        metadata_blocks.push(block);
         remaining = _remaining;
 
         if is_last {
@@ -34,7 +34,23 @@ pub fn parse_flac(input: &[u8]) -> ParseResult<&[u8], Stream> {
         }
     }
 
-    Ok(result)
+    let frames = match parse_frames {
+        Some(parse) => {
+            if parse {
+                // FIXME: unimplemented
+                Frames::Parsed(vec![])
+            } else {
+                Frames::Unparsed(input[header_size..].to_vec())
+            }
+        }
+        None => Frames::Skip,
+    };
+
+    Ok(Stream {
+        header_size,
+        metadata_blocks,
+        frames,
+    })
 }
 
 #[derive(Debug)]
@@ -107,7 +123,7 @@ pub fn block_data(block_type: u8, size: usize) -> impl Fn(&[u8]) -> IResult<&[u8
     move |input: &[u8]| {
         match block_type {
             0 => map!(input, |i| metadata_block_stream_info(i), |v| MetadataBlockData::StreamInfo(v)),
-            1 => value!(input, MetadataBlockData::Padding),
+            1 => map!(input, |i| take!(i, size), |_| MetadataBlockData::Padding),
             2 => map!(input, |i| metadata_block_application(i, size), |v| MetadataBlockData::Application(v)),
             3 => map!(input, |i| metadata_block_seektable(i, size), |v| MetadataBlockData::SeekTable(v)),
             4 => map!(input, |i| metadata_block_vorbis_comment(i), |v| MetadataBlockData::VorbisComment(v)),
@@ -286,40 +302,32 @@ pub fn metadata_block_seektable(input: &[u8], size: usize) -> IResult<&[u8], Met
 ///     "Honest Bob and the Factory-to-Dealer-Incentives, _I'm Still Around_, opening for Moxy Früvous, 1997"
 #[derive(Debug)]
 pub struct MetadataBlockVorbisComment {
-    /// [vendor_length] = read an unsigned integer of 32 bits
-    pub vendor_length: u32,
+    // [vendor_length] = read an unsigned integer of 32 bits
+    // vendor_length: u32,
+
     /// [vendor_string] = read a UTF-8 vector as [vendor_length] octets
     pub vendor_string: String,
-    /// [user_comment_list_length] = read an unsigned integer of 32 bits
-    pub comment_number: u32,
+
+    // [user_comment_list_length] = read an unsigned integer of 32 bits
+    // comment_number: u32,
+
     /// iterate [user_comment_list_length] times
-    pub comments: UserComments,
+    pub comments: Vec<UserComment>,
 
     // [framing_bit] = read a single bit as boolean
     // if ( [framing_bit] unset or end of packet ) then ERROR
 }
 
-#[derive(Debug)]
-pub struct UserComments {
-    comments: Vec<UserComment>,
-}
-
-impl UserComments {
-    pub fn new() -> Self {
-        UserComments {
-            comments: Vec::new(),
-        }
-    }
-
+impl MetadataBlockVorbisComment {
     pub fn insert(&mut self, comment: UserComment) {
         self.comments.push(comment);
     }
 
     pub fn value_of(&self, key: &str) -> Option<String> {
-        let key = key.to_uppercase();
+        let key = key.to_ascii_uppercase();
         for c in &self.comments {
-            if key == c.comment_key.to_uppercase() {
-                return Some(c.comment_value.to_string());
+            if key == c.key() {
+                return Some(c.value());
             }
         }
         None
@@ -328,35 +336,60 @@ impl UserComments {
     pub fn iter(&self) -> std::slice::Iter<UserComment> {
         self.comments.iter()
     }
-}
 
-/// Use Shr(<<) to 'index' comments. For example:
-/// ```rust
-/// use anni_flac::UserComments;
-/// let comments = UserComments::new();
-/// let value = comments << "key";
-/// println!("comments[key]={}", value);
-/// ```
-impl Shr<&str> for UserComments {
-    type Output = String;
-
-    fn shr(self, rhs: &str) -> Self::Output {
-        for c in &self.comments {
-            if c.comment_key.to_ascii_uppercase() == rhs.to_ascii_uppercase() {
-                return c.comment_value.clone();
-            }
-        }
-        String::new()
+    pub fn len(&self) -> usize {
+        self.comments.len()
     }
 }
 
 #[derive(Debug)]
 pub struct UserComment {
-    /// [length] = read an unsigned integer of 32 bits
-    pub length: u32,
+    // [length] = read an unsigned integer of 32 bits
+    // length: u32,
     /// this iteration's user comment = read a UTF-8 vector as [length] octets
-    pub comment_key: String,
-    pub comment_value: String,
+    comment: String,
+    value_offset: Option<usize>,
+}
+
+impl UserComment {
+    pub fn new(comment: String) -> Self {
+        let value_offset = comment.find('=');
+        Self {
+            comment,
+            value_offset,
+        }
+    }
+
+    pub fn key(&self) -> String {
+        self.key_raw().to_ascii_uppercase()
+    }
+
+    pub fn key_raw(&self) -> String {
+        match self.value_offset {
+            Some(offset) => (&self.comment[..offset]).to_owned(),
+            None => self.comment.clone(),
+        }
+    }
+
+    pub fn is_key_uppercase(&self) -> bool {
+        let key = match self.value_offset {
+            Some(offset) => &self.comment[..offset],
+            None => &self.comment,
+        };
+
+        key.chars().all(|c| !c.is_ascii_lowercase())
+    }
+
+    pub fn value(&self) -> String {
+        match self.value_offset {
+            Some(offset) => (&self.comment[offset + 1..]).to_owned(),
+            None => String::new(),
+        }
+    }
+
+    pub fn entry(&self) -> String {
+        self.comment.clone()
+    }
 }
 
 macro_rules! user_comment {
@@ -371,27 +404,20 @@ named!(pub metadata_block_vorbis_comment<MetadataBlockVorbisComment>, do_parse!(
     comment_number: le_u32 >>
     comments: user_comment!(comment_number) >>
     (MetadataBlockVorbisComment {
-        vendor_length: vendor_length,
         vendor_string: String::from_utf8(vendor_string.to_vec()).expect("Invalid UTF-8 description."),
-        comment_number: comment_number,
         comments: comments,
     })
 ));
 
-pub fn user_comment(input: &[u8], count: u32) -> IResult<&[u8], UserComments> {
-    let mut result = UserComments::new();
+pub fn user_comment(input: &[u8], count: u32) -> IResult<&[u8], Vec<UserComment>> {
+    let mut result = Vec::new();
     let mut remaining = input;
     let mut offset: usize = 0;
     for _i in 0..count {
         let (_remaining, length) = le_u32(remaining)?;
         let (_remaining, comment) = take!(_remaining, length as usize)?;
         let comment = String::from_utf8(comment.to_vec()).expect("Invalid UTF-8 description.");
-        let mut splitter = comment.splitn(2, "=");
-        result.insert(UserComment {
-            length,
-            comment_key: splitter.next().unwrap().to_string(),
-            comment_value: splitter.next().unwrap_or("").to_string(),
-        });
+        result.push(UserComment::new(comment));
         offset += (length + 4) as usize;
         remaining = _remaining;
     }
@@ -667,6 +693,13 @@ named!(pub metadata_block_picture<MetadataBlockPicture>, do_parse!(
 ));
 
 #[derive(Debug)]
+pub enum Frames {
+    Parsed(Vec<Frame>),
+    Unparsed(Vec<u8>),
+    Skip,
+}
+
+#[derive(Debug)]
 pub struct Frame {
     pub header: FrameHeader,
 
@@ -873,6 +906,7 @@ pub enum RiceParameter {
 mod tests {
     use crate::parser::{metadata_block, MetadataBlockData, parse_flac};
     use std::io::Read;
+    use crate::UserComment;
 
     #[test]
     fn metadata_block_application() {
@@ -889,11 +923,38 @@ mod tests {
     }
 
     #[test]
+    fn user_comment_parse() {
+        let c = UserComment::new("a=b".to_string());
+        assert_eq!(c.key(), "A");
+        assert_eq!(c.key_raw(), "a");
+        assert_eq!(c.value(), "b");
+        assert_eq!(c.is_key_uppercase(), false);
+
+        let c = UserComment::new("A=b".to_string());
+        assert_eq!(c.key(), "A");
+        assert_eq!(c.key_raw(), "A");
+        assert_eq!(c.value(), "b");
+        assert_eq!(c.is_key_uppercase(), true);
+
+        let c = UserComment::new("A_WITHOUT_EQUAL".to_string());
+        assert_eq!(c.key(), "A_WITHOUT_EQUAL");
+        assert_eq!(c.key_raw(), "A_WITHOUT_EQUAL");
+        assert_eq!(c.value(), "");
+        assert_eq!(c.is_key_uppercase(), true);
+
+        let c = UserComment::new("A_WITHOUT_VaLuE=".to_string());
+        assert_eq!(c.key(), "A_WITHOUT_VALUE");
+        assert_eq!(c.key_raw(), "A_WITHOUT_VaLuE");
+        assert_eq!(c.value(), "");
+        assert_eq!(c.is_key_uppercase(), false);
+    }
+
+    #[test]
     fn parse_file() {
         use std::fs::File;
         let mut file = File::open("test.flac").expect("Failed to open file.");
         let mut data = Vec::new();
         file.read_to_end(&mut data).expect("Failed to read file.");
-        let _stream = parse_flac(&data).unwrap();
+        let _stream = parse_flac(&data, None).unwrap();
     }
 }

@@ -5,7 +5,7 @@ mod fs;
 #[macro_use]
 extern crate lazy_static;
 
-use clap::{Arg, App, SubCommand, crate_version, crate_authors, AppSettings, ArgGroup};
+use clap::{Arg, App, SubCommand, crate_version, crate_authors, ArgGroup};
 
 fn main() -> Result<(), String> {
     let matches = App::new("Project Annivers@ry")
