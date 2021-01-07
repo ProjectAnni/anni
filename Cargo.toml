@@ -3,5 +3,6 @@ members = [
     "anni",
     "anni-flac",
     "anni-repo",
-    "anni-versary"
+    "anni-utils",
+    "anni-versary",
 ]

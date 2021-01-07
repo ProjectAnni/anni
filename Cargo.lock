@@ -377,6 +377,7 @@ version = "0.1.0"
 dependencies = [
  "anni-flac",
  "anni-repo",
+ "anni-utils",
  "anni-versary",
  "clap",
  "cpal",
@@ -401,16 +402,22 @@ dependencies = [
 ]
 
 [[package]]
+name = "anni-utils"
+version = "0.1.0"
+
+[[package]]
 name = "anni-versary"
 version = "0.1.0"
 dependencies = [
  "actix-web",
  "actix-web-actors",
+ "futures",
  "jsonwebtoken",
  "r2d2",
  "r2d2_sqlite",
  "rusqlite",
  "serde",
+ "uuid",
 ]
 
 [[package]]
@@ -1040,6 +1047,7 @@ checksum = "9b3b0c040a1fe6529d30b3c5944b280c7f0dcb2930d2c3062bca967b602583d0"
 dependencies = [
  "futures-channel",
  "futures-core",
+ "futures-executor",
  "futures-io",
  "futures-sink",
  "futures-task",
@@ -1061,6 +1069,17 @@ name = "futures-core"
 version = "0.3.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "847ce131b72ffb13b6109a221da9ad97a64cbe48feb1028356b836b47b8f1748"
+
+[[package]]
+name = "futures-executor"
+version = "0.3.8"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "4caa2b2b68b880003057c1dd49f1ed937e38f22fcf6c212188a121f08cf40a65"
+dependencies = [
+ "futures-core",
+ "futures-task",
+ "futures-util",
+]
 
 [[package]]
 name = "futures-io"
@@ -2734,6 +2753,17 @@ dependencies = [
  "idna",
  "matches",
  "percent-encoding",
+]
+
+[[package]]
+name = "uuid"
+version = "0.8.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9fde2f6a4bea1d6e007c4ad38c6839fa71cbb63b6dbf5b595aa38dc9b1093c11"
+dependencies = [
+ "rand",
+ "serde",
+ "sha1",
 ]
 
 [[package]]

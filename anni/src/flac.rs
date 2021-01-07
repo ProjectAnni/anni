@@ -3,18 +3,19 @@ use std::fs::File;
 use std::io::Read;
 use crate::{encoding, fs};
 use std::path::PathBuf;
+use anni_utils::validator::{Validator, trim_validator, date_validator, number_validator};
 
 enum FlacTag {
-    Must(&'static str),
-    Optional(&'static str),
+    Must(&'static str, Validator),
+    Optional(&'static str, Validator),
     Unrecommended(&'static str, &'static str),
 }
 
 impl ToString for FlacTag {
     fn to_string(&self) -> String {
         match self {
-            FlacTag::Must(s) => s.to_string(),
-            FlacTag::Optional(s) => s.to_string(),
+            FlacTag::Must(s, _) => s.to_string(),
+            FlacTag::Optional(s, _) => s.to_string(),
             FlacTag::Unrecommended(s, _) => s.to_string(),
         }
     }
@@ -22,16 +23,16 @@ impl ToString for FlacTag {
 
 const TAG_REQUIREMENT: &[&FlacTag] = &[
     // MUST tags
-    &FlacTag::Must("TITLE"),
-    &FlacTag::Must("ARTIST"),
-    &FlacTag::Must("ALBUM"),
-    &FlacTag::Must("DATE"),
-    &FlacTag::Must("TRACKNUMBER"),
-    &FlacTag::Must("TRACKTOTAL"),
+    &FlacTag::Must("TITLE", trim_validator),
+    &FlacTag::Must("ARTIST", trim_validator), // TODO: artist validator
+    &FlacTag::Must("ALBUM", trim_validator),
+    &FlacTag::Must("DATE", date_validator),
+    &FlacTag::Must("TRACKNUMBER", number_validator),
+    &FlacTag::Must("TRACKTOTAL", number_validator),
     // OPTIONAL tags
-    &FlacTag::Optional("ALBUMARTIST"),
-    &FlacTag::Optional("DISCNUMBER"),
-    &FlacTag::Optional("DISCTOTAL"),
+    &FlacTag::Optional("ALBUMARTIST", trim_validator),
+    &FlacTag::Optional("DISCNUMBER", number_validator),
+    &FlacTag::Optional("DISCTOTAL", number_validator),
     // UNRECOMMENDED tags with alternatives
     &FlacTag::Unrecommended("TOTALTRACKS", "TRACKTOTAL"),
     &FlacTag::Unrecommended("TOTALDISCS", "DISCTOTAL"),
@@ -178,13 +179,13 @@ pub(crate) fn tags_check(filename: &str, stream: &Stream) {
                     }
 
                     match TAG_REQUIREMENT.iter().position(|&s| match s {
-                        FlacTag::Must(s) => *s == &key,
-                        FlacTag::Optional(s) => *s == &key,
+                        FlacTag::Must(s, _) => *s == &key,
+                        FlacTag::Optional(s, _) => *s == &key,
                         FlacTag::Unrecommended(s, _) => *s == &key,
                     }) {
                         Some(tag) => {
                             match TAG_REQUIREMENT[tag] {
-                                FlacTag::Must(_) | FlacTag::Optional(_) => {
+                                FlacTag::Must(_, validator) | FlacTag::Optional(_, validator) => {
                                     if value.len() == 0 {
                                         init_hasproblem!(has_problem, filename);
                                         eprintln!("- Empty value for tag: {}", key);
@@ -202,6 +203,10 @@ pub(crate) fn tags_check(filename: &str, stream: &Stream) {
                                             eprintln!("- Duplicated tag: {}", key);
                                         }
                                         needed_exist[tag] = true;
+                                    }
+                                    if !validator(&value) {
+                                        init_hasproblem!(has_problem, filename);
+                                        eprintln!("- Invalid {} value: {}", key_raw, value);
                                     }
                                 }
                                 FlacTag::Unrecommended(_, alternative) => {

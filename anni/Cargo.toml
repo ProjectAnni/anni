@@ -14,4 +14,5 @@ regex = "1"
 lazy_static = "1.4.0"
 anni-flac = { path = "../anni-flac" }
 anni-repo = { path = "../anni-repo" }
+anni-utils = { path = "../anni-utils" }
 anni-versary = { path = "../anni-versary" }
