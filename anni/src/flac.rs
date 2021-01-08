@@ -3,7 +3,7 @@ use std::fs::File;
 use std::io::Read;
 use crate::{encoding, fs};
 use std::path::PathBuf;
-use anni_utils::validator::{Validator, trim_validator, date_validator, number_validator};
+use anni_utils::validator::{Validator, trim_validator, date_validator, number_validator, artist_validator};
 use std::collections::HashSet;
 
 enum FlacTag {
@@ -25,7 +25,7 @@ impl ToString for FlacTag {
 const TAG_REQUIREMENT: [FlacTag; 11] = [
     // MUST tags
     FlacTag::Must("TITLE", trim_validator),
-    FlacTag::Must("ARTIST", trim_validator), // TODO: artist validator
+    FlacTag::Must("ARTIST", artist_validator),
     FlacTag::Must("ALBUM", trim_validator),
     FlacTag::Must("DATE", date_validator),
     FlacTag::Must("TRACKNUMBER", number_validator),

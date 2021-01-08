@@ -1,3 +1,5 @@
+use crate::artist::ArtistList;
+
 pub type Validator = fn(&str) -> bool;
 
 pub fn pass_validator(_str: &str) -> bool {
@@ -39,6 +41,10 @@ pub fn date_validator(str: &str) -> bool {
         mode += 1;
     }
     return mode == 10;
+}
+
+pub fn artist_validator(str: &str) -> bool {
+    ArtistList::is_valid(str)
 }
 
 #[cfg(test)]
