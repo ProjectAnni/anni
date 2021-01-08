@@ -204,7 +204,7 @@ pub(crate) fn tags_check(filename: &str, stream: &Stream) {
                                 let value = s.comments[*key].value();
                                 init_hasproblem!(has_problem, filename);
                                 eprintln!("- Unrecommended tag: {}, use {} instead", key, alternative);
-                                println!("metadata --remove-tag={} --set-tag='{}={}' '{}'", key, alternative, value, filename);
+                                println!("metaflac --remove-tag={} --set-tag='{}={}' '{}'", key, alternative, value, filename);
                             }
                         }
                     }
