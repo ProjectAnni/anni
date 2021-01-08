@@ -9,6 +9,7 @@ edition = "2018"
 [dependencies]
 clap = "2.33.3"
 colored = "2"
+cue_sheet = { git = "https://github.com/Yesterday17/cue_sheet" }
 cpal = "0.13.1"
 hex = "0.4.2"
 regex = "1"

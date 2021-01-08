@@ -1,7 +1,10 @@
 use clap::{App, Arg, ArgGroup, crate_authors, crate_version, SubCommand};
+use anni_utils::fs;
+use std::path::PathBuf;
 
 mod flac;
 mod encoding;
+mod cue;
 
 #[macro_use]
 extern crate lazy_static;
@@ -24,6 +27,17 @@ fn main() -> Result<(), String> {
                 .short("c")
             )
             .group(ArgGroup::with_name("group.flac").args(&["flac.list", "flac.tags"]))
+        )
+        .subcommand(SubCommand::with_name("cue")
+            .arg(Arg::with_name("cue.file")
+                .long("file")
+                .short("f")
+                .takes_value(true)
+            )
+            .arg(Arg::with_name("cue.tagsh")
+                .long("tag-sh")
+                .short("t")
+            )
         )
         .subcommand(SubCommand::with_name("repo")
             .arg(Arg::with_name("repo.new_album")
@@ -73,10 +87,33 @@ fn main() -> Result<(), String> {
                 });
             }
         }
-    } else if let Some(matches) = matches.subcommand_matches("play") {
-        if let Some(_files) = matches.values_of("Filename") {
-            // TODO
+    } else if let Some(matches) = matches.subcommand_matches("cue") {
+        let mut cue_file = None;
+        if matches.is_present("cue.file") {
+            cue_file = matches.value_of("cue.file");
+        } else if let Some(files) = matches.values_of("Filename") {
+            for file in files {
+                cue_file = Some(file);
+            }
         }
+        let mut cue_file = cue_file.expect("No cue specified.").to_owned();
+        let cue_file_path = PathBuf::from(&cue_file);
+        if fs::is_dir(&cue_file_path).expect("Invalid path.") {
+            cue_file.clear();
+            for file in fs::PathWalker::new(cue_file_path, false) {
+                if let Some(extension) = file.extension() {
+                    if extension.to_str().unwrap_or("") == "cue" {
+                        cue_file = file.to_str().expect("Invalid path name.").to_owned();
+                        break;
+                    }
+                }
+            }
+        }
+        if cue_file.is_empty() {
+            panic!("Failed to locate .cue file.");
+        }
+        let result = cue::parse_file(&cue_file);
+        println!("CUE result: \n{}", result.unwrap_or("".to_owned()));
     } else if let Some(matches) = matches.subcommand_matches("repo") {
         if matches.is_present("repo.new_album") {
             //
