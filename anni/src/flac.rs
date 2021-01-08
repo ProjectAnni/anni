@@ -2,7 +2,7 @@ use anni_flac::{MetadataBlockData, Stream, parse_flac};
 use std::fs::File;
 use std::io::Read;
 use crate::{encoding, fs};
-use std::path::PathBuf;
+use std::path::{PathBuf, Path};
 use anni_utils::validator::{Validator, trim_validator, date_validator, number_validator, artist_validator};
 use std::collections::HashSet;
 
@@ -243,6 +243,20 @@ pub(crate) fn tags_check(filename: &str, stream: &Stream) {
                         init_hasproblem!(has_problem, filename);
                         eprintln!("- Tag in lowercase: {}", key_raw);
                         println!("metaflac --remove-tag={} --set-tag='{}={}' '{}'", key_raw, key, value, filename);
+                    }
+                }
+
+                // Filename check
+                if s.comments.contains_key("TRACKNUMBER") {
+                    let mut number = s.comments["TRACKNUMBER"].value();
+                    if number.len() == 1 {
+                        number = "0".to_string() + &number;
+                    }
+                    let filename_expected = format!("{}. {}.flac", number, s.comments["TITLE"].value());
+                    let filename = Path::new(filename).file_name().unwrap().to_str().expect("Non-UTF8 filenames are currently not supported!");
+                    if filename != filename_expected {
+                        init_hasproblem!(has_problem, filename);
+                        eprintln!("- Filename mismatch: expected {}, got {}", filename_expected, filename);
                     }
                 }
             }

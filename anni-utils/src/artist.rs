@@ -2,11 +2,11 @@ use std::rc::Rc;
 
 pub struct Artist<'a> {
     pub name: &'a str,
-    pub alias: Vec<Artist<'a>>,
+    pub alias: Option<Vec<Artist<'a>>>,
 }
 
 pub struct ArtistList<'a> {
-    pub raw: Rc<String>,
+    raw: Rc<String>,
     pub artists: Vec<Artist<'a>>,
 }
 
@@ -53,7 +53,8 @@ impl<'a> ArtistList<'a> {
     /// 3. Structures like `（（` are invalid
     /// 4. Structures like `、（`, `（、` and `、）` are invalid
     /// 5. That's to say, when we meet two consecutive symbols, only `））` and `）、` are valid
-    fn is_str_valid(input: &str, is_start: bool) -> (bool, usize) {
+    fn is_str_valid<T: AsRef<str>>(input: T, is_start: bool) -> (bool, usize) {
+        let input = input.as_ref();
         if input.is_empty() {
             return (false, 0);
         }
