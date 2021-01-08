@@ -5,6 +5,7 @@ use crate::{encoding, fs};
 use std::path::{PathBuf, Path};
 use anni_utils::validator::{Validator, trim_validator, date_validator, number_validator, artist_validator};
 use std::collections::HashSet;
+use colored::*;
 
 enum FlacTag {
     Must(&'static str, Validator),
@@ -179,23 +180,23 @@ pub(crate) fn tags_check(filename: &str, stream: &Stream) {
                         FlacTag::Must(key, validator) => {
                             if !s.comments.contains_key(*key) {
                                 init_hasproblem!(has_problem, filename);
-                                eprintln!("- Missing tag: {}", key);
+                                eprintln!("- Missing tag: {}", key.green());
                             } else {
-                                let key_raw = s.comments[*key].key_raw();
-                                let value = s.comments[*key].value();
+                                let key_raw: &str = &s.comments[*key].key_raw();
+                                let value: &str = &s.comments[*key].value();
                                 if !validator(&value) {
                                     init_hasproblem!(has_problem, filename);
-                                    eprintln!("- Invalid {} value: {}", key_raw, value);
+                                    eprintln!("- Invalid value for tag {}: {}", key_raw.green(), value.red());
                                 }
                             }
                         }
                         FlacTag::Optional(key, validator) => {
                             if s.comments.contains_key(*key) {
-                                let key_raw = s.comments[*key].key_raw();
-                                let value = s.comments[*key].value();
+                                let key_raw: &str = &s.comments[*key].key_raw();
+                                let value: &str = &s.comments[*key].value();
                                 if !validator(&value) {
                                     init_hasproblem!(has_problem, filename);
-                                    eprintln!("- Invalid value for optional tag({}): {}", key_raw, value);
+                                    eprintln!("- Invalid value for optional tag {}: {}", key_raw.green(), value.red());
                                 }
                             }
                         }
@@ -203,7 +204,7 @@ pub(crate) fn tags_check(filename: &str, stream: &Stream) {
                             if s.comments.contains_key(*key) {
                                 let value = s.comments[*key].value();
                                 init_hasproblem!(has_problem, filename);
-                                eprintln!("- Unrecommended tag: {}, use {} instead", key, alternative);
+                                eprintln!("- Unrecommended tag: {}, use {} instead", key.red(), alternative.green());
                                 println!("metaflac --remove-tag={} --set-tag='{}={}' '{}'", key, alternative, value, filename);
                             }
                         }
@@ -212,17 +213,18 @@ pub(crate) fn tags_check(filename: &str, stream: &Stream) {
 
                 let mut key_set: HashSet<String> = HashSet::new();
                 for (key, comment) in s.comments.iter() {
-                    let key_raw = comment.key_raw();
-                    let value = comment.value();
-                    let entry = comment.entry();
+                    let key: &str = key;
+                    let key_raw: &str = &comment.key_raw();
+                    let value: &str = &comment.value();
+                    let entry: &str = &comment.entry();
 
                     if key_set.contains(key) {
                         init_hasproblem!(has_problem, filename);
-                        eprintln!("- Duplicated tag: {}", key);
+                        eprintln!("- Duplicated tag: {}", key.red());
                         continue;
-                    } else if !TAG_INCLUDED.contains(&&**key) {
+                    } else if !TAG_INCLUDED.contains(&key) {
                         init_hasproblem!(has_problem, filename);
-                        eprintln!("- Unnecessary tag: {}", key);
+                        eprintln!("- Unnecessary tag: {}", key.red());
                         println!("metaflac --remove-tag={} '{}'", key, filename);
                         continue;
                     } else {
@@ -231,17 +233,17 @@ pub(crate) fn tags_check(filename: &str, stream: &Stream) {
 
                     if !encoding::middle_dot_valid(&value) {
                         init_hasproblem!(has_problem, filename);
-                        eprintln!("- Invalid middle dot in: {}", entry);
+                        eprintln!("- Invalid middle dot in: {}", entry.red());
                         println!("metaflac --remove-tag={} --set-tag='{}={}' '{}'", key, key, encoding::middle_dot_replace(&value), filename);
                     }
                     if value.len() == 0 {
                         init_hasproblem!(has_problem, filename);
-                        eprintln!("- Empty value for tag: {}", key);
+                        eprintln!("- Empty value for tag: {}", key.red());
                         println!("metaflac --remove-tag={} '{}'", key, filename);
                     }
                     if !comment.is_key_uppercase() {
                         init_hasproblem!(has_problem, filename);
-                        eprintln!("- Tag in lowercase: {}", key_raw);
+                        eprintln!("- Tag in lowercase: {}", key_raw.red());
                         println!("metaflac --remove-tag={} --set-tag='{}={}' '{}'", key_raw, key, value, filename);
                     }
                 }
@@ -252,11 +254,11 @@ pub(crate) fn tags_check(filename: &str, stream: &Stream) {
                     if number.len() == 1 {
                         number = format!("0{}", number);
                     }
-                    let filename_expected = format!("{}. {}.flac", number, s.comments["TITLE"].value());
+                    let filename_expected: &str = &format!("{}. {}.flac", number, s.comments["TITLE"].value());
                     let filename_raw = Path::new(filename).file_name().unwrap().to_str().expect("Non-UTF8 filenames are currently not supported!");
                     if filename_raw != filename_expected {
                         init_hasproblem!(has_problem, filename);
-                        eprintln!("- Filename mismatch: expected {}, got {}", filename_expected, filename_raw);
+                        eprintln!("- Filename mismatch: expected {}, got {}", filename_expected.green(), filename_raw.red());
                     }
                 }
             }
