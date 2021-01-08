@@ -253,10 +253,10 @@ pub(crate) fn tags_check(filename: &str, stream: &Stream) {
                         number = format!("0{}", number);
                     }
                     let filename_expected = format!("{}. {}.flac", number, s.comments["TITLE"].value());
-                    let filename = Path::new(filename).file_name().unwrap().to_str().expect("Non-UTF8 filenames are currently not supported!");
-                    if filename != filename_expected {
+                    let filename_raw = Path::new(filename).file_name().unwrap().to_str().expect("Non-UTF8 filenames are currently not supported!");
+                    if filename_raw != filename_expected {
                         init_hasproblem!(has_problem, filename);
-                        eprintln!("- Filename mismatch: expected {}, got {}", filename_expected, filename);
+                        eprintln!("- Filename mismatch: expected {}, got {}", filename_expected, filename_raw);
                     }
                 }
             }
