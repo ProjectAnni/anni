@@ -39,8 +39,8 @@ impl From<char> for Symbol {
 
 impl Symbol {
     #[inline]
-    pub fn is_left_bracket(c: char) -> bool {
-        c == '（'
+    pub fn is_left_bracket_or_normal(c: char) -> bool {
+        c != '）' && c != '、'
     }
 }
 
@@ -74,7 +74,7 @@ impl<'a> ArtistList<'a> {
             }
 
             if last_rbracket {
-                if Symbol::is_left_bracket(c) {
+                if Symbol::is_left_bracket_or_normal(c) {
                     return (false, i);
                 } else {
                     last_rbracket = false;
@@ -109,7 +109,7 @@ impl<'a> ArtistList<'a> {
                 }
                 Symbol::RBracket => {
                     // RBracket can't accept LBracket
-                    if Symbol::is_left_bracket(c) {
+                    if Symbol::is_left_bracket_or_normal(c) {
                         return (false, i);
                     }
                     last_symbol = Symbol::from(c);
@@ -152,6 +152,7 @@ mod tests {
         assert_eq!(false, ArtistList::is_valid("水瀬いのり））"));
         assert_eq!(false, ArtistList::is_valid("（水瀬いのり"));
         assert_eq!(false, ArtistList::is_valid("ArtistA（MemberB、MemberC、）"));
+        assert_eq!(false, ArtistList::is_valid("ArtistA（MemberB、MemberC）ArtistB"));
         assert_eq!(false, ArtistList::is_valid("ArtistA（MemberB、MemberC"));
         assert_eq!(false, ArtistList::is_valid("ArtistA（MemberB、MemberC））"));
         assert_eq!(false, ArtistList::is_valid("ArtistA（SubArtistD（MemberE、MemberF）"));
