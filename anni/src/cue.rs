@@ -1,8 +1,9 @@
 use cue_sheet::tracklist::{Tracklist};
 use std::fs::File;
 use std::path::PathBuf;
+use shell_escape::escape;
 
-pub(crate) fn parse_file(path: &str) -> Option<String> {
+pub(crate) fn parse_file(path: &str, files: &[&str]) -> Option<String> {
     let mut str: &str = &std::fs::read_to_string(path).ok()?;
     let first = str.chars().next().unwrap();
     if first == '\u{feff}' {
@@ -11,8 +12,13 @@ pub(crate) fn parse_file(path: &str) -> Option<String> {
     }
 
     let mut result = String::new();
-    for meta in tracks(str).iter() {
-        result += meta;
+    let tracks = tracks(str);
+    if files.len() != tracks.len() {
+        return None;
+    }
+
+    for (i, meta) in tracks.iter().enumerate() {
+        result += &format!("echo {} | metaflac --remove-all-tags --import-tags-from=- {}", escape(meta.into()), escape(files[i].into()));
         result.push('\n');
     }
     Some(result)
@@ -32,7 +38,7 @@ pub(crate) fn tracks(file: &str) -> Vec<String> {
     let mut track_number = 1;
     let mut track_total = 0;
     for file in cue.files.iter() {
-        for track in file.tracks.iter() {
+        for _track in file.tracks.iter() {
             track_total += 1;
         }
     }

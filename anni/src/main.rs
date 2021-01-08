@@ -33,6 +33,7 @@ fn main() -> Result<(), String> {
                 .long("file")
                 .short("f")
                 .takes_value(true)
+                .required(true)
             )
             .arg(Arg::with_name("cue.tagsh")
                 .long("tag-sh")
@@ -88,37 +89,15 @@ fn main() -> Result<(), String> {
             }
         }
     } else if let Some(matches) = matches.subcommand_matches("cue") {
-        let mut cue_file = None;
-        if matches.is_present("cue.file") {
-            cue_file = matches.value_of("cue.file");
-        } else if let Some(files) = matches.values_of("Filename") {
-            for file in files {
-                cue_file = Some(file);
+        let cue_file = matches.value_of("cue.file").unwrap();
+        if matches.is_present("cue.tagsh") {
+            if let Some(files) = matches.values_of("Filename") {
+                let files: Vec<_> = files.collect();
+                let result = cue::parse_file(cue_file, &files).ok_or("Failed to parse CUE file.")?;
+                println!("{}", result);
             }
         }
-        let mut cue_file = cue_file.expect("No cue specified.").to_owned();
-        let cue_file_path = PathBuf::from(&cue_file);
-        if fs::is_dir(&cue_file_path).expect("Invalid path.") {
-            cue_file.clear();
-            for file in fs::PathWalker::new(cue_file_path, false) {
-                if let Some(extension) = file.extension() {
-                    if extension.to_str().unwrap_or("") == "cue" {
-                        cue_file = file.to_str().expect("Invalid path name.").to_owned();
-                        break;
-                    }
-                }
-            }
-        }
-        if cue_file.is_empty() {
-            panic!("Failed to locate .cue file.");
-        }
-        let result = cue::parse_file(&cue_file);
-        println!("CUE result: \n{}", result.unwrap_or("".to_owned()));
-    } else if let Some(matches) = matches.subcommand_matches("repo") {
-        if matches.is_present("repo.new_album") {
-            //
-        }
-    } else if let Some(_matches) = matches.subcommand_matches("versary") {
+    } else if let Some(matches) = matches.subcommand_matches("repo") {} else if let Some(_matches) = matches.subcommand_matches("versary") {
         let _ = anni_versary::anni_versary();
     }
 
