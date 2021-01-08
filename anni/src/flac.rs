@@ -1,11 +1,15 @@
-use anni_flac::{MetadataBlockData, Stream, parse_flac};
+use std::collections::HashSet;
 use std::fs::File;
 use std::io::Read;
-use crate::{encoding, fs};
-use std::path::{PathBuf, Path};
-use anni_utils::validator::{Validator, trim_validator, date_validator, number_validator, artist_validator};
-use std::collections::HashSet;
+use std::path::{Path, PathBuf};
+
 use colored::*;
+
+use anni_flac::{MetadataBlockData, parse_flac, Stream};
+use anni_utils::fs;
+use anni_utils::validator::{artist_validator, date_validator, number_validator, trim_validator, Validator};
+
+use crate::encoding;
 
 enum FlacTag {
     Must(&'static str, Validator),

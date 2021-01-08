@@ -19,7 +19,7 @@ fn fs_walk_path(path: PathBuf, recursive: bool, callback: &impl Fn(PathBuf) -> b
     }
 }
 
-pub(crate) fn walk_path(path: PathBuf, recursive: bool, callback: impl Fn(PathBuf) -> bool) -> io::Result<()> {
+pub fn walk_path(path: PathBuf, recursive: bool, callback: impl Fn(PathBuf) -> bool) -> io::Result<()> {
     let _ = fs_walk_path(path, recursive, &callback)?;
     Ok(())
 }

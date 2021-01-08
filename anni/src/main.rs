@@ -1,11 +1,10 @@
+use clap::{App, Arg, ArgGroup, crate_authors, crate_version, SubCommand};
+
 mod flac;
 mod encoding;
-mod fs;
 
 #[macro_use]
 extern crate lazy_static;
-
-use clap::{Arg, App, SubCommand, crate_version, crate_authors, ArgGroup};
 
 fn main() -> Result<(), String> {
     let matches = App::new("Project Annivers@ry")
