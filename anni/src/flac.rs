@@ -247,10 +247,10 @@ pub(crate) fn tags_check(filename: &str, stream: &Stream) {
                 }
 
                 // Filename check
-                if s.comments.contains_key("TRACKNUMBER") {
+                if s.comments.contains_key("TRACKNUMBER") && s.comments.contains_key("TITLE") {
                     let mut number = s.comments["TRACKNUMBER"].value();
                     if number.len() == 1 {
-                        number = "0".to_string() + &number;
+                        number = format!("0{}", number);
                     }
                     let filename_expected = format!("{}. {}.flac", number, s.comments["TITLE"].value());
                     let filename = Path::new(filename).file_name().unwrap().to_str().expect("Non-UTF8 filenames are currently not supported!");
