@@ -10,6 +10,7 @@ use anni_utils::fs;
 use anni_utils::validator::{artist_validator, date_validator, number_validator, trim_validator, Validator};
 
 use crate::encoding;
+use shell_escape::escape;
 
 enum FlacTag {
     Must(&'static str, Validator),
@@ -263,6 +264,7 @@ pub(crate) fn tags_check(filename: &str, stream: &Stream) {
                     if filename_raw != filename_expected {
                         init_hasproblem!(has_problem, filename);
                         eprintln!("- Filename mismatch: expected {}, got {}", filename_expected.green(), filename_raw.red());
+                        println!("mv {} {}", escape(filename_raw.into()), escape(filename_expected.into()));
                     }
                 }
             }
