@@ -48,13 +48,13 @@ impl PathWalker {
         }
     }
 
-    pub fn new(p: PathBuf, recursive: bool) -> Self {
+    pub fn new<P: AsRef<Path>>(p: P, recursive: bool) -> Self {
         let mut path = Vec::new();
         let mut files = Vec::new();
         if is_dir(&p).unwrap() {
-            path.push(p);
+            path.push(p.as_ref().to_owned());
         } else {
-            files.push(p);
+            files.push(p.as_ref().to_owned());
         }
         let mut walker = PathWalker {
             path,
@@ -91,4 +91,33 @@ pub fn walk_path<P: AsRef<Path>>(path: P, recursive: bool, callback: impl Fn(&Pa
 pub fn is_dir<P: AsRef<Path>>(path: P) -> io::Result<bool> {
     let meta = metadata(path.as_ref())?;
     Ok(meta.is_dir())
+}
+
+pub fn get_ext_files<P: AsRef<Path>, T: AsRef<str>>(dir: P, ext: T, recursive: bool) -> io::Result<Option<Vec<PathBuf>>> {
+    let mut result = Vec::new();
+    if is_dir(dir.as_ref())? {
+        for file in PathWalker::new(dir.as_ref(), recursive) {
+            let file_ext = file.extension().unwrap_or("".as_ref()).to_str().unwrap_or("");
+            if file_ext == ext.as_ref() {
+                result.push(file);
+            }
+        }
+    }
+    if result.is_empty() {
+        Ok(None)
+    } else {
+        Ok(Some(result))
+    }
+}
+
+pub fn get_ext_file<P: AsRef<Path>, T: AsRef<str>>(dir: P, ext: T, recursive: bool) -> io::Result<Option<PathBuf>> {
+    if is_dir(dir.as_ref())? {
+        for file in PathWalker::new(dir.as_ref(), recursive) {
+            let file_ext = file.extension().unwrap_or("".as_ref()).to_str().unwrap_or("");
+            if file_ext == ext.as_ref() {
+                return Ok(Some(file));
+            }
+        }
+    }
+    Ok(None)
 }

@@ -1,27 +1,27 @@
 use cue_sheet::tracklist::{Tracklist};
-use std::fs::File;
-use std::path::PathBuf;
 use shell_escape::escape;
+use std::io;
 
-pub(crate) fn parse_file(path: &str, files: &[&str]) -> Option<String> {
-    let mut str: &str = &std::fs::read_to_string(path).ok()?;
-    let first = str.chars().next().unwrap();
+pub(crate) fn parse_file<T: AsRef<str>>(path: &str, files: &[T]) -> io::Result<String> {
+    let mut str: &str = &std::fs::read_to_string(path)?;
+
+    let first = str.chars().next().ok_or(io::Error::new(io::ErrorKind::InvalidData, "Empty CUE file"))?;
+    // UTF-8 BOM
     if first == '\u{feff}' {
-        // UTF-8 BOM
         str = &str[3..];
     }
 
     let mut result = String::new();
     let tracks = tracks(str);
     if files.len() != tracks.len() {
-        return None;
+        return Err(io::Error::new(io::ErrorKind::InvalidInput, format!("Incorrect file number. Expected {}, got {}", tracks.len(), files.len())));
     }
 
     for (i, meta) in tracks.iter().enumerate() {
-        result += &format!("echo {} | metaflac --remove-all-tags --import-tags-from=- {}", escape(meta.into()), escape(files[i].into()));
+        result += &format!("echo {} | metaflac --remove-all-tags --import-tags-from=- {}", escape(meta.into()), escape(files[i].as_ref().into()));
         result.push('\n');
     }
-    Some(result)
+    Ok(result)
 }
 
 pub(crate) fn tracks(file: &str) -> Vec<String> {
