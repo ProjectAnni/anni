@@ -25,15 +25,12 @@ pub(crate) fn parse_file<T: AsRef<str>>(path: &str, files: &[T]) -> io::Result<S
 }
 
 pub(crate) fn tracks(file: &str) -> Vec<String> {
-    let empty_string = String::new();
-    let one = String::from("1");
-
     let cue = Tracklist::parse(file).unwrap();
     let album = cue.info.get("TITLE").expect("Album TITLE not provided!");
-    let artist = cue.info.get("ARTIST").unwrap_or(&empty_string);
+    let artist = cue.info.get("ARTIST").map(String::as_str).unwrap_or("");
     let date = cue.info.get("DATE").expect("Album DATE not provided!");
-    let disc_number = cue.info.get("DISCNUMBER").unwrap_or(&one);
-    let disc_total = cue.info.get("TOTALDISCS").unwrap_or(&one);
+    let disc_number = cue.info.get("DISCNUMBER").map(String::as_str).unwrap_or("1");
+    let disc_total = cue.info.get("TOTALDISCS").map(String::as_str).unwrap_or("1");
 
     let mut track_number = 1;
     let mut track_total = 0;
@@ -47,7 +44,7 @@ pub(crate) fn tracks(file: &str) -> Vec<String> {
     for file in cue.files.iter() {
         for track in file.tracks.iter() {
             let title = track.info.get("TITLE").expect("Track TITIE not provided!");
-            let artist = track.info.get("ARTIST").unwrap_or(artist);
+            let artist = track.info.get("ARTIST").map(String::as_str).unwrap_or(artist);
             assert!(artist.len() > 0);
 
             result.push(format!(r#"TITLE={}

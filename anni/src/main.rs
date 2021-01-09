@@ -1,6 +1,7 @@
 use clap::{App, Arg, ArgGroup, crate_authors, crate_version, SubCommand};
 use anni_utils::fs;
 use std::path::PathBuf;
+use shell_escape::escape;
 
 mod flac;
 mod encoding;
@@ -45,6 +46,20 @@ fn main() -> Result<(), String> {
             .arg(Arg::with_name("cue.tagsh")
                 .long("tag-sh")
                 .short("t")
+            )
+        )
+        .subcommand(SubCommand::with_name("split")
+            .arg(Arg::with_name("split.audio")
+                .long("audio")
+                .short("a")
+                .takes_value(true)
+                .default_value("wav")
+            )
+            .arg(Arg::with_name("split.cover")
+                .long("cover")
+                .short("c")
+                .takes_value(true)
+                .default_value("cover.jpg")
             )
         )
         .subcommand(SubCommand::with_name("repo")
@@ -96,17 +111,6 @@ fn main() -> Result<(), String> {
             }
         }
     } else if let Some(matches) = matches.subcommand_matches("cue") {
-        fn get_cue_file(dir: &str) -> Option<String> {
-            if fs::is_dir(dir).unwrap() {
-                for file in fs::PathWalker::new(PathBuf::from(dir), false) {
-                    let ext = file.extension().unwrap_or("".as_ref()).to_str().unwrap_or("");
-                    if ext == "cue" {
-                        return Some(file.to_str().expect("Invalid path.").to_owned());
-                    }
-                }
-            }
-            None
-        }
         let (cue, files) = if matches.is_present("cue.file") {
             // In file mode, the path of CUE file is specified by -f
             // And all the files in <Filename> are FLAC files
@@ -139,7 +143,23 @@ fn main() -> Result<(), String> {
                 }
             }
         }
-    } else if let Some(matches) = matches.subcommand_matches("repo") {} else if let Some(_matches) = matches.subcommand_matches("versary") {
+    } else if let Some(matches) = matches.subcommand_matches("split") {
+        let audio_format = matches.value_of("split.audio").unwrap();
+        if let Some(dir) = matches.value_of("Filename") {
+            let path = PathBuf::from(dir);
+            let cue = fs::get_ext_file(&path, "cue", false)
+                .map_err(|e| e.to_string())?
+                .map(|p| p.to_str().unwrap().to_owned())
+                .ok_or("Failed to find CUE sheet.")?;
+            let audio = fs::get_ext_file(&path, audio_format, false)
+                .map_err(|e| e.to_string())?
+                .map(|p| p.to_str().unwrap().to_owned())
+                .ok_or("Failed to find audio file.")?;
+
+            let cover = matches.value_of("split.cover").unwrap();
+            println!(r#"shnsplit -f {} -o "flac flac --picture {} -o %f -" {}"#, escape(cue.into()), cover, escape(audio.into()));
+        }
+    } else if let Some(_matches) = matches.subcommand_matches("versary") {
         let _ = anni_versary::anni_versary();
     }
 
