@@ -157,7 +157,7 @@ fn main() -> Result<(), String> {
                 .ok_or("Failed to find audio file.")?;
 
             let cover = matches.value_of("split.cover").unwrap();
-            println!(r#"shnsplit -f {} -o "flac flac --picture {} -o %f -" {}"#, escape(cue.into()), cover, escape(audio.into()));
+            println!(r#"shnsplit -f {} -o "flac flac --picture {} -o %f -" {} -t "%n. %t""#, escape(cue.into()), cover, escape(audio.into()));
         }
     } else if let Some(_matches) = matches.subcommand_matches("versary") {
         let _ = anni_versary::anni_versary();
