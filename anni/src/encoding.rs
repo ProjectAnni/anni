@@ -1,6 +1,6 @@
 use regex::{Regex};
 
-lazy_static! {
+lazy_static::lazy_static! {
     static ref DOTS: Regex = Regex::new(r"[\u{0087}\u{0387}\u{16eb}\u{2022}\u{2027}\u{2218}\u{2219}\u{22c5}\u{25e6}\u{2981}\u{2e30}\u{2e31}\u{ff65}\u{10101}]").unwrap();
 }
 

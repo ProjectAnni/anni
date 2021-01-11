@@ -16,7 +16,7 @@ fn init_i18n() -> FluentLanguageLoader {
     loader
 }
 
-lazy_static! {
+lazy_static::lazy_static! {
     pub static ref LOCALIZATION_LOADER: FluentLanguageLoader = init_i18n();
 }
 

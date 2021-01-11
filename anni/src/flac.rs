@@ -4,12 +4,11 @@ use std::io::Read;
 use std::path::{Path, PathBuf};
 
 use anni_flac::{MetadataBlockData, parse_flac, Stream};
-use anni_utils::fs;
+use anni_utils::{fs, report};
 use anni_utils::validator::{artist_validator, date_validator, number_validator, trim_validator, Validator};
 
 use crate::encoding;
 use shell_escape::escape;
-use anni_utils::report::{TableReporter, Reporter};
 
 enum FlacTag {
     Must(&'static str, Validator),
@@ -165,8 +164,8 @@ pub(crate) fn tags(stream: &Stream) {
     }
 }
 
-pub(crate) fn tags_check(filename: &str, stream: &Stream) {
-    let mut reporter = TableReporter::default();
+pub(crate) fn tags_check(filename: &str, stream: &Stream, report_mode: &str) {
+    let mut reporter = report::new(report_mode);
     let mut fixes = Vec::new();
     for block in stream.metadata_blocks.iter() {
         match &block.data {

@@ -8,9 +8,6 @@ mod encoding;
 mod cue;
 mod i18n;
 
-#[macro_use]
-extern crate lazy_static;
-
 fn main() -> Result<(), String> {
     let matches = App::new("Project Annivers@ry")
         .about(fl!("anni-about"))
@@ -32,6 +29,15 @@ fn main() -> Result<(), String> {
                 .help(fl!("flac-tags-check"))
                 .long("check")
                 .short("c")
+            )
+            .arg(Arg::with_name("flac.report.format")
+                .help(fl!("flac-report-format"))
+                .long("report-format")
+                .short("f")
+                .required(true)
+                .takes_value(true)
+                .default_value("table")
+                .possible_values(&["table", "markdown"])
             )
             .group(ArgGroup::with_name("group.flac").args(&["flac.list", "flac.tags"]))
             .arg(Arg::with_name("Filename")
@@ -124,7 +130,7 @@ fn main() -> Result<(), String> {
             for filename in files {
                 flac::parse_input(filename, |name, stream| {
                     if matches.is_present("flac.tag.check") {
-                        flac::tags_check(name, stream);
+                        flac::tags_check(name, stream, matches.value_of("flac.report.format").unwrap());
                     } else {
                         flac::tags(stream);
                     }

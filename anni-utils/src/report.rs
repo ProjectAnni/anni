@@ -8,6 +8,14 @@ pub trait Reporter {
     fn eprint(&self);
 }
 
+pub fn new(mode: &str) -> Box<dyn Reporter> {
+    match mode {
+        "table" => Box::new(TableReporter::default()),
+        "markdown" => Box::new(MarkdownReporter::default()),
+        _ => panic!("Invalid reporter mode."),
+    }
+}
+
 pub struct MarkdownReporter {
     len: usize,
     text: String,
