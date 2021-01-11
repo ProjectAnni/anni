@@ -40,11 +40,15 @@ impl Reporter for MarkdownReporter {
     }
 
     fn print(&self) {
-        print!("{}", self.text);
+        if !self.text.is_empty() {
+            print!("{}", self.text);
+        }
     }
 
     fn eprint(&self) {
-        eprint!("{}", self.text);
+        if !self.text.is_empty() {
+            eprint!("{}", self.text);
+        }
     }
 }
 
@@ -73,15 +77,19 @@ impl Reporter for TableReporter {
     }
 
     fn print(&self) {
-        self.table.printstd();
+        if self.table.len() > 1 {
+            self.table.printstd();
+        }
     }
 
     fn eprint(&self) {
-        let r = match (stderr(), true) {
-            (Some(mut o), true) => self.table.print_term(&mut *o),
-            _ => self.table.print(&mut io::stderr()),
-        };
-        r.expect("Failed to print to stderr.");
+        if self.table.len() > 1 {
+            let r = match (stderr(), true) {
+                (Some(mut o), true) => self.table.print_term(&mut *o),
+                _ => self.table.print(&mut io::stderr()),
+            };
+            r.expect("Failed to print to stderr.");
+        }
     }
 }
 
