@@ -19,3 +19,7 @@ anni-flac = { path = "../anni-flac" }
 anni-repo = { path = "../anni-repo" }
 anni-utils = { path = "../anni-utils" }
 anni-versary = { path = "../anni-versary" }
+
+i18n-embed = { version = "0.9", features = ["fluent-system", "desktop-requester", "filesystem-assets"] }
+i18n-embed-fl = { path = "../i18n-embed-fl" }
+rust-embed = "5"
