@@ -57,13 +57,12 @@ pub(crate) fn parse_file(filename: &str) -> Result<Stream, String> {
 }
 
 pub(crate) fn parse_input(input: &str, callback: impl Fn(&str, &Stream) -> bool) {
-    fs::walk_path(PathBuf::from(input), true, |file| {
-        // ignore non-flac files
+    for file in fs::PathWalker::new(PathBuf::from(input), true) {
         match file.extension() {
-            None => return true,
+            None => continue,
             Some(ext) => {
                 if ext != "flac" {
-                    return true;
+                    continue;
                 }
             }
         };
@@ -71,13 +70,15 @@ pub(crate) fn parse_input(input: &str, callback: impl Fn(&str, &Stream) -> bool)
         let filename = file.to_str().unwrap();
         let stream = parse_file(filename);
         match stream {
-            Ok(stream) => callback(filename, &stream),
+            Ok(stream) => if !callback(filename, &stream) {
+                break;
+            },
             Err(err) => {
                 println!("{}", err);
-                false
+                break;
             }
         }
-    }).unwrap_or_else(|e| panic!(e));
+    }
 }
 
 pub(crate) fn info_list(stream: &Stream) {

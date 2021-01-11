@@ -118,23 +118,19 @@ fn main() -> Result<(), String> {
                 }
             }
         } else if matches.is_present("flac.tags") {
-            let pwd = std::env::current_dir().map_err(|e| e.to_string())?;
-            let mut pwd_used = false;
-            let files = match matches.values_of("Filename") {
-                Some(files) => files.collect(),
-                None => {
-                    pwd_used = true;
-                    vec![pwd.to_str().expect("Failed to convert to str")]
-                }
+            let pwd = PathBuf::from("./");
+            let (paths, is_pwd) = match matches.values_of("Filename") {
+                Some(files) => (files.collect(), false),
+                None => (vec![pwd.to_str().expect("Failed to convert to str")], true),
             };
-            for filename in files {
-                flac::parse_input(filename, |name, stream| {
+            for input in paths {
+                flac::parse_input(input, |name, stream| {
                     if matches.is_present("flac.tag.check") {
                         flac::tags_check(name, stream, matches.value_of("flac.report.format").unwrap());
                     } else {
                         flac::tags(stream);
                     }
-                    !pwd_used
+                    !is_pwd // if is_pwd { false } else { true }
                 });
             }
         }
