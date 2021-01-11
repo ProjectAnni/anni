@@ -3,14 +3,13 @@ use std::fs::File;
 use std::io::Read;
 use std::path::{Path, PathBuf};
 
-use colored::*;
-
 use anni_flac::{MetadataBlockData, parse_flac, Stream};
 use anni_utils::fs;
 use anni_utils::validator::{artist_validator, date_validator, number_validator, trim_validator, Validator};
 
 use crate::encoding;
 use shell_escape::escape;
+use anni_utils::report::{TableReporter, Reporter};
 
 enum FlacTag {
     Must(&'static str, Validator),
@@ -166,51 +165,36 @@ pub(crate) fn tags(stream: &Stream) {
     }
 }
 
-macro_rules! init_hasproblem {
-    ($has_problem: ident, $filename: expr) => {
-        if !$has_problem {
-            eprintln!("## File {}:", $filename);
-            $has_problem = true;
-        }
-    };
-}
-
 pub(crate) fn tags_check(filename: &str, stream: &Stream) {
+    let mut reporter = TableReporter::default();
+    let mut fixes = Vec::new();
     for block in stream.metadata_blocks.iter() {
         match &block.data {
             MetadataBlockData::VorbisComment(s) => {
-                let mut has_problem = false;
                 for tag in TAG_REQUIREMENT.iter() {
                     match tag {
                         FlacTag::Must(key, validator) => {
                             if !s.comments.contains_key(*key) {
-                                init_hasproblem!(has_problem, filename);
-                                eprintln!("- Missing tag: {}", key.green());
+                                reporter.add_problem(filename, "Missing Tag", key, None, Some("Add"));
                             } else {
-                                let key_raw: &str = &s.comments[*key].key_raw();
                                 let value: &str = &s.comments[*key].value();
                                 if !validator(&value) {
-                                    init_hasproblem!(has_problem, filename);
-                                    eprintln!("- Invalid value for tag {}: {}", key_raw.green(), value.red());
+                                    reporter.add_problem(filename, "Invalid value", key, Some(value), Some("Replace"));
                                 }
                             }
                         }
                         FlacTag::Optional(key, validator) => {
                             if s.comments.contains_key(*key) {
-                                let key_raw: &str = &s.comments[*key].key_raw();
                                 let value: &str = &s.comments[*key].value();
                                 if !validator(&value) {
-                                    init_hasproblem!(has_problem, filename);
-                                    eprintln!("- Invalid value for optional tag {}: {}", key_raw.green(), value.red());
+                                    reporter.add_problem(filename, "Invalid value", key, Some(value), Some("Replace / Remove"));
                                 }
                             }
                         }
                         FlacTag::Unrecommended(key, alternative) => {
                             if s.comments.contains_key(*key) {
-                                let value = s.comments[*key].value();
-                                init_hasproblem!(has_problem, filename);
-                                eprintln!("- Unrecommended tag: {}, use {} instead", key.red(), alternative.green());
-                                println!("metaflac --remove-tag={} --set-tag='{}={}' '{}'", key, alternative, value, filename);
+                                let value = &s.comments[*key].value();
+                                reporter.add_problem(filename, "Unrecommended tag", key, Some(value), Some(alternative));
                             }
                         }
                     }
@@ -221,35 +205,27 @@ pub(crate) fn tags_check(filename: &str, stream: &Stream) {
                     let key: &str = key;
                     let key_raw: &str = &comment.key_raw();
                     let value: &str = &comment.value();
-                    let entry: &str = &comment.entry();
 
                     if key_set.contains(key) {
-                        init_hasproblem!(has_problem, filename);
-                        eprintln!("- Duplicated tag: {}", key.red());
+                        reporter.add_problem(filename, "Duplicated tag", key, None, Some("Remove"));
                         continue;
                     } else if !TAG_INCLUDED.contains(&key) {
-                        init_hasproblem!(has_problem, filename);
-                        eprintln!("- Unnecessary tag: {}", key.red());
-                        println!("metaflac --remove-tag={} '{}'", key, filename);
+                        fixes.push(format!("metaflac --remove-tag={} '{}'", key, filename));
+                        reporter.add_problem(filename, "Unnecessary tag", key, Some(value), Some("Remove"));
                         continue;
                     } else {
                         key_set.insert(key.to_string());
                     }
 
                     if !encoding::middle_dot_valid(&value) {
-                        init_hasproblem!(has_problem, filename);
-                        eprintln!("- Invalid middle dot in: {}", entry.red());
-                        println!("metaflac --remove-tag={} --set-tag='{}={}' '{}'", key, key, encoding::middle_dot_replace(&value), filename);
+                        let correct = encoding::middle_dot_replace(&value);
+                        reporter.add_problem(filename, "Invalid middle dot", key, Some(value), Some(&correct));
                     }
                     if value.len() == 0 {
-                        init_hasproblem!(has_problem, filename);
-                        eprintln!("- Empty value for tag: {}", key.red());
-                        println!("metaflac --remove-tag={} '{}'", key, filename);
+                        reporter.add_problem(filename, "Empty value", key, None, Some("Remove"));
                     }
                     if !comment.is_key_uppercase() {
-                        init_hasproblem!(has_problem, filename);
-                        eprintln!("- Tag in lowercase: {}", key_raw.red());
-                        println!("metaflac --remove-tag={} --set-tag='{}={}' '{}'", key_raw, key, value, filename);
+                        reporter.add_problem(filename, "Lowercase tag", key_raw, Some(value), Some(key));
                     }
                 }
 
@@ -262,13 +238,16 @@ pub(crate) fn tags_check(filename: &str, stream: &Stream) {
                     let filename_expected: &str = &format!("{}. {}.flac", number, s.comments["TITLE"].value());
                     let filename_raw = Path::new(filename).file_name().unwrap().to_str().expect("Non-UTF8 filenames are currently not supported!");
                     if filename_raw != filename_expected {
-                        init_hasproblem!(has_problem, filename);
-                        eprintln!("- Filename mismatch: expected {}, got {}", filename_expected.green(), filename_raw.red());
-                        println!("mv {} {}", escape(filename_raw.into()), escape(filename_expected.into()));
+                        reporter.add_problem(filename, "Filename mismatch", filename_raw, None, Some(filename_expected));
+                        fixes.push(format!("mv {} {}", escape(filename_raw.into()), escape(filename_expected.into())));
                     }
                 }
             }
             _ => {}
         }
+    }
+    reporter.eprint();
+    for fix in fixes.iter() {
+        println!("{}", fix);
     }
 }

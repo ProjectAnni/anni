@@ -1,11 +1,11 @@
 ## anni
-anni = 摸鱼
+anni-about = 为自建音乐站点构建的一整套工具
 
 ## flac
 flac = 提供 FLAC 处理相关的功能
 flac-list = 列出 FLAC 文件的块信息
 flac-tags = 列出 FLAC 文件的标签
-flac-tags-check = 检查 FLAC 文件的标签是否符合 anni 标准
+flac-tags-check = 检查 FLAC 文件的标签是否符合 anni 要求
 
 ## cue
 cue = 提供 CUE 解析、标签修改相关的功能

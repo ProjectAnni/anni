@@ -1,11 +1,11 @@
 ## anni
-anni = Fish
+anni-about = A set of tools for self-hosting music sites.
 
 ## flac
 flac = Provide FLAC-related utilities.
 flac-list = List blocks of FLAC file.
 flac-tags = List tags of FLAC file.
-flac-tags-check = Check whether tags in FLAC file matches anni standard.
+flac-tags-check = Check whether tags in FLAC file meet anni requirements.
 
 ## cue
 cue = Provide CUE related utilieies such as parsing and editing tags.
