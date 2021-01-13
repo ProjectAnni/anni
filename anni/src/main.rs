@@ -68,7 +68,6 @@ fn main() -> Result<(), String> {
                 .long("tag-sh")
                 .short("t")
             )
-            .arg(Arg::with_name("cue."))
             .arg(Arg::with_name("Filename")
                 .takes_value(true)
                 .empty_values(false)
