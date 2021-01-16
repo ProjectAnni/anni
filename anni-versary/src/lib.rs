@@ -1,39 +1,32 @@
-mod auth;
+//! Simple and powerful music backend
+//!
+//! Provides anni-api and [`subsonic-api`] for clients.
+//!
+//! [`subsonic-api`]: http://www.subsonic.org/pages/api.jsp
+//!
+//! ## Usage
+//! To launch an anni-versary server, just call its `launch` method:
+//! ```rust
+//! async fn main() {
+//!   anni_versary::launch().await;
+//! }
+//! ```
 
-use actix_web::{HttpServer, Responder, HttpResponse, App, middleware};
-use r2d2_sqlite::SqliteConnectionManager;
-use r2d2::Pool;
-use actix_web::dev::Service;
-use actix_web::http::header::CONTENT_TYPE;
-use actix_web::http::HeaderValue;
+#[macro_use]
+extern crate rocket;
 
-#[actix_web::get("/ping")]
-async fn ping() -> impl Responder {
-    HttpResponse::Ok().body("pong")
+pub mod subsonic;
+
+use rocket::error::Error;
+
+#[get("/")]
+fn hello() -> &'static str {
+    "Hello, world!"
 }
 
-#[actix_web::main]
-pub async fn anni_versary() -> std::io::Result<()> {
-    let manager = SqliteConnectionManager::file("anni.db");
-    let pool = Pool::new(manager).unwrap();
-    HttpServer::new(move ||
-        App::new()
-            .data(pool.clone())
-            .wrap(middleware::Logger::default())
-            .service(ping)
-            .wrap_fn(|req, srv| {
-                println!("Requested: {} ", req.path());
-                let fut = srv.call(req);
-                async {
-                    let mut res = fut.await?;
-                    res.headers_mut().insert(
-                        CONTENT_TYPE, HeaderValue::from_static("text/plain"),
-                    );
-                    Ok(res)
-                }
-            })
-    )
-        .bind("127.0.0.1:8080")?
-        .run()
-        .await
+pub async fn launch() -> Result<(), Error> {
+    rocket::ignite()
+        .mount("/", routes![hello])
+        .mount(subsonic::PATH, subsonic::routes())
+        .launch().await
 }

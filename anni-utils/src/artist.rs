@@ -1,12 +1,9 @@
-use std::rc::Rc;
-
 pub struct Artist<'a> {
     pub name: &'a str,
     pub alias: Option<Vec<Artist<'a>>>,
 }
 
 pub struct ArtistList<'a> {
-    raw: Rc<String>,
     pub artists: Vec<Artist<'a>>,
 }
 

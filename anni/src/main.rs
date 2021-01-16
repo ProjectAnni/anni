@@ -183,7 +183,7 @@ fn main() -> Result<(), String> {
             println!(r#"shnsplit -f {} -o "flac flac --picture {} -o %f -" {} -t "%n. %t""#, escape(cue.into()), cover, escape(audio.into()));
         }
     } else if let Some(_matches) = matches.subcommand_matches("versary") {
-        let _ = anni_versary::anni_versary();
+        let _ = anni_versary::launch();
     }
 
     Ok(())
