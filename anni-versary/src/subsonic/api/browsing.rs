@@ -1,5 +1,5 @@
 use serde::Serialize;
-use crate::subsonic::api::{Response, ResponseNoLongerSupported, no_longer_supported};
+use crate::subsonic::api::{Response, ResponseNotImplemented, api_not_implemented};
 use crate::subsonic::api::response::{SonicArtist, SonicChild, DateTime, SonicAverageRating, SonicUserRating, SonicAlbumID3};
 
 /// ## getMusicFolders
@@ -108,8 +108,8 @@ pub fn get_song() -> Response {
 /// Returns a `<subsonic-response>` element with a nested `<videos>` element on success. [Example].
 /// [Example]: http://www.subsonic.org/pages/inc/api/examples/videos_example_1.xml
 #[get("/getVideos")]
-pub fn get_videos() -> ResponseNoLongerSupported {
-    no_longer_supported()
+pub fn get_videos() -> ResponseNotImplemented {
+    api_not_implemented()
 }
 
 /// ## getVideoInfo
@@ -121,8 +121,8 @@ pub fn get_videos() -> ResponseNoLongerSupported {
 /// Returns a `<subsonic-response>` element with a nested `<videoInfo>` element on success. [Example].
 /// [Example]: http://www.subsonic.org/pages/inc/api/examples/videoInfo_example_1.xml
 #[get("/getVideoInfo")]
-pub fn get_video_info() -> ResponseNoLongerSupported {
-    no_longer_supported()
+pub fn get_video_info() -> ResponseNotImplemented {
+    api_not_implemented()
 }
 
 /// ## getArtistInfo
@@ -136,8 +136,8 @@ pub fn get_video_info() -> ResponseNoLongerSupported {
 /// Returns a `<subsonic-response>` element with a nested `<artistInfo>` element on success. [Example].
 /// [Example]: http://www.subsonic.org/pages/inc/api/examples/artistInfo_example_1.xml
 #[get("/getArtistInfo")]
-pub fn get_artist_info() -> ResponseNoLongerSupported {
-    no_longer_supported()
+pub fn get_artist_info() -> ResponseNotImplemented {
+    api_not_implemented()
 }
 
 /// ## getArtistInfo2
@@ -151,8 +151,8 @@ pub fn get_artist_info() -> ResponseNoLongerSupported {
 /// Returns a `<subsonic-response>` element with a nested `<artistInfo2>` element on success. [Example].
 /// [Example]: http://www.subsonic.org/pages/inc/api/examples/artistInfo2_example_1.xml
 #[get("/getArtistInfo2")]
-pub fn get_artist_info2() -> ResponseNoLongerSupported {
-    no_longer_supported()
+pub fn get_artist_info2() -> ResponseNotImplemented {
+    api_not_implemented()
 }
 
 /// ## getAlbumInfo
@@ -164,8 +164,8 @@ pub fn get_artist_info2() -> ResponseNoLongerSupported {
 /// Returns a `<subsonic-response>` element with a nested `<albumInfo>` element on success. [Example].
 /// [Example]: http://www.subsonic.org/pages/inc/api/examples/albumInfo_example_1.xml
 #[get("/getAlbumInfo")]
-pub fn get_album_info() -> ResponseNoLongerSupported {
-    no_longer_supported()
+pub fn get_album_info() -> ResponseNotImplemented {
+    api_not_implemented()
 }
 
 /// ## getAlbumInfo2
@@ -191,8 +191,8 @@ pub fn get_album_info2() -> Response {
 /// Returns a `<subsonic-response>` element with a nested `<similarSongs>` element on success. [Example].
 /// [Example]: http://www.subsonic.org/pages/inc/api/examples/similarSongs_example_1.xml
 #[get("/getSimilarSongs")]
-pub fn get_similiar_songs() -> ResponseNoLongerSupported {
-    no_longer_supported()
+pub fn get_similiar_songs() -> ResponseNotImplemented {
+    api_not_implemented()
 }
 
 /// ## getSimilarSongs2
@@ -205,8 +205,8 @@ pub fn get_similiar_songs() -> ResponseNoLongerSupported {
 /// Returns a `<subsonic-response>` element with a nested `<similarSongs2>` element on success. [Example].
 /// [Example]: http://www.subsonic.org/pages/inc/api/examples/similarSongs2_example_1.xml
 #[get("/getSimilarSongs2")]
-pub fn get_similiar_songs2() -> ResponseNoLongerSupported {
-    no_longer_supported()
+pub fn get_similiar_songs2() -> ResponseNotImplemented {
+    api_not_implemented()
 }
 
 /// ## getTopSongs
@@ -219,8 +219,8 @@ pub fn get_similiar_songs2() -> ResponseNoLongerSupported {
 /// Returns a `<subsonic-response>` element with a nested `<topSongs>` element on success. [Example].
 /// [Example]: http://www.subsonic.org/pages/inc/api/examples/topSongs_example_1.xml
 #[get("/getTopSongs")]
-pub fn get_top_songs() -> ResponseNoLongerSupported {
-    no_longer_supported()
+pub fn get_top_songs() -> ResponseNotImplemented {
+    api_not_implemented()
 }
 
 /// <xs:complexType name="MusicFolders">
