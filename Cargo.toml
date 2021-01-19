@@ -5,6 +5,5 @@ members = [
     "anni-repo",
     "anni-utils",
     "anni-versary",
-
     "i18n-embed-fl",
 ]
