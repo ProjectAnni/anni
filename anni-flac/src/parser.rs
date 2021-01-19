@@ -1,6 +1,6 @@
 use nom::{IResult, Err, Needed, error};
 use nom::number::streaming::{be_u8, be_u16, be_u24, be_u32, be_u64, le_u32};
-use nom::lib::std::collections::HashMap;
+use nom::lib::std::collections::BTreeMap;
 
 /// https://xiph.org/flac/format.html
 #[derive(Debug)]
@@ -313,7 +313,7 @@ pub struct MetadataBlockVorbisComment {
     // comment_number: u32,
 
     /// iterate [user_comment_list_length] times
-    pub comments: HashMap<String, UserComment>,
+    pub comments: BTreeMap<String, UserComment>,
 
     // [framing_bit] = read a single bit as boolean
     // if ( [framing_bit] unset or end of packet ) then ERROR
@@ -396,8 +396,8 @@ named!(pub metadata_block_vorbis_comment<MetadataBlockVorbisComment>, do_parse!(
     })
 ));
 
-pub fn user_comment(input: &[u8], count: u32) -> IResult<&[u8], HashMap<String, UserComment>> {
-    let mut result = HashMap::new();
+pub fn user_comment(input: &[u8], count: u32) -> IResult<&[u8], BTreeMap<String, UserComment>> {
+    let mut result = BTreeMap::new();
     let mut remaining = input;
     let mut offset: usize = 0;
     for _i in 0..count {
