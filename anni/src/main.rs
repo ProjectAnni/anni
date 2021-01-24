@@ -57,7 +57,7 @@ fn main() -> Result<(), String> {
             .arg(Arg::with_name("flac.export.to")
                 .help(fl!("flac-export-to"))
                 .long("export-to")
-                .short("to")
+                .short("o")
                 .takes_value(true)
                 .default_value("-")
             )

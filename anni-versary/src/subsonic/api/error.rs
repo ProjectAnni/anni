@@ -8,7 +8,7 @@ pub(crate) struct SonicError {
 }
 
 impl SonicError {
-    fn new(kind: ErrorKind, message: &str) -> Self {
+    pub fn new(kind: ErrorKind, message: &str) -> Self {
         SonicError {
             code: kind as u8,
             message: message.to_owned(),

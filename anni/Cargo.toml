@@ -22,5 +22,5 @@ anni-utils = { path = "../anni-utils" }
 anni-versary = { path = "../anni-versary" }
 
 i18n-embed = { version = "0.9", features = ["fluent-system", "desktop-requester", "filesystem-assets"] }
-i18n-embed-fl = { path = "../i18n-embed-fl" }
+i18n-embed-fl = "0.3.1"
 rust-embed = "5"

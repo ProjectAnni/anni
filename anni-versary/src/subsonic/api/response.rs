@@ -147,7 +147,8 @@ pub(crate) type SonicMediaType = String; // FIXME
 
 #[cfg(test)]
 mod tests {
-    use crate::subsonic::api::response::{Response, ResponseType, SonicError};
+    use crate::subsonic::api::response::{Response, SonicError};
+    use crate::subsonic::api::error::ErrorKind;
 
     #[test]
     fn serialize() {
@@ -161,11 +162,9 @@ mod tests {
             artist: None,
             album: None,
             song: None,
+            directory: None,
             license: None,
-            error: Some(SonicError {
-                code: 10,
-                message: "???".to_owned(),
-            }),
+            error: Some(SonicError::new(ErrorKind::Generic, "???")),
         };
         let data = quick_xml::se::to_string(&resp).unwrap();
         let _r = data;
