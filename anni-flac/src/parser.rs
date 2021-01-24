@@ -100,7 +100,7 @@ impl MetadataBlock {
                 println!("  vendor string: {}", s.vendor_string);
                 println!("  comments: {}", s.len());
                 for (i, (key, c)) in s.comments.iter().enumerate() {
-                    println!("    comment[{}]: {}={}", i, key, c.value());
+                    println!("    comment[{}]: {}={}", i, key, c.value_raw());
                 }
             }
             MetadataBlockData::CueSheet(s) => {
@@ -400,6 +400,16 @@ impl MetadataBlockVorbisComment {
     }
 }
 
+impl ToString for MetadataBlockVorbisComment {
+    fn to_string(&self) -> String {
+        let mut result = String::new();
+        for (key, comment) in self.comments.iter() {
+            result += &format!("{}={}", key, comment.value_raw());
+        }
+        result
+    }
+}
+
 #[derive(Debug)]
 pub struct UserComment {
     // [length] = read an unsigned integer of 32 bits
@@ -442,6 +452,13 @@ impl UserComment {
         match self.value_offset {
             Some(offset) => (&self.comment[offset + 1..]).to_owned(),
             None => String::new(),
+        }
+    }
+
+    pub fn value_raw(&self) -> &str {
+        match self.value_offset {
+            Some(offset) => &self.comment[offset + 1..],
+            None => &self.comment[self.comment.len()..],
         }
     }
 
@@ -986,25 +1003,25 @@ mod tests {
         let c = UserComment::new("a=b".to_string());
         assert_eq!(c.key(), "A");
         assert_eq!(c.key_raw(), "a");
-        assert_eq!(c.value(), "b");
+        assert_eq!(c.value_raw(), "b");
         assert_eq!(c.is_key_uppercase(), false);
 
         let c = UserComment::new("A=b".to_string());
         assert_eq!(c.key(), "A");
         assert_eq!(c.key_raw(), "A");
-        assert_eq!(c.value(), "b");
+        assert_eq!(c.value_raw(), "b");
         assert_eq!(c.is_key_uppercase(), true);
 
         let c = UserComment::new("A_WITHOUT_EQUAL".to_string());
         assert_eq!(c.key(), "A_WITHOUT_EQUAL");
         assert_eq!(c.key_raw(), "A_WITHOUT_EQUAL");
-        assert_eq!(c.value(), "");
+        assert_eq!(c.value_raw(), "");
         assert_eq!(c.is_key_uppercase(), true);
 
         let c = UserComment::new("A_WITHOUT_VaLuE=".to_string());
         assert_eq!(c.key(), "A_WITHOUT_VALUE");
         assert_eq!(c.key_raw(), "A_WITHOUT_VaLuE");
-        assert_eq!(c.value(), "");
+        assert_eq!(c.value_raw(), "");
         assert_eq!(c.is_key_uppercase(), false);
     }
 

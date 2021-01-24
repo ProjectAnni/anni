@@ -109,9 +109,7 @@ pub(crate) fn tags(stream: &Stream) {
     for block in stream.metadata_blocks.iter() {
         match &block.data {
             MetadataBlockData::VorbisComment(s) => {
-                for (key, c) in s.comments.iter() {
-                    println!("{}={}", key, c.value());
-                }
+                println!("{}", s.to_string());
                 break;
             }
             _ => {}
@@ -131,7 +129,7 @@ pub(crate) fn tags_check(filename: &str, stream: &Stream, report_mode: &str) {
                             if !s.comments.contains_key(*key) {
                                 reporter.add_problem(filename, "Missing Tag", key, None, Some("Add"));
                             } else {
-                                let value: &str = &s.comments[*key].value();
+                                let value = s.comments[*key].value_raw();
                                 if !validator(&value) {
                                     reporter.add_problem(filename, "Invalid value", key, Some(value), Some("Replace"));
                                 }
@@ -139,7 +137,7 @@ pub(crate) fn tags_check(filename: &str, stream: &Stream, report_mode: &str) {
                         }
                         FlacTag::Optional(key, validator) => {
                             if s.comments.contains_key(*key) {
-                                let value: &str = &s.comments[*key].value();
+                                let value = s.comments[*key].value_raw();
                                 if !validator(&value) {
                                     reporter.add_problem(filename, "Invalid value", key, Some(value), Some("Replace / Remove"));
                                 }
@@ -147,7 +145,7 @@ pub(crate) fn tags_check(filename: &str, stream: &Stream, report_mode: &str) {
                         }
                         FlacTag::Unrecommended(key, alternative) => {
                             if s.comments.contains_key(*key) {
-                                let value = &s.comments[*key].value();
+                                let value = s.comments[*key].value_raw();
                                 reporter.add_problem(filename, "Unrecommended tag", key, Some(value), Some(alternative));
                             }
                         }
@@ -158,7 +156,7 @@ pub(crate) fn tags_check(filename: &str, stream: &Stream, report_mode: &str) {
                 for (key, comment) in s.comments.iter() {
                     let key: &str = key;
                     let key_raw: &str = &comment.key_raw();
-                    let value: &str = &comment.value();
+                    let value = comment.value_raw();
 
                     if key_set.contains(key) {
                         reporter.add_problem(filename, "Duplicated tag", key, None, Some("Remove"));
@@ -189,7 +187,7 @@ pub(crate) fn tags_check(filename: &str, stream: &Stream, report_mode: &str) {
                     if number.len() == 1 {
                         number = format!("0{}", number);
                     }
-                    let filename_expected: &str = &format!("{}. {}.flac", number, s.comments["TITLE"].value());
+                    let filename_expected: &str = &format!("{}. {}.flac", number, s.comments["TITLE"].value_raw());
                     let filename_raw = Path::new(filename).file_name().unwrap().to_str().expect("Non-UTF8 filenames are currently not supported!");
                     if filename_raw != filename_expected {
                         reporter.add_problem(filename, "Filename mismatch", filename_raw, None, Some(filename_expected));

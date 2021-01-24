@@ -2,7 +2,6 @@ use std::path::{PathBuf, Path};
 use std::fs::{read_dir};
 use std::io;
 pub use std::fs::metadata;
-use std::iter::Filter;
 
 pub struct PathWalker {
     path: Vec<PathBuf>,
