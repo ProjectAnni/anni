@@ -63,7 +63,6 @@ dependencies = [
  "clap",
  "cpal",
  "cue_sheet",
- "hex",
  "i18n-embed",
  "i18n-embed-fl",
  "lazy_static",
@@ -77,6 +76,7 @@ dependencies = [
 name = "anni-flac"
 version = "0.1.0"
 dependencies = [
+ "hex",
  "nom 6.0.1",
 ]
 

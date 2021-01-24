@@ -1,4 +1,4 @@
-use clap::{App, Arg, ArgGroup, crate_authors, crate_version, SubCommand};
+use clap::{App, Arg, ArgGroup, crate_authors, crate_version, SubCommand, AppSettings};
 use anni_utils::fs;
 use std::path::PathBuf;
 use shell_escape::escape;
@@ -13,13 +13,9 @@ fn main() -> Result<(), String> {
         .about(fl!("anni-about"))
         .version(crate_version!())
         .author(crate_authors!())
+        .setting(AppSettings::ArgRequiredElseHelp)
         .subcommand(SubCommand::with_name("flac")
             .about(fl!("flac"))
-            .arg(Arg::with_name("flac.list")
-                .help(fl!("flac-list"))
-                .long("list")
-                .short("l")
-            )
             .arg(Arg::with_name("flac.tags")
                 .help(fl!("flac-tags"))
                 .long("tags")
@@ -39,7 +35,39 @@ fn main() -> Result<(), String> {
                 .default_value("table")
                 .possible_values(&["table", "markdown"])
             )
-            .group(ArgGroup::with_name("group.flac").args(&["flac.list", "flac.tags"]))
+            .arg(Arg::with_name("flac.export.type")
+                .help(fl!("flac-export-type"))
+                .long("export-type")
+                .short("e")
+                .takes_value(true)
+                .default_value("tag")
+                .possible_values(&[
+                    // block types
+                    "info", "application", "seektable", "cue",
+                    // comment & alias
+                    "comment", "tag",
+                    // common picture
+                    "picture",
+                    // picture: cover
+                    "cover",
+                    // list
+                    "list", "all",
+                ])
+            )
+            .arg(Arg::with_name("flac.export.to")
+                .help(fl!("flac-export-to"))
+                .long("export-to")
+                .short("to")
+                .takes_value(true)
+                .default_value("-")
+            )
+            .group(ArgGroup::with_name("group.flac")
+                .args(&["flac.tags", "flac.export.type"])
+            )
+            .group(ArgGroup::with_name("group.flac.export")
+                .args(&["flac.export.type", "flac.export.to"])
+                .multiple(true)
+            )
             .arg(Arg::with_name("Filename")
                 .takes_value(true)
                 .empty_values(false)
@@ -107,16 +135,7 @@ fn main() -> Result<(), String> {
         .get_matches();
 
     if let Some(matches) = matches.subcommand_matches("flac") {
-        if matches.is_present("flac.list") {
-            if let Some(files) = matches.values_of("Filename") {
-                for filename in files {
-                    flac::parse_input(filename, |_name, stream| {
-                        flac::info_list(stream);
-                        true
-                    });
-                }
-            }
-        } else if matches.is_present("flac.tags") {
+        if matches.is_present("flac.tags") {
             let pwd = PathBuf::from("./");
             let (paths, is_pwd) = match matches.values_of("Filename") {
                 Some(files) => (files.collect(), false),
@@ -131,6 +150,25 @@ fn main() -> Result<(), String> {
                     }
                     !is_pwd // if is_pwd { false } else { true }
                 });
+            }
+        } else if matches.is_present("flac.export.type") {
+            let mut files = if let Some(filename) = matches.value_of("Filename") {
+                flac::parse_input_iter(filename)
+            } else {
+                panic!("No filename provided.");
+            };
+
+            let file = files.nth(0).ok_or("No valid file found.")?;
+            match matches.value_of("flac.export.type").unwrap() {
+                "info" => {}
+                "application" => {}
+                "seektable" => {}
+                "cue" => {}
+                "comment" | "tag" => {}
+                "picture" => {}
+                "cover" => {}
+                "list" | "all" => { flac::info_list(&file) }
+                _ => panic!("Unknown export type.")
             }
         }
     } else if let Some(matches) = matches.subcommand_matches("cue") {

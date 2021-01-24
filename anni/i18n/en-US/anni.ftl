@@ -6,7 +6,9 @@ flac = Provide FLAC-related utilities.
 flac-list = List blocks of FLAC file.
 flac-tags = List tags of FLAC file.
 flac-tags-check = Check whether tags in FLAC file meet anni requirements.
-flac-report-format = Format for FLAC report
+flac-report-format = Format for FLAC report.
+flac-export-type = Type of data to export.
+flac-export-to = Path for exported data.
 
 ## cue
 cue = Provide CUE related utilieies such as parsing and editing tags.

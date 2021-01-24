@@ -13,7 +13,6 @@ clap = "2.33.3"
 prettytable-rs = "0.8.0"
 cue_sheet = { git = "https://github.com/Yesterday17/cue_sheet" }
 cpal = "0.13.1"
-hex = "0.4.2"
 regex = "1"
 lazy_static = "1.4.0"
 shell-escape = "0.1.5"

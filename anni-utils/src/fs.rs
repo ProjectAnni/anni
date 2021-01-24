@@ -2,6 +2,7 @@ use std::path::{PathBuf, Path};
 use std::fs::{read_dir};
 use std::io;
 pub use std::fs::metadata;
+use std::iter::Filter;
 
 pub struct PathWalker {
     path: Vec<PathBuf>,
@@ -64,6 +65,18 @@ impl PathWalker {
         walker.extract_path();
         walker.recursive = recursive;
         walker
+    }
+
+    pub fn with_extensions(exts: Box<[&str]>) -> Box<dyn Fn(&PathBuf) -> bool + '_>
+    {
+        Box::new(move |file: &PathBuf| {
+            match file.extension() {
+                None => false,
+                Some(ext) => {
+                    exts.contains(&ext.to_str().unwrap())
+                }
+            }
+        })
     }
 }
 

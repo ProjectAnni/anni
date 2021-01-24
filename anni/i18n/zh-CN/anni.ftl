@@ -7,6 +7,8 @@ flac-list = 列出 FLAC 文件的块信息
 flac-tags = 列出 FLAC 文件的标签
 flac-tags-check = 检查 FLAC 文件的标签是否符合 anni 要求
 flac-report-format = 输出日志的格式
+flac-export-type = 导出内容类型
+flac-export-to = 导出内容存放的路径
 
 ## cue
 cue = 提供 CUE 解析、标签修改相关的功能
