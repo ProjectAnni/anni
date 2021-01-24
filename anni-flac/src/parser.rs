@@ -1,6 +1,7 @@
 use nom::{IResult, Err, Needed, error};
 use nom::number::streaming::{be_u8, be_u16, be_u24, be_u32, be_u64, le_u32};
 use nom::lib::std::collections::BTreeMap;
+use std::ops::Index;
 
 /// https://xiph.org/flac/format.html
 #[derive(Debug)]
@@ -397,6 +398,14 @@ impl MetadataBlockVorbisComment {
 
     pub fn len(&self) -> usize {
         self.comments.len()
+    }
+}
+
+impl Index<&str> for MetadataBlockVorbisComment {
+    type Output = UserComment;
+
+    fn index(&self, index: &str) -> &Self::Output {
+        &self.comments[index]
     }
 }
 
