@@ -7,8 +7,8 @@
 //! ## Usage
 //! To launch an anni-versary server, just call its `launch` method:
 //! ```rust
-//! async fn main() {
-//!   anni_versary::launch().await;
+//! fn main() {
+//!   anni_versary::launch();
 //! }
 //! ```
 
