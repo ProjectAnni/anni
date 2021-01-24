@@ -502,7 +502,10 @@ pub fn user_comment(input: &[u8], count: u32) -> IResult<&[u8], BTreeMap<String,
         let (_remaining, comment) = take!(_remaining, length as usize)?;
         let comment = String::from_utf8(comment.to_vec()).expect("Invalid UTF-8 description.");
         let comment = UserComment::new(comment);
-        result.insert(comment.key(), comment);
+        // NOT override only when key exists AND comment.value is EMPTY.
+        if !(result.contains_key(&comment.key()) && comment.value_raw().len() == 0) {
+            result.insert(comment.key(), comment);
+        }
         offset += (length + 4) as usize;
         remaining = _remaining;
     }
