@@ -101,7 +101,7 @@ impl MetadataBlock {
                 println!("  vendor string: {}", s.vendor_string);
                 println!("  comments: {}", s.len());
                 for (i, (key, c)) in s.comments.iter().enumerate() {
-                    println!("    comment[{}]: {}={}", i, key, c.value_raw());
+                    println!("    comment[{}]: {}={}", i, key, c.value());
                 }
             }
             MetadataBlockData::CueSheet(s) => {
@@ -413,7 +413,7 @@ impl ToString for MetadataBlockVorbisComment {
     fn to_string(&self) -> String {
         let mut result = String::new();
         for (key, comment) in self.comments.iter() {
-            result += &format!("{}={}", key, comment.value_raw());
+            result += &format!("{}={}", key, comment.value());
         }
         result
     }
@@ -457,14 +457,7 @@ impl UserComment {
         key.chars().all(|c| !c.is_ascii_lowercase())
     }
 
-    pub fn value(&self) -> String {
-        match self.value_offset {
-            Some(offset) => (&self.comment[offset + 1..]).to_owned(),
-            None => String::new(),
-        }
-    }
-
-    pub fn value_raw(&self) -> &str {
+    pub fn value(&self) -> &str {
         match self.value_offset {
             Some(offset) => &self.comment[offset + 1..],
             None => &self.comment[self.comment.len()..],
@@ -503,7 +496,7 @@ pub fn user_comment(input: &[u8], count: u32) -> IResult<&[u8], BTreeMap<String,
         let comment = String::from_utf8(comment.to_vec()).expect("Invalid UTF-8 description.");
         let comment = UserComment::new(comment);
         // NOT override only when key exists AND comment.value is EMPTY.
-        if !(result.contains_key(&comment.key()) && comment.value_raw().len() == 0) {
+        if !(result.contains_key(&comment.key()) && comment.value().len() == 0) {
             result.insert(comment.key(), comment);
         }
         offset += (length + 4) as usize;

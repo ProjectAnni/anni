@@ -68,13 +68,13 @@ fn test_audio_tags() {
                 assert_eq!(block.length, 163);
                 assert_eq!(comment.vendor_string, "Lavf58.45.100");
                 assert_eq!(comment.len(), 8);
-                assert_eq!(comment["TITLE"].value_raw(), "TRACK ONE");
-                assert_eq!(comment["ALBUM"].value_raw(), "TestAlbum");
-                assert_eq!(comment["DATE"].value_raw(), "2021-01-24");
-                assert_eq!(comment["TRACKNUMBER"].value_raw(), "1");
-                assert_eq!(comment["TRACKTOTAL"].value_raw(), "1");
-                assert_eq!(comment["DISCNUMBER"].value_raw(), "1");
-                assert_eq!(comment["DISCTOTAL"].value_raw(), "1");
+                assert_eq!(comment["TITLE"].value(), "TRACK ONE");
+                assert_eq!(comment["ALBUM"].value(), "TestAlbum");
+                assert_eq!(comment["DATE"].value(), "2021-01-24");
+                assert_eq!(comment["TRACKNUMBER"].value(), "1");
+                assert_eq!(comment["TRACKTOTAL"].value(), "1");
+                assert_eq!(comment["DISCNUMBER"].value(), "1");
+                assert_eq!(comment["DISCTOTAL"].value(), "1");
             }
             MetadataBlockData::Picture(picture) => {
                 assert_eq!(i, 3);

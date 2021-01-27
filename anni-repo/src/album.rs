@@ -22,7 +22,7 @@ impl FromStr for Album {
 
 #[derive(Debug, Deserialize, PartialEq)]
 struct AlbumInfo {
-    name: String,
+    title: String,
     #[serde(default)]
     #[serde(deserialize_with = "string_or_seq_string")]
     artist: Option<Vec<String>>,
@@ -125,7 +125,7 @@ mod tests {
         let toml_str = r#"
 [album]
 # 专辑名
-name = "夏凪ぎ/宝物になった日"
+title = "夏凪ぎ/宝物になった日"
 # 专辑歌手
 # 表示专辑在显示时的归属
 artist = "やなぎなぎ"
@@ -199,7 +199,7 @@ type = "instrumental"
         let decoded: Album = toml::from_str(toml_str).unwrap();
         assert_eq!(decoded, Album {
             album_info: AlbumInfo {
-                name: "夏凪ぎ/宝物になった日".to_string(),
+                title: "夏凪ぎ/宝物になった日".to_string(),
                 artist: Some(vec!["やなぎなぎ".to_string()]),
                 release_date: Datetime::from_str("2020-12-16").unwrap(),
                 track_type: Some(TrackType::Normal),
