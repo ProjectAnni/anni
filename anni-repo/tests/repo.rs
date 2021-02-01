@@ -1,8 +1,9 @@
 use anni_repo::repo::{Repository};
+use std::str::FromStr;
 
 #[test]
 fn decode_repo_toml() {
-    let repo = Repository::from_toml(r#"
+    let repo = Repository::from_str(r#"
 [repo]
 # 仓库名
 name = "Yesterday17's Metadata Repo"

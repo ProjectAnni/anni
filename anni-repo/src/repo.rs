@@ -1,5 +1,6 @@
 use serde::{Serialize, Deserialize};
 use std::error::Error;
+use std::str::FromStr;
 
 #[derive(Deserialize)]
 struct RepositoryDeserializeWrapper {
@@ -28,12 +29,22 @@ pub struct AssetSetting {
     root: Option<String>,
 }
 
-impl Repository {
-    pub fn from_toml<T: AsRef<str>>(input: T) -> Result<Repository, Box<dyn Error>> {
-        let val: RepositoryDeserializeWrapper = toml::from_str(input.as_ref())?;
+impl FromStr for Repository {
+    type Err = Box<dyn Error>;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let val: RepositoryDeserializeWrapper = toml::from_str(s)?;
         Ok(val.repo)
     }
+}
 
+impl ToString for Repository {
+    fn to_string(&self) -> String {
+        toml::to_string_pretty(&RepositorySerializeWrapper { repo: self }).unwrap()
+    }
+}
+
+impl Repository {
     pub fn name(&self) -> &str {
         self.name.as_ref()
     }
@@ -57,12 +68,6 @@ impl Repository {
 
     pub fn lyric(&self) -> Option<&AssetSetting> {
         self.lyric.as_ref()
-    }
-}
-
-impl ToString for Repository {
-    fn to_string(&self) -> String {
-        toml::to_string_pretty(&RepositorySerializeWrapper { repo: self }).unwrap()
     }
 }
 
