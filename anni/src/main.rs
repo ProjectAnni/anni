@@ -16,13 +16,8 @@ fn main() -> Result<(), String> {
         .setting(AppSettings::ArgRequiredElseHelp)
         .subcommand(SubCommand::with_name("flac")
             .about(fl!("flac"))
-            .arg(Arg::with_name("flac.tags")
-                .help(fl!("flac-tags"))
-                .long("tags")
-                .short("t")
-            )
-            .arg(Arg::with_name("flac.tag.check")
-                .help(fl!("flac-tags-check"))
+            .arg(Arg::with_name("flac.check")
+                .help(fl!("flac-check"))
                 .long("check")
                 .short("c")
             )
@@ -35,10 +30,15 @@ fn main() -> Result<(), String> {
                 .default_value("table")
                 .possible_values(&["table", "markdown"])
             )
+            .arg(Arg::with_name("flac.export")
+                .help(fl!("flac-export"))
+                .long("export")
+                .short("e")
+            )
             .arg(Arg::with_name("flac.export.type")
                 .help(fl!("flac-export-type"))
                 .long("export-type")
-                .short("e")
+                .short("t")
                 .takes_value(true)
                 .default_value("tag")
                 .possible_values(&[
@@ -62,10 +62,10 @@ fn main() -> Result<(), String> {
                 .default_value("-")
             )
             .group(ArgGroup::with_name("group.flac")
-                .args(&["flac.tags", "flac.export.type"])
+                .args(&["flac.check", "flac.export"])
             )
             .group(ArgGroup::with_name("group.flac.export")
-                .args(&["flac.export.type", "flac.export.to"])
+                .args(&["flac.export", "flac.export.type", "flac.export.to"])
                 .multiple(true)
             )
             .arg(Arg::with_name("Filename")
@@ -135,7 +135,7 @@ fn main() -> Result<(), String> {
         .get_matches();
 
     if let Some(matches) = matches.subcommand_matches("flac") {
-        if matches.is_present("flac.tags") {
+        if matches.is_present("flac.check") {
             let pwd = PathBuf::from("./");
             let (paths, is_pwd) = match matches.values_of("Filename") {
                 Some(files) => (files.collect(), false),
@@ -143,15 +143,11 @@ fn main() -> Result<(), String> {
             };
             for input in paths {
                 flac::parse_input(input, |name, stream| {
-                    if matches.is_present("flac.tag.check") {
-                        flac::tags_check(name, stream, matches.value_of("flac.report.format").unwrap());
-                    } else {
-                        flac::tags(stream);
-                    }
+                    flac::tags_check(name, stream, matches.value_of("flac.report.format").unwrap());
                     !is_pwd // if is_pwd { false } else { true }
                 });
             }
-        } else if matches.is_present("flac.export.type") {
+        } else if matches.is_present("flac.export") {
             let mut files = if let Some(filename) = matches.value_of("Filename") {
                 flac::parse_input_iter(filename)
             } else {
@@ -164,7 +160,7 @@ fn main() -> Result<(), String> {
                 "application" => {}
                 "seektable" => {}
                 "cue" => {}
-                "comment" | "tag" => {}
+                "comment" | "tag" => { flac::tags(&file) }
                 "picture" => {}
                 "cover" => {}
                 "list" | "all" => { flac::info_list(&file) }

@@ -33,7 +33,7 @@ fn test_cover_file() {
 
 #[test]
 fn test_audio_tags() {
-    let mut file = File::open("tests/test.flac").expect("Failed to open test flac file.");
+    let mut file = File::open("../assets/test.flac").expect("Failed to open test flac file.");
     let mut data = Vec::new();
     file.read_to_end(&mut data).expect("Failed to read test flac file.");
     let stream = parse_flac(&data, None).unwrap();
@@ -93,7 +93,7 @@ fn test_audio_tags() {
                 assert_eq!(picture.color_indexed(), false);
                 assert_eq!(picture.data_length, 1965);
 
-                let mut file = File::open("tests/test.png").expect("Failed to open cover file.");
+                let mut file = File::open("../assets/test.png").expect("Failed to open cover file.");
                 let mut data = Vec::new();
                 file.read_to_end(&mut data).expect("Failed to read test cover.");
                 assert_eq!(&data, &picture.data);

@@ -109,7 +109,7 @@ pub(crate) fn tags(stream: &Stream) {
     for block in stream.metadata_blocks.iter() {
         match &block.data {
             MetadataBlockData::VorbisComment(s) => {
-                println!("{}", s.to_string());
+                print!("{}", s.to_string());
                 break;
             }
             _ => {}

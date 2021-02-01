@@ -413,6 +413,9 @@ impl ToString for MetadataBlockVorbisComment {
     fn to_string(&self) -> String {
         let mut result = String::new();
         for (key, comment) in self.comments.iter() {
+            if !result.is_empty() {
+                result += "\n";
+            }
             result += &format!("{}={}", key, comment.value());
         }
         result

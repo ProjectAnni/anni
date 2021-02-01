@@ -3,9 +3,9 @@ anni-about = A set of tools for self-hosting music sites.
 
 ## flac
 flac = Provide FLAC-related utilities.
-flac-tags = List tags of FLAC file.
-flac-tags-check = Check whether tags in FLAC file meet anni requirements.
+flac-check = Check whether tags in FLAC file meet anni requirements.
 flac-report-format = Format for FLAC report.
+flac-export = Export data.
 flac-export-type = Type of data to export.
 flac-export-to = Path for exported data.
 
