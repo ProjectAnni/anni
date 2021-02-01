@@ -1,2 +1,2 @@
-mod album;
+pub mod album;
 pub mod repo;

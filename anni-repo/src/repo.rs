@@ -1,5 +1,4 @@
 use serde::{Serialize, Deserialize};
-use std::error::Error;
 use std::str::FromStr;
 
 #[derive(Deserialize)]
@@ -30,7 +29,7 @@ pub struct AssetSetting {
 }
 
 impl FromStr for Repository {
-    type Err = Box<dyn Error>;
+    type Err = Box<dyn std::error::Error>;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         let val: RepositoryDeserializeWrapper = toml::from_str(s)?;
