@@ -158,24 +158,19 @@ fn main() -> Result<(), String> {
 
             let file = files.nth(0).ok_or("No valid file found.")?;
             match matches.value_of("flac.export.type").unwrap() {
-                "info" => { flac::export(&file, "STREAMINFO", ExportConfig::None) }
-                "application" => { flac::export(&file, "APPLICATION", ExportConfig::None) }
-                "seektable" => { flac::export(&file, "SEEKTABLE", ExportConfig::None) }
-                "cue" => { flac::export(&file, "CUESHEET", ExportConfig::None) }
-                "comment" | "tag" => { flac::export(&file, "VORBIS_COMMENT", ExportConfig::None) }
-                "picture" => {
-                    flac::export(&file, "PICTURE", ExportConfig::Cover(ExportConfigCover {
-                        picture_type: None,
-                        block_num: None,
-                    }))
-                }
-                "cover" => {
+                "info" => flac::export(&file, "STREAMINFO", ExportConfig::None),
+                "application" => flac::export(&file, "APPLICATION", ExportConfig::None),
+                "seektable" => flac::export(&file, "SEEKTABLE", ExportConfig::None),
+                "cue" => flac::export(&file, "CUESHEET", ExportConfig::None),
+                "comment" | "tag" => flac::export(&file, "VORBIS_COMMENT", ExportConfig::None),
+                "picture" =>
+                    flac::export(&file, "PICTURE", ExportConfig::Cover(ExportConfigCover::default())),
+                "cover" =>
                     flac::export(&file, "PICTURE", ExportConfig::Cover(ExportConfigCover {
                         picture_type: Some(PictureType::CoverFront),
                         block_num: None,
-                    }))
-                }
-                "list" | "all" => { flac::info_list(&file) }
+                    })),
+                "list" | "all" => flac::info_list(&file),
                 _ => panic!("Unknown export type.")
             }
         }

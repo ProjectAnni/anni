@@ -152,11 +152,11 @@ pub(crate) fn export(stream: &Stream, b: &str, export_config: ExportConfig) {
                         let stdout = std::io::stdout();
                         let mut handle = stdout.lock();
                         handle.write_all(&p.data).unwrap();
-                    }
 
-                    // Only export the first picture
-                    if first_picture {
-                        first_picture = false;
+                        // Only export the first picture
+                        if first_picture {
+                            first_picture = false;
+                        }
                     }
                 }
                 _ => block.print(i),
