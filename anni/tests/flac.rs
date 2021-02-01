@@ -9,7 +9,8 @@ DISCNUMBER=1
 DISCTOTAL=1
 TITLE=TRACK ONE
 TRACKNUMBER=1
-TRACKTOTAL=1"#;
+TRACKTOTAL=1
+"#;
 
 #[test]
 fn flac_export_default() {

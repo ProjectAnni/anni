@@ -66,7 +66,7 @@ impl MetadataBlock {
     pub fn print(&self, i: usize) {
         let data = &self.data;
         println!("METADATA block #{}", i);
-        println!("  type: {} ({})", u8::from(data), data.to_string());
+        println!("  type: {} ({})", u8::from(data), data.as_str());
         println!("  is last: {}", &self.is_last);
         println!("  length: {}", &self.length);
         match data {
@@ -116,7 +116,7 @@ impl MetadataBlock {
                 }
             }
             MetadataBlockData::Picture(s) => {
-                println!("  type: {} ({})", u8::from(&s.picture_type), s.picture_type.to_string());
+                println!("  type: {} ({})", u8::from(&s.picture_type), s.picture_type.as_str());
                 println!("  MIME type: {}", s.mime_type);
                 println!("  description: {}", s.description);
                 println!("  width: {}", s.width);
@@ -177,17 +177,17 @@ impl From<&MetadataBlockData> for u8 {
     }
 }
 
-impl ToString for MetadataBlockData {
-    fn to_string(&self) -> String {
+impl MetadataBlockData {
+    pub fn as_str(&self) -> &'static str {
         match self {
-            MetadataBlockData::StreamInfo(_) => "STREAMINFO".to_string(),
-            MetadataBlockData::Padding => "PADDING".to_string(),
-            MetadataBlockData::Application(_) => "APPLICATION".to_string(),
-            MetadataBlockData::SeekTable(_) => "SEEKTABLE".to_string(),
-            MetadataBlockData::VorbisComment(_) => "VORBIS_COMMENT".to_string(),
-            MetadataBlockData::CueSheet(_) => "CUESHEET".to_string(),
-            MetadataBlockData::Picture(_) => "PICTURE".to_string(),
-            _ => "INVALID".to_string(),
+            MetadataBlockData::StreamInfo(_) => "STREAMINFO",
+            MetadataBlockData::Padding => "PADDING",
+            MetadataBlockData::Application(_) => "APPLICATION",
+            MetadataBlockData::SeekTable(_) => "SEEKTABLE",
+            MetadataBlockData::VorbisComment(_) => "VORBIS_COMMENT",
+            MetadataBlockData::CueSheet(_) => "CUESHEET",
+            MetadataBlockData::Picture(_) => "PICTURE",
+            _ => "INVALID",
         }
     }
 }
@@ -664,30 +664,30 @@ impl From<&PictureType> for u8 {
     }
 }
 
-impl ToString for PictureType {
-    fn to_string(&self) -> String {
+impl PictureType {
+    pub fn as_str(&self) -> &'static str {
         match self {
-            PictureType::Other => "Other".to_string(),
-            PictureType::FileIcon => "32x32 pixels 'file icon' (PNG only)".to_string(),
-            PictureType::OtherFileIcon => "Other file icon".to_string(),
-            PictureType::CoverFront => "Cover (front)".to_string(),
-            PictureType::CoverBack => "Cover (back)".to_string(),
-            PictureType::LeafletPage => "Leaflet page".to_string(),
-            PictureType::Media => "Media (e.g. label side of CD)".to_string(),
-            PictureType::LeadArtist => "Lead artist/lead performer/soloist".to_string(),
-            PictureType::Artist => "Artist/performer".to_string(),
-            PictureType::Conductor => "Conductor".to_string(),
-            PictureType::Band => "Band/Orchestra".to_string(),
-            PictureType::Composer => "Composer".to_string(),
-            PictureType::Lyricist => "Lyricist/text writer".to_string(),
-            PictureType::RecordingLocation => "Recording Location".to_string(),
-            PictureType::DuringRecording => "During recording".to_string(),
-            PictureType::DuringPerformance => "During performance".to_string(),
-            PictureType::MovieVideoScreenCapture => "Movie/video screen capture".to_string(),
-            PictureType::BrightColoredFish => "A bright coloured fish".to_string(),
-            PictureType::Illustration => "Illustration".to_string(),
-            PictureType::BandArtistLogotype => "Band/artist logotype".to_string(),
-            PictureType::PublisherStudioLogotype => "Publisher/Studio logotype".to_string(),
+            PictureType::Other => "Other",
+            PictureType::FileIcon => "32x32 pixels 'file icon' (PNG only)",
+            PictureType::OtherFileIcon => "Other file icon",
+            PictureType::CoverFront => "Cover (front)",
+            PictureType::CoverBack => "Cover (back)",
+            PictureType::LeafletPage => "Leaflet page",
+            PictureType::Media => "Media (e.g. label side of CD)",
+            PictureType::LeadArtist => "Lead artist/lead performer/soloist",
+            PictureType::Artist => "Artist/performer",
+            PictureType::Conductor => "Conductor",
+            PictureType::Band => "Band/Orchestra",
+            PictureType::Composer => "Composer",
+            PictureType::Lyricist => "Lyricist/text writer",
+            PictureType::RecordingLocation => "Recording Location",
+            PictureType::DuringRecording => "During recording",
+            PictureType::DuringPerformance => "During performance",
+            PictureType::MovieVideoScreenCapture => "Movie/video screen capture",
+            PictureType::BrightColoredFish => "A bright coloured fish",
+            PictureType::Illustration => "Illustration",
+            PictureType::BandArtistLogotype => "Band/artist logotype",
+            PictureType::PublisherStudioLogotype => "Publisher/Studio logotype",
         }
     }
 }

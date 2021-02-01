@@ -105,14 +105,15 @@ pub(crate) fn info_list(stream: &Stream) {
     }
 }
 
-pub(crate) fn tags(stream: &Stream) {
-    for block in stream.metadata_blocks.iter() {
-        match &block.data {
-            MetadataBlockData::VorbisComment(s) => {
-                print!("{}", s.to_string());
-                break;
+pub(crate) fn export(stream: &Stream, b: &str) {
+    for (i, block) in stream.metadata_blocks.iter().enumerate() {
+        if block.data.as_str() == b {
+            match &block.data {
+                MetadataBlockData::VorbisComment(s) => println!("{}", s.to_string()),
+                MetadataBlockData::CueSheet(_) => {} // TODO
+                MetadataBlockData::Picture(_) => {} // TODO
+                _ => block.print(i),
             }
-            _ => {}
         }
     }
 }

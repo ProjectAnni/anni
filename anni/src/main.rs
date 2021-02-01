@@ -156,13 +156,13 @@ fn main() -> Result<(), String> {
 
             let file = files.nth(0).ok_or("No valid file found.")?;
             match matches.value_of("flac.export.type").unwrap() {
-                "info" => {}
-                "application" => {}
-                "seektable" => {}
-                "cue" => {}
-                "comment" | "tag" => { flac::tags(&file) }
-                "picture" => {}
-                "cover" => {}
+                "info" => { flac::export(&file, "STREAMINFO") }
+                "application" => { flac::export(&file, "APPLICATION") }
+                "seektable" => { flac::export(&file, "SEEKTABLE") }
+                "cue" => { flac::export(&file, "CUESHEET") }
+                "comment" | "tag" => { flac::export(&file, "VORBIS_COMMENT") }
+                "picture" => {} // TODO
+                "cover" => {} // TODO
                 "list" | "all" => { flac::info_list(&file) }
                 _ => panic!("Unknown export type.")
             }
