@@ -590,7 +590,7 @@ pub struct CueSheetTrackIndex {
 
 /// The picture type according to the ID3v2 APIC frame:
 /// Others are reserved and should not be used. There may only be one each of picture type 1 and 2 in a file.
-#[derive(Debug)]
+#[derive(PartialEq, Eq, Debug)]
 pub enum PictureType {
     /// 0 - Other
     Other,

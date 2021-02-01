@@ -2,6 +2,8 @@ use clap::{App, Arg, ArgGroup, crate_authors, crate_version, SubCommand, AppSett
 use anni_utils::fs;
 use std::path::PathBuf;
 use shell_escape::escape;
+use anni_flac::PictureType;
+use crate::flac::{ExportConfig, ExportConfigCover};
 
 mod flac;
 mod encoding;
@@ -156,13 +158,23 @@ fn main() -> Result<(), String> {
 
             let file = files.nth(0).ok_or("No valid file found.")?;
             match matches.value_of("flac.export.type").unwrap() {
-                "info" => { flac::export(&file, "STREAMINFO") }
-                "application" => { flac::export(&file, "APPLICATION") }
-                "seektable" => { flac::export(&file, "SEEKTABLE") }
-                "cue" => { flac::export(&file, "CUESHEET") }
-                "comment" | "tag" => { flac::export(&file, "VORBIS_COMMENT") }
-                "picture" => { flac::export(&file, "PICTURE") } // TODO
-                "cover" => {} // TODO
+                "info" => { flac::export(&file, "STREAMINFO", ExportConfig::None) }
+                "application" => { flac::export(&file, "APPLICATION", ExportConfig::None) }
+                "seektable" => { flac::export(&file, "SEEKTABLE", ExportConfig::None) }
+                "cue" => { flac::export(&file, "CUESHEET", ExportConfig::None) }
+                "comment" | "tag" => { flac::export(&file, "VORBIS_COMMENT", ExportConfig::None) }
+                "picture" => {
+                    flac::export(&file, "PICTURE", ExportConfig::Cover(ExportConfigCover {
+                        picture_type: None,
+                        block_num: None,
+                    }))
+                }
+                "cover" => {
+                    flac::export(&file, "PICTURE", ExportConfig::Cover(ExportConfigCover {
+                        picture_type: Some(PictureType::CoverFront),
+                        block_num: None,
+                    }))
+                }
                 "list" | "all" => { flac::info_list(&file) }
                 _ => panic!("Unknown export type.")
             }

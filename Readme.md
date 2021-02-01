@@ -29,9 +29,8 @@
 - [ ] Built-in metaflac alternative.
     - [x] `--list`
         - [ ] `--block-number`
-        - [ ] `--block-type`
+        - [x] `--block-type`
     - [x] `--export-tags-to=-`
-    - [ ] `--import-picture-from`
-    - [ ] `--export-picture-to`
+    - [x] `--export-picture-to`
 - [ ] Built-in Google Drive support.
 - [ ] Airsonic API support.

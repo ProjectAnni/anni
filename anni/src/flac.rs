@@ -3,7 +3,7 @@ use std::fs::File;
 use std::io::{Read, Write};
 use std::path::{Path, PathBuf};
 
-use anni_flac::{MetadataBlockData, parse_flac, Stream};
+use anni_flac::{MetadataBlockData, parse_flac, Stream, PictureType};
 use anni_utils::{fs, report};
 use anni_utils::validator::{artist_validator, date_validator, number_validator, trim_validator, Validator};
 
@@ -105,16 +105,59 @@ pub(crate) fn info_list(stream: &Stream) {
     }
 }
 
-pub(crate) fn export(stream: &Stream, b: &str) {
+pub(crate) enum ExportConfig {
+    Cover(ExportConfigCover),
+    None,
+}
+
+pub(crate) struct ExportConfigCover {
+    pub(crate) picture_type: Option<PictureType>,
+    pub(crate) block_num: Option<usize>,
+}
+
+impl Default for ExportConfigCover {
+    fn default() -> Self {
+        ExportConfigCover {
+            picture_type: None,
+            block_num: None,
+        }
+    }
+}
+
+pub(crate) fn export(stream: &Stream, b: &str, export_config: ExportConfig) {
+    let mut first_picture = true;
     for (i, block) in stream.metadata_blocks.iter().enumerate() {
         if block.data.as_str() == b {
             match &block.data {
                 MetadataBlockData::VorbisComment(s) => { println!("{}", s.to_string()); }
                 MetadataBlockData::CueSheet(_) => {} // TODO
                 MetadataBlockData::Picture(p) => {
-                    let stdout = std::io::stdout();
-                    let mut handle = stdout.lock();
-                    handle.write_all(&p.data).unwrap();
+                    // Load config
+                    let config = match &export_config {
+                        ExportConfig::Cover(c) => c,
+                        _ => unreachable!(),
+                    };
+
+                    let mut should_export = first_picture;
+                    // PictureType match
+                    if let Some(picture_type) = &config.picture_type {
+                        should_export &= picture_type == &p.picture_type;
+                    };
+                    // Block num match
+                    if let Some(block_num) = config.block_num {
+                        should_export &= block_num == i;
+                    }
+
+                    if should_export {
+                        let stdout = std::io::stdout();
+                        let mut handle = stdout.lock();
+                        handle.write_all(&p.data).unwrap();
+                    }
+
+                    // Only export the first picture
+                    if first_picture {
+                        first_picture = false;
+                    }
                 }
                 _ => block.print(i),
             };
