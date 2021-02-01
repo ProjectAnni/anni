@@ -21,13 +21,13 @@ use anni_flac::{parse_flac, MetadataBlockData, PictureType};
 /// ```
 #[test]
 fn test_audio_file() {
-    let exist = std::path::Path::new("tests/test.flac").exists();
+    let exist = std::path::Path::new("../assets/test.flac").exists();
     assert!(exist);
 }
 
 #[test]
 fn test_cover_file() {
-    let exist = std::path::Path::new("tests/test.png").exists();
+    let exist = std::path::Path::new("../assets/test.png").exists();
     assert!(exist);
 }
 
