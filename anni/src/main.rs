@@ -161,7 +161,7 @@ fn main() -> Result<(), String> {
                 "seektable" => { flac::export(&file, "SEEKTABLE") }
                 "cue" => { flac::export(&file, "CUESHEET") }
                 "comment" | "tag" => { flac::export(&file, "VORBIS_COMMENT") }
-                "picture" => {} // TODO
+                "picture" => { flac::export(&file, "PICTURE") } // TODO
                 "cover" => {} // TODO
                 "list" | "all" => { flac::info_list(&file) }
                 _ => panic!("Unknown export type.")

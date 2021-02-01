@@ -1,6 +1,6 @@
 use std::collections::HashSet;
 use std::fs::File;
-use std::io::Read;
+use std::io::{Read, Write};
 use std::path::{Path, PathBuf};
 
 use anni_flac::{MetadataBlockData, parse_flac, Stream};
@@ -109,11 +109,15 @@ pub(crate) fn export(stream: &Stream, b: &str) {
     for (i, block) in stream.metadata_blocks.iter().enumerate() {
         if block.data.as_str() == b {
             match &block.data {
-                MetadataBlockData::VorbisComment(s) => println!("{}", s.to_string()),
+                MetadataBlockData::VorbisComment(s) => { println!("{}", s.to_string()); }
                 MetadataBlockData::CueSheet(_) => {} // TODO
-                MetadataBlockData::Picture(_) => {} // TODO
+                MetadataBlockData::Picture(p) => {
+                    let stdout = std::io::stdout();
+                    let mut handle = stdout.lock();
+                    handle.write_all(&p.data).unwrap();
+                }
                 _ => block.print(i),
-            }
+            };
         }
     }
 }
