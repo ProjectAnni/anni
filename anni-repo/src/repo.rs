@@ -1,18 +1,13 @@
 use serde::{Serialize, Deserialize};
 use std::str::FromStr;
 
-#[derive(Deserialize)]
-struct RepositoryDeserializeWrapper {
-    repo: Repository,
-}
-
-#[derive(Serialize)]
-struct RepositorySerializeWrapper<'a> {
-    repo: &'a Repository,
+#[derive(Serialize, Deserialize)]
+pub struct Repository {
+    repo: RepositoryInner
 }
 
 #[derive(Serialize, Deserialize)]
-pub struct Repository {
+struct RepositoryInner {
     name: String,
     version: String,
     authors: Vec<String>,
@@ -32,41 +27,41 @@ impl FromStr for Repository {
     type Err = Box<dyn std::error::Error>;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        let val: RepositoryDeserializeWrapper = toml::from_str(s)?;
-        Ok(val.repo)
+        let val: Repository = toml::from_str(s)?;
+        Ok(val)
     }
 }
 
 impl ToString for Repository {
     fn to_string(&self) -> String {
-        toml::to_string_pretty(&RepositorySerializeWrapper { repo: self }).unwrap()
+        toml::to_string_pretty(&self).unwrap()
     }
 }
 
 impl Repository {
     pub fn name(&self) -> &str {
-        self.name.as_ref()
+        self.repo.name.as_ref()
     }
 
     pub fn version(&self) -> &str {
-        self.version.as_ref()
+        self.repo.version.as_ref()
     }
 
     // https://users.rust-lang.org/t/vec-string-to-str/12619/2
     pub fn authors(&self) -> Vec<&str> {
-        self.authors.iter().map(|x| &**x).collect()
+        self.repo.authors.iter().map(|x| &**x).collect()
     }
 
     pub fn edition(&self) -> &str {
-        self.edition.as_ref()
+        self.repo.edition.as_ref()
     }
 
     pub fn cover(&self) -> Option<&AssetSetting> {
-        self.cover.as_ref()
+        self.repo.cover.as_ref()
     }
 
     pub fn lyric(&self) -> Option<&AssetSetting> {
-        self.lyric.as_ref()
+        self.repo.lyric.as_ref()
     }
 }
 
