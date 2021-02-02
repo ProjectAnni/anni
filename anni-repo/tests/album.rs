@@ -1,9 +1,8 @@
 use anni_repo::album::{Album, TrackType};
 use std::str::FromStr;
 
-#[test]
-fn decode_album_toml() {
-    let album = Album::from_str(r#"
+fn album_from_str() -> Album {
+    Album::from_str(r#"
 [album]
 # 专辑名
 title = "夏凪ぎ/宝物になった日"
@@ -63,8 +62,12 @@ type = "instrumental"
 title = "宝物になった日(Instrumental)"
 artist = "麻枝准"
 type = "instrumental"
-"#).expect("Failed to parse album toml.");
+"#).expect("Failed to parse album toml.")
+}
 
+#[test]
+fn deserialize_album_toml() {
+    let album = album_from_str();
     assert_eq!(album.title(), "夏凪ぎ/宝物になった日");
     assert_eq!(album.artist(), "やなぎなぎ");
     assert_eq!(album.release_date(), "2020-12-16");
@@ -109,4 +112,48 @@ type = "instrumental"
             }
         }
     }
+}
+
+#[test]
+fn serialize_album() {
+    assert_eq!(album_from_str().to_string(), r#"[album]
+title = '夏凪ぎ/宝物になった日'
+artist = 'やなぎなぎ'
+date = 2020-12-16
+type = 'normal'
+catalog = 'KSLA-0178'
+
+[[discs]]
+catalog = 'KSLA-0178'
+
+[[discs.tracks]]
+title = '夏凪ぎ'
+artist = 'やなぎなぎ'
+type = 'normal'
+
+[[discs.tracks]]
+title = '宝物になった日'
+artist = 'やなぎなぎ'
+type = 'normal'
+
+[[discs.tracks]]
+title = '夏凪ぎ(Episode 9 Ver.)'
+artist = 'やなぎなぎ'
+type = 'normal'
+
+[[discs.tracks]]
+title = '宝物になった日(Episode 5 Ver.)'
+artist = 'やなぎなぎ'
+type = 'normal'
+
+[[discs.tracks]]
+title = '夏凪ぎ(Instrumental)'
+artist = '麻枝准'
+type = 'instrumental'
+
+[[discs.tracks]]
+title = '宝物になった日(Instrumental)'
+artist = '麻枝准'
+type = 'instrumental'
+"#);
 }

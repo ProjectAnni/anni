@@ -1,5 +1,5 @@
 use toml::value::Datetime;
-use serde::{Serialize, Deserialize, Deserializer};
+use serde::{Serialize, Deserialize, Deserializer, Serializer};
 use std::str::FromStr;
 
 #[derive(Serialize, Deserialize)]
@@ -26,6 +26,12 @@ impl FromStr for Album {
             }
         }
         Ok(album)
+    }
+}
+
+impl ToString for Album {
+    fn to_string(&self) -> String {
+        toml::to_string_pretty(&self).unwrap()
     }
 }
 
@@ -111,7 +117,7 @@ impl Track {
     }
 }
 
-#[derive(Serialize, Clone, PartialEq, Debug)]
+#[derive(Clone, PartialEq, Debug)]
 pub enum TrackType {
     Normal,
     Instrumental,
@@ -131,6 +137,13 @@ impl ToString for TrackType {
             TrackType::Radio => "radio".to_owned(),
             TrackType::Other(s) => s.to_owned(),
         }
+    }
+}
+
+impl Serialize for TrackType {
+    fn serialize<S>(&self, serializer: S) -> Result<<S as Serializer>::Ok, <S as Serializer>::Error> where
+        S: Serializer {
+        serializer.serialize_str(&self.to_string().as_ref())
     }
 }
 

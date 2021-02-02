@@ -2,7 +2,7 @@ use anni_repo::repo::{Repository};
 use std::str::FromStr;
 
 #[test]
-fn decode_repo_toml() {
+fn deserialize_repo_toml() {
     let repo = Repository::from_str(r#"
 [repo]
 # 仓库名
