@@ -12,15 +12,18 @@ server = []
 clap = "2.33.3"
 prettytable-rs = "0.8.0"
 cue_sheet = { git = "https://github.com/Yesterday17/cue_sheet" }
-cpal = "0.13.1"
 regex = "1"
 lazy_static = "1.4.0"
 shell-escape = "0.1.5"
+
+reqwest = { version = "0.11", features = ["json", "rustls-tls"] }
+tokio = { version = "1", features = ["full"] }
+
 anni-flac = { path = "../anni-flac" }
 anni-repo = { path = "../anni-repo" }
 anni-utils = { path = "../anni-utils" }
 anni-versary = { path = "../anni-versary" }
 
-i18n-embed = { version = "0.9", features = ["fluent-system", "desktop-requester", "filesystem-assets"] }
-i18n-embed-fl = "0.3.1"
+i18n-embed = { version = "0.11", features = ["fluent-system", "desktop-requester", "filesystem-assets"] }
+i18n-embed-fl = "0.4.0"
 rust-embed = "5"

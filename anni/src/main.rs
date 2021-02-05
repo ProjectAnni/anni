@@ -10,7 +10,8 @@ mod encoding;
 mod cue;
 mod i18n;
 
-fn main() -> Result<(), String> {
+#[tokio::main]
+async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let matches = App::new("Project Annivers@ry")
         .about(fl!("anni-about"))
         .version(crate_version!())
