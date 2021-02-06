@@ -32,5 +32,11 @@
         - [x] `--block-type`
     - [x] `--export-tags-to=-`
     - [x] `--export-picture-to`
+- [ ] Cover fetch service.
+    - [ ] `iTunes`
+- [ ] Music metadata fetch service.
+    - [ ] `Sony`
+    - [ ] `Lantis`
+    - [ ] `KingRecords`
 - [ ] Built-in Google Drive support.
 - [ ] Airsonic API support.

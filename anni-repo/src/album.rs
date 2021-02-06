@@ -117,7 +117,7 @@ impl Track {
     }
 }
 
-#[derive(Clone, PartialEq, Debug)]
+#[derive(Clone, Debug)]
 pub enum TrackType {
     Normal,
     Instrumental,

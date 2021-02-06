@@ -81,32 +81,32 @@ fn deserialize_album_toml() {
                 0 => {
                     assert_eq!(track.title(), "夏凪ぎ");
                     assert_eq!(track.artist(), "やなぎなぎ");
-                    assert_eq!(track.track_type(), TrackType::Normal);
+                    assert!(matches!(track.track_type(), TrackType::Normal));
                 }
                 1 => {
                     assert_eq!(track.title(), "宝物になった日");
                     assert_eq!(track.artist(), "やなぎなぎ");
-                    assert_eq!(track.track_type(), TrackType::Normal);
+                    assert!(matches!(track.track_type(), TrackType::Normal));
                 }
                 2 => {
                     assert_eq!(track.title(), "夏凪ぎ(Episode 9 Ver.)");
                     assert_eq!(track.artist(), "やなぎなぎ");
-                    assert_eq!(track.track_type(), TrackType::Normal);
+                    assert!(matches!(track.track_type(), TrackType::Normal));
                 }
                 3 => {
                     assert_eq!(track.title(), "宝物になった日(Episode 5 Ver.)");
                     assert_eq!(track.artist(), "やなぎなぎ");
-                    assert_eq!(track.track_type(), TrackType::Normal);
+                    assert!(matches!(track.track_type(), TrackType::Normal));
                 }
                 4 => {
                     assert_eq!(track.title(), "夏凪ぎ(Instrumental)");
                     assert_eq!(track.artist(), "麻枝准");
-                    assert_eq!(track.track_type(), TrackType::Instrumental);
+                    assert!(matches!(track.track_type(), TrackType::Instrumental));
                 }
                 5 => {
                     assert_eq!(track.title(), "宝物になった日(Instrumental)");
                     assert_eq!(track.artist(), "麻枝准");
-                    assert_eq!(track.track_type(), TrackType::Instrumental);
+                    assert!(matches!(track.track_type(), TrackType::Instrumental));
                 }
                 _ => unreachable!(),
             }
