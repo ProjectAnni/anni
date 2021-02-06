@@ -1,6 +1,6 @@
 use std::fs::File;
 use std::io::Read;
-use anni_flac::{parse_flac, MetadataBlockData, PictureType};
+use anni_flac::{parse_flac, MetadataBlockData, PictureType, Stream};
 
 /// Make sure test file exists.
 ///
@@ -31,12 +31,16 @@ fn test_cover_file() {
     assert!(exist);
 }
 
-#[test]
-fn test_audio_tags() {
+pub fn parse_test_audio() -> Stream {
     let mut file = File::open("../assets/test.flac").expect("Failed to open test flac file.");
     let mut data = Vec::new();
     file.read_to_end(&mut data).expect("Failed to read test flac file.");
-    let stream = parse_flac(&data, None).unwrap();
+    parse_flac(&data, None).unwrap()
+}
+
+#[test]
+fn test_audio_tags() {
+    let stream = parse_test_audio();
     for (i, block) in stream.metadata_blocks.iter().enumerate() {
         match &block.data {
             MetadataBlockData::StreamInfo(info) => {

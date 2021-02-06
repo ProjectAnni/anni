@@ -9,6 +9,21 @@ pub struct Album {
     discs: Vec<Disc>,
 }
 
+impl Album {
+    pub fn new(title: &str, artist: &str, release_date: Datetime, catalog: &str) -> Self {
+        Album {
+            info: AlbumInfo {
+                title: title.to_owned(),
+                artist: artist.to_owned(),
+                release_date,
+                track_type: TrackType::Normal,
+                catalog: catalog.to_owned(),
+            },
+            discs: Vec::new(),
+        }
+    }
+}
+
 impl FromStr for Album {
     type Err = Box<dyn std::error::Error>;
 
@@ -59,6 +74,10 @@ impl Album {
     pub fn discs(&self) -> &Vec<Disc> {
         &self.discs
     }
+
+    pub fn add_disc(&mut self, disc: Disc) {
+        self.discs.push(disc);
+    }
 }
 
 #[derive(Serialize, Deserialize)]
@@ -79,12 +98,23 @@ pub struct Disc {
 }
 
 impl Disc {
+    pub fn new() -> Self {
+        Disc {
+            catalog: "".to_string(),
+            tracks: vec![],
+        }
+    }
+
     pub fn catalog(&self) -> &str {
         self.catalog.as_ref()
     }
 
     pub fn tracks(&self) -> &Vec<Track> {
         self.tracks.as_ref()
+    }
+
+    pub fn add_track(&mut self, track: Track) {
+        self.tracks.push(track);
     }
 }
 
@@ -98,6 +128,14 @@ pub struct Track {
 }
 
 impl Track {
+    pub fn new(title: &str, artist: Option<&str>, track_type: Option<TrackType>) -> Self {
+        Track {
+            title: title.to_owned(),
+            artist: artist.map(|u| u.to_owned()),
+            track_type,
+        }
+    }
+
     pub fn title(&self) -> &str {
         self.title.as_ref()
     }
@@ -127,15 +165,15 @@ pub enum TrackType {
     Other(String),
 }
 
-impl ToString for TrackType {
-    fn to_string(&self) -> String {
-        match self {
-            TrackType::Normal => "normal".to_owned(),
-            TrackType::Instrumental => "instrumental".to_owned(),
-            TrackType::Absolute => "absolute".to_owned(),
-            TrackType::Drama => "drama".to_owned(),
-            TrackType::Radio => "radio".to_owned(),
-            TrackType::Other(s) => s.to_owned(),
+impl AsRef<str> for TrackType {
+    fn as_ref(&self) -> &str {
+        match &self {
+            TrackType::Normal => "normal",
+            TrackType::Instrumental => "instrumental",
+            TrackType::Absolute => "absolute",
+            TrackType::Drama => "drama",
+            TrackType::Radio => "radio",
+            TrackType::Other(s) => s.as_ref(),
         }
     }
 }
@@ -143,7 +181,7 @@ impl ToString for TrackType {
 impl Serialize for TrackType {
     fn serialize<S>(&self, serializer: S) -> Result<<S as Serializer>::Ok, <S as Serializer>::Error> where
         S: Serializer {
-        serializer.serialize_str(&self.to_string().as_ref())
+        serializer.serialize_str(self.as_ref())
     }
 }
 

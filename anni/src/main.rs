@@ -9,6 +9,7 @@ mod flac;
 mod encoding;
 mod cue;
 mod i18n;
+mod repo;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {

@@ -71,7 +71,7 @@ fn deserialize_album_toml() {
     assert_eq!(album.title(), "夏凪ぎ/宝物になった日");
     assert_eq!(album.artist(), "やなぎなぎ");
     assert_eq!(album.release_date(), "2020-12-16");
-    assert_eq!(album.track_type().to_string(), "normal");
+    assert_eq!(album.track_type().as_ref(), "normal");
     assert_eq!(album.catalog(), "KSLA-0178");
 
     for disc in album.discs() {

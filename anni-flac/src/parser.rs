@@ -2,14 +2,7 @@ use nom::{IResult, Err, Needed, error};
 use nom::number::streaming::{be_u8, be_u16, be_u24, be_u32, be_u64, le_u32};
 use nom::lib::std::collections::BTreeMap;
 use std::ops::Index;
-
-/// https://xiph.org/flac/format.html
-#[derive(Debug)]
-pub struct Stream {
-    header_size: usize,
-    pub metadata_blocks: Vec<MetadataBlock>,
-    pub frames: Frames,
-}
+use crate::stream::Stream;
 
 pub type ParseResult<I, O> = Result<O, Err<error::Error<I>>>;
 
@@ -444,10 +437,10 @@ impl UserComment {
         self.key_raw().to_ascii_uppercase()
     }
 
-    pub fn key_raw(&self) -> String {
+    pub fn key_raw(&self) -> &str {
         match self.value_offset {
-            Some(offset) => (&self.comment[..offset]).to_owned(),
-            None => self.comment.clone(),
+            Some(offset) => &self.comment[..offset],
+            None => &self.comment,
         }
     }
 

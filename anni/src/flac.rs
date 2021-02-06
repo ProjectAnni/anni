@@ -168,82 +168,76 @@ pub(crate) fn export(stream: &Stream, b: &str, export_config: ExportConfig) {
 pub(crate) fn tags_check(filename: &str, stream: &Stream, report_mode: &str) {
     let mut reporter = report::new(report_mode);
     let mut fixes = Vec::new();
-    for block in stream.metadata_blocks.iter() {
-        match &block.data {
-            MetadataBlockData::VorbisComment(s) => {
-                for tag in TAG_REQUIREMENT.iter() {
-                    match tag {
-                        FlacTag::Must(key, validator) => {
-                            if !s.comments.contains_key(*key) {
-                                reporter.add_problem(filename, "Missing Tag", key, None, Some("Add"));
-                            } else {
-                                let value = s.comments[*key].value();
-                                if !validator(&value) {
-                                    reporter.add_problem(filename, "Invalid value", key, Some(value), Some("Replace"));
-                                }
-                            }
-                        }
-                        FlacTag::Optional(key, validator) => {
-                            if s.comments.contains_key(*key) {
-                                let value = s.comments[*key].value();
-                                if !validator(&value) {
-                                    reporter.add_problem(filename, "Invalid value", key, Some(value), Some("Replace / Remove"));
-                                }
-                            }
-                        }
-                        FlacTag::Unrecommended(key, alternative) => {
-                            if s.comments.contains_key(*key) {
-                                let value = s.comments[*key].value();
-                                reporter.add_problem(filename, "Unrecommended tag", key, Some(value), Some(alternative));
-                            }
-                        }
-                    }
-                }
-
-                let mut key_set: HashSet<String> = HashSet::new();
-                for (key, comment) in s.comments.iter() {
-                    let key: &str = key;
-                    let key_raw: &str = &comment.key_raw();
-                    let value = comment.value();
-
-                    if key_set.contains(key) {
-                        reporter.add_problem(filename, "Duplicated tag", key, None, Some("Remove"));
-                        continue;
-                    } else if !TAG_INCLUDED.contains(&key) {
-                        fixes.push(format!("metaflac --remove-tag={} '{}'", key, filename));
-                        reporter.add_problem(filename, "Unnecessary tag", key, Some(value), Some("Remove"));
-                        continue;
-                    } else {
-                        key_set.insert(key.to_string());
-                    }
-
-                    if !encoding::middle_dot_valid(&value) {
-                        let correct = encoding::middle_dot_replace(&value);
-                        reporter.add_problem(filename, "Invalid middle dot", key, Some(value), Some(&correct));
-                    }
-                    if value.len() == 0 {
-                        reporter.add_problem(filename, "Empty value", key, None, Some("Remove"));
-                    }
-                    if !comment.is_key_uppercase() {
-                        reporter.add_problem(filename, "Lowercase tag", key_raw, Some(value), Some(key));
-                    }
-                }
-
-                // Filename check
-                if s.comments.contains_key("TRACKNUMBER") && s.comments.contains_key("TITLE") {
-                    let mut number = s.comments["TRACKNUMBER"].value().to_owned();
-                    if number.len() == 1 {
-                        number = format!("0{}", number);
-                    }
-                    let filename_expected: &str = &format!("{}. {}.flac", number, s.comments["TITLE"].value());
-                    let filename_raw = Path::new(filename).file_name().unwrap().to_str().expect("Non-UTF8 filenames are currently not supported!");
-                    if filename_raw != filename_expected {
-                        reporter.add_problem(filename, "Filename mismatch", filename_raw, None, Some(filename_expected));
-                        fixes.push(format!("mv {} {}", escape(filename_raw.into()), escape(filename_expected.into())));
+    let comments = stream.comments().expect("Failed to read comments");
+    for tag in TAG_REQUIREMENT.iter() {
+        match tag {
+            FlacTag::Must(key, validator) => {
+                if !comments.comments.contains_key(*key) {
+                    reporter.add_problem(filename, "Missing Tag", key, None, Some("Add"));
+                } else {
+                    let value = comments.comments[*key].value();
+                    if !validator(&value) {
+                        reporter.add_problem(filename, "Invalid value", key, Some(value), Some("Replace"));
                     }
                 }
             }
-            _ => {}
+            FlacTag::Optional(key, validator) => {
+                if comments.comments.contains_key(*key) {
+                    let value = comments.comments[*key].value();
+                    if !validator(&value) {
+                        reporter.add_problem(filename, "Invalid value", key, Some(value), Some("Replace / Remove"));
+                    }
+                }
+            }
+            FlacTag::Unrecommended(key, alternative) => {
+                if comments.comments.contains_key(*key) {
+                    let value = comments.comments[*key].value();
+                    reporter.add_problem(filename, "Unrecommended tag", key, Some(value), Some(alternative));
+                }
+            }
+        }
+    }
+
+    let mut key_set: HashSet<String> = HashSet::new();
+    for (key, comment) in comments.comments.iter() {
+        let key: &str = key;
+        let key_raw = comment.key_raw();
+        let value = comment.value();
+
+        if key_set.contains(key) {
+            reporter.add_problem(filename, "Duplicated tag", key, None, Some("Remove"));
+            continue;
+        } else if !TAG_INCLUDED.contains(&key) {
+            fixes.push(format!("metaflac --remove-tag={} '{}'", key, filename));
+            reporter.add_problem(filename, "Unnecessary tag", key, Some(value), Some("Remove"));
+            continue;
+        } else {
+            key_set.insert(key.to_string());
+        }
+
+        if !encoding::middle_dot_valid(&value) {
+            let correct = encoding::middle_dot_replace(&value);
+            reporter.add_problem(filename, "Invalid middle dot", key, Some(value), Some(&correct));
+        }
+        if value.len() == 0 {
+            reporter.add_problem(filename, "Empty value", key, None, Some("Remove"));
+        }
+        if !comment.is_key_uppercase() {
+            reporter.add_problem(filename, "Lowercase tag", key_raw, Some(value), Some(key));
+        }
+    }
+
+    // Filename check
+    if comments.comments.contains_key("TRACKNUMBER") && comments.comments.contains_key("TITLE") {
+        let mut number = comments.comments["TRACKNUMBER"].value().to_owned();
+        if number.len() == 1 {
+            number = format!("0{}", number);
+        }
+        let filename_expected: &str = &format!("{}. {}.flac", number, comments.comments["TITLE"].value());
+        let filename_raw = Path::new(filename).file_name().unwrap().to_str().expect("Non-UTF8 filenames are currently not supported!");
+        if filename_raw != filename_expected {
+            reporter.add_problem(filename, "Filename mismatch", filename_raw, None, Some(filename_expected));
+            fixes.push(format!("mv {} {}", escape(filename_raw.into()), escape(filename_expected.into())));
         }
     }
     reporter.eprint();
