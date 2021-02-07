@@ -34,7 +34,7 @@ impl FromStr for Repository {
 
 impl ToString for Repository {
     fn to_string(&self) -> String {
-        toml::to_string_pretty(&self).unwrap()
+        toml::to_string(&self).unwrap()
     }
 }
 

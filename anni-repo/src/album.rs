@@ -46,7 +46,7 @@ impl FromStr for Album {
 
 impl ToString for Album {
     fn to_string(&self) -> String {
-        toml::to_string_pretty(&self).unwrap()
+        toml::to_string(&self).unwrap()
     }
 }
 

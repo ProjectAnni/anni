@@ -55,17 +55,17 @@ fn deserialize_repo_toml() {
 #[test]
 fn serialize_repo() {
     assert_eq!(repo_from_str().to_string(), r#"[repo]
-name = '''Yesterday17's Metadata Repo'''
-version = '1.0.0+1'
-authors = ['Yesterday17 <t@yesterday17.cn>']
-edition = '1'
+name = "Yesterday17's Metadata Repo"
+version = "1.0.0+1"
+authors = ["Yesterday17 <t@yesterday17.cn>"]
+edition = "1"
 
 [repo.cover]
 enable = true
-root = '//example-cover-root/'
+root = "//example-cover-root/"
 
 [repo.lyric]
 enable = true
-root = '//example-lyric-root/'
+root = "//example-lyric-root/"
 "#);
 }

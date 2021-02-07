@@ -1,22 +1,15 @@
 use anni_repo::Datetime;
-use std::str::FromStr;
+use anni_repo::album::{Disc, Track};
+use anni_flac::Stream;
+use std::error::Error;
 
-fn files_to_repo_album(files: &[anni_flac::Stream]) -> Result<anni_repo::Album, Box<dyn std::error::Error>> {
-    if files.len() == 0 {
-        return Err("No file provided.".into());
-    }
-    let first = files[0].comments().ok_or("Failed to get comments")?;
-    let mut album = anni_repo::Album::new(
-        first["ALBUM"].value(),
-        first["ARTIST"].value(),
-        Datetime::from_str("2021-01-01")?, // TODO
-        "CATA-001", // TODO
-    );
-    let mut disc = anni_repo::album::Disc::new();
-    for file in files {
-        let comment = file.comments().ok_or("No comments found.")?;
-        disc.add_track(anni_repo::album::Track::new(comment["TITLE"].value(), Some(comment["ARTIST"].value()), None));
-    }
+pub(crate) fn disc_to_repo_album(disc: Disc, title: &str, artist: &str, release: Datetime, catalog: &str) -> Result<anni_repo::Album, Box<dyn Error>> {
+    let mut album = anni_repo::Album::new(title, artist, release, catalog);
     album.add_disc(disc);
     Ok(album)
+}
+
+pub(crate) fn stream_to_track(stream: &Stream) -> Track {
+    let comment = stream.comments().unwrap();
+    Track::new(comment["TITLE"].value(), Some(comment["ARTIST"].value()), None)
 }

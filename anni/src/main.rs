@@ -4,6 +4,8 @@ use std::path::PathBuf;
 use shell_escape::escape;
 use anni_flac::PictureType;
 use crate::flac::{ExportConfig, ExportConfigCover};
+use anni_repo::album::Disc;
+use anni_repo::structure::album_info;
 
 mod flac;
 mod encoding;
@@ -129,9 +131,23 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             )
         )
         .subcommand(SubCommand::with_name("repo")
-            .arg(Arg::with_name("repo.new_album")
-                .long("new-album")
-                .short("n")
+            .arg(Arg::with_name("repo.import")
+                .long("import")
+                .short("i")
+                .takes_value(true)
+                .empty_values(false)
+            )
+            .arg(Arg::with_name("repo.output")
+                .long("output")
+                .short("o")
+                .takes_value(true)
+                .empty_values(false)
+            )
+            .arg(Arg::with_name("repo.output.format")
+                .long("output-format")
+                .short("f")
+                .takes_value(true)
+                .possible_values(&["toml"])
             )
         )
         .subcommand(SubCommand::with_name("play"))
@@ -224,6 +240,34 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
             let cover = matches.value_of("split.cover").unwrap();
             println!(r#"shnsplit -f {} -o "flac flac --picture {} -o %f -" {} -t "%n. %t""#, escape(cue.into()), cover, escape(audio.into()));
+        }
+    } else if let Some(matches) = matches.subcommand_matches("repo") {
+        if matches.is_present("repo.import") {
+            let from = matches.value_of("repo.import").unwrap();
+            let to = matches.value_of("repo.output").unwrap();
+            // TODO: output specified format
+            let files = fs::get_ext_files(PathBuf::from(from), "flac", false)?.unwrap();
+            let last = anni_repo::structure::file_name(PathBuf::from(from))?;
+            let (date, catalog, title) = album_info(&last)?;
+            let mut disc = Disc::new();
+            let mut album_artist = None;
+            for path in files.iter() {
+                let stream = flac::parse_file(path.to_str().unwrap())?;
+                let track = repo::stream_to_track(&stream);
+                disc.add_track(track);
+
+                if let None = album_artist {
+                    album_artist = Some(stream.comments().unwrap()["ARTIST"].value().to_owned());
+                }
+            }
+            let album = repo::disc_to_repo_album(
+                disc,
+                &title,
+                album_artist.unwrap().as_ref(),
+                date,
+                &catalog,
+            )?;
+            println!("{}", album.to_string());
         }
     } else if let Some(_matches) = matches.subcommand_matches("versary") {
         if cfg!(feature = "server") {

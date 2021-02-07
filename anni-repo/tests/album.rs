@@ -117,43 +117,43 @@ fn deserialize_album_toml() {
 #[test]
 fn serialize_album() {
     assert_eq!(album_from_str().to_string(), r#"[album]
-title = '夏凪ぎ/宝物になった日'
-artist = 'やなぎなぎ'
+title = "夏凪ぎ/宝物になった日"
+artist = "やなぎなぎ"
 date = 2020-12-16
-type = 'normal'
-catalog = 'KSLA-0178'
+type = "normal"
+catalog = "KSLA-0178"
 
 [[discs]]
-catalog = 'KSLA-0178'
+catalog = "KSLA-0178"
 
 [[discs.tracks]]
-title = '夏凪ぎ'
-artist = 'やなぎなぎ'
-type = 'normal'
+title = "夏凪ぎ"
+artist = "やなぎなぎ"
+type = "normal"
 
 [[discs.tracks]]
-title = '宝物になった日'
-artist = 'やなぎなぎ'
-type = 'normal'
+title = "宝物になった日"
+artist = "やなぎなぎ"
+type = "normal"
 
 [[discs.tracks]]
-title = '夏凪ぎ(Episode 9 Ver.)'
-artist = 'やなぎなぎ'
-type = 'normal'
+title = "夏凪ぎ(Episode 9 Ver.)"
+artist = "やなぎなぎ"
+type = "normal"
 
 [[discs.tracks]]
-title = '宝物になった日(Episode 5 Ver.)'
-artist = 'やなぎなぎ'
-type = 'normal'
+title = "宝物になった日(Episode 5 Ver.)"
+artist = "やなぎなぎ"
+type = "normal"
 
 [[discs.tracks]]
-title = '夏凪ぎ(Instrumental)'
-artist = '麻枝准'
-type = 'instrumental'
+title = "夏凪ぎ(Instrumental)"
+artist = "麻枝准"
+type = "instrumental"
 
 [[discs.tracks]]
-title = '宝物になった日(Instrumental)'
-artist = '麻枝准'
-type = 'instrumental'
+title = "宝物になった日(Instrumental)"
+artist = "麻枝准"
+type = "instrumental"
 "#);
 }

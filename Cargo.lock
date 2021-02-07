@@ -67,6 +67,7 @@ dependencies = [
 name = "anni-repo"
 version = "0.1.0"
 dependencies = [
+ "regex",
  "serde",
  "toml",
 ]
