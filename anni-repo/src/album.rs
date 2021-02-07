@@ -98,9 +98,9 @@ pub struct Disc {
 }
 
 impl Disc {
-    pub fn new() -> Self {
+    pub fn new(catalog: &str) -> Self {
         Disc {
-            catalog: "".to_string(),
+            catalog: catalog.to_owned(),
             tracks: vec![],
         }
     }
