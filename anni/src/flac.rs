@@ -208,7 +208,7 @@ pub(crate) fn tags_check(filename: &str, stream: &Stream, report_mode: &str) {
             reporter.add_problem(filename, "Duplicated tag", key, None, Some("Remove"));
             continue;
         } else if !TAG_INCLUDED.contains(&key) {
-            fixes.push(format!("metaflac --remove-tag={} '{}'", key, filename));
+            fixes.push(format!("metaflac --remove-tag={} {}", escape(key.into()), escape(filename.into())));
             reporter.add_problem(filename, "Unnecessary tag", key, Some(value), Some("Remove"));
             continue;
         } else {
