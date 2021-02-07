@@ -135,8 +135,17 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             .arg(Arg::with_name("repo.import")
                 .long("import")
                 .short("i")
+            )
+            .arg(Arg::with_name("repo.export")
+                .long("export")
+                .short("e")
+            )
+            .arg(Arg::with_name("repo.export.type")
+                .long("export-type")
+                .short("t")
                 .takes_value(true)
                 .empty_values(false)
+                .possible_values(&["date", "title", "catalog"])
             )
             .arg(Arg::with_name("repo.output")
                 .long("output")
@@ -149,6 +158,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 .short("f")
                 .takes_value(true)
                 .possible_values(&["toml"])
+            )
+            .arg(Arg::with_name("Filename")
+                .takes_value(true)
+                .empty_values(false)
+                .multiple(true)
+            )
+            .group(ArgGroup::with_name("group.repo")
+                .args(&["repo.import", "repo.output"])
             )
         )
         .subcommand(SubCommand::with_name("play"))
@@ -243,42 +260,51 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             println!(r#"shnsplit -f {} -o "flac flac --picture {} -o %f -" {} -t "%n. %t""#, escape(cue.into()), cover, escape(audio.into()));
         }
     } else if let Some(matches) = matches.subcommand_matches("repo") {
-        if matches.is_present("repo.import") {
-            let from = matches.value_of("repo.import").unwrap();
-            let to = matches.value_of("repo.output").unwrap();
-            if from.ends_with("]") {
-                panic!("Please import from a valid anni album directory.");
+        if matches.is_present("repo.import") || matches.is_present("repo.export") {
+            let from = PathBuf::from(matches.value_of("Filename").unwrap());
+            let last = anni_repo::structure::file_name(&from)?;
+            if last.ends_with("]") {
+                panic!("Please use a valid anni album directory.");
             }
-
-            let last = anni_repo::structure::file_name(PathBuf::from(from))?;
             let (release, catalog, title) = album_info(&last)?;
-            let mut album = Album::new(&title, "TODO", release, &catalog);
 
-            let mut directories = fs::get_subdirectories(PathBuf::from(from))?;
-            let mut has_discs = true;
-            if directories.len() == 0 {
-                directories.push(PathBuf::from(from));
-                has_discs = false;
-            }
+            if matches.is_present("repo.import") {
+                let mut album = Album::new(&title, "TODO", release, &catalog);
 
-            for dir in directories.iter() {
-                let files = fs::get_ext_files(PathBuf::from(dir), "flac", false)?.unwrap();
-                let mut disc = if has_discs {
-                    let (catalog, _, _) = disc_info(&*file_name(dir)?)?;
-                    Disc::new(&catalog)
-                } else {
-                    Disc::new(&catalog)
-                };
-                for path in files.iter() {
-                    let stream = flac::parse_file(path.to_str().unwrap())?;
-                    let track = repo::stream_to_track(&stream);
-                    disc.add_track(track);
+                let mut directories = fs::get_subdirectories(&from)?;
+                let mut has_discs = true;
+                if directories.len() == 0 {
+                    directories.push(from);
+                    has_discs = false;
                 }
-                album.add_disc(disc);
-            }
 
-            // TODO: output specified format
-            println!("{}", album.to_string());
+                for dir in directories.iter() {
+                    let files = fs::get_ext_files(PathBuf::from(dir), "flac", false)?.unwrap();
+                    let mut disc = if has_discs {
+                        let (catalog, _, _) = disc_info(&*file_name(dir)?)?;
+                        Disc::new(&catalog)
+                    } else {
+                        Disc::new(&catalog)
+                    };
+                    for path in files.iter() {
+                        let stream = flac::parse_file(path.to_str().unwrap())?;
+                        let track = repo::stream_to_track(&stream);
+                        disc.add_track(track);
+                    }
+                    album.add_disc(disc);
+                }
+
+                // TODO: output specified format
+                let to = matches.value_of("repo.output").unwrap();
+                println!("{}", album.to_string());
+            } else {
+                match matches.value_of("repo.export.type").unwrap() {
+                    "date" => print!("{}", release.to_string()),
+                    "title" => print!("{}", title),
+                    "catalog" => print!("{}", catalog),
+                    _ => unreachable!(),
+                };
+            }
         }
     } else if let Some(_matches) = matches.subcommand_matches("versary") {
         if cfg!(feature = "server") {
