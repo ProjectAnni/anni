@@ -233,7 +233,7 @@ pub(crate) fn tags_check(filename: &str, stream: &Stream, report_mode: &str) {
         if number.len() == 1 {
             number = format!("0{}", number);
         }
-        let filename_expected: &str = &format!("{}. {}.flac", number, comments.comments["TITLE"].value());
+        let filename_expected: &str = &format!("{}. {}.flac", number, comments.comments["TITLE"].value()).replace("/", "／");
         let filename_raw = Path::new(filename).file_name().unwrap().to_str().expect("Non-UTF8 filenames are currently not supported!");
         if filename_raw != filename_expected {
             reporter.add_problem(filename, "Filename mismatch", filename_raw, None, Some(filename_expected));
