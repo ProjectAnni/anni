@@ -1,6 +1,7 @@
 use toml::value::Datetime;
 use serde::{Serialize, Deserialize, Deserializer, Serializer};
 use std::str::FromStr;
+use std::path::Path;
 
 #[derive(Serialize, Deserialize)]
 pub struct Album {
@@ -21,6 +22,10 @@ impl Album {
             },
             discs: Vec::new(),
         }
+    }
+
+    pub fn from_file<P: AsRef<Path>>(path: P) -> Self {
+        Self::from_str(&*std::fs::read_to_string(path.as_ref()).unwrap()).unwrap()
     }
 }
 

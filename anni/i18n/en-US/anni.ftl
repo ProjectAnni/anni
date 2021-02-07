@@ -22,7 +22,9 @@ split-audio-format = Format of audio file(file extension).
 split-cover = Path to cover file.
 
 ## repo
-repo-import = Import data from music repository.
+repo = Anni metadata repository manager.
+repo-root = Root path of Anni metadata repository to manage.
+repo-add = Add new album to repository.
+repo-apply = Apply metadata from repository to album.
 repo-export = Export information from music repository.
 repo-export-type = Export specified information.
-repo-output-format = File format of exported data.

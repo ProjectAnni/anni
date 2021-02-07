@@ -1,5 +1,6 @@
 use serde::{Serialize, Deserialize};
 use std::str::FromStr;
+use std::path::Path;
 
 #[derive(Serialize, Deserialize)]
 pub struct Repository {
@@ -38,6 +39,10 @@ impl ToString for Repository {
 }
 
 impl Repository {
+    pub fn from_file<P: AsRef<Path>>(path: P) -> Self {
+        Self::from_str(&*std::fs::read_to_string(path.as_ref()).unwrap()).unwrap()
+    }
+
     pub fn name(&self) -> &str {
         self.repo.name.as_ref()
     }
