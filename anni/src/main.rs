@@ -133,27 +133,25 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         )
         .subcommand(SubCommand::with_name("repo")
             .arg(Arg::with_name("repo.import")
+                .help(fl!("repo-import"))
                 .long("import")
                 .short("i")
             )
             .arg(Arg::with_name("repo.export")
+                .help(fl!("repo-export"))
                 .long("export")
                 .short("e")
             )
             .arg(Arg::with_name("repo.export.type")
+                .help(fl!("repo-export-type"))
                 .long("export-type")
                 .short("t")
                 .takes_value(true)
                 .empty_values(false)
                 .possible_values(&["date", "title", "catalog"])
             )
-            .arg(Arg::with_name("repo.output")
-                .long("output")
-                .short("o")
-                .takes_value(true)
-                .empty_values(false)
-            )
             .arg(Arg::with_name("repo.output.format")
+                .help(fl!("repo-output-format"))
                 .long("output-format")
                 .short("f")
                 .takes_value(true)
@@ -165,7 +163,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 .multiple(true)
             )
             .group(ArgGroup::with_name("group.repo")
-                .args(&["repo.import", "repo.output"])
+                .args(&["repo.import", "repo.export"])
             )
         )
         .subcommand(SubCommand::with_name("play"))
@@ -295,7 +293,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 }
 
                 // TODO: output specified format
-                let to = matches.value_of("repo.output").unwrap();
                 println!("{}", album.to_string());
             } else {
                 match matches.value_of("repo.export.type").unwrap() {

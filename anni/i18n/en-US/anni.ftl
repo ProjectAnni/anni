@@ -20,3 +20,9 @@ cue-tagsh = Output script to add tags to FLAC files. Works like cuetag.sh, but y
 split = Provided helper to split audios.
 split-audio-format = Format of audio file(file extension).
 split-cover = Path to cover file.
+
+## repo
+repo-import = Import data from music repository.
+repo-export = Export information from music repository.
+repo-export-type = Export specified information.
+repo-output-format = File format of exported data.
