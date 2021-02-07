@@ -6,10 +6,8 @@ fn repo_from_str() -> Repository {
 [repo]
 # 仓库名
 name = "Yesterday17's Metadata Repo"
-# 仓库文件版本 每次提交需要更新
-version = "1.0.0+1"
 # 仓库维护者
-authors = ["Yesterday17 <t@yesterday17.cn>"]
+maintainers = ["Yesterday17 <t@yesterday17.cn>"]
 # 仓库使用的元数据仓库描述版本
 edition = "1"
 
@@ -31,8 +29,7 @@ root = "//example-lyric-root/"
 fn deserialize_repo_toml() {
     let repo = repo_from_str();
     assert_eq!(repo.name(), "Yesterday17's Metadata Repo");
-    assert_eq!(repo.version(), "1.0.0+1");
-    assert_eq!(repo.authors(), vec!["Yesterday17 <t@yesterday17.cn>"]);
+    assert_eq!(repo.maintainers(), vec!["Yesterday17 <t@yesterday17.cn>"]);
     assert_eq!(repo.edition(), "1");
 
     match repo.cover() {

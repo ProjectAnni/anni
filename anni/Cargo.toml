@@ -10,7 +10,6 @@ server = []
 
 [dependencies]
 clap = "2.33.3"
-prettytable-rs = "0.8.0"
 cue_sheet = { git = "https://github.com/Yesterday17/cue_sheet" }
 regex = "1"
 lazy_static = "1.4.0"

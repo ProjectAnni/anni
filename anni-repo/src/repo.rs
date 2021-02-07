@@ -9,8 +9,7 @@ pub struct Repository {
 #[derive(Serialize, Deserialize)]
 struct RepositoryInner {
     name: String,
-    version: String,
-    authors: Vec<String>,
+    maintainers: Vec<String>,
     edition: String,
 
     cover: Option<AssetSetting>,
@@ -43,13 +42,9 @@ impl Repository {
         self.repo.name.as_ref()
     }
 
-    pub fn version(&self) -> &str {
-        self.repo.version.as_ref()
-    }
-
     // https://users.rust-lang.org/t/vec-string-to-str/12619/2
-    pub fn authors(&self) -> Vec<&str> {
-        self.repo.authors.iter().map(|x| &**x).collect()
+    pub fn maintainers(&self) -> Vec<&str> {
+        self.repo.maintainers.iter().map(|x| &**x).collect()
     }
 
     pub fn edition(&self) -> &str {

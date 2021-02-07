@@ -47,7 +47,6 @@ dependencies = [
  "i18n-embed",
  "i18n-embed-fl",
  "lazy_static",
- "prettytable-rs",
  "regex",
  "reqwest",
  "rust-embed",
