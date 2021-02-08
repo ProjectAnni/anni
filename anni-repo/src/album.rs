@@ -1,7 +1,7 @@
-use toml::value::Datetime;
 use serde::{Serialize, Deserialize, Deserializer, Serializer};
 use std::str::FromStr;
 use std::path::Path;
+use crate::Datetime;
 
 #[derive(Serialize, Deserialize)]
 pub struct Album {
@@ -64,8 +64,8 @@ impl Album {
         self.info.artist.as_ref()
     }
 
-    pub fn release_date(&self) -> String {
-        self.info.release_date.to_string()
+    pub fn release_date(&self) -> &Datetime {
+        &self.info.release_date
     }
 
     pub fn track_type(&self) -> TrackType {
@@ -129,7 +129,6 @@ pub struct Track {
     artist: Option<String>,
     #[serde(rename = "type")]
     track_type: Option<TrackType>,
-    // TODO: lyric
 }
 
 impl Track {

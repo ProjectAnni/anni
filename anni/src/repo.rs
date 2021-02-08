@@ -118,7 +118,7 @@ fn handle_repo_apply(matches: &ArgMatches, settings: &RepoSettings) -> Ret {
     }
 
     let album = settings.load_album(&catalog);
-    if album.title() != album_title || album.catalog() != catalog || album.release_date() != release_date.to_string() {
+    if album.title() != album_title || album.catalog() != catalog || album.release_date() != &release_date {
         return Err("Album info mismatch. Aborted.".into());
     }
 
