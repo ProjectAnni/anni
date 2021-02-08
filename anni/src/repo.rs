@@ -45,20 +45,8 @@ pub(crate) fn handle_repo(matches: &ArgMatches) -> Ret {
         handle_repo_apply(matches, &settings)?;
     } else if let Some(matches) = matches.subcommand_matches("add") {
         handle_repo_add(matches, &settings)?;
-    } else if matches.is_present("repo.export") {
-        let from = PathBuf::from(matches.value_of("Filename").unwrap());
-        let last = anni_repo::structure::file_name(&from)?;
-        if last.ends_with("]") {
-            panic!("Please use a valid anni album directory.");
-        }
-        let (release, catalog, title) = album_info(&last)?;
-
-        match matches.value_of("repo.export.type").unwrap() {
-            "date" => print!("{}", release.to_string()),
-            "title" => print!("{}", title),
-            "catalog" => print!("{}", catalog),
-            _ => unreachable!(),
-        };
+    } else {
+        unimplemented!();
     }
     Ok(())
 }

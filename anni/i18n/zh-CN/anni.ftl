@@ -26,5 +26,3 @@ repo = 提供 Anni 元数据仓库的管理功能
 repo-root = 需要管理的 Anni 元数据仓库根路径
 repo-add = 向元数据仓库中导入专辑
 repo-apply = 将元数据仓库中的数据应用到专辑
-repo-export = 从音乐仓库读入并输出信息
-repo-export-type = 输出指定的音乐仓库信息
