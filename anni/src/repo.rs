@@ -43,6 +43,8 @@ pub(crate) fn handle_repo(matches: &ArgMatches) -> Ret {
 
     if let Some(matches) = matches.subcommand_matches("apply") {
         handle_repo_apply(matches, &settings)?;
+    } else if let Some(matches) = matches.subcommand_matches("edit") {
+        handle_repo_edit(matches, &settings)?;
     } else if let Some(matches) = matches.subcommand_matches("add") {
         handle_repo_add(matches, &settings)?;
     } else {
@@ -89,7 +91,27 @@ fn handle_repo_add(matches: &ArgMatches, settings: &RepoSettings) -> Ret {
         album.add_disc(disc);
     }
 
-    fs::write(settings.with_album(&catalog), album.to_string())?;
+    let file = settings.with_album(&catalog);
+    fs::write(&file, album.to_string())?;
+    if matches.is_present("edit") {
+        edit::edit_file(&file)?;
+    }
+    Ok(())
+}
+
+fn handle_repo_edit(matches: &ArgMatches, settings: &RepoSettings) -> Ret {
+    let to_add = Path::new(matches.value_of("Filename").unwrap());
+    let last = anni_repo::structure::file_name(to_add)?;
+    if last.ends_with("]") {
+        return Err("You can only add a valid album directory in anni convention to anni metadata repository.".into());
+    }
+
+    let (release_date, catalog, title) = album_info(&last)?;
+    if !settings.album_exists(&catalog) {
+        return Err("Catalog not found in repo. Aborted.".into());
+    }
+    let file = settings.with_album(&catalog);
+    edit::edit_file(&file)?;
     Ok(())
 }
 

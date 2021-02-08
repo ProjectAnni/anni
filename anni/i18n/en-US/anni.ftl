@@ -25,4 +25,6 @@ split-cover = Path to cover file.
 repo = Anni metadata repository manager.
 repo-root = Root path of Anni metadata repository to manage.
 repo-add = Add new album to repository.
+repo-add-edit = Open text editor after album metadata file is crated.
+repo-edit = Open text editor for an album if metadata exists.
 repo-apply = Apply metadata from repository to album.

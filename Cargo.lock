@@ -44,6 +44,7 @@ dependencies = [
  "anni-versary",
  "clap",
  "cue_sheet",
+ "edit",
  "i18n-embed",
  "i18n-embed-fl",
  "lazy_static",
@@ -432,6 +433,16 @@ name = "discard"
 version = "1.0.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "212d0f5754cb6769937f4501cc0e67f4f4483c8d2c3e1e922ee9edbe4ab4c7c0"
+
+[[package]]
+name = "edit"
+version = "0.1.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "323032447eba6f5aca88b46d6e7815151c16c53e4128569420c09d7840db3bfc"
+dependencies = [
+ "tempfile",
+ "which",
+]
 
 [[package]]
 name = "either"
@@ -2647,6 +2658,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "82015b7e0b8bad8185994674a13a93306bea76cf5a16c5a181382fd3a5ec2376"
 dependencies = [
  "webpki",
+]
+
+[[package]]
+name = "which"
+version = "3.1.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d011071ae14a2f6671d0b74080ae0cd8ebf3a6f8c9589a2cd45f23126fe29724"
+dependencies = [
+ "libc",
 ]
 
 [[package]]

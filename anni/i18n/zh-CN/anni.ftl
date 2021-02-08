@@ -25,4 +25,6 @@ split-cover = 指定音频分割时内嵌封面的路径
 repo = 提供 Anni 元数据仓库的管理功能
 repo-root = 需要管理的 Anni 元数据仓库根路径
 repo-add = 向元数据仓库中导入专辑
+repo-add-edit = 在导入完成后打开文件编辑器
+repo-edit = 当元数据仓库中存在该专辑时，打开仓库中对应的文件
 repo-apply = 将元数据仓库中的数据应用到专辑
