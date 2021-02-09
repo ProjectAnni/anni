@@ -4,7 +4,7 @@ use clap::ArgMatches;
 use anni_repo::structure::{album_info, disc_info, file_name};
 use anni_repo::{Album, Repository};
 use anni_utils::fs;
-use crate::{flac, repo, Ret};
+use crate::{flac, repo};
 use std::path::{PathBuf, Path};
 use shell_escape::escape;
 
@@ -15,7 +15,7 @@ struct RepoSettings {
 }
 
 impl RepoSettings {
-    pub fn new(root: &str) -> Result<Self, Box<dyn std::error::Error>> {
+    pub fn new(root: &str) -> anyhow::Result<Self> {
         let root = Path::new(root);
         let repo = root.join("repo.toml");
         Ok(Self {
@@ -38,7 +38,7 @@ impl RepoSettings {
     }
 }
 
-pub(crate) fn handle_repo(matches: &ArgMatches) -> Ret {
+pub(crate) fn handle_repo(matches: &ArgMatches) -> anyhow::Result<()> {
     let settings = RepoSettings::new(matches.value_of("repo.root").unwrap())?;
 
     if let Some(matches) = matches.subcommand_matches("apply") {
@@ -53,16 +53,16 @@ pub(crate) fn handle_repo(matches: &ArgMatches) -> Ret {
     Ok(())
 }
 
-fn handle_repo_add(matches: &ArgMatches, settings: &RepoSettings) -> Ret {
+fn handle_repo_add(matches: &ArgMatches, settings: &RepoSettings) -> anyhow::Result<()> {
     let to_add = Path::new(matches.value_of("Filename").unwrap());
     let last = anni_repo::structure::file_name(to_add)?;
     if last.ends_with("]") {
-        return Err("You can only add a valid album directory in anni convention to anni metadata repository.".into());
+        bail!("You can only add a valid album directory in anni convention to anni metadata repository.");
     }
 
     let (release_date, catalog, title) = album_info(&last)?;
     if settings.album_exists(&catalog) {
-        return Err("Album with the same catalog exists in repo. Aborted.".into());
+        bail!("Album with the same catalog exists in repo. Aborted.");
     }
 
     let mut album = Album::new(&title, "Artist", release_date, &catalog);
@@ -99,37 +99,37 @@ fn handle_repo_add(matches: &ArgMatches, settings: &RepoSettings) -> Ret {
     Ok(())
 }
 
-fn handle_repo_edit(matches: &ArgMatches, settings: &RepoSettings) -> Ret {
+fn handle_repo_edit(matches: &ArgMatches, settings: &RepoSettings) -> anyhow::Result<()> {
     let to_add = Path::new(matches.value_of("Filename").unwrap());
     let last = anni_repo::structure::file_name(to_add)?;
     if last.ends_with("]") {
-        return Err("You can only add a valid album directory in anni convention to anni metadata repository.".into());
+        bail!("You can only add a valid album directory in anni convention to anni metadata repository.");
     }
 
-    let (release_date, catalog, title) = album_info(&last)?;
+    let (_, catalog, _) = album_info(&last)?;
     if !settings.album_exists(&catalog) {
-        return Err("Catalog not found in repo. Aborted.".into());
+        bail!("Catalog not found in repo. Aborted.");
     }
     let file = settings.with_album(&catalog);
     edit::edit_file(&file)?;
     Ok(())
 }
 
-fn handle_repo_apply(matches: &ArgMatches, settings: &RepoSettings) -> Ret {
+fn handle_repo_apply(matches: &ArgMatches, settings: &RepoSettings) -> anyhow::Result<()> {
     let to_apply = Path::new(matches.value_of("Filename").unwrap());
     let last = anni_repo::structure::file_name(to_apply)?;
     if last.ends_with("]") {
-        return Err("You can only apply album metadata to a valid anni convention album directory.".into());
+        bail!("You can only apply album metadata to a valid anni convention album directory.");
     }
 
     let (release_date, catalog, album_title) = album_info(&last)?;
     if !settings.album_exists(&catalog) {
-        return Err("Catalog not found in repo. Aborted.".into());
+        bail!("Catalog not found in repo. Aborted.");
     }
 
     let album = settings.load_album(&catalog);
     if album.title() != album_title || album.catalog() != catalog || album.release_date() != &release_date {
-        return Err("Album info mismatch. Aborted.".into());
+        bail!("Album info mismatch. Aborted.");
     }
 
     let discs = album.discs();
@@ -143,7 +143,7 @@ fn handle_repo_apply(matches: &ArgMatches, settings: &RepoSettings) -> Ret {
         let files = fs::get_ext_files(disc_dir, "flac", false)?.unwrap();
         let tracks = disc.tracks();
         if files.len() != tracks.len() {
-            return Err(format!("Track number mismatch in Disc {} of {}. Aborted.", disc_num, catalog).into());
+            bail!("Track number mismatch in Disc {} of {}. Aborted.", disc_num, catalog);
         }
 
         for i in 0..files.len() {

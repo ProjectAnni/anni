@@ -3,7 +3,7 @@ use shell_escape::escape;
 use std::io;
 use anni_utils::validator::date_validator;
 
-pub(crate) fn parse_file<T: AsRef<str>>(path: &str, files: &[T]) -> io::Result<String> {
+pub(crate) fn parse_file<T: AsRef<str>>(path: &str, files: &[T]) -> anyhow::Result<String> {
     let mut str: &str = &std::fs::read_to_string(path)?;
 
     let first = str.chars().next().ok_or(io::Error::new(io::ErrorKind::InvalidData, "Empty CUE file"))?;
@@ -15,7 +15,7 @@ pub(crate) fn parse_file<T: AsRef<str>>(path: &str, files: &[T]) -> io::Result<S
     let mut result = String::new();
     let tracks = tracks(str)?;
     if files.len() != tracks.len() {
-        return Err(io::Error::new(io::ErrorKind::InvalidInput, format!("Incorrect file number. Expected {}, got {}", tracks.len(), files.len())));
+        bail!("Incorrect file number. Expected {}, got {}", tracks.len(), files.len());
     }
 
     for (i, meta) in tracks.iter().enumerate() {

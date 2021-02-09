@@ -11,10 +11,11 @@ mod cue;
 mod i18n;
 mod repo;
 
-pub type Ret = Result<(), Box<dyn std::error::Error>>;
+#[macro_use]
+extern crate anyhow;
 
 #[tokio::main]
-async fn main() -> Ret {
+async fn main() -> anyhow::Result<()> {
     let matches = App::new("Project Annivers@ry")
         .about(fl!("anni-about"))
         .version(crate_version!())
@@ -193,7 +194,7 @@ async fn main() -> Ret {
                 panic!("No filename provided.");
             };
 
-            let file = files.nth(0).ok_or("No valid file found.")?;
+            let file = files.nth(0).ok_or(anyhow!("No valid file found."))?;
             match matches.value_of("flac.export.type").unwrap() {
                 "info" => flac::export(&file, "STREAMINFO", ExportConfig::None),
                 "application" => flac::export(&file, "APPLICATION", ExportConfig::None),
@@ -225,11 +226,9 @@ async fn main() -> Ret {
             // The first CUE file found in that directory is treated as CUE input
             // All other FLAC file in that directory are treated as input
             let dir = matches.value_of("Filename").expect("No filename provided.");
-            let c = fs::get_ext_file(PathBuf::from(dir), "cue", false)
-                .map_err(|e| e.to_string())?
+            let c = fs::get_ext_file(PathBuf::from(dir), "cue", false)?
                 .map(|p| p.to_str().unwrap().to_owned());
-            let f = fs::get_ext_files(PathBuf::from(dir), "flac", false)
-                .map_err(|e| e.to_string())?
+            let f = fs::get_ext_files(PathBuf::from(dir), "flac", false)?
                 .map(|p| p.iter().map(|t| t.to_str().unwrap().to_owned()).collect::<Vec<_>>());
             (c, f)
         } else {
@@ -239,7 +238,7 @@ async fn main() -> Ret {
         if let Some(cue) = cue {
             if let Some(files) = files {
                 if matches.is_present("cue.tagsh") {
-                    let result = cue::parse_file(&cue, &files).map_err(|e| e.to_string())?;
+                    let result = cue::parse_file(&cue, &files)?;
                     println!("{}", result);
                 }
             }
@@ -248,14 +247,12 @@ async fn main() -> Ret {
         let audio_format = matches.value_of("split.audio").unwrap();
         if let Some(dir) = matches.value_of("Filename") {
             let path = PathBuf::from(dir);
-            let cue = fs::get_ext_file(&path, "cue", false)
-                .map_err(|e| e.to_string())?
+            let cue = fs::get_ext_file(&path, "cue", false)?
                 .map(|p| p.to_str().unwrap().to_owned())
-                .ok_or("Failed to find CUE sheet.")?;
-            let audio = fs::get_ext_file(&path, audio_format, false)
-                .map_err(|e| e.to_string())?
+                .ok_or(anyhow!("Failed to find CUE sheet."))?;
+            let audio = fs::get_ext_file(&path, audio_format, false)?
                 .map(|p| p.to_str().unwrap().to_owned())
-                .ok_or("Failed to find audio file.")?;
+                .ok_or(anyhow!("Failed to find audio file."))?;
 
             let cover = matches.value_of("split.cover").unwrap();
             println!(r#"shnsplit -f {} -o "flac flac --picture {} -o %f -" {} -t "%n. %t""#, escape(cue.into()), cover, escape(audio.into()));

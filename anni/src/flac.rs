@@ -51,11 +51,11 @@ const TAG_INCLUDED: [&'static str; 11] = [
     "TOTALTRACKS", "TOTALDISCS",
 ];
 
-pub(crate) fn parse_file(filename: &str) -> Result<Stream, String> {
+pub(crate) fn parse_file(filename: &str) -> Result<Stream, std::io::Error> {
     let mut file = File::open(filename).expect(&format!("Failed to open file: {}", filename));
     let mut data = Vec::new();
     file.read_to_end(&mut data).expect(&format!("Failed to read file: {}", filename));
-    parse_flac(&data, None).map_err(|o| o.to_string())
+    parse_flac(&data, None).map_err(|o| std::io::Error::new(std::io::ErrorKind::InvalidInput, o.to_string()))
 }
 
 pub(crate) fn parse_input(input: &str, callback: impl Fn(&str, &Stream) -> bool) {

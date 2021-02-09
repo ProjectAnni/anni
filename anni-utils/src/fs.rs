@@ -134,7 +134,7 @@ pub fn get_ext_file<P: AsRef<Path>, T: AsRef<str>>(dir: P, ext: T, recursive: bo
     Ok(None)
 }
 
-pub fn get_subdirectories<P: AsRef<Path>>(dir: P) -> Result<Vec<PathBuf>, Box<dyn std::error::Error>> {
+pub fn get_subdirectories<P: AsRef<Path>>(dir: P) -> std::io::Result<Vec<PathBuf>> {
     let mut ret = Vec::new();
     let mut dir: Vec<_> = read_dir(dir.as_ref())?.map(|r| r.unwrap()).collect();
     dir.sort_by_key(|e| e.path());
