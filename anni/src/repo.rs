@@ -1,5 +1,4 @@
 use anni_repo::album::{Track, Disc};
-use anni_flac::Stream;
 use clap::ArgMatches;
 use anni_repo::structure::{album_info, disc_info, file_name};
 use anni_repo::{Album, Repository};
@@ -7,6 +6,7 @@ use anni_utils::fs;
 use crate::{flac, repo};
 use std::path::{PathBuf, Path};
 use shell_escape::escape;
+use anni_flac::FlacHeader;
 
 struct RepoSettings {
     repo_root: PathBuf,
@@ -163,7 +163,8 @@ DISCTOTAL={}"#, track.title(), album_title, track.artist(), album.release_date()
     Ok(())
 }
 
-pub(crate) fn stream_to_track(stream: &Stream) -> Track {
+pub(crate) fn stream_to_track(stream: &FlacHeader) -> Track {
     let comment = stream.comments().unwrap();
-    Track::new(comment["TITLE"].value(), Some(comment["ARTIST"].value()), None)
+    let map = comment.to_map();
+    Track::new(map["TITLE"].value(), Some(map["ARTIST"].value()), None)
 }

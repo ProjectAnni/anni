@@ -1,10 +1,8 @@
 use std::collections::HashSet;
 use std::fs::File;
-use std::io::{Read, Write};
+use std::io::Write;
 use std::path::{Path, PathBuf};
 
-use anni_flac::Stream;
-use anni_flac::parser::{MetadataBlockData, parse_flac};
 use anni_flac::blocks::PictureType;
 use anni_utils::{fs, report};
 use anni_utils::validator::{artist_validator, date_validator, number_validator, trim_validator, Validator};
@@ -13,6 +11,9 @@ use crate::encoding;
 use shell_escape::escape;
 use anni_utils::fs::PathWalker;
 use std::iter::FilterMap;
+use anni_flac::{MetadataBlockData, FlacHeader};
+use anni_flac::error::FlacError;
+use anni_flac::prelude::decode_header;
 
 enum FlacTag {
     Must(&'static str, Validator),
@@ -53,14 +54,12 @@ const TAG_INCLUDED: [&'static str; 11] = [
     "TOTALTRACKS", "TOTALDISCS",
 ];
 
-pub(crate) fn parse_file(filename: &str) -> Result<Stream, std::io::Error> {
+pub(crate) fn parse_file(filename: &str) -> Result<FlacHeader, FlacError> {
     let mut file = File::open(filename).expect(&format!("Failed to open file: {}", filename));
-    let mut data = Vec::new();
-    file.read_to_end(&mut data).expect(&format!("Failed to read file: {}", filename));
-    parse_flac(&data, None).map_err(|o| std::io::Error::new(std::io::ErrorKind::InvalidInput, o.to_string()))
+    decode_header(&mut file, false)
 }
 
-pub(crate) fn parse_input(input: &str, callback: impl Fn(&str, &Stream) -> bool) {
+pub(crate) fn parse_input(input: &str, callback: impl Fn(&str, &FlacHeader) -> bool) {
     for file in fs::PathWalker::new(PathBuf::from(input), true) {
         match file.extension() {
             None => continue,
@@ -85,7 +84,7 @@ pub(crate) fn parse_input(input: &str, callback: impl Fn(&str, &Stream) -> bool)
     }
 }
 
-pub(crate) fn parse_input_iter(input: &str) -> FilterMap<PathWalker, fn(PathBuf) -> Option<Stream>> {
+pub(crate) fn parse_input_iter(input: &str) -> FilterMap<PathWalker, fn(PathBuf) -> Option<FlacHeader>> {
     fs::PathWalker::new(PathBuf::from(input), true).filter_map(|file| {
         match file.extension() {
             None => return None,
@@ -101,8 +100,8 @@ pub(crate) fn parse_input_iter(input: &str) -> FilterMap<PathWalker, fn(PathBuf)
     })
 }
 
-pub(crate) fn info_list(stream: &Stream) {
-    for (i, block) in stream.metadata_blocks.iter().enumerate() {
+pub(crate) fn info_list(stream: &FlacHeader) {
+    for (i, block) in stream.blocks.iter().enumerate() {
         block.print(i);
     }
 }
@@ -126,12 +125,12 @@ impl Default for ExportConfigCover {
     }
 }
 
-pub(crate) fn export(stream: &Stream, b: &str, export_config: ExportConfig) {
+pub(crate) fn export(header: &FlacHeader, b: &str, export_config: ExportConfig) {
     let mut first_picture = true;
-    for (i, block) in stream.metadata_blocks.iter().enumerate() {
+    for (i, block) in header.blocks.iter().enumerate() {
         if block.data.as_str() == b {
             match &block.data {
-                MetadataBlockData::VorbisComment(s) => { println!("{}", s.to_string()); }
+                MetadataBlockData::Comment(s) => { println!("{}", s.to_string()); }
                 MetadataBlockData::CueSheet(_) => {} // TODO
                 MetadataBlockData::Picture(p) => {
                     // Load config
@@ -143,8 +142,7 @@ pub(crate) fn export(stream: &Stream, b: &str, export_config: ExportConfig) {
                     let mut should_export = first_picture;
                     // PictureType match
                     if let Some(picture_type) = &config.picture_type {
-                        let t = &p.picture_type;
-                        should_export &= matches!(picture_type, t);
+                        should_export &= (p.picture_type as u8) == (*picture_type as u8);
                     };
                     // Block num match
                     if let Some(block_num) = config.block_num {
@@ -168,33 +166,34 @@ pub(crate) fn export(stream: &Stream, b: &str, export_config: ExportConfig) {
     }
 }
 
-pub(crate) fn tags_check(filename: &str, stream: &Stream, report_mode: &str) {
+pub(crate) fn tags_check(filename: &str, stream: &FlacHeader, report_mode: &str) {
     let mut reporter = report::new(report_mode);
     let mut fixes = Vec::new();
     let comments = stream.comments().expect("Failed to read comments");
+    let map = comments.to_map();
     for tag in TAG_REQUIREMENT.iter() {
         match tag {
             FlacTag::Must(key, validator) => {
-                if !comments.comments.contains_key(*key) {
+                if !map.contains_key(*key) {
                     reporter.add_problem(filename, "Missing Tag", key, None, Some("Add"));
                 } else {
-                    let value = comments.comments[*key].value();
+                    let value = map[*key].value();
                     if !validator(&value) {
                         reporter.add_problem(filename, "Invalid value", key, Some(value), Some("Replace"));
                     }
                 }
             }
             FlacTag::Optional(key, validator) => {
-                if comments.comments.contains_key(*key) {
-                    let value = comments.comments[*key].value();
+                if map.contains_key(*key) {
+                    let value = map[*key].value();
                     if !validator(&value) {
                         reporter.add_problem(filename, "Invalid value", key, Some(value), Some("Replace / Remove"));
                     }
                 }
             }
             FlacTag::Unrecommended(key, alternative) => {
-                if comments.comments.contains_key(*key) {
-                    let value = comments.comments[*key].value();
+                if map.contains_key(*key) {
+                    let value = map[*key].value();
                     reporter.add_problem(filename, "Unrecommended tag", key, Some(value), Some(alternative));
                 }
             }
@@ -202,7 +201,7 @@ pub(crate) fn tags_check(filename: &str, stream: &Stream, report_mode: &str) {
     }
 
     let mut key_set: HashSet<String> = HashSet::new();
-    for (key, comment) in comments.comments.iter() {
+    for (key, comment) in map.iter() {
         let key: &str = key;
         let key_raw = comment.key_raw();
         let value = comment.value();
@@ -231,12 +230,12 @@ pub(crate) fn tags_check(filename: &str, stream: &Stream, report_mode: &str) {
     }
 
     // Filename check
-    if comments.comments.contains_key("TRACKNUMBER") && comments.comments.contains_key("TITLE") {
-        let mut number = comments.comments["TRACKNUMBER"].value().to_owned();
+    if map.contains_key("TRACKNUMBER") && map.contains_key("TITLE") {
+        let mut number = map["TRACKNUMBER"].value().to_owned();
         if number.len() == 1 {
             number = format!("0{}", number);
         }
-        let filename_expected: &str = &format!("{}. {}.flac", number, comments.comments["TITLE"].value()).replace("/", "／");
+        let filename_expected: &str = &format!("{}. {}.flac", number, map["TITLE"].value()).replace("/", "／");
         let filename_raw = Path::new(filename).file_name().unwrap().to_str().expect("Non-UTF8 filenames are currently not supported!");
         if filename_raw != filename_expected {
             reporter.add_problem(filename, "Filename mismatch", filename_raw, None, Some(filename_expected));
