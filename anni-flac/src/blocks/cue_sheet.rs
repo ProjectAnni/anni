@@ -2,7 +2,7 @@ use crate::Decode;
 use crate::prelude::Result;
 use std::io::Read;
 use byteorder::{ReadBytesExt, BigEndian};
-use crate::common::take_string;
+use crate::common::{take_string, skip};
 
 #[derive(Debug)]
 pub struct BlockCueSheet {
@@ -40,9 +40,7 @@ impl Decode for BlockCueSheet {
         let catalog_number = take_string(reader, 128)?;
         let leadin_samples = reader.read_u64::<BigEndian>()?;
         let is_cd = reader.read_u8()? > 0;
-        for _ in 0..258 {
-            reader.read_u8()?;
-        }
+        skip(reader, 258)?;
         let track_number = reader.read_u8()?;
         let mut tracks = Vec::with_capacity(track_number as usize);
         for _ in 0..track_number {
@@ -102,9 +100,7 @@ impl Decode for CueSheetTrack {
         let b = reader.read_u8()?;
         let is_audio = (b & 0b10000000) > 0;
         let is_pre_emphasis = (b & 0b01000000) > 0;
-        for _ in 0..13 {
-            reader.read_u8()?;
-        }
+        skip(reader, 13);
 
         let index_point_number = reader.read_u8()?;
         let mut track_index = Vec::with_capacity(index_point_number as usize);
@@ -142,9 +138,7 @@ impl Decode for CueSheetTrackIndex {
     fn from_reader<R: Read>(reader: &mut R) -> Result<Self> {
         let sample_offset = reader.read_u64::<BigEndian>()?;
         let index_point = reader.read_u8()?;
-        for _ in 0..3 {
-            reader.read_u8()?;
-        }
+        skip(reader, 3);
         Ok(CueSheetTrackIndex { sample_offset, index_point })
     }
 }
