@@ -11,9 +11,8 @@ pub struct FlacHeader {
 
 pub struct MetadataBlock {
     pub is_last: bool,
-    pub block_type: u8,
     pub length: usize,
-    pub(crate) data: MetadataBlockData,
+    pub data: MetadataBlockData,
 }
 
 impl Decode for MetadataBlock {
@@ -23,7 +22,6 @@ impl Decode for MetadataBlock {
         let length = reader.read_u24::<BigEndian>()? as usize;
         Ok(MetadataBlock {
             is_last: first_byte & 0b10000000 > 0,
-            block_type,
             length,
             data: match block_type {
                 0 => MetadataBlockData::StreamInfo(BlockStreamInfo::from_reader(&mut reader.take(length as u64))?),

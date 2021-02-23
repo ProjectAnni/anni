@@ -1,4 +1,4 @@
-use crate::{MetadataBlock, Frames, MetadataBlockVorbisComment, MetadataBlockData};
+use crate::parser::{Frames, MetadataBlock, MetadataBlockVorbisComment, MetadataBlockData};
 
 /// https://xiph.org/flac/format.html
 #[derive(Debug)]

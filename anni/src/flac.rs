@@ -3,7 +3,9 @@ use std::fs::File;
 use std::io::{Read, Write};
 use std::path::{Path, PathBuf};
 
-use anni_flac::{MetadataBlockData, parse_flac, Stream, blocks::PictureType};
+use anni_flac::Stream;
+use anni_flac::parser::{MetadataBlockData, parse_flac};
+use anni_flac::blocks::PictureType;
 use anni_utils::{fs, report};
 use anni_utils::validator::{artist_validator, date_validator, number_validator, trim_validator, Validator};
 
