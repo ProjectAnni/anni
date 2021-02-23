@@ -1,5 +1,5 @@
 use std::io::Read;
-use crate::Result;
+use crate::prelude::Result;
 
 pub trait Decode: Sized {
     fn from_reader<R: Read>(reader: &mut R) -> Result<Self>;
@@ -18,4 +18,9 @@ pub(crate) fn take<R: Read>(reader: &mut R, len: usize) -> std::io::Result<Vec<u
 pub(crate) fn take_string<R: Read>(reader: &mut R, len: usize) -> Result<String> {
     let vec = take(reader, len)?;
     Ok(String::from_utf8(vec)?)
+}
+
+pub(crate) fn skip<R: Read>(reader: &mut R, len: usize) -> Result<()> {
+    std::io::copy(&mut reader.take(len as u64), &mut std::io::sink())?;
+    Ok(())
 }

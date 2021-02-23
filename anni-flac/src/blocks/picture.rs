@@ -1,4 +1,5 @@
-use crate::{Decode, Result};
+use crate::Decode;
+use crate::prelude::Result;
 use byteorder::{ReadBytesExt, BigEndian};
 use std::io::Read;
 use crate::common::{take_string, take};

@@ -1,7 +1,8 @@
-use crate::{DecodeSized, Result};
+use crate::DecodeSized;
 use std::io::Read;
 use byteorder::{ReadBytesExt, BigEndian};
-use crate::decoder::FlacError;
+use crate::error::FlacError;
+use crate::prelude::Result;
 
 #[derive(Debug)]
 pub struct BlockSeekTable {

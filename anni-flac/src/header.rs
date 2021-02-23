@@ -1,19 +1,19 @@
 use crate::common::{Decode, DecodeSized};
 use std::io::Read;
 use byteorder::{BigEndian, ReadBytesExt};
-use crate::Result;
+use crate::prelude::Result;
 use crate::blocks::*;
 
 pub struct FlacHeader {
-    stream_info: MetadataBlock,
-    blocks: Vec<MetadataBlock>,
+    pub stream_info: (BlockStreamInfo, bool),
+    pub blocks: Vec<MetadataBlock>,
 }
 
 pub struct MetadataBlock {
-    is_last: bool,
-    block_type: u8,
-    length: usize,
-    data: MetadataBlockData,
+    pub is_last: bool,
+    pub block_type: u8,
+    pub length: usize,
+    pub(crate) data: MetadataBlockData,
 }
 
 impl Decode for MetadataBlock {
@@ -50,8 +50,3 @@ pub enum MetadataBlockData {
     Reserved((u8, Vec<u8>)),
 }
 
-impl DecodeSized for MetadataBlockData {
-    fn from_reader_sized<R: Read>(reader: &mut R, size: usize) -> Result<Self> {
-        unimplemented!()
-    }
-}
