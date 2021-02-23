@@ -2,6 +2,7 @@ use std::io::Read;
 use byteorder::{ReadBytesExt, BigEndian};
 use crate::utils::{take_string, skip};
 use crate::prelude::{Decode, Result};
+use std::fmt;
 
 #[derive(Debug)]
 pub struct BlockCueSheet {
@@ -52,6 +53,21 @@ impl Decode for BlockCueSheet {
             track_number,
             tracks,
         })
+    }
+}
+
+impl fmt::Display for BlockCueSheet {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        writeln!(f, "  media catalog number: {}", self.catalog_number)?;
+        writeln!(f, "  lead-in: {}", self.leadin_samples)?;
+        writeln!(f, "  is CD: {}", self.is_cd)?;
+        writeln!(f, "  number of tracks: {}", self.track_number)?;
+        for (i, t) in self.tracks.iter().enumerate() {
+            writeln!(f, "    track[{}]", i)?;
+            writeln!(f, "      offset: {}", t.track_offset)?;
+            // TODO: https://github.com/xiph/flac/blob/ce6dd6b5732e319ef60716d9cc9af6a836a4011a/src/metaflac/operations.c#L627-L651
+        }
+        Ok(())
     }
 }
 

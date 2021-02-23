@@ -3,6 +3,7 @@ use byteorder::{ReadBytesExt, BigEndian};
 use crate::error::FlacError;
 use crate::prelude::{Decode, Result};
 use crate::utils::take_to_end;
+use std::fmt;
 
 #[derive(Debug)]
 pub struct BlockSeekTable {
@@ -56,5 +57,19 @@ impl Decode for BlockSeekTable {
         }
 
         Ok(BlockSeekTable { seek_points })
+    }
+}
+
+impl fmt::Display for BlockSeekTable {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        writeln!(f, "  seek points: {}", self.seek_points.len())?;
+        for (i, p) in self.seek_points.iter().enumerate() {
+            if p.is_placehoder() {
+                writeln!(f, "    point {}: PLACEHOLDER", i)?;
+            } else {
+                writeln!(f, "    point {}: sample_number={}, stream_offset={}, frame_samples={}", i, p.sample_number, p.stream_offset, p.frame_samples)?;
+            }
+        }
+        Ok(())
     }
 }

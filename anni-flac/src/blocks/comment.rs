@@ -3,6 +3,7 @@ use byteorder::{ReadBytesExt, LittleEndian};
 use crate::utils::take_string;
 use crate::prelude::{Decode, Result};
 use std::collections::BTreeMap;
+use std::fmt;
 
 /// Also known as FLAC tags, the contents of a vorbis comment packet as specified here (without the framing bit).
 /// Note that the vorbis comment spec allows for on the order of 2 ^ 64 bytes of data where as the FLAC metadata block is limited to 2 ^ 24 bytes.
@@ -54,10 +55,8 @@ impl BlockVorbisComment {
         }
         map
     }
-}
 
-impl ToString for BlockVorbisComment {
-    fn to_string(&self) -> String {
+    pub fn to_lined_string(&self) -> String {
         let mut result = String::new();
         for comment in self.comments.iter() {
             if !result.is_empty() {
@@ -84,6 +83,17 @@ impl Decode for BlockVorbisComment {
             vendor_string,
             comments,
         })
+    }
+}
+
+impl fmt::Display for BlockVorbisComment {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        writeln!(f, "  vendor string: {}", self.vendor_string)?;
+        writeln!(f, "  comments: {}", self.len())?;
+        for (i, c) in self.comments.iter().enumerate() {
+            writeln!(f, "    comment[{}]: {}={}", i, c.key_raw(), c.value())?;
+        }
+        Ok(())
     }
 }
 

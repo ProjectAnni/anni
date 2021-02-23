@@ -3,6 +3,7 @@ use num_traits::FromPrimitive;
 use byteorder::{ReadBytesExt, BigEndian};
 use crate::utils::{take_string, take};
 use crate::prelude::{Decode, Result};
+use std::fmt;
 
 #[derive(Debug)]
 pub struct BlockPicture {
@@ -56,6 +57,23 @@ impl Decode for BlockPicture {
             colors,
             data,
         })
+    }
+}
+
+impl fmt::Display for BlockPicture {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        writeln!(f, "  type: {} ({})", self.picture_type as u8, self.picture_type.as_str())?;
+        writeln!(f, "  MIME type: {}", self.mime_type)?;
+        writeln!(f, "  description: {}", self.description)?;
+        writeln!(f, "  width: {}", self.width)?;
+        writeln!(f, "  height: {}", self.height)?;
+        writeln!(f, "  depth: {}", self.depth)?;
+        writeln!(f, "  colors: {}{}", self.colors, if self.color_indexed() { "" } else { " (unindexed)" })?;
+        writeln!(f, "  data length: {}", self.data.len())?;
+        writeln!(f, "  data:")?;
+        // TODO: hexdump
+        writeln!(f, "  <TODO>")?;
+        Ok(())
     }
 }
 

@@ -130,7 +130,7 @@ pub(crate) fn export(header: &FlacHeader, b: &str, export_config: ExportConfig) 
     for (i, block) in header.blocks.iter().enumerate() {
         if block.data.as_str() == b {
             match &block.data {
-                MetadataBlockData::Comment(s) => { println!("{}", s.to_string()); }
+                MetadataBlockData::Comment(s) => { println!("{}", s.to_lined_string()); }
                 MetadataBlockData::CueSheet(_) => {} // TODO
                 MetadataBlockData::Picture(p) => {
                     // Load config

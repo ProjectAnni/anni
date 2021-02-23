@@ -1,6 +1,7 @@
 use std::io::Read;
 use byteorder::{ReadBytesExt, BigEndian};
 use crate::prelude::{Decode, Result};
+use std::fmt;
 
 /// Notes:
 /// FLAC specifies a minimum block size of 16 and a maximum block size of 65535,
@@ -79,5 +80,20 @@ impl Decode for BlockStreamInfo {
             total_samples,
             md5_signature,
         })
+    }
+}
+
+impl fmt::Display for BlockStreamInfo {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        writeln!(f, "  minimum blocksize: {} samples", self.min_block_size)?;
+        writeln!(f, "  maximum blocksize: {} samples", self.max_block_size)?;
+        writeln!(f, "  minimum framesize: {} bytes", self.min_frame_size)?;
+        writeln!(f, "  maximum framesize: {} bytes", self.max_frame_size)?;
+        writeln!(f, "  sample_rate: {} Hz", self.sample_rate)?;
+        writeln!(f, "  channels: {}", self.channels)?;
+        writeln!(f, "  bits-per-sample: {}", self.bits_per_sample)?;
+        writeln!(f, "  total samples: {}", self.total_samples)?;
+        writeln!(f, "  MD5 signature: {}", hex::encode(self.md5_signature))?;
+        Ok(())
     }
 }

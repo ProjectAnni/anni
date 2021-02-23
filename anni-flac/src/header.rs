@@ -3,6 +3,7 @@ use byteorder::{BigEndian, ReadBytesExt};
 use crate::prelude::{Decode, Result};
 use crate::blocks::*;
 use crate::utils::skip;
+use std::fmt;
 
 pub struct FlacHeader {
     pub blocks: Vec<MetadataBlock>,
@@ -16,7 +17,6 @@ impl FlacHeader {
             _ => panic!("First block is not stream info!"),
         }
     }
-
 
     fn block_of(&self, id: u8) -> Option<&MetadataBlock> {
         for block in self.blocks.iter() {
@@ -70,67 +70,7 @@ impl MetadataBlock {
         println!("  type: {} ({})", u8::from(data), data.as_str());
         println!("  is last: {}", &self.is_last);
         println!("  length: {}", &self.length);
-        match data {
-            MetadataBlockData::StreamInfo(s) => {
-                println!("  minimum blocksize: {} samples", s.min_block_size);
-                println!("  maximum blocksize: {} samples", s.max_block_size);
-                println!("  minimum framesize: {} bytes", s.min_frame_size);
-                println!("  maximum framesize: {} bytes", s.max_frame_size);
-                println!("  sample_rate: {} Hz", s.sample_rate);
-                println!("  channels: {}", s.channels);
-                println!("  bits-per-sample: {}", s.bits_per_sample);
-                println!("  total samples: {}", s.total_samples);
-                println!("  MD5 signature: {}", hex::encode(s.md5_signature));
-            }
-            MetadataBlockData::Application(s) => {
-                println!("  application ID: {:x}", s.application_id);
-                println!("  data contents:");
-                // TODO: hexdump
-                println!("  <TODO>");
-            }
-            MetadataBlockData::SeekTable(s) => {
-                println!("  seek points: {}", s.seek_points.len());
-                for (i, p) in s.seek_points.iter().enumerate() {
-                    if p.is_placehoder() {
-                        println!("    point {}: PLACEHOLDER", i);
-                    } else {
-                        println!("    point {}: sample_number={}, stream_offset={}, frame_samples={}", i, p.sample_number, p.stream_offset, p.frame_samples);
-                    }
-                }
-            }
-            MetadataBlockData::Comment(s) => {
-                println!("  vendor string: {}", s.vendor_string);
-                println!("  comments: {}", s.len());
-                for (i, c) in s.comments.iter().enumerate() {
-                    println!("    comment[{}]: {}={}", i, c.key_raw(), c.value());
-                }
-            }
-            MetadataBlockData::CueSheet(s) => {
-                println!("  media catalog number: {}", s.catalog_number);
-                println!("  lead-in: {}", s.leadin_samples);
-                println!("  is CD: {}", s.is_cd);
-                println!("  number of tracks: {}", s.track_number);
-                for (i, t) in s.tracks.iter().enumerate() {
-                    println!("    track[{}]", i);
-                    println!("      offset: {}", t.track_offset);
-                    // TODO: https://github.com/xiph/flac/blob/ce6dd6b5732e319ef60716d9cc9af6a836a4011a/src/metaflac/operations.c#L627-L651
-                }
-            }
-            MetadataBlockData::Picture(s) => {
-                println!("  type: {} ({})", s.picture_type as u8, s.picture_type.as_str());
-                println!("  MIME type: {}", s.mime_type);
-                println!("  description: {}", s.description);
-                println!("  width: {}", s.width);
-                println!("  height: {}", s.height);
-                println!("  depth: {}", s.depth);
-                println!("  colors: {}{}", s.colors, if s.color_indexed() { "" } else { " (unindexed)" });
-                println!("  data length: {}", s.data.len());
-                println!("  data:");
-                // TODO: hexdump
-                println!("  <TODO>");
-            }
-            _ => {}
-        }
+        println!("{}", data);
     }
 }
 
@@ -175,3 +115,17 @@ impl MetadataBlockData {
     }
 }
 
+impl fmt::Display for MetadataBlockData {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            MetadataBlockData::Padding(_) => Ok(()),
+            MetadataBlockData::Reserved(_) => Ok(()),
+            MetadataBlockData::StreamInfo(s) => write!(f, "{}", s),
+            MetadataBlockData::Application(s) => write!(f, "{}", s),
+            MetadataBlockData::SeekTable(s) => write!(f, "{}", s),
+            MetadataBlockData::Comment(s) => write!(f, "{}", s),
+            MetadataBlockData::CueSheet(s) => write!(f, "{}", s),
+            MetadataBlockData::Picture(s) => write!(f, "{}", s),
+        }
+    }
+}
