@@ -1,7 +1,8 @@
 use std::io::Read;
 use byteorder::{ReadBytesExt, BigEndian};
 use crate::error::FlacError;
-use crate::prelude::{DecodeSized, Result};
+use crate::prelude::{Decode, Result};
+use crate::utils::take_to_end;
 
 #[derive(Debug)]
 pub struct BlockSeekTable {
@@ -29,8 +30,12 @@ impl SeekPoint {
     }
 }
 
-impl DecodeSized for BlockSeekTable {
-    fn from_reader_sized<R: Read>(reader: &mut R, size: usize) -> Result<Self> {
+impl Decode for BlockSeekTable {
+    fn from_reader<R: Read>(reader: &mut R) -> Result<Self> {
+        let buf = take_to_end(reader)?;
+        let size = buf.len();
+        let mut reader = std::io::Cursor::new(buf);
+
         // The number of seek points is implied by the metadata header 'length' field, i.e. equal to length / 18.
         let points = size / 18;
         let remaining = size % 18;

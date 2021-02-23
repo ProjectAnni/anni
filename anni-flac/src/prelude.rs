@@ -9,10 +9,6 @@ pub trait Decode: Sized {
     fn from_reader<R: Read>(reader: &mut R) -> Result<Self>;
 }
 
-pub trait DecodeSized: Sized {
-    fn from_reader_sized<R: Read>(reader: &mut R, size: usize) -> Result<Self>;
-}
-
 pub fn decode_header<R: Read>(reader: &mut R, skip_magic_number: bool) -> Result<FlacHeader> {
     if !skip_magic_number {
         if reader.read_u8()? != b'f' ||

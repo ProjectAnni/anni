@@ -1,7 +1,8 @@
 use std::io::Read;
 use byteorder::{BigEndian, ReadBytesExt};
-use crate::prelude::{Decode, DecodeSized, Result};
+use crate::prelude::{Decode, Result};
 use crate::blocks::*;
+use crate::utils::skip;
 
 pub struct FlacHeader {
     pub stream_info: (BlockStreamInfo, bool),
@@ -26,9 +27,9 @@ impl Decode for MetadataBlock {
             length,
             data: match block_type {
                 0 => MetadataBlockData::StreamInfo(BlockStreamInfo::from_reader(&mut reader.take(length as u64))?),
-                1 => MetadataBlockData::Padding(length),
-                2 => MetadataBlockData::Application(BlockApplication::from_reader_sized(&mut reader.take(length as u64), length)?),
-                3 => MetadataBlockData::SeekTable(BlockSeekTable::from_reader_sized(&mut reader.take(length as u64), length)?),
+                1 => MetadataBlockData::Padding(skip(reader, length)? as usize),
+                2 => MetadataBlockData::Application(BlockApplication::from_reader(&mut reader.take(length as u64))?),
+                3 => MetadataBlockData::SeekTable(BlockSeekTable::from_reader(&mut reader.take(length as u64))?),
                 4 => MetadataBlockData::Comment(BlockVorbisComment::from_reader(&mut reader.take(length as u64))?),
                 5 => MetadataBlockData::CueSheet(BlockCueSheet::from_reader(&mut reader.take(length as u64))?),
                 6 => MetadataBlockData::Picture(BlockPicture::from_reader(&mut reader.take(length as u64))?),
