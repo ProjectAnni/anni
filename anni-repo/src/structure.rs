@@ -61,7 +61,7 @@ pub fn disc_info(path: &str) -> Result<(String, String, usize), InfoParseError> 
 }
 
 pub fn album_info(path: &str) -> Result<(Datetime, String, String), InfoParseError> {
-    let r = Regex::new(r"^\[(\d{2}|\d{4})(\d{2})(\d{2})]\[([^]]+)] (.+)$").unwrap();
+    let r = Regex::new(r"^\[(\d{2}|\d{4})-?(\d{2})-?(\d{2})]\[([^]]+)] (.+)$").unwrap();
     let r = r.captures(path).ok_or(InfoParseError::NotMatch)?;
     if r.len() == 0 {
         return Err(InfoParseError::NoCaptureGroup);
