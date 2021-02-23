@@ -3,6 +3,7 @@ use nom::number::streaming::{be_u8, be_u16, be_u24, be_u32, be_u64, le_u32};
 use nom::lib::std::collections::BTreeMap;
 use std::ops::Index;
 use crate::stream::Stream;
+use crate::blocks::*;
 
 pub type ParseResult<I, O> = Result<O, Err<error::Error<I>>>;
 
@@ -109,14 +110,14 @@ impl MetadataBlock {
                 }
             }
             MetadataBlockData::Picture(s) => {
-                println!("  type: {} ({})", u8::from(&s.picture_type), s.picture_type.as_str());
+                println!("  type: {} ({})", s.picture_type as u8, s.picture_type.as_str());
                 println!("  MIME type: {}", s.mime_type);
                 println!("  description: {}", s.description);
                 println!("  width: {}", s.width);
                 println!("  height: {}", s.height);
                 println!("  depth: {}", s.depth);
                 println!("  colors: {}{}", s.colors, if s.color_indexed() { "" } else { " (unindexed)" });
-                println!("  data length: {}", s.data_length);
+                println!("  data length: {}", s.data.len());
                 println!("  data:");
                 // TODO: hexdump
                 println!("  <TODO>");
@@ -145,13 +146,13 @@ named!(pub metadata_block<MetadataBlock>, do_parse!(
 
 #[derive(Debug)]
 pub enum MetadataBlockData {
-    StreamInfo(MetadataBlockStreamInfo),
+    StreamInfo(BlockStreamInfo),
     Padding,
-    Application(MetadataBlockApplication),
-    SeekTable(MetadataBlockSeekTable),
+    Application(BlockApplication),
+    SeekTable(BlockSeekTable),
     VorbisComment(MetadataBlockVorbisComment),
-    CueSheet(MetadataBlockCueSheet),
-    Picture(MetadataBlockPicture),
+    CueSheet(BlockCueSheet),
+    Picture(BlockPicture),
     Invalid((u8, Vec<u8>)),
 }
 
@@ -200,54 +201,14 @@ pub fn block_data(block_type: u8, size: usize) -> impl Fn(&[u8]) -> IResult<&[u8
     }
 }
 
-/// Notes:
-/// FLAC specifies a minimum block size of 16 and a maximum block size of 65535,
-/// meaning the bit patterns corresponding to the numbers 0-15 in the minimum blocksize and maximum blocksize fields are invalid.
-#[derive(Debug)]
-pub struct MetadataBlockStreamInfo {
-    /// <16> The minimum block size (in samples) used in the stream.
-    pub min_block_size: u16,
-    /// <16> The maximum block size (in samples) used in the stream.
-    pub max_block_size: u16,
-    /// <24> The minimum frame size (in bytes) used in the stream. May be 0 to imply the value is not known.
-    pub min_frame_size: u32,
-    /// <24> The maximum frame size (in bytes) used in the stream. May be 0 to imply the value is not known.
-    pub max_frame_size: u32,
-    /// <20> Sample rate in Hz.
-    /// Though 20 bits are available, the maximum sample rate is limited by the structure of frame headers to 655350Hz.
-    /// Also, a value of 0 is invalid.
-    pub sample_rate: u32,
-    /// <3> (number of channels)-1.
-    /// FLAC supports from 1 to 8 channels
-    pub channels: u8,
-    /// <5> (bits per sample)-1.
-    /// FLAC supports from 4 to 32 bits per sample.
-    /// Currently the reference encoder and decoders only support up to 24 bits per sample.
-    pub bits_per_sample: u8,
-    /// <36> Total samples in stream.
-    /// 'Samples' means inter-channel sample, i.e. one second of 44.1Khz audio will have 44100 samples regardless of the number of channels.
-    /// A value of zero here means the number of total samples is unknown.
-    pub total_samples: u64,
-    /// <128> MD5 signature of the unencoded audio data.
-    /// This allows the decoder to determine if an error exists in the audio data even when the error does not result in an invalid bitstream.
-    pub md5_signature: [u8; 16],
-}
-
-impl MetadataBlockStreamInfo {
-    /// (Minimum blocksize == maximum blocksize) implies a fixed-blocksize stream.
-    pub fn is_fixed_blocksize_stream(&self) -> bool {
-        self.min_block_size == self.max_block_size
-    }
-}
-
-named!(pub metadata_block_stream_info<MetadataBlockStreamInfo>, do_parse!(
+named!(pub metadata_block_stream_info<BlockStreamInfo>, do_parse!(
     min_block_size: be_u16 >>
     max_block_size: be_u16 >>
     min_frame_size: be_u24 >>
     max_frame_size: be_u24 >>
     sample_region: take!(8) >>
     signature: take!(16) >>
-    (MetadataBlockStreamInfo {
+    (BlockStreamInfo {
         min_block_size: min_block_size,
         max_block_size: max_block_size,
         min_frame_size: min_frame_size,
@@ -274,16 +235,7 @@ named!(pub metadata_block_stream_info<MetadataBlockStreamInfo>, do_parse!(
     })
 ));
 
-#[derive(Debug)]
-pub struct MetadataBlockApplication {
-    /// Registered application ID.
-    /// (Visit the [registration page](https://xiph.org/flac/id.html) to register an ID with FLAC.)
-    pub application_id: u32,
-    /// Application data (n must be a multiple of 8)
-    pub data: Vec<u8>,
-}
-
-pub fn metadata_block_application(input: &[u8], size: usize) -> IResult<&[u8], MetadataBlockApplication> {
+pub fn metadata_block_application(input: &[u8], size: usize) -> IResult<&[u8], BlockApplication> {
     if input.len() < size {
         return Err(Err::Incomplete(Needed::new(size)));
     }
@@ -294,44 +246,18 @@ pub fn metadata_block_application(input: &[u8], size: usize) -> IResult<&[u8], M
     }
 
     let (_, application_id) = be_u32(input)?;
-    Ok((&input[size..], MetadataBlockApplication {
+    Ok((&input[size..], BlockApplication {
         application_id,
         data: Vec::from(&input[4..size]),
     }))
 }
 
-#[derive(Debug)]
-pub struct MetadataBlockSeekTable {
-    pub seek_points: Vec<SeekPoint>,
-}
-
-/// Notes:
-/// - For placeholder points, the second and third field values are undefined.
-/// - Seek points within a table must be sorted in ascending order by sample number.
-/// - Seek points within a table must be unique by sample number, with the exception of placeholder points.
-/// - The previous two notes imply that there may be any number of placeholder points, but they must all occur at the end of the table.
-#[derive(Debug)]
-pub struct SeekPoint {
-    // Sample number of first sample in the target frame, or 0xFFFFFFFFFFFFFFFF for a placeholder point.
-    pub sample_number: u64,
-    // Offset (in bytes) from the first byte of the first frame header to the first byte of the target frame's header.
-    pub stream_offset: u64,
-    // Number of samples in the target frame.
-    pub frame_samples: u16,
-}
-
-impl SeekPoint {
-    pub fn is_placehoder(&self) -> bool {
-        self.sample_number == 0xFFFFFFFFFFFFFFFF
-    }
-}
-
-pub fn metadata_block_seektable(input: &[u8], size: usize) -> IResult<&[u8], MetadataBlockSeekTable> {
+pub fn metadata_block_seektable(input: &[u8], size: usize) -> IResult<&[u8], BlockSeekTable> {
     if input.len() < size {
         return Err(Err::Incomplete(Needed::new(size)));
     }
 
-    let mut result: MetadataBlockSeekTable = MetadataBlockSeekTable { seek_points: Vec::new() };
+    let mut result: BlockSeekTable = BlockSeekTable { seek_points: Vec::new() };
 
     let mut remaining = input;
     // The number of seek points is implied by the metadata header 'length' field, i.e. equal to length / 18.
@@ -415,56 +341,6 @@ impl ToString for MetadataBlockVorbisComment {
     }
 }
 
-#[derive(Debug)]
-pub struct UserComment {
-    // [length] = read an unsigned integer of 32 bits
-    // length: u32,
-    /// this iteration's user comment = read a UTF-8 vector as [length] octets
-    comment: String,
-    value_offset: Option<usize>,
-}
-
-impl UserComment {
-    pub fn new(comment: String) -> Self {
-        let value_offset = comment.find('=');
-        Self {
-            comment,
-            value_offset,
-        }
-    }
-
-    pub fn key(&self) -> String {
-        self.key_raw().to_ascii_uppercase()
-    }
-
-    pub fn key_raw(&self) -> &str {
-        match self.value_offset {
-            Some(offset) => &self.comment[..offset],
-            None => &self.comment,
-        }
-    }
-
-    pub fn is_key_uppercase(&self) -> bool {
-        let key = match self.value_offset {
-            Some(offset) => &self.comment[..offset],
-            None => &self.comment,
-        };
-
-        key.chars().all(|c| !c.is_ascii_lowercase())
-    }
-
-    pub fn value(&self) -> &str {
-        match self.value_offset {
-            Some(offset) => &self.comment[offset + 1..],
-            None => &self.comment[self.comment.len()..],
-        }
-    }
-
-    pub fn entry(&self) -> String {
-        self.comment.clone()
-    }
-}
-
 macro_rules! user_comment {
     ($i:expr, $count: expr) => ({
         user_comment($i, $count)
@@ -502,225 +378,7 @@ pub fn user_comment(input: &[u8], count: u32) -> IResult<&[u8], BTreeMap<String,
     Ok((&input[offset..], result))
 }
 
-#[derive(Debug)]
-pub struct MetadataBlockCueSheet {
-    /// <128*8> Media catalog number, in ASCII printable characters 0x20-0x7e.
-    /// In general, the media catalog number may be 0 to 128 bytes long; any unused characters should be right-padded with NUL characters.
-    /// For CD-DA, this is a thirteen digit number, followed by 115 NUL bytes.
-    pub catalog_number: String,
-    /// <64> The number of lead-in samples.
-    /// This field has meaning only for CD-DA cuesheets; for other uses it should be 0.
-    /// For CD-DA, the lead-in is the TRACK 00 area where the table of contents is stored;
-    /// more precisely, it is the number of samples from the first sample of the media to the first sample of the first index point of the first track.
-    /// According to the Red Book, the lead-in must be silence and CD grabbing software does not usually store it;
-    /// additionally, the lead-in must be at least two seconds but may be longer.
-    /// For these reasons the lead-in length is stored here so that the absolute position of the first track can be computed.
-    /// Note that the lead-in stored here is the number of samples up to the first index point of the first track, not necessarily to INDEX 01 of the first track;
-    /// even the first track may have INDEX 00 data.
-    pub leadin_samples: u64,
-    /// <1> 1 if the CUESHEET corresponds to a Compact Disc, else 0.
-    pub is_cd: bool,
-    /// <7+258*8> Reserved. All bits must be set to zero.
-
-    /// <8> The number of tracks.
-    /// Must be at least 1 (because of the requisite lead-out track).
-    /// For CD-DA, this number must be no more than 100 (99 regular tracks and one lead-out track).
-    pub track_number: u8,
-
-    /// One or more tracks.
-    /// A CUESHEET block is required to have a lead-out track; it is always the last track in the CUESHEET.
-    /// For CD-DA, the lead-out track number must be 170 as specified by the Red Book, otherwise is must be 255.
-    pub tracks: Vec<CueSheetTrack>,
-}
-
-#[derive(Debug)]
-pub struct CueSheetTrack {
-    /// <64> Track offset in samples, relative to the beginning of the FLAC audio stream.
-    /// It is the offset to the first index point of the track.
-    /// (Note how this differs from CD-DA, where the track's offset in the TOC is that of the track's INDEX 01 even if there is an INDEX 00.)
-    /// For CD-DA, the offset must be evenly divisible by 588 samples (588 samples = 44100 samples/sec * 1/75th of a sec).
-    pub track_offset: u64,
-    /// <8> Track number.
-    /// A track number of 0 is not allowed to avoid conflicting with the CD-DA spec, which reserves this for the lead-in.
-    /// For CD-DA the number must be 1-99, or 170 for the lead-out; for non-CD-DA, the track number must for 255 for the lead-out.
-    /// It is not required but encouraged to start with track 1 and increase sequentially.
-    /// Track numbers must be unique within a CUESHEET.
-    pub track_number: u8,
-    /// <12*8> Track ISRC.
-    /// This is a 12-digit alphanumeric code; see here and here.
-    /// A value of 12 ASCII NUL characters may be used to denote absence of an ISRC.
-    pub track_isrc: [u8; 12],
-    /// <1> The track type: 0 for audio, 1 for non-audio.
-    /// This corresponds to the CD-DA Q-channel control bit 3.
-    pub is_audio: bool,
-    /// <1> The pre-emphasis flag: 0 for no pre-emphasis, 1 for pre-emphasis.
-    /// This corresponds to the CD-DA Q-channel control bit 5; see [here](http://www.chipchapin.com/CDMedia/cdda9.php3).
-    pub pre_emphasis_flag: bool,
-    /// <6+13*8> Reserved. All bits must be set to zero.
-
-    /// <8> The number of track index points.
-    /// There must be at least one index in every track in a CUESHEET except for the lead-out track, which must have zero.
-    /// For CD-DA, this number may be no more than 100.
-    pub track_index_point_number: u8,
-
-    /// For all tracks except the lead-out track, one or more track index points.
-    pub track_index: Vec<CueSheetTrackIndex>,
-}
-
-#[derive(Debug)]
-pub struct CueSheetTrackIndex {
-    /// <64> Offset in samples, relative to the track offset, of the index point.
-    /// For CD-DA, the offset must be evenly divisible by 588 samples (588 samples = 44100 samples/sec * 1/75th of a sec).
-    /// Note that the offset is from the beginning of the track, not the beginning of the audio data.
-    pub sample_offset: u64,
-    /// <8> The index point number.
-    /// For CD-DA, an index number of 0 corresponds to the track pre-gap.
-    /// The first index in a track must have a number of 0 or 1, and subsequently, index numbers must increase by 1.
-    /// Index numbers must be unique within a track.
-    pub index_point: u8,
-    // <3*8> Reserved. All bits must be set to zero.
-}
-
-/// The picture type according to the ID3v2 APIC frame:
-/// Others are reserved and should not be used. There may only be one each of picture type 1 and 2 in a file.
-#[derive(PartialEq, Eq, Debug)]
-pub enum PictureType {
-    /// 0 - Other
-    Other,
-    /// 1 - 32x32 pixels 'file icon' (PNG only)
-    FileIcon,
-    /// 2 - Other file icon
-    OtherFileIcon,
-    /// 3 - Cover (front)
-    CoverFront,
-    /// 4 - Cover (back)
-    CoverBack,
-    /// 5 - Leaflet page
-    LeafletPage,
-    /// 6 - Media (e.g. label side of CD)
-    Media,
-    /// 7 - Lead artist/lead performer/soloist
-    LeadArtist,
-    /// 8 - Artist/performer
-    Artist,
-    /// 9 - Conductor
-    Conductor,
-    /// 10 - Band/Orchestra
-    Band,
-    /// 11 - Composer
-    Composer,
-    /// 12 - Lyricist/text writer
-    Lyricist,
-    /// 13 - Recording Location
-    RecordingLocation,
-    /// 14 - During recording
-    DuringRecording,
-    /// 15 - During performance
-    DuringPerformance,
-    /// 16 - Movie/video screen capture
-    MovieVideoScreenCapture,
-    /// 17 - A bright coloured fish
-    BrightColoredFish,
-    /// 18 - Illustration
-    Illustration,
-    /// 19 - Band/artist logotype
-    BandArtistLogotype,
-    /// 20 - Publisher/Studio logotype
-    PublisherStudioLogotype,
-}
-
-impl From<&PictureType> for u8 {
-    fn from(data: &PictureType) -> Self {
-        match data {
-            PictureType::Other => 0,
-            PictureType::FileIcon => 1,
-            PictureType::OtherFileIcon => 2,
-            PictureType::CoverFront => 3,
-            PictureType::CoverBack => 4,
-            PictureType::LeafletPage => 5,
-            PictureType::Media => 6,
-            PictureType::LeadArtist => 7,
-            PictureType::Artist => 8,
-            PictureType::Conductor => 9,
-            PictureType::Band => 10,
-            PictureType::Composer => 11,
-            PictureType::Lyricist => 12,
-            PictureType::RecordingLocation => 13,
-            PictureType::DuringRecording => 14,
-            PictureType::DuringPerformance => 15,
-            PictureType::MovieVideoScreenCapture => 16,
-            PictureType::BrightColoredFish => 17,
-            PictureType::Illustration => 18,
-            PictureType::BandArtistLogotype => 19,
-            PictureType::PublisherStudioLogotype => 20,
-        }
-    }
-}
-
-impl PictureType {
-    pub fn as_str(&self) -> &'static str {
-        match self {
-            PictureType::Other => "Other",
-            PictureType::FileIcon => "32x32 pixels 'file icon' (PNG only)",
-            PictureType::OtherFileIcon => "Other file icon",
-            PictureType::CoverFront => "Cover (front)",
-            PictureType::CoverBack => "Cover (back)",
-            PictureType::LeafletPage => "Leaflet page",
-            PictureType::Media => "Media (e.g. label side of CD)",
-            PictureType::LeadArtist => "Lead artist/lead performer/soloist",
-            PictureType::Artist => "Artist/performer",
-            PictureType::Conductor => "Conductor",
-            PictureType::Band => "Band/Orchestra",
-            PictureType::Composer => "Composer",
-            PictureType::Lyricist => "Lyricist/text writer",
-            PictureType::RecordingLocation => "Recording Location",
-            PictureType::DuringRecording => "During recording",
-            PictureType::DuringPerformance => "During performance",
-            PictureType::MovieVideoScreenCapture => "Movie/video screen capture",
-            PictureType::BrightColoredFish => "A bright coloured fish",
-            PictureType::Illustration => "Illustration",
-            PictureType::BandArtistLogotype => "Band/artist logotype",
-            PictureType::PublisherStudioLogotype => "Publisher/Studio logotype",
-        }
-    }
-}
-
-#[derive(Debug)]
-pub struct MetadataBlockPicture {
-    /// <32> The picture type according to the ID3v2 APIC frame
-    /// Others are reserved and should not be used.
-    /// There may only be one each of picture type 1 and 2 in a file.
-    pub picture_type: PictureType,
-    /// <32> The length of the MIME type string in bytes.
-    pub mime_type_length: u32,
-    /// <n*8> The MIME type string, in printable ASCII characters 0x20-0x7e.
-    /// The MIME type may also be --> to signify that the data part is a URL of the picture instead of the picture data itself.
-    pub mime_type: String,
-    /// <32> The length of the description string in bytes.
-    pub description_length: u32,
-    /// <n*8> The description of the picture, in UTF-8.
-    pub description: String,
-    /// <32> The width of the picture in pixels.
-    pub width: u32,
-    /// <32> The height of the picture in pixels.
-    pub height: u32,
-    /// <32> The color depth of the picture in bits-per-pixel.
-    pub depth: u32,
-    /// <32> For indexed-color pictures (e.g. GIF), the number of colors used, or 0 for non-indexed pictures.
-    pub colors: u32,
-    /// <32> The length of the picture data in bytes.
-    pub data_length: u32,
-    /// <n*8> The binary picture data.
-    pub data: Vec<u8>,
-}
-
-impl MetadataBlockPicture {
-    pub fn color_indexed(&self) -> bool {
-        self.colors != 0
-    }
-}
-
-named!(pub metadata_block_picture<MetadataBlockPicture>, do_parse!(
+named!(pub metadata_block_picture<BlockPicture>, do_parse!(
     picture_type: be_u32 >>
     mime_type_length: be_u32 >>
     mime_type: take!(mime_type_length) >>
@@ -732,7 +390,7 @@ named!(pub metadata_block_picture<MetadataBlockPicture>, do_parse!(
     number_of_colors: be_u32 >>
     picture_length: be_u32 >>
     picture_data: take!(picture_length) >>
-    (MetadataBlockPicture {
+    (BlockPicture {
         picture_type: match picture_type {
             1 => PictureType::FileIcon,
             2 => PictureType::OtherFileIcon,
@@ -756,15 +414,12 @@ named!(pub metadata_block_picture<MetadataBlockPicture>, do_parse!(
             20 => PictureType::PublisherStudioLogotype,
             _ => PictureType::Other,
         },
-        mime_type_length: mime_type_length,
         mime_type: String::from_utf8(mime_type.to_vec()).expect("Invalid UTF-8 description."),
-        description_length: description_length,
         description: String::from_utf8(description.to_vec()).expect("Invalid UTF-8 description."),
         width: width,
         height: height,
         depth: color_depth,
         colors: number_of_colors,
-        data_length: picture_length,
         data: picture_data.to_vec(),
     })
 ));
@@ -812,7 +467,6 @@ pub struct FrameHeader {
     /// - `0111` : get 16 bit (blocksize-1) from end of header
     /// - `1000-1111` : 256 * (2^(n-8)) samples, i.e. 256/512/1024/2048/4096/8192/16384/32768
     pub block_size: u16,
-    // FIXME: Use enum here
     /// <4> Sample rate:
     /// - `0000` : get from STREAMINFO metadata block
     /// - `0001` : 88.2kHz
@@ -830,7 +484,7 @@ pub struct FrameHeader {
     /// - `1101` : get 16 bit sample rate (in Hz) from end of header
     /// - `1110` : get 16 bit sample rate (in tens of Hz) from end of header
     /// - `1111` : invalid, to prevent sync-fooling string of 1s
-    pub sample_rate: Option<u32>,
+    pub sample_rate: SampleRate,
     /// <4> Channel assignment
     /// - `0000-0111` : (number of independent channels)-1. Where defined, the channel order follows SMPTE/ITU-R recommendations. The assignments are as follows:
     ///   - 1 channel: mono
@@ -868,6 +522,23 @@ pub enum BlockStrategy {
     Fixed(u32),
     /// <8-56>:"UTF-8" coded sample number (decoded number is 36 bits)
     Variable(u64),
+}
+
+#[derive(Debug)]
+pub enum SampleRate {
+    Inherit,
+    Rate88200,
+    Rate176400,
+    Rate192000,
+    Rate8000,
+    Rate16000,
+    Rate22050,
+    Rate24000,
+    Rate32000,
+    Rate44100,
+    Rate48000,
+    Rate96000,
+    Custom(u64),
 }
 
 #[derive(Debug)]

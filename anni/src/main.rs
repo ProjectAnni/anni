@@ -1,7 +1,7 @@
 use clap::{App, Arg, ArgGroup, crate_authors, crate_version, SubCommand, AppSettings};
 use std::path::PathBuf;
 use shell_escape::escape;
-use anni_flac::PictureType;
+use anni_flac::blocks::PictureType;
 use crate::flac::{ExportConfig, ExportConfigCover};
 use anni_utils::fs;
 

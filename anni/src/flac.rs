@@ -3,7 +3,7 @@ use std::fs::File;
 use std::io::{Read, Write};
 use std::path::{Path, PathBuf};
 
-use anni_flac::{MetadataBlockData, parse_flac, Stream, PictureType};
+use anni_flac::{MetadataBlockData, parse_flac, Stream, blocks::PictureType};
 use anni_utils::{fs, report};
 use anni_utils::validator::{artist_validator, date_validator, number_validator, trim_validator, Validator};
 
@@ -141,7 +141,8 @@ pub(crate) fn export(stream: &Stream, b: &str, export_config: ExportConfig) {
                     let mut should_export = first_picture;
                     // PictureType match
                     if let Some(picture_type) = &config.picture_type {
-                        should_export &= picture_type == &p.picture_type;
+                        let t = &p.picture_type;
+                        should_export &= matches!(picture_type, t);
                     };
                     // Block num match
                     if let Some(block_num) = config.block_num {
