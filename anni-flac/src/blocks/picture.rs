@@ -1,9 +1,8 @@
-use crate::Decode;
-use crate::prelude::Result;
-use byteorder::{ReadBytesExt, BigEndian};
 use std::io::Read;
-use crate::common::{take_string, take};
 use num_traits::FromPrimitive;
+use byteorder::{ReadBytesExt, BigEndian};
+use crate::utils::{take_string, take};
+use crate::prelude::{Decode, Result};
 
 #[derive(Debug)]
 pub struct BlockPicture {

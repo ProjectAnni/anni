@@ -1,7 +1,6 @@
-use crate::DecodeSized;
-use crate::prelude::Result;
 use std::io::Read;
 use byteorder::{ReadBytesExt, BigEndian};
+use crate::prelude::{DecodeSized, Result};
 
 #[derive(Debug)]
 pub struct BlockApplication {
@@ -16,7 +15,7 @@ impl DecodeSized for BlockApplication {
     fn from_reader_sized<R: Read>(reader: &mut R, size: usize) -> Result<Self> {
         Ok(BlockApplication {
             application_id: reader.read_u32::<BigEndian>()?,
-            data: crate::common::take(reader, size - 4)?,
+            data: crate::utils::take(reader, size - 4)?,
         })
     }
 }

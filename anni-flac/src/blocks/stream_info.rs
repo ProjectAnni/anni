@@ -1,7 +1,6 @@
-use crate::{Decode};
 use std::io::Read;
 use byteorder::{ReadBytesExt, BigEndian};
-use crate::prelude::Result;
+use crate::prelude::{Decode, Result};
 
 /// Notes:
 /// FLAC specifies a minimum block size of 16 and a maximum block size of 65535,

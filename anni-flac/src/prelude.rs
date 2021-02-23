@@ -1,10 +1,17 @@
 use std::io::Read;
-use crate::header::{FlacHeader, MetadataBlock, MetadataBlockData};
-use crate::error::FlacError;
 use byteorder::ReadBytesExt;
-use crate::Decode;
+use crate::error::FlacError;
+use crate::header::{FlacHeader, MetadataBlock, MetadataBlockData};
 
 pub type Result<I> = std::result::Result<I, crate::error::FlacError>;
+
+pub trait Decode: Sized {
+    fn from_reader<R: Read>(reader: &mut R) -> Result<Self>;
+}
+
+pub trait DecodeSized: Sized {
+    fn from_reader_sized<R: Read>(reader: &mut R, size: usize) -> Result<Self>;
+}
 
 pub fn decode_header<R: Read>(reader: &mut R, skip_magic_number: bool) -> Result<FlacHeader> {
     if !skip_magic_number {

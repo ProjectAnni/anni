@@ -1,8 +1,7 @@
-use crate::Decode;
-use crate::prelude::Result;
 use std::io::Read;
 use byteorder::{ReadBytesExt, LittleEndian};
-use crate::common::take_string;
+use crate::utils::take_string;
+use crate::prelude::{Decode, Result};
 
 /// Also known as FLAC tags, the contents of a vorbis comment packet as specified here (without the framing bit).
 /// Note that the vorbis comment spec allows for on the order of 2 ^ 64 bytes of data where as the FLAC metadata block is limited to 2 ^ 24 bytes.

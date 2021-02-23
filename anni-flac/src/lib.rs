@@ -6,11 +6,10 @@ extern crate num_derive;
 mod parser;
 mod stream;
 mod header;
-mod common;
+mod utils;
 
 pub use parser::*;
 pub use stream::Stream;
-pub use common::{Decode, DecodeSized};
 
 pub mod blocks;
 pub mod prelude;

@@ -1,8 +1,7 @@
-use crate::Decode;
-use crate::prelude::Result;
 use std::io::Read;
 use byteorder::{ReadBytesExt, BigEndian};
-use crate::common::{take_string, skip};
+use crate::utils::{take_string, skip};
+use crate::prelude::{Decode, Result};
 
 #[derive(Debug)]
 pub struct BlockCueSheet {

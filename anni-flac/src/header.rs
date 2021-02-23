@@ -1,7 +1,6 @@
-use crate::common::{Decode, DecodeSized};
 use std::io::Read;
 use byteorder::{BigEndian, ReadBytesExt};
-use crate::prelude::Result;
+use crate::prelude::{Decode, DecodeSized, Result};
 use crate::blocks::*;
 
 pub struct FlacHeader {
@@ -33,7 +32,7 @@ impl Decode for MetadataBlock {
                 4 => MetadataBlockData::Comment(BlockVorbisComment::from_reader(&mut reader.take(length as u64))?),
                 5 => MetadataBlockData::CueSheet(BlockCueSheet::from_reader(&mut reader.take(length as u64))?),
                 6 => MetadataBlockData::Picture(BlockPicture::from_reader(&mut reader.take(length as u64))?),
-                _ => MetadataBlockData::Reserved((block_type, crate::common::take(reader, length)?)),
+                _ => MetadataBlockData::Reserved((block_type, crate::utils::take(reader, length)?)),
             },
         })
     }
