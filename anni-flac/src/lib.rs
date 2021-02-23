@@ -9,7 +9,7 @@ mod header;
 mod utils;
 
 pub use stream::Stream;
-pub use header::{MetadataBlock, MetadataBlockData};
+pub use header::*;
 
 pub mod blocks;
 pub mod prelude;

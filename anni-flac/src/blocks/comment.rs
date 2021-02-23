@@ -2,6 +2,7 @@ use std::io::Read;
 use byteorder::{ReadBytesExt, LittleEndian};
 use crate::utils::take_string;
 use crate::prelude::{Decode, Result};
+use std::collections::BTreeMap;
 
 /// Also known as FLAC tags, the contents of a vorbis comment packet as specified here (without the framing bit).
 /// Note that the vorbis comment spec allows for on the order of 2 ^ 64 bytes of data where as the FLAC metadata block is limited to 2 ^ 24 bytes.
@@ -41,6 +42,17 @@ impl BlockVorbisComment {
 
     pub fn len(&self) -> usize {
         self.comments.len()
+    }
+
+    pub fn to_map(&self) -> BTreeMap<String, &UserComment> {
+        let mut map = BTreeMap::new();
+        for comment in self.comments.iter() {
+            // NOT override only when key exists AND comment.value is EMPTY.
+            if !(map.contains_key(&comment.key()) && comment.value().len() == 0) {
+                map.insert(comment.key(), comment);
+            }
+        }
+        map
     }
 }
 
@@ -127,7 +139,7 @@ impl UserComment {
 
 impl Decode for UserComment {
     fn from_reader<R: Read>(reader: &mut R) -> Result<Self> {
-        let length = reader.read_u16::<LittleEndian>()?;
+        let length = reader.read_u32::<LittleEndian>()?;
         let comment = take_string(reader, length as usize)?;
         Ok(UserComment::new(comment))
     }

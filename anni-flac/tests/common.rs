@@ -1,6 +1,8 @@
 use std::fs::File;
 use std::io::Read;
-use anni_flac::{parse_flac, MetadataBlockData, PictureType, Stream};
+use anni_flac::{MetadataBlockData, FlacHeader};
+use anni_flac::blocks::PictureType;
+use anni_flac::prelude::decode_header;
 
 /// Make sure test file exists.
 ///
@@ -31,34 +33,32 @@ fn test_cover_file() {
     assert!(exist);
 }
 
-pub fn parse_test_audio() -> Stream {
+pub fn parse_test_audio() -> FlacHeader {
     let mut file = File::open("../assets/test.flac").expect("Failed to open test flac file.");
-    let mut data = Vec::new();
-    file.read_to_end(&mut data).expect("Failed to read test flac file.");
-    parse_flac(&data, None).unwrap()
+    decode_header(&mut file, false).unwrap()
 }
 
 #[test]
 fn test_audio_tags() {
     let stream = parse_test_audio();
-    for (i, block) in stream.metadata_blocks.iter().enumerate() {
+
+    // stream_info block
+    let (info, is_last) = &stream.stream_info;
+    assert_eq!(*is_last, false);
+    assert_eq!(info.min_block_size, 4608);
+    assert_eq!(info.max_block_size, 4608);
+    assert_eq!(info.min_frame_size, 798);
+    assert_eq!(info.max_frame_size, 1317);
+    assert_eq!(info.sample_rate, 44100);
+    assert_eq!(info.channels, 1);
+    assert_eq!(info.bits_per_sample, 16);
+    assert_eq!(info.total_samples, 44100);
+    assert_eq!(info.md5_signature, [0xee, 0xc1, 0xef, 0x02, 0x73, 0xe8, 0xc0, 0x26, 0x1e, 0x52, 0x15, 0x9f, 0xc2, 0x13, 0x67, 0xb0]);
+
+    for (i, block) in stream.blocks.iter().enumerate() {
         match &block.data {
-            MetadataBlockData::StreamInfo(info) => {
-                assert_eq!(i, 0);
-                assert_eq!(block.is_last, false);
-                assert_eq!(block.length, 34);
-                assert_eq!(info.min_block_size, 4608);
-                assert_eq!(info.max_block_size, 4608);
-                assert_eq!(info.min_frame_size, 798);
-                assert_eq!(info.max_frame_size, 1317);
-                assert_eq!(info.sample_rate, 44100);
-                assert_eq!(info.channels, 1);
-                assert_eq!(info.bits_per_sample, 16);
-                assert_eq!(info.total_samples, 44100);
-                assert_eq!(info.md5_signature, [0xee, 0xc1, 0xef, 0x02, 0x73, 0xe8, 0xc0, 0x26, 0x1e, 0x52, 0x15, 0x9f, 0xc2, 0x13, 0x67, 0xb0]);
-            }
             MetadataBlockData::SeekTable(table) => {
-                assert_eq!(i, 1);
+                assert_eq!(i, 0);
                 assert_eq!(block.is_last, false);
                 assert_eq!(block.length, 18);
                 assert_eq!(table.seek_points.len(), 1);
@@ -66,22 +66,23 @@ fn test_audio_tags() {
                 assert_eq!(table.seek_points[0].stream_offset, 0);
                 assert_eq!(table.seek_points[0].frame_samples, 4608);
             }
-            MetadataBlockData::VorbisComment(comment) => {
-                assert_eq!(i, 2);
+            MetadataBlockData::Comment(comment) => {
+                assert_eq!(i, 1);
                 assert_eq!(block.is_last, false);
                 assert_eq!(block.length, 163);
                 assert_eq!(comment.vendor_string, "Lavf58.45.100");
                 assert_eq!(comment.len(), 8);
-                assert_eq!(comment["TITLE"].value(), "TRACK ONE");
-                assert_eq!(comment["ALBUM"].value(), "TestAlbum");
-                assert_eq!(comment["DATE"].value(), "2021-01-24");
-                assert_eq!(comment["TRACKNUMBER"].value(), "1");
-                assert_eq!(comment["TRACKTOTAL"].value(), "1");
-                assert_eq!(comment["DISCNUMBER"].value(), "1");
-                assert_eq!(comment["DISCTOTAL"].value(), "1");
+                let map = comment.to_map();
+                assert_eq!(map["TITLE"].value(), "TRACK ONE");
+                assert_eq!(map["ALBUM"].value(), "TestAlbum");
+                assert_eq!(map["DATE"].value(), "2021-01-24");
+                assert_eq!(map["TRACKNUMBER"].value(), "1");
+                assert_eq!(map["TRACKTOTAL"].value(), "1");
+                assert_eq!(map["DISCNUMBER"].value(), "1");
+                assert_eq!(map["DISCTOTAL"].value(), "1");
             }
             MetadataBlockData::Picture(picture) => {
-                assert_eq!(i, 3);
+                assert_eq!(i, 2);
                 assert_eq!(block.is_last, false);
                 assert_eq!(block.length, 2006);
                 assert_eq!(match picture.picture_type {
@@ -95,15 +96,16 @@ fn test_audio_tags() {
                 assert_eq!(picture.depth, 24);
                 assert_eq!(picture.colors, 0);
                 assert_eq!(picture.color_indexed(), false);
-                assert_eq!(picture.data_length, 1965);
+                assert_eq!(picture.data.len(), 1965);
 
                 let mut file = File::open("../assets/test.png").expect("Failed to open cover file.");
                 let mut data = Vec::new();
                 file.read_to_end(&mut data).expect("Failed to read test cover.");
                 assert_eq!(&data, &picture.data);
             }
-            MetadataBlockData::Padding => {
-                assert_eq!(i, 4);
+            MetadataBlockData::Padding(len) => {
+                assert_eq!(i, 3);
+                assert_eq!(*len, 6043);
                 assert_eq!(block.is_last, true);
                 assert_eq!(block.length, 6043);
             }
