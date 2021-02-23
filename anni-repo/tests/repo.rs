@@ -53,8 +53,7 @@ fn deserialize_repo_toml() {
 fn serialize_repo() {
     assert_eq!(repo_from_str().to_string(), r#"[repo]
 name = "Yesterday17's Metadata Repo"
-version = "1.0.0+1"
-authors = ["Yesterday17 <t@yesterday17.cn>"]
+maintainers = ["Yesterday17 <t@yesterday17.cn>"]
 edition = "1"
 
 [repo.cover]

@@ -3,14 +3,14 @@ use std::fs::File;
 
 mod common;
 
-const TEST_TAGS: &str = r#"ALBUM=TestAlbum
+const TEST_TAGS: &str = r#"TITLE=TRACK ONE
+ALBUM=TestAlbum
 ARTIST=TestArtist
 DATE=2021-01-24
-DISCNUMBER=1
-DISCTOTAL=1
-TITLE=TRACK ONE
 TRACKNUMBER=1
 TRACKTOTAL=1
+DISCNUMBER=1
+DISCTOTAL=1
 "#;
 
 const FLAC_PATH: &str = "../assets/test.flac";
