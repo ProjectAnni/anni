@@ -100,7 +100,7 @@ impl Decode for CueSheetTrack {
         let b = reader.read_u8()?;
         let is_audio = (b & 0b10000000) > 0;
         let is_pre_emphasis = (b & 0b01000000) > 0;
-        skip(reader, 13);
+        skip(reader, 13)?;
 
         let index_point_number = reader.read_u8()?;
         let mut track_index = Vec::with_capacity(index_point_number as usize);
@@ -138,7 +138,7 @@ impl Decode for CueSheetTrackIndex {
     fn from_reader<R: Read>(reader: &mut R) -> Result<Self> {
         let sample_offset = reader.read_u64::<BigEndian>()?;
         let index_point = reader.read_u8()?;
-        skip(reader, 3);
+        skip(reader, 3)?;
         Ok(CueSheetTrackIndex { sample_offset, index_point })
     }
 }
