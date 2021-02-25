@@ -4,7 +4,6 @@ use crate::prelude::{Decode, Result};
 use crate::utils::take_to_end;
 use std::fmt;
 
-#[derive(Debug)]
 pub struct BlockApplication {
     /// Registered application ID.
     /// (Visit the [registration page](https://xiph.org/flac/id.html) to register an ID with FLAC.)
@@ -22,11 +21,15 @@ impl Decode for BlockApplication {
     }
 }
 
-impl fmt::Display for BlockApplication {
+impl fmt::Debug for BlockApplication {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        writeln!(f, "  application ID: {:x}", self.application_id)?;
-        writeln!(f, "  data contents:")?;
+        let mut prefix = "".to_owned();
+        if let Some(width) = f.width() {
+            prefix = " ".repeat(width);
+        }
+        writeln!(f, "{prefix}application ID: {:x}", self.application_id, prefix = prefix)?;
+        writeln!(f, "{prefix}data contents:", prefix = prefix)?;
         // TODO: hexdump
-        writeln!(f, "  <TODO>")
+        writeln!(f, "{prefix}<TODO>", prefix = prefix)
     }
 }

@@ -5,7 +5,6 @@ use crate::utils::{take_string, take};
 use crate::prelude::{Decode, Result};
 use std::fmt;
 
-#[derive(Debug)]
 pub struct BlockPicture {
     /// <32> The picture type according to the ID3v2 APIC frame
     /// Others are reserved and should not be used.
@@ -60,19 +59,23 @@ impl Decode for BlockPicture {
     }
 }
 
-impl fmt::Display for BlockPicture {
+impl fmt::Debug for BlockPicture {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        writeln!(f, "  type: {} ({})", self.picture_type as u8, self.picture_type.as_str())?;
-        writeln!(f, "  MIME type: {}", self.mime_type)?;
-        writeln!(f, "  description: {}", self.description)?;
-        writeln!(f, "  width: {}", self.width)?;
-        writeln!(f, "  height: {}", self.height)?;
-        writeln!(f, "  depth: {}", self.depth)?;
-        writeln!(f, "  colors: {}{}", self.colors, if self.color_indexed() { "" } else { " (unindexed)" })?;
-        writeln!(f, "  data length: {}", self.data.len())?;
-        writeln!(f, "  data:")?;
+        let mut prefix = "".to_owned();
+        if let Some(width) = f.width() {
+            prefix = " ".repeat(width);
+        }
+        writeln!(f, "{prefix}type: {} ({})", self.picture_type as u8, self.picture_type.as_str(), prefix = prefix)?;
+        writeln!(f, "{prefix}MIME type: {}", self.mime_type, prefix = prefix)?;
+        writeln!(f, "{prefix}description: {}", self.description, prefix = prefix)?;
+        writeln!(f, "{prefix}width: {}", self.width, prefix = prefix)?;
+        writeln!(f, "{prefix}height: {}", self.height, prefix = prefix)?;
+        writeln!(f, "{prefix}depth: {}", self.depth, prefix = prefix)?;
+        writeln!(f, "{prefix}colors: {}{}", self.colors, if self.color_indexed() { "" } else { " (unindexed)" }, prefix = prefix)?;
+        writeln!(f, "{prefix}data length: {}", self.data.len(), prefix = prefix)?;
+        writeln!(f, "{prefix}data:", prefix = prefix)?;
         // TODO: hexdump
-        writeln!(f, "  <TODO>")?;
+        writeln!(f, "{prefix}<TODO>", prefix = prefix)?;
         Ok(())
     }
 }

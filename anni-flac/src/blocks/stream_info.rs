@@ -6,7 +6,6 @@ use std::fmt;
 /// Notes:
 /// FLAC specifies a minimum block size of 16 and a maximum block size of 65535,
 /// meaning the bit patterns corresponding to the numbers 0-15 in the minimum blocksize and maximum blocksize fields are invalid.
-#[derive(Debug)]
 pub struct BlockStreamInfo {
     /// <16> The minimum block size (in samples) used in the stream.
     pub min_block_size: u16,
@@ -83,17 +82,21 @@ impl Decode for BlockStreamInfo {
     }
 }
 
-impl fmt::Display for BlockStreamInfo {
+impl fmt::Debug for BlockStreamInfo {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        writeln!(f, "  minimum blocksize: {} samples", self.min_block_size)?;
-        writeln!(f, "  maximum blocksize: {} samples", self.max_block_size)?;
-        writeln!(f, "  minimum framesize: {} bytes", self.min_frame_size)?;
-        writeln!(f, "  maximum framesize: {} bytes", self.max_frame_size)?;
-        writeln!(f, "  sample_rate: {} Hz", self.sample_rate)?;
-        writeln!(f, "  channels: {}", self.channels)?;
-        writeln!(f, "  bits-per-sample: {}", self.bits_per_sample)?;
-        writeln!(f, "  total samples: {}", self.total_samples)?;
-        writeln!(f, "  MD5 signature: {}", hex::encode(self.md5_signature))?;
+        let mut prefix = "".to_owned();
+        if let Some(width) = f.width() {
+            prefix = " ".repeat(width);
+        }
+        writeln!(f, "{prefix}minimum blocksize: {} samples", self.min_block_size, prefix = prefix)?;
+        writeln!(f, "{prefix}maximum blocksize: {} samples", self.max_block_size, prefix = prefix)?;
+        writeln!(f, "{prefix}minimum framesize: {} bytes", self.min_frame_size, prefix = prefix)?;
+        writeln!(f, "{prefix}maximum framesize: {} bytes", self.max_frame_size, prefix = prefix)?;
+        writeln!(f, "{prefix}sample_rate: {} Hz", self.sample_rate, prefix = prefix)?;
+        writeln!(f, "{prefix}channels: {}", self.channels, prefix = prefix)?;
+        writeln!(f, "{prefix}bits-per-sample: {}", self.bits_per_sample, prefix = prefix)?;
+        writeln!(f, "{prefix}total samples: {}", self.total_samples, prefix = prefix)?;
+        writeln!(f, "{prefix}MD5 signature: {}", hex::encode(self.md5_signature), prefix = prefix)?;
         Ok(())
     }
 }

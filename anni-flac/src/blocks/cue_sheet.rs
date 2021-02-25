@@ -4,7 +4,6 @@ use crate::utils::{take_string, skip};
 use crate::prelude::{Decode, Result};
 use std::fmt;
 
-#[derive(Debug)]
 pub struct BlockCueSheet {
     /// <128*8> Media catalog number, in ASCII printable characters 0x20-0x7e.
     /// In general, the media catalog number may be 0 to 128 bytes long; any unused characters should be right-padded with NUL characters.
@@ -56,15 +55,19 @@ impl Decode for BlockCueSheet {
     }
 }
 
-impl fmt::Display for BlockCueSheet {
+impl fmt::Debug for BlockCueSheet {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        writeln!(f, "  media catalog number: {}", self.catalog_number)?;
-        writeln!(f, "  lead-in: {}", self.leadin_samples)?;
-        writeln!(f, "  is CD: {}", self.is_cd)?;
-        writeln!(f, "  number of tracks: {}", self.track_number)?;
+        let mut prefix = "".to_owned();
+        if let Some(width) = f.width() {
+            prefix = " ".repeat(width);
+        }
+        writeln!(f, "{prefix}media catalog number: {}", self.catalog_number, prefix = prefix)?;
+        writeln!(f, "{prefix}lead-in: {}", self.leadin_samples, prefix = prefix)?;
+        writeln!(f, "{prefix}is CD: {}", self.is_cd, prefix = prefix)?;
+        writeln!(f, "{prefix}number of tracks: {}", self.track_number, prefix = prefix)?;
         for (i, t) in self.tracks.iter().enumerate() {
-            writeln!(f, "    track[{}]", i)?;
-            writeln!(f, "      offset: {}", t.track_offset)?;
+            writeln!(f, "{prefix}{prefix}track[{}]", i, prefix = prefix)?;
+            writeln!(f, "{prefix}{prefix}{prefix}offset: {}", t.track_offset, prefix = prefix)?;
             // TODO: https://github.com/xiph/flac/blob/ce6dd6b5732e319ef60716d9cc9af6a836a4011a/src/metaflac/operations.c#L627-L651
         }
         Ok(())

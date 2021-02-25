@@ -5,7 +5,6 @@ use crate::prelude::{Decode, Result};
 use crate::utils::take_to_end;
 use std::fmt;
 
-#[derive(Debug)]
 pub struct BlockSeekTable {
     pub seek_points: Vec<SeekPoint>,
 }
@@ -60,14 +59,18 @@ impl Decode for BlockSeekTable {
     }
 }
 
-impl fmt::Display for BlockSeekTable {
+impl fmt::Debug for BlockSeekTable {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        writeln!(f, "  seek points: {}", self.seek_points.len())?;
+        let mut prefix = "".to_owned();
+        if let Some(width) = f.width() {
+            prefix = " ".repeat(width);
+        }
+        writeln!(f, "{prefix}seek points: {}", self.seek_points.len(), prefix = prefix)?;
         for (i, p) in self.seek_points.iter().enumerate() {
             if p.is_placehoder() {
-                writeln!(f, "    point {}: PLACEHOLDER", i)?;
+                writeln!(f, "{prefix}point {}: PLACEHOLDER", i, prefix = prefix)?;
             } else {
-                writeln!(f, "    point {}: sample_number={}, stream_offset={}, frame_samples={}", i, p.sample_number, p.stream_offset, p.frame_samples)?;
+                writeln!(f, "{prefix}point {}: sample_number={}, stream_offset={}, frame_samples={}", i, p.sample_number, p.stream_offset, p.frame_samples, prefix = prefix)?;
             }
         }
         Ok(())

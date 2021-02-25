@@ -70,7 +70,7 @@ impl MetadataBlock {
         println!("  type: {} ({})", u8::from(data), data.as_str());
         println!("  is last: {}", &self.is_last);
         println!("  length: {}", &self.length);
-        println!("{}", data);
+        println!("{:2?}", data);
     }
 }
 
@@ -115,17 +115,22 @@ impl MetadataBlockData {
     }
 }
 
-impl fmt::Display for MetadataBlockData {
+impl fmt::Debug for MetadataBlockData {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let prefix = if let Some(prefix) = f.width() {
+            prefix
+        } else {
+            0
+        };
         match self {
             MetadataBlockData::Padding(_) => Ok(()),
             MetadataBlockData::Reserved(_) => Ok(()),
-            MetadataBlockData::StreamInfo(s) => write!(f, "{}", s),
-            MetadataBlockData::Application(s) => write!(f, "{}", s),
-            MetadataBlockData::SeekTable(s) => write!(f, "{}", s),
-            MetadataBlockData::Comment(s) => write!(f, "{}", s),
-            MetadataBlockData::CueSheet(s) => write!(f, "{}", s),
-            MetadataBlockData::Picture(s) => write!(f, "{}", s),
+            MetadataBlockData::StreamInfo(s) => write!(f, "{:prefix$?}", s, prefix = prefix),
+            MetadataBlockData::Application(s) => write!(f, "{:prefix$?}", s, prefix = prefix),
+            MetadataBlockData::SeekTable(s) => write!(f, "{:prefix$?}", s, prefix = prefix),
+            MetadataBlockData::Comment(s) => write!(f, "{:prefix$?}", s, prefix = prefix),
+            MetadataBlockData::CueSheet(s) => write!(f, "{:prefix$?}", s, prefix = prefix),
+            MetadataBlockData::Picture(s) => write!(f, "{:prefix$?}", s, prefix = prefix),
         }
     }
 }

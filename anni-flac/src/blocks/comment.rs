@@ -18,7 +18,6 @@ use std::fmt;
 ///
 /// The essentials, in other words, whatever they turn out to be, eg:
 ///     "Honest Bob and the Factory-to-Dealer-Incentives, _I'm Still Around_, opening for Moxy Früvous, 1997"
-#[derive(Debug)]
 pub struct BlockVorbisComment {
     // [vendor_length] = read an unsigned integer of 32 bits
     // vendor_length: u32,
@@ -55,17 +54,6 @@ impl BlockVorbisComment {
         }
         map
     }
-
-    pub fn to_lined_string(&self) -> String {
-        let mut result = String::new();
-        for comment in self.comments.iter() {
-            if !result.is_empty() {
-                result += "\n";
-            }
-            result += &format!("{}={}", comment.key_raw(), comment.value());
-        }
-        result
-    }
 }
 
 impl Decode for BlockVorbisComment {
@@ -86,12 +74,25 @@ impl Decode for BlockVorbisComment {
     }
 }
 
+impl fmt::Debug for BlockVorbisComment {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let mut prefix = "".to_owned();
+        if let Some(width) = f.width() {
+            prefix = " ".repeat(width);
+        }
+        writeln!(f, "{prefix}vendor string: {}", self.vendor_string, prefix = prefix)?;
+        writeln!(f, "{prefix}comments: {}", self.len(), prefix = prefix)?;
+        for (i, c) in self.comments.iter().enumerate() {
+            writeln!(f, "{prefix}{prefix}comment[{}]: {}={}", i, c.key_raw(), c.value(), prefix = prefix)?;
+        }
+        Ok(())
+    }
+}
+
 impl fmt::Display for BlockVorbisComment {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        writeln!(f, "  vendor string: {}", self.vendor_string)?;
-        writeln!(f, "  comments: {}", self.len())?;
-        for (i, c) in self.comments.iter().enumerate() {
-            writeln!(f, "    comment[{}]: {}={}", i, c.key_raw(), c.value())?;
+        for c in self.comments.iter() {
+            writeln!(f, "{}={}", c.key_raw(), c.value())?;
         }
         Ok(())
     }
