@@ -4,6 +4,7 @@ use shell_escape::escape;
 use anni_flac::blocks::PictureType;
 use crate::flac::{ExportConfig, ExportConfigCover};
 use anni_utils::fs;
+use log::LevelFilter;
 
 mod flac;
 mod encoding;
@@ -14,8 +15,16 @@ mod repo;
 #[macro_use]
 extern crate anyhow;
 
+#[macro_use]
+extern crate log;
+
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
+    env_logger::builder()
+        .filter_level(LevelFilter::Warn)
+        .parse_env("ANNI_LOG")
+        .init();
+
     let matches = App::new("Project Annivers@ry")
         .about(fl!("anni-about"))
         .version(crate_version!())
@@ -172,6 +181,11 @@ async fn main() -> anyhow::Result<()> {
         )
         .subcommand(SubCommand::with_name("play"))
         .subcommand(SubCommand::with_name("versary"))
+        .arg(Arg::with_name("log-level")
+            .long("log-level")
+            .env("ANNI_LOG")
+            .possible_values(&["error", "warn", "info", "debug", "trace", "off"])
+        )
         .get_matches();
 
     if let Some(matches) = matches.subcommand_matches("flac") {

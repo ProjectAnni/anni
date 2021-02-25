@@ -1,5 +1,3 @@
-use std::fs::File;
-use std::io::Read;
 use anni_flac::blocks::UserComment;
 
 mod common;
