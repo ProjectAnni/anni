@@ -1,5 +1,4 @@
 use std::collections::HashSet;
-use std::fs::File;
 use std::io::Write;
 use std::path::{Path, PathBuf};
 
@@ -12,8 +11,6 @@ use shell_escape::escape;
 use anni_utils::fs::PathWalker;
 use std::iter::FilterMap;
 use anni_flac::{MetadataBlockData, FlacHeader};
-use anni_flac::error::FlacError;
-use anni_flac::prelude::decode_header;
 
 enum FlacTag {
     Must(&'static str, Validator),
@@ -39,10 +36,10 @@ const TAG_REQUIREMENT: [FlacTag; 11] = [
     FlacTag::Must("DATE", date_validator),
     FlacTag::Must("TRACKNUMBER", number_validator),
     FlacTag::Must("TRACKTOTAL", number_validator),
-    // OPTIONAL tags
-    FlacTag::Optional("ALBUMARTIST", trim_validator),
     FlacTag::Optional("DISCNUMBER", number_validator),
     FlacTag::Optional("DISCTOTAL", number_validator),
+    // OPTIONAL tags
+    FlacTag::Optional("ALBUMARTIST", trim_validator),
     // UNRECOMMENDED tags with alternatives
     FlacTag::Unrecommended("TOTALTRACKS", "TRACKTOTAL"),
     FlacTag::Unrecommended("TOTALDISCS", "DISCTOTAL"),
@@ -54,37 +51,7 @@ const TAG_INCLUDED: [&'static str; 11] = [
     "TOTALTRACKS", "TOTALDISCS",
 ];
 
-pub(crate) fn parse_file(filename: &str) -> Result<FlacHeader, FlacError> {
-    let mut file = File::open(filename).expect(&format!("Failed to open file: {}", filename));
-    decode_header(&mut file, false)
-}
-
-pub(crate) fn parse_input(input: &str, callback: impl Fn(&str, &FlacHeader) -> bool) {
-    for file in fs::PathWalker::new(PathBuf::from(input), true) {
-        match file.extension() {
-            None => continue,
-            Some(ext) => {
-                if ext != "flac" {
-                    continue;
-                }
-            }
-        };
-
-        let filename = file.to_str().unwrap();
-        let stream = parse_file(filename);
-        match stream {
-            Ok(stream) => if !callback(filename, &stream) {
-                break;
-            },
-            Err(err) => {
-                eprintln!("{}", err);
-                break;
-            }
-        }
-    }
-}
-
-pub(crate) fn parse_input_iter(input: &str) -> FilterMap<PathWalker, fn(PathBuf) -> Option<FlacHeader>> {
+pub(crate) fn parse_input_iter(input: &str) -> FilterMap<PathWalker, fn(PathBuf) -> Option<(PathBuf, anni_flac::prelude::Result<FlacHeader>)>> {
     fs::PathWalker::new(PathBuf::from(input), true).filter_map(|file| {
         match file.extension() {
             None => return None,
@@ -95,8 +62,8 @@ pub(crate) fn parse_input_iter(input: &str) -> FilterMap<PathWalker, fn(PathBuf)
             }
         };
 
-        let filename = file.to_str()?;
-        parse_file(filename).ok()
+        let header = FlacHeader::from_file(&file);
+        Some((file, header))
     })
 }
 

@@ -2,7 +2,7 @@ use std::fs::File;
 use std::io::Read;
 use anni_flac::{MetadataBlockData, FlacHeader};
 use anni_flac::blocks::PictureType;
-use anni_flac::prelude::decode_header;
+use anni_flac::prelude::parse_header;
 
 /// Make sure test file exists.
 ///
@@ -35,7 +35,7 @@ fn test_cover_file() {
 
 pub fn parse_test_audio() -> FlacHeader {
     let mut file = File::open("../assets/test.flac").expect("Failed to open test flac file.");
-    decode_header(&mut file, false).unwrap()
+    parse_header(&mut file, false).unwrap()
 }
 
 #[test]

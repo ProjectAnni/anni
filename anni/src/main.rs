@@ -5,6 +5,7 @@ use anni_flac::blocks::PictureType;
 use crate::flac::{ExportConfig, ExportConfigCover};
 use anni_utils::fs;
 use log::LevelFilter;
+use std::process::exit;
 
 mod flac;
 mod encoding;
@@ -21,10 +22,11 @@ extern crate log;
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     env_logger::builder()
-        .filter_level(LevelFilter::Warn)
+        .filter_level(LevelFilter::Info)
         .parse_env("ANNI_LOG")
         .init();
 
+    info!("Anni version: {version}", version = crate_version!());
     let matches = App::new("Project Annivers@ry")
         .about(fl!("anni-about"))
         .version(crate_version!())
@@ -181,14 +183,10 @@ async fn main() -> anyhow::Result<()> {
         )
         .subcommand(SubCommand::with_name("play"))
         .subcommand(SubCommand::with_name("versary"))
-        .arg(Arg::with_name("log-level")
-            .long("log-level")
-            .env("ANNI_LOG")
-            .possible_values(&["error", "warn", "info", "debug", "trace", "off"])
-        )
         .get_matches();
 
     if let Some(matches) = matches.subcommand_matches("flac") {
+        debug!(target: "clap", "SubCommand matched: flac");
         if matches.is_present("flac.check") {
             let pwd = PathBuf::from("./");
             let (paths, is_pwd) = match matches.values_of("Filename") {
@@ -196,10 +194,17 @@ async fn main() -> anyhow::Result<()> {
                 None => (vec![pwd.to_str().expect("Failed to convert to str")], true),
             };
             for input in paths {
-                flac::parse_input(input, |name, stream| {
-                    flac::tags_check(name, stream, matches.value_of("flac.report.format").unwrap());
-                    !is_pwd // if is_pwd { false } else { true }
-                });
+                for (file, header) in flac::parse_input_iter(input) {
+                    if let Err(e) = header {
+                        error!(target: "flac", "Failed to parse header of {:?}: {:?}", file, e);
+                        exit(1);
+                    }
+
+                    flac::tags_check(file.to_string_lossy().as_ref(), &header.unwrap(), matches.value_of("flac.report.format").unwrap());
+                    if is_pwd {
+                        break;
+                    }
+                }
             }
         } else if matches.is_present("flac.export") {
             let mut files = if let Some(filename) = matches.value_of("Filename") {
@@ -208,7 +213,8 @@ async fn main() -> anyhow::Result<()> {
                 panic!("No filename provided.");
             };
 
-            let file = files.nth(0).ok_or(anyhow!("No valid file found."))?;
+            let (_, file) = files.nth(0).ok_or(anyhow!("No valid file found."))?;
+            let file = file?;
             match matches.value_of("flac.export.type").unwrap() {
                 "info" => flac::export(&file, "STREAMINFO", ExportConfig::None),
                 "application" => flac::export(&file, "APPLICATION", ExportConfig::None),
@@ -227,6 +233,7 @@ async fn main() -> anyhow::Result<()> {
             }
         }
     } else if let Some(matches) = matches.subcommand_matches("cue") {
+        debug!(target: "clap", "SubCommand matched: cue");
         let (cue, files) = if matches.is_present("cue.file") {
             // In file mode, the path of CUE file is specified by -f
             // And all the files in <Filename> are FLAC files
@@ -258,6 +265,7 @@ async fn main() -> anyhow::Result<()> {
             }
         }
     } else if let Some(matches) = matches.subcommand_matches("split") {
+        debug!(target: "clap", "SubCommand matched: split");
         let audio_format = matches.value_of("split.audio").unwrap();
         if let Some(dir) = matches.value_of("Filename") {
             let path = PathBuf::from(dir);
@@ -272,10 +280,12 @@ async fn main() -> anyhow::Result<()> {
             println!(r#"shnsplit -f {} -o "flac flac --picture {} -o %f -" {} -t "%n. %t""#, escape(cue.into()), cover, escape(audio.into()));
         }
     } else if let Some(matches) = matches.subcommand_matches("repo") {
+        debug!(target: "clap", "SubCommand matched: repo");
         // anni repo new <music-repo-path>: add new album to metadata repository
         // anni repo apply <music-repo-path>: apply metadata to music files
         repo::handle_repo(matches)?;
     } else if let Some(_matches) = matches.subcommand_matches("versary") {
+        debug!(target: "clap", "SubCommand matched: versary");
         if cfg!(feature = "server") {
             unimplemented!();
         }

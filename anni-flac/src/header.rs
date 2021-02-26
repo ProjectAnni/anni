@@ -4,12 +4,39 @@ use crate::prelude::{Decode, Result};
 use crate::blocks::*;
 use crate::utils::skip;
 use std::fmt;
+use crate::error::FlacError;
+use std::path::Path;
+use std::fs::File;
 
 pub struct FlacHeader {
     pub blocks: Vec<MetadataBlock>,
 }
 
 impl FlacHeader {
+    pub fn parse<R: Read>(reader: &mut R) -> Result<FlacHeader> {
+        if reader.read_u8()? != b'f' ||
+            reader.read_u8()? != b'L' ||
+            reader.read_u8()? != b'a' ||
+            reader.read_u8()? != b'C' {
+            return Err(FlacError::InvalidMagicNumber);
+        }
+
+        let stream_info = MetadataBlock::from_reader(reader)?;
+        let mut is_last = stream_info.is_last;
+        let mut blocks = vec![stream_info];
+        while !is_last {
+            let block = MetadataBlock::from_reader(reader)?;
+            is_last = block.is_last;
+            blocks.push(block);
+        }
+        Ok(FlacHeader { blocks })
+    }
+
+    pub fn from_file<P: AsRef<Path>>(filename: P) -> Result<FlacHeader> {
+        let mut file = File::open(filename)?;
+        Self::parse(&mut file)
+    }
+
     pub fn stream_info(&self) -> &BlockStreamInfo {
         let block = self.blocks.iter().nth(0).unwrap();
         match &block.data {

@@ -3,7 +3,6 @@ use clap::ArgMatches;
 use anni_repo::structure::{album_info, disc_info, file_name};
 use anni_repo::{Album, RepositoryManager};
 use anni_utils::fs;
-use crate::{flac, repo};
 use std::path::{PathBuf, Path};
 use shell_escape::escape;
 use anni_flac::FlacHeader;
@@ -54,8 +53,8 @@ fn handle_repo_add(matches: &ArgMatches, settings: &RepositoryManager) -> anyhow
             Disc::new(&catalog)
         };
         for path in files.iter() {
-            let stream = flac::parse_file(path.to_str().unwrap())?;
-            let track = repo::stream_to_track(&stream);
+            let header = FlacHeader::from_file(path)?;
+            let track = stream_to_track(&header);
             disc.add_track(track);
         }
         album.add_disc(disc);
