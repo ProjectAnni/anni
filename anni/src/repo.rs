@@ -1,45 +1,15 @@
 use anni_repo::album::{Track, Disc};
 use clap::ArgMatches;
 use anni_repo::structure::{album_info, disc_info, file_name};
-use anni_repo::{Album, Repository};
+use anni_repo::{Album, RepositoryManager};
 use anni_utils::fs;
 use crate::{flac, repo};
 use std::path::{PathBuf, Path};
 use shell_escape::escape;
 use anni_flac::FlacHeader;
 
-struct RepoSettings {
-    repo_root: PathBuf,
-    album_root: PathBuf,
-    repo: Repository,
-}
-
-impl RepoSettings {
-    pub fn new(root: &str) -> anyhow::Result<Self> {
-        let root = Path::new(root);
-        let repo = root.join("repo.toml");
-        Ok(Self {
-            repo_root: root.to_owned(),
-            album_root: root.join("album"),
-            repo: Repository::from_file(repo),
-        })
-    }
-
-    pub fn with_album(&self, catalog: &str) -> PathBuf {
-        self.album_root.join(format!("{}.toml", catalog))
-    }
-
-    pub fn album_exists(&self, catalog: &str) -> bool {
-        fs::metadata(self.with_album(catalog)).is_ok()
-    }
-
-    pub fn load_album(&self, catalog: &str) -> Album {
-        Album::from_file(self.with_album(catalog))
-    }
-}
-
 pub(crate) fn handle_repo(matches: &ArgMatches) -> anyhow::Result<()> {
-    let settings = RepoSettings::new(matches.value_of("repo.root").unwrap())?;
+    let settings = RepositoryManager::new(matches.value_of("repo.root").unwrap())?;
 
     if let Some(matches) = matches.subcommand_matches("apply") {
         handle_repo_apply(matches, &settings)?;
@@ -53,7 +23,7 @@ pub(crate) fn handle_repo(matches: &ArgMatches) -> anyhow::Result<()> {
     Ok(())
 }
 
-fn handle_repo_add(matches: &ArgMatches, settings: &RepoSettings) -> anyhow::Result<()> {
+fn handle_repo_add(matches: &ArgMatches, settings: &RepositoryManager) -> anyhow::Result<()> {
     let to_add = Path::new(matches.value_of("Filename").unwrap());
     let last = anni_repo::structure::file_name(to_add)?;
     if last.ends_with("]") {
@@ -99,7 +69,7 @@ fn handle_repo_add(matches: &ArgMatches, settings: &RepoSettings) -> anyhow::Res
     Ok(())
 }
 
-fn handle_repo_edit(matches: &ArgMatches, settings: &RepoSettings) -> anyhow::Result<()> {
+fn handle_repo_edit(matches: &ArgMatches, settings: &RepositoryManager) -> anyhow::Result<()> {
     let to_add = Path::new(matches.value_of("Filename").unwrap());
     let last = anni_repo::structure::file_name(to_add)?;
     if last.ends_with("]") {
@@ -115,7 +85,7 @@ fn handle_repo_edit(matches: &ArgMatches, settings: &RepoSettings) -> anyhow::Re
     Ok(())
 }
 
-fn handle_repo_apply(matches: &ArgMatches, settings: &RepoSettings) -> anyhow::Result<()> {
+fn handle_repo_apply(matches: &ArgMatches, settings: &RepositoryManager) -> anyhow::Result<()> {
     let to_apply = Path::new(matches.value_of("Filename").unwrap());
     let last = anni_repo::structure::file_name(to_apply)?;
     if last.ends_with("]") {
@@ -127,7 +97,7 @@ fn handle_repo_apply(matches: &ArgMatches, settings: &RepoSettings) -> anyhow::R
         bail!("Catalog not found in repo. Aborted.");
     }
 
-    let album = settings.load_album(&catalog);
+    let album = settings.load_album(&catalog)?;
     if album.title() != album_title || album.catalog() != catalog || album.release_date() != &release_date {
         bail!("Album info mismatch. Aborted.");
     }

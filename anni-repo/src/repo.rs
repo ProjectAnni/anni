@@ -1,8 +1,10 @@
 use serde::{Serialize, Deserialize};
 use std::str::FromStr;
 use std::path::Path;
+use anni_common::FromFile;
+use anni_derive::FromFile;
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, FromFile)]
 pub struct Repository {
     repo: RepositoryInner
 }
@@ -24,10 +26,14 @@ pub struct AssetSetting {
 }
 
 impl FromStr for Repository {
-    type Err = Box<dyn std::error::Error>;
+    type Err = crate::Error;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        let val: Repository = toml::from_str(s)?;
+        let val: Repository = toml::from_str(s)
+            .map_err(|e| crate::Error::TomlParseError {
+                target: "Repository",
+                err: e,
+            })?;
         Ok(val)
     }
 }
@@ -39,10 +45,6 @@ impl ToString for Repository {
 }
 
 impl Repository {
-    pub fn from_file<P: AsRef<Path>>(path: P) -> Self {
-        Self::from_str(&*std::fs::read_to_string(path.as_ref()).unwrap()).unwrap()
-    }
-
     pub fn name(&self) -> &str {
         self.repo.name.as_ref()
     }

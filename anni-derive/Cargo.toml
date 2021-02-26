@@ -1,0 +1,12 @@
+[package]
+name = "anni-derive"
+version = "0.1.0"
+authors = ["Yesterday17 <t@yesterday17.cn>"]
+edition = "2018"
+
+[dependencies]
+syn = "1.0"
+quote = "1.0"
+
+[lib]
+proc-macro = true

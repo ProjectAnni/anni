@@ -2,8 +2,10 @@ use serde::{Serialize, Deserialize, Deserializer, Serializer};
 use std::str::FromStr;
 use std::path::Path;
 use crate::Datetime;
+use anni_common::FromFile;
+use anni_derive::FromFile;
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, FromFile)]
 pub struct Album {
     #[serde(rename = "album")]
     info: AlbumInfo,
@@ -23,17 +25,17 @@ impl Album {
             discs: Vec::new(),
         }
     }
-
-    pub fn from_file<P: AsRef<Path>>(path: P) -> Self {
-        Self::from_str(&*std::fs::read_to_string(path.as_ref()).unwrap()).unwrap()
-    }
 }
 
 impl FromStr for Album {
-    type Err = Box<dyn std::error::Error>;
+    type Err = crate::Error;
 
     fn from_str(toml_str: &str) -> Result<Self, Self::Err> {
-        let mut album: Album = toml::from_str(toml_str)?;
+        let mut album: Album = toml::from_str(toml_str)
+            .map_err(|e| crate::Error::TomlParseError {
+                target: "Album",
+                err: e,
+            })?;
         for disc in &mut album.discs {
             for track in &mut disc.tracks {
                 if let None = track.artist {

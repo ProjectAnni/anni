@@ -45,6 +45,7 @@ dependencies = [
  "anyhow",
  "clap",
  "cue_sheet",
+ "dirs-next",
  "edit",
  "env_logger",
  "i18n-embed",
@@ -56,6 +57,21 @@ dependencies = [
  "rust-embed",
  "shell-escape",
  "tokio",
+]
+
+[[package]]
+name = "anni-common"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+]
+
+[[package]]
+name = "anni-derive"
+version = "0.1.0"
+dependencies = [
+ "quote",
+ "syn",
 ]
 
 [[package]]
@@ -73,6 +89,9 @@ dependencies = [
 name = "anni-repo"
 version = "0.1.0"
 dependencies = [
+ "anni-common",
+ "anni-derive",
+ "anyhow",
  "regex",
  "serde",
  "thiserror",
@@ -419,7 +438,28 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3fd78930633bd1c6e35c4b42b1df7b0cbc6bc191146e512bb3bedf243fcc3901"
 dependencies = [
  "libc",
- "redox_users",
+ "redox_users 0.3.5",
+ "winapi",
+]
+
+[[package]]
+name = "dirs-next"
+version = "2.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b98cf8ebf19c3d1b223e151f99a4f9f0690dca41414773390fc824184ac833e1"
+dependencies = [
+ "cfg-if",
+ "dirs-sys-next",
+]
+
+[[package]]
+name = "dirs-sys-next"
+version = "0.1.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "4ebda144c4fe02d1f7ea1a7d9641b6fc6b580adcfa024ae48797ecdeb6825b4d"
+dependencies = [
+ "libc",
+ "redox_users 0.4.0",
  "winapi",
 ]
 
@@ -1600,6 +1640,16 @@ dependencies = [
  "getrandom 0.1.16",
  "redox_syscall 0.1.57",
  "rust-argon2",
+]
+
+[[package]]
+name = "redox_users"
+version = "0.4.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "528532f3d801c87aec9def2add9ca802fe569e44a544afe633765267840abe64"
+dependencies = [
+ "getrandom 0.2.2",
+ "redox_syscall 0.2.4",
 ]
 
 [[package]]
