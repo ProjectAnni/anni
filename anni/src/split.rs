@@ -4,6 +4,7 @@ use anni_utils::decode;
 use anni_utils::decode::{u32_le, u16_le, DecodeError};
 use std::fs::File;
 use anni_utils::encode::{btoken_w, u32_le_w, u16_le_w};
+use std::path::Path;
 
 #[derive(Debug)]
 pub struct WaveHeader {
@@ -92,33 +93,36 @@ impl WaveHeader {
         let br = self.byte_rate as usize;
         br * 60 * m + br * s + br * f / 75
     }
-
-    pub fn mmssnnn(&self, m: usize, s: usize, n: usize) -> usize {
-        unimplemented!()
-    }
 }
 
-pub fn split_wav(header: &mut WaveHeader, input: &mut File, mut output: File, start: usize, end: usize) {
-    input.seek(SeekFrom::Start(44 + start as u64));
+pub fn split_wav_input<R: Read + Seek, P: AsRef<Path>>(audio: &mut R, cue_path: P) -> anyhow::Result<()> {
+    let mut header = WaveHeader::from_reader(audio)?;
+
+    let mut tracks: Vec<(String, usize)> = crate::cue::extract_breakpoints(cue_path.as_ref())
+        .iter()
+        .map(|i| (format!("{:02}. {}", i.index, i.title), (&header).mmssff(i.mm, i.ss, i.ff)))
+        .collect();
+    tracks.push((String::new(), header.data_size as usize));
+    let mut track_iter = tracks.iter();
+    eprintln!("Splitting...");
+
+    let mut prev = track_iter.next().unwrap();
+    for now in track_iter {
+        eprintln!("{}...", prev.0);
+        let output = cue_path.as_ref().with_file_name(format!("{}.wav", prev.0));
+        let output = File::create(output)?;
+        split_wav(&mut header, audio, output, prev.1, now.1)?;
+        prev = now;
+    }
+    eprintln!("Finished!");
+    Ok(())
+}
+
+pub fn split_wav<I: Read + Seek>(header: &mut WaveHeader, input: &mut I, mut output: File, start: usize, end: usize) -> anyhow::Result<()> {
+    input.seek(SeekFrom::Start(44 + start as u64))?;
     let size = end - start;
     header.data_size = size as u32;
-    header.write_to(&mut output).unwrap();
-    std::io::copy(&mut input.take(size as u64), &mut output).unwrap();
-}
-
-#[test]
-fn test_split() {
-    let mut file = File::open("/home/yesterday17/公共/[161109][KICM-1726] Starry Wish/水瀬いのり - Starry Wish.wav").unwrap();
-    let mut header = WaveHeader::from_reader(&mut file).unwrap();
-
-    let one = header.mmssff(4, 7, 48);
-    let two = header.mmssff(8, 17, 49);
-    let end = header.data_size as usize;
-
-    let mut output = File::create("/home/yesterday17/公共/[161109][KICM-1726] Starry Wish/s1.wav").unwrap();
-    split_wav(&mut header, &mut file, output, 0, one);
-    let mut output = File::create("/home/yesterday17/公共/[161109][KICM-1726] Starry Wish/s2.wav").unwrap();
-    split_wav(&mut header, &mut file, output, one, two);
-    let mut output = File::create("/home/yesterday17/公共/[161109][KICM-1726] Starry Wish/s3.wav").unwrap();
-    split_wav(&mut header, &mut file, output, two, end);
+    header.write_to(&mut output)?;
+    std::io::copy(&mut input.take(size as u64), &mut output)?;
+    Ok(())
 }

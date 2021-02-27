@@ -1,11 +1,11 @@
 use clap::{App, Arg, ArgGroup, crate_authors, crate_version, SubCommand, AppSettings};
 use std::path::PathBuf;
-use shell_escape::escape;
 use anni_flac::blocks::PictureType;
 use crate::flac::{ExportConfig, ExportConfigCover};
 use anni_utils::fs;
 use log::LevelFilter;
 use std::process::exit;
+use std::fs::File;
 
 mod flac;
 mod encoding;
@@ -130,6 +130,7 @@ async fn main() -> anyhow::Result<()> {
                 .short("a")
                 .takes_value(true)
                 .default_value("wav")
+                .possible_values(&["wav"])
             )
             .arg(Arg::with_name("split.cover")
                 .help(fl!("split-cover"))
@@ -267,18 +268,20 @@ async fn main() -> anyhow::Result<()> {
         }
     } else if let Some(matches) = matches.subcommand_matches("split") {
         debug!(target: "clap", "SubCommand matched: split");
+
         let audio_format = matches.value_of("split.audio").unwrap();
         if let Some(dir) = matches.value_of("Filename") {
             let path = PathBuf::from(dir);
             let cue = fs::get_ext_file(&path, "cue", false)?
-                .map(|p| p.to_str().unwrap().to_owned())
                 .ok_or(anyhow!("Failed to find CUE sheet."))?;
             let audio = fs::get_ext_file(&path, audio_format, false)?
-                .map(|p| p.to_str().unwrap().to_owned())
                 .ok_or(anyhow!("Failed to find audio file."))?;
 
-            let cover = matches.value_of("split.cover").unwrap();
-            println!(r#"shnsplit -f {} -o "flac flac --picture {} -o %f -" {} -t "%n. %t""#, escape(cue.into()), cover, escape(audio.into()));
+            let mut input = match audio_format {
+                "wav" => File::open(audio)?,
+                _ => unimplemented!(),
+            };
+            split::split_wav_input(&mut input, cue)?;
         }
     } else if let Some(matches) = matches.subcommand_matches("repo") {
         debug!(target: "clap", "SubCommand matched: repo");

@@ -2,6 +2,7 @@ use cue_sheet::tracklist::{Tracklist};
 use shell_escape::escape;
 use std::io;
 use anni_utils::validator::date_validator;
+use std::path::Path;
 
 pub(crate) fn parse_file<T: AsRef<str>>(path: &str, files: &[T]) -> anyhow::Result<String> {
     let mut str: &str = &std::fs::read_to_string(path)?;
@@ -23,6 +24,44 @@ pub(crate) fn parse_file<T: AsRef<str>>(path: &str, files: &[T]) -> anyhow::Resu
         result.push('\n');
     }
     Ok(result)
+}
+
+pub struct CueTrack {
+    pub index: u8,
+    pub title: String,
+    pub mm: usize,
+    pub ss: usize,
+    pub ff: usize,
+}
+
+pub(crate) fn extract_breakpoints<P: AsRef<Path>>(path: P) -> Vec<CueTrack> {
+    let mut str: &str = &std::fs::read_to_string(path).unwrap();
+
+    let first = str.chars().next().ok_or(io::Error::new(io::ErrorKind::InvalidData, "Empty CUE file")).unwrap();
+    // UTF-8 BOM
+    if first == '\u{feff}' {
+        str = &str[3..];
+    }
+
+    let mut result = Vec::new();
+    let cue = Tracklist::parse(str).unwrap();
+    for file in cue.files.iter() {
+        for (i, track) in file.tracks.iter().enumerate() {
+            for (index, time) in track.index.iter() {
+                if *index == 1 {
+                    result.push(CueTrack {
+                        index: (i + 1) as u8,
+                        title: (&track.info["TITLE"]).to_owned(),
+                        mm: time.minutes() as usize,
+                        ss: time.seconds() as usize,
+                        ff: time.frames() as usize,
+                    });
+                }
+            }
+        }
+        break;
+    }
+    result
 }
 
 pub(crate) fn tracks(file: &str) -> io::Result<Vec<String>> {
