@@ -38,6 +38,7 @@ dependencies = [
 name = "anni"
 version = "0.1.0"
 dependencies = [
+ "anni-common",
  "anni-flac",
  "anni-repo",
  "anni-utils",
@@ -102,8 +103,10 @@ dependencies = [
 name = "anni-utils"
 version = "0.1.0"
 dependencies = [
+ "byteorder",
  "prettytable-rs",
  "term",
+ "thiserror",
 ]
 
 [[package]]
