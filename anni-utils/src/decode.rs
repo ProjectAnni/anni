@@ -2,6 +2,7 @@ use std::io;
 use std::io::Read;
 use std::string::FromUtf8Error;
 use thiserror::Error;
+use byteorder::{ReadBytesExt, BigEndian, LittleEndian};
 
 #[derive(Debug, Error)]
 pub enum DecodeError {
@@ -16,28 +17,31 @@ pub enum DecodeError {
     },
 }
 
-pub fn take<R: Read>(reader: &mut R, len: usize) -> Result<Vec<u8>, DecodeError> {
+type Result<T> = std::result::Result<T, DecodeError>;
+
+pub fn take<R: Read>(reader: &mut R, len: usize) -> Result<Vec<u8>> {
     let mut r = Vec::with_capacity(len);
     std::io::copy(&mut reader.take(len as u64), &mut r)?;
     Ok(r)
 }
 
-pub fn take_to_end<R: Read>(reader: &mut R) -> Result<Vec<u8>, DecodeError> {
+pub fn take_to_end<R: Read>(reader: &mut R) -> Result<Vec<u8>> {
     let mut r = Vec::new();
     reader.read_to_end(&mut r)?;
     Ok(r)
 }
 
-pub fn take_string<R: Read>(reader: &mut R, len: usize) -> Result<String, DecodeError> {
-    let r = take(reader, len)?;
-    Ok(String::from_utf8(r)?)
+#[inline]
+pub fn take_string<R: Read>(reader: &mut R, len: usize) -> Result<String> {
+    Ok(String::from_utf8(take(reader, len)?)?)
 }
 
-pub fn skip<R: Read>(reader: &mut R, len: usize) -> Result<u64, DecodeError> {
+#[inline]
+pub fn skip<R: Read>(reader: &mut R, len: usize) -> Result<u64> {
     Ok(std::io::copy(&mut reader.take(len as u64), &mut std::io::sink())?)
 }
 
-pub fn token<R: Read>(reader: &mut R, token: &[u8]) -> Result<(), DecodeError> {
+pub fn token<R: Read>(reader: &mut R, token: &[u8]) -> Result<()> {
     let got = take(reader, token.len())?;
     if got[..] == token[..] {
         Ok(())
@@ -47,4 +51,34 @@ pub fn token<R: Read>(reader: &mut R, token: &[u8]) -> Result<(), DecodeError> {
             got,
         })
     }
+}
+
+#[inline]
+pub fn u32_le<R: Read>(reader: &mut R) -> Result<u32> {
+    Ok(reader.read_u32::<LittleEndian>()?)
+}
+
+#[inline]
+pub fn u32_be<R: Read>(reader: &mut R) -> Result<u32> {
+    Ok(reader.read_u32::<BigEndian>()?)
+}
+
+#[inline]
+pub fn u16_le<R: Read>(reader: &mut R) -> Result<u16> {
+    Ok(reader.read_u16::<LittleEndian>()?)
+}
+
+#[inline]
+pub fn u16_be<R: Read>(reader: &mut R) -> Result<u16> {
+    Ok(reader.read_u16::<BigEndian>()?)
+}
+
+#[inline]
+pub fn u24_le<R: Read>(reader: &mut R) -> Result<u32> {
+    Ok(reader.read_u24::<LittleEndian>()?)
+}
+
+#[inline]
+pub fn u24_be<R: Read>(reader: &mut R) -> Result<u32> {
+    Ok(reader.read_u24::<BigEndian>()?)
 }

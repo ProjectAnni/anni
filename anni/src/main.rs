@@ -12,6 +12,7 @@ mod encoding;
 mod cue;
 mod i18n;
 mod repo;
+mod split;
 
 #[macro_use]
 extern crate anyhow;

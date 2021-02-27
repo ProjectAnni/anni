@@ -16,3 +16,21 @@ fn take_token() {
             _ => false,
         }), Err(true));
 }
+
+#[test]
+fn u32_le() -> Result<(), decode::DecodeError> {
+    let arr = vec![1, 2, 3, 4, 5, 6, 7, 8];
+    let mut cursor = Cursor::new(arr);
+    assert_eq!(decode::u32_le(&mut cursor)?, 0x04030201);
+    assert_eq!(decode::u32_le(&mut cursor)?, 0x08070605);
+    Ok(())
+}
+
+#[test]
+fn u32_be() -> Result<(), decode::DecodeError> {
+    let arr = vec![1, 2, 3, 4, 5, 6, 7, 8];
+    let mut cursor = Cursor::new(arr);
+    assert_eq!(decode::u32_be(&mut cursor)?, 0x01020304);
+    assert_eq!(decode::u32_be(&mut cursor)?, 0x05060708);
+    Ok(())
+}
