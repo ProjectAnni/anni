@@ -1,10 +1,11 @@
-use std::io::{Write, Read, Seek, SeekFrom};
+use std::io::{Write, Read};
 use anni_common::{Decode, Encode};
 use anni_utils::decode;
 use anni_utils::decode::{u32_le, u16_le, DecodeError};
 use std::fs::File;
 use anni_utils::encode::{btoken_w, u32_le_w, u16_le_w};
 use std::path::Path;
+use std::process::{Command, Stdio, Child};
 
 #[derive(Debug)]
 pub struct WaveHeader {
@@ -85,17 +86,39 @@ impl Encode for WaveHeader {
 }
 
 impl WaveHeader {
-    pub fn is_cd(&self) -> bool {
-        self.sample_rate == 44100
-    }
-
     pub fn mmssff(&self, m: usize, s: usize, f: usize) -> usize {
         let br = self.byte_rate as usize;
         br * 60 * m + br * s + br * f / 75
     }
 }
 
-pub fn split_wav_input<R: Read + Seek, P: AsRef<Path>>(audio: &mut R, cue_path: P) -> anyhow::Result<()> {
+enum FileProcess {
+    File(File),
+    Process(Child),
+}
+
+impl FileProcess {
+    fn get_writer(&mut self) -> Box<&mut dyn Write> {
+        match self {
+            FileProcess::File(f) => Box::new(f),
+            FileProcess::Process(p) => Box::new(p.stdin.as_mut().unwrap())
+        }
+    }
+
+    fn wait(&mut self) {
+        match self {
+            FileProcess::Process(p) => {
+                let ret = p.wait().unwrap();
+                if !ret.success() {
+                    error!("Encoding process returned {}", ret.code().unwrap())
+                }
+            }
+            _ => {}
+        };
+    }
+}
+
+pub fn split_wav_input<R: Read, P: AsRef<Path>>(audio: &mut R, cue_path: P, output_format: &str) -> anyhow::Result<()> {
     let mut header = WaveHeader::from_reader(audio)?;
 
     let mut tracks: Vec<(String, usize)> = crate::cue::extract_breakpoints(cue_path.as_ref())
@@ -107,22 +130,37 @@ pub fn split_wav_input<R: Read + Seek, P: AsRef<Path>>(audio: &mut R, cue_path: 
     eprintln!("Splitting...");
 
     let mut prev = track_iter.next().unwrap();
+    let mut processes = Vec::with_capacity(tracks.len() - 1);
     for now in track_iter {
         eprintln!("{}...", prev.0);
-        let output = cue_path.as_ref().with_file_name(format!("{}.wav", prev.0));
-        let output = File::create(output)?;
-        split_wav(&mut header, audio, output, prev.1, now.1)?;
+        let output = cue_path.as_ref().with_file_name(format!("{}.{}", prev.0, output_format));
+        let mut r = match output_format {
+            "wav" => FileProcess::File(File::create(output)?),
+            "flac" => {
+                let process = Command::new("flac")
+                    .args(&["--totally-silent", "-", "-o"])
+                    .arg(output.into_os_string())
+                    .stdin(Stdio::piped())
+                    .spawn()?;
+                FileProcess::Process(process)
+            }
+            _ => unimplemented!(),
+        };
+        split_wav(&mut header, audio, &mut r.get_writer(), prev.1, now.1)?;
+        processes.push(r);
         prev = now;
+    }
+    for mut p in processes {
+        p.wait();
     }
     eprintln!("Finished!");
     Ok(())
 }
 
-pub fn split_wav<I: Read + Seek>(header: &mut WaveHeader, input: &mut I, mut output: File, start: usize, end: usize) -> anyhow::Result<()> {
-    input.seek(SeekFrom::Start(44 + start as u64))?;
+pub fn split_wav<I: Read, O: Write>(header: &mut WaveHeader, input: &mut I, output: &mut O, start: usize, end: usize) -> anyhow::Result<()> {
     let size = end - start;
     header.data_size = size as u32;
-    header.write_to(&mut output)?;
-    std::io::copy(&mut input.take(size as u64), &mut output)?;
+    header.write_to(output)?;
+    std::io::copy(&mut input.take(size as u64), output)?;
     Ok(())
 }

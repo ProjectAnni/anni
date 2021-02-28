@@ -4,8 +4,10 @@ use anni_flac::blocks::PictureType;
 use crate::flac::{ExportConfig, ExportConfigCover};
 use anni_utils::fs;
 use log::LevelFilter;
-use std::process::exit;
+use std::process::{exit, Stdio};
 use std::fs::File;
+use std::io::Read;
+use std::process::Command;
 
 mod flac;
 mod encoding;
@@ -124,25 +126,25 @@ async fn main() -> anyhow::Result<()> {
         )
         .subcommand(SubCommand::with_name("split")
             .about(fl!("split"))
-            .arg(Arg::with_name("split.audio")
-                .help(fl!("split-audio-format"))
-                .long("audio")
-                .short("a")
+            .arg(Arg::with_name("split.format.input")
+                .help(fl!("split-format-input"))
+                .long("input-format")
+                .short("i")
                 .takes_value(true)
                 .default_value("wav")
-                .possible_values(&["wav"])
+                .possible_values(&["wav", "flac"])
             )
-            .arg(Arg::with_name("split.cover")
-                .help(fl!("split-cover"))
-                .long("cover")
-                .short("c")
+            .arg(Arg::with_name("split.format.output")
+                .help(fl!("split-format-output"))
+                .long("output-format")
+                .short("o")
                 .takes_value(true)
-                .default_value("cover.jpg")
+                .default_value("flac")
+                .possible_values(&["wav", "flac"])
             )
             .arg(Arg::with_name("Filename")
                 .takes_value(true)
                 .empty_values(false)
-                .multiple(true)
             )
         )
         .subcommand(SubCommand::with_name("repo")
@@ -269,19 +271,28 @@ async fn main() -> anyhow::Result<()> {
     } else if let Some(matches) = matches.subcommand_matches("split") {
         debug!(target: "clap", "SubCommand matched: split");
 
-        let audio_format = matches.value_of("split.audio").unwrap();
+        let input_format = matches.value_of("split.format.input").unwrap();
+        let output_format = matches.value_of("split.format.output").unwrap();
         if let Some(dir) = matches.value_of("Filename") {
             let path = PathBuf::from(dir);
             let cue = fs::get_ext_file(&path, "cue", false)?
                 .ok_or(anyhow!("Failed to find CUE sheet."))?;
-            let audio = fs::get_ext_file(&path, audio_format, false)?
+            let audio = fs::get_ext_file(&path, input_format, false)?
                 .ok_or(anyhow!("Failed to find audio file."))?;
 
-            let mut input = match audio_format {
-                "wav" => File::open(audio)?,
-                _ => unimplemented!(),
+            let mut input: Box<dyn Read> = match input_format {
+                "wav" => Box::new(File::open(audio)?),
+                "flac" => {
+                    let process = Command::new("flac")
+                        .args(&["-c", "-d"])
+                        .arg(audio.into_os_string())
+                        .stdout(Stdio::piped())
+                        .spawn()?;
+                    Box::new(process.stdout.unwrap())
+                }
+                _ => unreachable!(),
             };
-            split::split_wav_input(&mut input, cue)?;
+            split::split_wav_input(&mut input, cue, output_format)?;
         }
     } else if let Some(matches) = matches.subcommand_matches("repo") {
         debug!(target: "clap", "SubCommand matched: repo");
