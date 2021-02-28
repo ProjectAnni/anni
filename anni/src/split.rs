@@ -24,17 +24,17 @@ impl Decode for WaveHeader {
         // RIFF chunk
         decode::token(reader, b"RIFF")?;
         let _chunk_size = u32_le(reader)?;
-        debug!(target: "wav", "RIFF chunk detected, size = {size}", size = _chunk_size);
+        debug!("RIFF chunk detected, size = {size}", size = _chunk_size);
         decode::token(reader, b"WAVE")?;
 
         // fmt sub-chunk
         decode::token(reader, b"fmt ")?;
         let _fmt_size = u32_le(reader)?;
-        debug!(target: "wav", "Chunk [fmt ] found, size = {size}", size = _fmt_size);
+        debug!("Chunk [fmt ] found, size = {size}", size = _fmt_size);
 
         let audio_format = u16_le(reader)?;
         if audio_format != 1 {
-            error!(target: "wav", "Only PCM format(1) is supported for now, got {}", audio_format);
+            error!("Only PCM format(1) is supported for now, got {}", audio_format);
             return Err(DecodeError::InvalidTokenError { expected: b"1".to_vec(), got: vec![(audio_format >> 8) as u8, (audio_format & 0xff) as u8] });
         }
 
@@ -43,16 +43,16 @@ impl Decode for WaveHeader {
         let byte_rate = u32_le(reader)?;
         let block_align = u16_le(reader)?;
         let bit_per_sample = u16_le(reader)?;
-        debug!(target: "wav", "  channles = {}", channels);
-        debug!(target: "wav", "  sample_rate = {}", sample_rate);
-        debug!(target: "wav", "  byte_rate = {}", byte_rate);
-        debug!(target: "wav", "  block_alibn = {}", block_align);
-        debug!(target: "wav", "  bit_per_sample = {}", bit_per_sample);
+        debug!("  channles = {}", channels);
+        debug!("  sample_rate = {}", sample_rate);
+        debug!("  byte_rate = {}", byte_rate);
+        debug!("  block_alibn = {}", block_align);
+        debug!("  bit_per_sample = {}", bit_per_sample);
 
         // data sub-chunk
         decode::token(reader, b"data")?;
         let data_size = u32_le(reader)?;
-        debug!(target: "wav", "Chunk [data] found, size = {size}", size = data_size);
+        debug!("Chunk [data] found, size = {size}", size = data_size);
         Ok(WaveHeader {
             channels,
             sample_rate,

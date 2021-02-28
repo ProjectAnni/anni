@@ -189,7 +189,7 @@ async fn main() -> anyhow::Result<()> {
         .get_matches();
 
     if let Some(matches) = matches.subcommand_matches("flac") {
-        debug!(target: "clap", "SubCommand matched: flac");
+        debug!("SubCommand matched: flac");
         if matches.is_present("flac.check") {
             let pwd = PathBuf::from("./");
             let (paths, is_pwd) = match matches.values_of("Filename") {
@@ -199,7 +199,7 @@ async fn main() -> anyhow::Result<()> {
             for input in paths {
                 for (file, header) in flac::parse_input_iter(input) {
                     if let Err(e) = header {
-                        error!(target: "flac", "Failed to parse header of {:?}: {:?}", file, e);
+                        error!("Failed to parse header of {:?}: {:?}", file, e);
                         exit(1);
                     }
 
@@ -236,7 +236,7 @@ async fn main() -> anyhow::Result<()> {
             }
         }
     } else if let Some(matches) = matches.subcommand_matches("cue") {
-        debug!(target: "clap", "SubCommand matched: cue");
+        debug!("SubCommand matched: cue");
         let (cue, files) = if matches.is_present("cue.file") {
             // In file mode, the path of CUE file is specified by -f
             // And all the files in <Filename> are FLAC files
@@ -268,7 +268,7 @@ async fn main() -> anyhow::Result<()> {
             }
         }
     } else if let Some(matches) = matches.subcommand_matches("split") {
-        debug!(target: "clap", "SubCommand matched: split");
+        debug!("SubCommand matched: split");
 
         let input_format = matches.value_of("split.format.input").unwrap();
         let output_format = matches.value_of("split.format.output").unwrap();
@@ -294,12 +294,12 @@ async fn main() -> anyhow::Result<()> {
             split::split_wav_input(&mut input, cue, output_format)?;
         }
     } else if let Some(matches) = matches.subcommand_matches("repo") {
-        debug!(target: "clap", "SubCommand matched: repo");
+        debug!("SubCommand matched: repo");
         // anni repo new <music-repo-path>: add new album to metadata repository
         // anni repo apply <music-repo-path>: apply metadata to music files
         repo::handle_repo(matches)?;
     } else if let Some(_matches) = matches.subcommand_matches("versary") {
-        debug!(target: "clap", "SubCommand matched: versary");
+        debug!("SubCommand matched: versary");
         if cfg!(feature = "server") {
             unimplemented!();
         }
