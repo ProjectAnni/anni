@@ -25,11 +25,10 @@ extern crate log;
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     env_logger::builder()
-        .filter_level(LevelFilter::Info)
+        .filter_level(LevelFilter::Warn)
         .parse_env("ANNI_LOG")
         .init();
 
-    info!("Anni version: {version}", version = crate_version!());
     let matches = App::new("Project Annivers@ry")
         .about(fl!("anni-about"))
         .version(crate_version!())
