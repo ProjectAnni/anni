@@ -6,5 +6,4 @@ members = [
     "anni-flac",
     "anni-repo",
     "anni-utils",
-    "anni-versary",
 ]

@@ -1,4 +1,4 @@
-# Anniversary
+# Anni
 
 > 護りたい  
 > あなたとの毎日と  
@@ -7,6 +7,8 @@
 > そう　それは　陽だまりに咲くリバティ  
 > 束ねては　贈る　ひとひら  
 > Anniversary
+
+[中文使用手册](https://anni.mmf.moe/)
 
 ## Child Projects
 
@@ -20,7 +22,7 @@
 
 - Print FLAC tags to stdout directly.
 - Perform FLAC tag content check.
-- Helper to output `shnsplit` command.
+- Split `WAVE` or `FLAC` files.
 - Read `cue` file and output commands to update FLAC file tags.
 
 ## Features/TODOs

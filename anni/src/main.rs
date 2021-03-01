@@ -22,14 +22,13 @@ extern crate anyhow;
 #[macro_use]
 extern crate log;
 
-#[tokio::main]
-async fn main() -> anyhow::Result<()> {
+fn main() -> anyhow::Result<()> {
     env_logger::builder()
         .filter_level(LevelFilter::Warn)
         .parse_env("ANNI_LOG")
         .init();
 
-    let matches = App::new("Project Annivers@ry")
+    let matches = App::new("Project Anni")
         .about(fl!("anni-about"))
         .version(crate_version!())
         .author(crate_authors!())
@@ -184,8 +183,6 @@ async fn main() -> anyhow::Result<()> {
                 )
             )
         )
-        .subcommand(SubCommand::with_name("play"))
-        .subcommand(SubCommand::with_name("versary"))
         .get_matches();
 
     if let Some(matches) = matches.subcommand_matches("flac") {
@@ -298,12 +295,6 @@ async fn main() -> anyhow::Result<()> {
         // anni repo new <music-repo-path>: add new album to metadata repository
         // anni repo apply <music-repo-path>: apply metadata to music files
         repo::handle_repo(matches)?;
-    } else if let Some(_matches) = matches.subcommand_matches("versary") {
-        debug!("SubCommand matched: versary");
-        if cfg!(feature = "server") {
-            unimplemented!();
-        }
-        let _ = anni_versary::launch();
     }
 
     Ok(())
