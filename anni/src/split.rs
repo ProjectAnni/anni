@@ -99,10 +99,17 @@ enum FileProcess {
 }
 
 impl FileProcess {
+    fn get_reader(&mut self) -> Box<&mut dyn Read> {
+        match self {
+            FileProcess::File(f) => Box::new(f),
+            FileProcess::Process(p) => Box::new(p.stdout.as_mut().unwrap()),
+        }
+    }
+
     fn get_writer(&mut self) -> Box<&mut dyn Write> {
         match self {
             FileProcess::File(f) => Box::new(f),
-            FileProcess::Process(p) => Box::new(p.stdin.as_mut().unwrap())
+            FileProcess::Process(p) => Box::new(p.stdin.as_mut().unwrap()),
         }
     }
 
@@ -129,24 +136,24 @@ pub fn handle_split(matches: &ArgMatches) -> anyhow::Result<()> {
         let audio = fs::get_ext_file(&path, input_format, false)?
             .ok_or(anyhow!("Failed to find audio file."))?;
 
-        let mut input: Box<dyn Read> = match input_format {
-            "wav" => Box::new(File::open(audio)?),
+        let mut input = match input_format {
+            "wav" => FileProcess::File(File::open(audio)?),
             "flac" => {
                 let process = Command::new("flac")
                     .args(&["-c", "-d"])
                     .arg(audio.into_os_string())
                     .stdout(Stdio::piped())
                     .spawn()?;
-                Box::new(process.stdout.unwrap())
+                FileProcess::Process(process)
             }
             _ => unreachable!(),
         };
-        split_wav_input(&mut input, cue, output_format)?;
+        split_wav_input(&mut input.get_reader(), cue, output_format)?;
     }
     Ok(())
 }
 
-pub fn split_wav_input<R: Read, P: AsRef<Path>>(audio: &mut R, cue_path: P, output_format: &str) -> anyhow::Result<()> {
+fn split_wav_input<R: Read, P: AsRef<Path>>(audio: &mut R, cue_path: P, output_format: &str) -> anyhow::Result<()> {
     let mut header = WaveHeader::from_reader(audio)?;
 
     let mut tracks: Vec<(String, usize)> = crate::cue::extract_breakpoints(cue_path.as_ref())
@@ -162,7 +169,7 @@ pub fn split_wav_input<R: Read, P: AsRef<Path>>(audio: &mut R, cue_path: P, outp
     for now in track_iter {
         eprintln!("{}...", prev.0);
         let output = cue_path.as_ref().with_file_name(format!("{}.{}", prev.0, output_format));
-        let mut r = match output_format {
+        let mut process = match output_format {
             "wav" => FileProcess::File(File::create(output)?),
             "flac" => {
                 let process = Command::new("flac")
@@ -174,8 +181,8 @@ pub fn split_wav_input<R: Read, P: AsRef<Path>>(audio: &mut R, cue_path: P, outp
             }
             _ => unimplemented!(),
         };
-        split_wav(&mut header, audio, &mut r.get_writer(), prev.1, now.1)?;
-        processes.push(r);
+        split_wav(&mut header, audio, &mut process.get_writer(), prev.1, now.1)?;
+        processes.push(process);
         prev = now;
     }
     for mut p in processes {
@@ -185,7 +192,7 @@ pub fn split_wav_input<R: Read, P: AsRef<Path>>(audio: &mut R, cue_path: P, outp
     Ok(())
 }
 
-pub fn split_wav<I: Read, O: Write>(header: &mut WaveHeader, input: &mut I, output: &mut O, start: usize, end: usize) -> anyhow::Result<()> {
+fn split_wav<I: Read, O: Write>(header: &mut WaveHeader, input: &mut I, output: &mut O, start: usize, end: usize) -> anyhow::Result<()> {
     let size = end - start;
     header.data_size = size as u32;
     header.write_to(output)?;
