@@ -13,10 +13,9 @@
 ## Child Projects
 
 - anni: Cli-tool with all features.
-- anni-flac: FLAC parsing library.
+- anni-flac: FLAC parsing library(header only for now).
 - anni-repo: Music-repository related works.
 - anni-utils: Utilities used by other projects.
-- anni-versary: Music backend implementation.
 
 ## Use Cases
 
@@ -24,21 +23,3 @@
 - Perform FLAC tag content check.
 - Split `WAVE` or `FLAC` files.
 - Read `cue` file and output commands to update FLAC file tags.
-
-## Features/TODOs
-
-- [ ] Music backend focuses on `flac` format.
-- [ ] Built-in metaflac alternative.
-    - [x] `--list`
-        - [ ] `--block-number`
-        - [x] `--block-type`
-    - [x] `--export-tags-to=-`
-    - [x] `--export-picture-to`
-- [ ] Cover fetch service.
-    - [ ] `iTunes`
-- [ ] Music metadata fetch service.
-    - [ ] `Sony`
-    - [ ] `Lantis`
-    - [ ] `KingRecords`
-- [ ] Built-in Google Drive support.
-- [ ] Airsonic API support.

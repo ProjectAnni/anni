@@ -1,11 +1,12 @@
 use std::io::{Write, Read};
 use anni_common::{Decode, Encode};
-use anni_utils::decode;
+use anni_utils::{decode, fs};
 use anni_utils::decode::{u32_le, u16_le, DecodeError};
 use std::fs::File;
 use anni_utils::encode::{btoken_w, u32_le_w, u16_le_w};
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio, Child};
+use clap::ArgMatches;
 
 #[derive(Debug)]
 pub struct WaveHeader {
@@ -116,6 +117,33 @@ impl FileProcess {
             _ => {}
         };
     }
+}
+
+pub fn handle_split(matches: &ArgMatches) -> anyhow::Result<()> {
+    let input_format = matches.value_of("split.format.input").unwrap();
+    let output_format = matches.value_of("split.format.output").unwrap();
+    if let Some(dir) = matches.value_of("Filename") {
+        let path = PathBuf::from(dir);
+        let cue = fs::get_ext_file(&path, "cue", false)?
+            .ok_or(anyhow!("Failed to find CUE sheet."))?;
+        let audio = fs::get_ext_file(&path, input_format, false)?
+            .ok_or(anyhow!("Failed to find audio file."))?;
+
+        let mut input: Box<dyn Read> = match input_format {
+            "wav" => Box::new(File::open(audio)?),
+            "flac" => {
+                let process = Command::new("flac")
+                    .args(&["-c", "-d"])
+                    .arg(audio.into_os_string())
+                    .stdout(Stdio::piped())
+                    .spawn()?;
+                Box::new(process.stdout.unwrap())
+            }
+            _ => unreachable!(),
+        };
+        split_wav_input(&mut input, cue, output_format)?;
+    }
+    Ok(())
 }
 
 pub fn split_wav_input<R: Read, P: AsRef<Path>>(audio: &mut R, cue_path: P, output_format: &str) -> anyhow::Result<()> {

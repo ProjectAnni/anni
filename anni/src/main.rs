@@ -1,13 +1,5 @@
 use clap::{App, Arg, ArgGroup, crate_authors, crate_version, SubCommand, AppSettings};
-use std::path::PathBuf;
-use anni_flac::blocks::PictureType;
-use crate::flac::{ExportConfig, ExportConfigCover};
-use anni_utils::fs;
 use log::LevelFilter;
-use std::process::{exit, Stdio};
-use std::fs::File;
-use std::io::Read;
-use std::process::Command;
 
 mod flac;
 mod encoding;
@@ -187,113 +179,15 @@ fn main() -> anyhow::Result<()> {
 
     if let Some(matches) = matches.subcommand_matches("flac") {
         debug!("SubCommand matched: flac");
-        if matches.is_present("flac.check") {
-            let pwd = PathBuf::from("./");
-            let (paths, is_pwd) = match matches.values_of("Filename") {
-                Some(files) => (files.collect(), false),
-                None => (vec![pwd.to_str().expect("Failed to convert to str")], true),
-            };
-            for input in paths {
-                for (file, header) in flac::parse_input_iter(input) {
-                    if let Err(e) = header {
-                        error!("Failed to parse header of {:?}: {:?}", file, e);
-                        exit(1);
-                    }
-
-                    flac::tags_check(file.to_string_lossy().as_ref(), &header.unwrap(), matches.value_of("flac.report.format").unwrap());
-                    if is_pwd {
-                        break;
-                    }
-                }
-            }
-        } else if matches.is_present("flac.export") {
-            let mut files = if let Some(filename) = matches.value_of("Filename") {
-                flac::parse_input_iter(filename)
-            } else {
-                panic!("No filename provided.");
-            };
-
-            let (_, file) = files.nth(0).ok_or(anyhow!("No valid file found."))?;
-            let file = file?;
-            match matches.value_of("flac.export.type").unwrap() {
-                "info" => flac::export(&file, "STREAMINFO", ExportConfig::None),
-                "application" => flac::export(&file, "APPLICATION", ExportConfig::None),
-                "seektable" => flac::export(&file, "SEEKTABLE", ExportConfig::None),
-                "cue" => flac::export(&file, "CUESHEET", ExportConfig::None),
-                "comment" | "tag" => flac::export(&file, "VORBIS_COMMENT", ExportConfig::None),
-                "picture" =>
-                    flac::export(&file, "PICTURE", ExportConfig::Cover(ExportConfigCover::default())),
-                "cover" =>
-                    flac::export(&file, "PICTURE", ExportConfig::Cover(ExportConfigCover {
-                        picture_type: Some(PictureType::CoverFront),
-                        block_num: None,
-                    })),
-                "list" | "all" => flac::info_list(&file),
-                _ => panic!("Unknown export type.")
-            }
-        }
+        flac::handle_flac(matches)?;
     } else if let Some(matches) = matches.subcommand_matches("cue") {
         debug!("SubCommand matched: cue");
-        let (cue, files) = if matches.is_present("cue.file") {
-            // In file mode, the path of CUE file is specified by -f
-            // And all the files in <Filename> are FLAC files
-            let c = matches.value_of("cue.file").map(|u| u.to_owned());
-            let f = matches.values_of("Filename").map(
-                |u| u.map(|v| v.to_owned()).collect::<Vec<_>>()
-            );
-            (c, f)
-        } else if matches.is_present("cue.dir") && matches.is_present("Filename") {
-            // In directory mode, only one path is used: <Filename>[0]
-            // The first CUE file found in that directory is treated as CUE input
-            // All other FLAC file in that directory are treated as input
-            let dir = matches.value_of("Filename").expect("No filename provided.");
-            let c = fs::get_ext_file(PathBuf::from(dir), "cue", false)?
-                .map(|p| p.to_str().unwrap().to_owned());
-            let f = fs::get_ext_files(PathBuf::from(dir), "flac", false)?
-                .map(|p| p.iter().map(|t| t.to_str().unwrap().to_owned()).collect::<Vec<_>>());
-            (c, f)
-        } else {
-            (None, None)
-        };
-
-        if let Some(cue) = cue {
-            if let Some(files) = files {
-                if matches.is_present("cue.tagsh") {
-                    let result = cue::parse_file(&cue, &files)?;
-                    println!("{}", result);
-                }
-            }
-        }
+        cue::handle_cue(matches)?;
     } else if let Some(matches) = matches.subcommand_matches("split") {
         debug!("SubCommand matched: split");
-
-        let input_format = matches.value_of("split.format.input").unwrap();
-        let output_format = matches.value_of("split.format.output").unwrap();
-        if let Some(dir) = matches.value_of("Filename") {
-            let path = PathBuf::from(dir);
-            let cue = fs::get_ext_file(&path, "cue", false)?
-                .ok_or(anyhow!("Failed to find CUE sheet."))?;
-            let audio = fs::get_ext_file(&path, input_format, false)?
-                .ok_or(anyhow!("Failed to find audio file."))?;
-
-            let mut input: Box<dyn Read> = match input_format {
-                "wav" => Box::new(File::open(audio)?),
-                "flac" => {
-                    let process = Command::new("flac")
-                        .args(&["-c", "-d"])
-                        .arg(audio.into_os_string())
-                        .stdout(Stdio::piped())
-                        .spawn()?;
-                    Box::new(process.stdout.unwrap())
-                }
-                _ => unreachable!(),
-            };
-            split::split_wav_input(&mut input, cue, output_format)?;
-        }
+        split::handle_split(matches)?;
     } else if let Some(matches) = matches.subcommand_matches("repo") {
         debug!("SubCommand matched: repo");
-        // anni repo new <music-repo-path>: add new album to metadata repository
-        // anni repo apply <music-repo-path>: apply metadata to music files
         repo::handle_repo(matches)?;
     }
 

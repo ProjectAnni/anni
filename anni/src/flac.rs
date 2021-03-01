@@ -11,6 +11,8 @@ use shell_escape::escape;
 use anni_utils::fs::PathWalker;
 use std::iter::FilterMap;
 use anni_flac::{MetadataBlockData, FlacHeader};
+use clap::ArgMatches;
+use std::process::exit;
 
 enum FlacTag {
     Must(&'static str, Validator),
@@ -51,7 +53,56 @@ const TAG_INCLUDED: [&'static str; 11] = [
     "TOTALTRACKS", "TOTALDISCS",
 ];
 
-pub(crate) fn parse_input_iter(input: &str) -> FilterMap<PathWalker, fn(PathBuf) -> Option<(PathBuf, anni_flac::prelude::Result<FlacHeader>)>> {
+pub(crate) fn handle_flac(matches: &ArgMatches) -> anyhow::Result<()> {
+    if matches.is_present("flac.check") {
+        let pwd = PathBuf::from("./");
+        let (paths, is_pwd) = match matches.values_of("Filename") {
+            Some(files) => (files.collect(), false),
+            None => (vec![pwd.to_str().expect("Failed to convert to str")], true),
+        };
+        for input in paths {
+            for (file, header) in parse_input_iter(input) {
+                if let Err(e) = header {
+                    error!("Failed to parse header of {:?}: {:?}", file, e);
+                    exit(1);
+                }
+
+                tags_check(file.to_string_lossy().as_ref(), &header.unwrap(), matches.value_of("flac.report.format").unwrap());
+                if is_pwd {
+                    break;
+                }
+            }
+        }
+    } else if matches.is_present("flac.export") {
+        let mut files = if let Some(filename) = matches.value_of("Filename") {
+            parse_input_iter(filename)
+        } else {
+            panic!("No filename provided.");
+        };
+
+        let (_, file) = files.nth(0).ok_or(anyhow!("No valid file found."))?;
+        let file = file?;
+        match matches.value_of("flac.export.type").unwrap() {
+            "info" => export(&file, "STREAMINFO", ExportConfig::None),
+            "application" => export(&file, "APPLICATION", ExportConfig::None),
+            "seektable" => export(&file, "SEEKTABLE", ExportConfig::None),
+            "cue" => export(&file, "CUESHEET", ExportConfig::None),
+            "comment" | "tag" => export(&file, "VORBIS_COMMENT", ExportConfig::None),
+            "picture" =>
+                export(&file, "PICTURE", ExportConfig::Cover(ExportConfigCover::default())),
+            "cover" =>
+                export(&file, "PICTURE", ExportConfig::Cover(ExportConfigCover {
+                    picture_type: Some(PictureType::CoverFront),
+                    block_num: None,
+                })),
+            "list" | "all" => info_list(&file),
+            _ => panic!("Unknown export type.")
+        }
+    }
+    Ok(())
+}
+
+fn parse_input_iter(input: &str) -> FilterMap<PathWalker, fn(PathBuf) -> Option<(PathBuf, anni_flac::prelude::Result<FlacHeader>)>> {
     fs::PathWalker::new(PathBuf::from(input), true).filter_map(|file| {
         match file.extension() {
             None => return None,
@@ -67,18 +118,18 @@ pub(crate) fn parse_input_iter(input: &str) -> FilterMap<PathWalker, fn(PathBuf)
     })
 }
 
-pub(crate) fn info_list(stream: &FlacHeader) {
+fn info_list(stream: &FlacHeader) {
     for (i, block) in stream.blocks.iter().enumerate() {
         block.print(i);
     }
 }
 
-pub(crate) enum ExportConfig {
+enum ExportConfig {
     Cover(ExportConfigCover),
     None,
 }
 
-pub(crate) struct ExportConfigCover {
+struct ExportConfigCover {
     pub(crate) picture_type: Option<PictureType>,
     pub(crate) block_num: Option<usize>,
 }
@@ -92,7 +143,7 @@ impl Default for ExportConfigCover {
     }
 }
 
-pub(crate) fn export(header: &FlacHeader, b: &str, export_config: ExportConfig) {
+fn export(header: &FlacHeader, b: &str, export_config: ExportConfig) {
     let mut first_picture = true;
     for (i, block) in header.blocks.iter().enumerate() {
         if block.data.as_str() == b {
@@ -133,7 +184,7 @@ pub(crate) fn export(header: &FlacHeader, b: &str, export_config: ExportConfig) 
     }
 }
 
-pub(crate) fn tags_check(filename: &str, stream: &FlacHeader, report_mode: &str) {
+fn tags_check(filename: &str, stream: &FlacHeader, report_mode: &str) {
     let mut reporter = report::new(report_mode);
     let mut fixes = Vec::new();
     let comments = stream.comments().expect("Failed to read comments");

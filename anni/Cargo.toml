@@ -4,10 +4,6 @@ version = "0.1.0"
 authors = ["Yesterday17 <t@yesterday17.cn>"]
 edition = "2018"
 
-[features]
-default = []
-server = []
-
 [dependencies]
 dirs-next = "2.0.0"
 clap = "2.33.3"
