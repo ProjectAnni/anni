@@ -23,14 +23,19 @@ pub trait Backend {
 
 lazy_static::lazy_static! {
     static ref ALBUM_REGEX: Regex = Regex::new(r"^\[(?:\d{2}|\d{4})-?\d{2}-?\d{2}]\[([^]]+)] .+$").unwrap();
+    static ref DISC_REGEX: Regex = Regex::new(r"^\[([^]]+)] .+ \[Disc \d+]$").unwrap();
 }
 
-pub(crate) fn extract_catalog<S: AsRef<str>>(name: S) -> Option<String> {
+pub(crate) fn extract_album<S: AsRef<str>>(name: S) -> Option<String> {
     ALBUM_REGEX.captures(name.as_ref()).map(|r| r.get(1).unwrap().as_str().to_owned())
+}
+
+pub(crate) fn extract_disc<S: AsRef<str>>(name: S) -> Option<String> {
+    DISC_REGEX.captures(name.as_ref()).map(|r| r.get(1).unwrap().as_str().to_owned())
 }
 
 #[test]
 fn test_extract_catalog() {
-    assert_eq!(extract_catalog("[210306][CATA-LOG] Title"), Some("CATA-LOG".to_owned()));
-    assert_eq!(extract_catalog("233"), None);
+    assert_eq!(extract_album("[210306][CATA-LOG] Title"), Some("CATA-LOG".to_owned()));
+    assert_eq!(extract_album("233"), None);
 }

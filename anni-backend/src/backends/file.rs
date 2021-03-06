@@ -1,4 +1,4 @@
-use crate::common::{Backend, extract_catalog};
+use crate::common::{Backend, extract_album, extract_disc};
 use async_trait::async_trait;
 use tokio::io::AsyncRead;
 use std::collections::HashMap;
@@ -21,17 +21,38 @@ impl FileBackend {
         while let Some(entry) = dir.next_entry().await? {
             if entry.metadata().await?.is_dir() {
                 let path = entry.path();
-                if let Some(catalog) = extract_catalog(
+                if let Some(catalog) = extract_album(
                     path.file_name().ok_or(FileBackendError::InvalidPath)?
                         .to_str().ok_or(FileBackendError::InvalidPath)?
                 ) {
-                    self.inner.insert(catalog, path);
+                    // look for inner discs
+                    if !self.walk_discs(&path).await? {
+                        // no disc found, one disc by default
+                        self.inner.insert(catalog, path);
+                    }
                 } else {
                     to_visit.push(path);
                 }
             }
         }
         Ok(())
+    }
+
+    async fn walk_discs<P: AsRef<Path> + Send>(&mut self, album: P) -> Result<bool, FileBackendError> {
+        let mut dir = read_dir(album).await?;
+        let mut has_disc = false;
+        while let Some(entry) = dir.next_entry().await? {
+            if entry.metadata().await?.is_dir() {
+                let path = entry.path();
+                let disc_name = path.file_name().ok_or(FileBackendError::InvalidPath)?
+                    .to_str().ok_or(FileBackendError::InvalidPath)?;
+                if let Some(catalog) = extract_disc(disc_name) {
+                    self.inner.insert(catalog, path);
+                    has_disc = true;
+                }
+            }
+        }
+        Ok(has_disc)
     }
 }
 
