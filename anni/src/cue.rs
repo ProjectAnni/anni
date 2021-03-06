@@ -60,7 +60,7 @@ fn parse_file<P: AsRef<Path>>(path: P, files: &[P]) -> anyhow::Result<String> {
     Ok(result)
 }
 
-pub struct CueTrack {
+pub(crate) struct CueTrack {
     pub index: u8,
     pub title: String,
     pub mm: usize,
@@ -98,7 +98,7 @@ pub(crate) fn extract_breakpoints<P: AsRef<Path>>(path: P) -> Vec<CueTrack> {
     result
 }
 
-pub(crate) fn tracks(file: &str) -> io::Result<Vec<String>> {
+fn tracks(file: &str) -> io::Result<Vec<String>> {
     let cue = Tracklist::parse(file).unwrap();
     let album = cue.info.get("TITLE").expect("Album TITLE not provided!");
     let artist = cue.info.get("ARTIST").map(String::as_str).unwrap_or("");

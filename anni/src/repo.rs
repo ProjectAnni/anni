@@ -8,7 +8,7 @@ use shell_escape::escape;
 use anni_flac::FlacHeader;
 
 pub(crate) fn handle_repo(matches: &ArgMatches) -> anyhow::Result<()> {
-    let settings = RepositoryManager::new(matches.value_of("repo.root").unwrap())?;
+    let settings = RepositoryManager::new(PathBuf::from(matches.value_of("repo.root").unwrap()))?;
 
     if let Some(matches) = matches.subcommand_matches("apply") {
         handle_repo_apply(matches, &settings)?;

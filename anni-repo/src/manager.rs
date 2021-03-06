@@ -1,4 +1,4 @@
-use std::path::{PathBuf, Path};
+use std::path::PathBuf;
 use crate::{Repository, Album};
 use std::fs;
 use anni_common::FromFile;
@@ -10,11 +10,10 @@ pub struct RepositoryManager {
 }
 
 impl RepositoryManager {
-    pub fn new<S: AsRef<str>>(root: S) -> Result<Self> {
-        let root = Path::new(root.as_ref());
+    pub fn new(root: PathBuf) -> Result<Self> {
         let repo = root.join("repo.toml");
         Ok(Self {
-            root: root.to_owned(),
+            root,
             repo: Repository::from_file(repo).map_err(|e| crate::Error::RepoInitError(e))?,
         })
     }
