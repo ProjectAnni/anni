@@ -39,6 +39,10 @@ impl FileBackend {
 impl Backend for FileBackend {
     type Err = FileBackendError;
 
+    fn need_cache() -> bool {
+        false
+    }
+
     async fn update_albums(&mut self) -> Result<Vec<&str>, Self::Err> {
         self.inner.clear();
 

@@ -9,6 +9,9 @@ pub trait Backend {
     /// Backend provided error type.
     type Err;
 
+    /// Cache indicator for remote file systems.
+    fn need_cache() -> bool;
+
     /// Update album information provided by backend.
     /// Backends usually need to save a map between catalog and path, so this method is &mut.
     async fn update_albums(&mut self) -> Result<Vec<&str>, Self::Err>;
