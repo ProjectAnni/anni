@@ -1,24 +1,23 @@
 use async_trait::async_trait;
 use tokio::io::AsyncRead;
 use regex::Regex;
+use std::pin::Pin;
+use thiserror::Error;
 
 /// Backend is a common trait for anni backends.
 /// It provides functions to update albums, and read from an initialized backend.
 #[async_trait]
 pub trait Backend {
-    /// Backend provided error type.
-    type Err;
-
     /// Cache indicator for remote file systems.
-    fn need_cache() -> bool;
+    fn need_cache(&self) -> bool;
 
     /// Update album information provided by backend.
     /// Backends usually need to save a map between catalog and path, so this method is &mut.
-    async fn update_albums(&mut self) -> Result<Vec<&str>, Self::Err>;
+    async fn update_albums(&mut self) -> Result<Vec<&str>, BackendError>;
 
     /// Returns a reader implements AsyncRead for content reading
     /// Since backend does not know which file to read, both track_id and track_name are necessary.
-    async fn get_audio(&self, catalog: &str, track_id: u8, track_name: &str) -> Result<Box<dyn AsyncRead>, Self::Err>;
+    async fn get_audio(&self, catalog: &str, track_id: u8, track_name: &str) -> Result<Pin<Box<dyn AsyncRead>>, BackendError>;
 }
 
 lazy_static::lazy_static! {
@@ -32,6 +31,17 @@ pub(crate) fn extract_album<S: AsRef<str>>(name: S) -> Option<String> {
 
 pub(crate) fn extract_disc<S: AsRef<str>>(name: S) -> Option<String> {
     DISC_REGEX.captures(name.as_ref()).map(|r| r.get(1).unwrap().as_str().to_owned())
+}
+
+
+#[derive(Debug, Error)]
+pub enum BackendError {
+    #[error("unknown catalog")]
+    UnknownCatalog,
+    #[error("invalid path")]
+    InvalidPath,
+    #[error(transparent)]
+    IOError(#[from] std::io::Error),
 }
 
 #[test]

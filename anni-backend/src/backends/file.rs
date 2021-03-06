@@ -1,10 +1,10 @@
-use crate::common::{Backend, extract_album, extract_disc};
+use crate::common::{Backend, extract_album, extract_disc, BackendError};
 use async_trait::async_trait;
 use tokio::io::AsyncRead;
 use std::collections::HashMap;
 use std::path::{PathBuf, Path};
 use tokio::fs::{read_dir, File};
-use thiserror::Error;
+use std::pin::Pin;
 
 pub struct FileBackend {
     root: PathBuf,
@@ -16,14 +16,14 @@ impl FileBackend {
         FileBackend { root, inner: Default::default() }
     }
 
-    async fn walk_dir<P: AsRef<Path> + Send>(&mut self, dir: P, to_visit: &mut Vec<PathBuf>) -> Result<(), FileBackendError> {
+    async fn walk_dir<P: AsRef<Path> + Send>(&mut self, dir: P, to_visit: &mut Vec<PathBuf>) -> Result<(), BackendError> {
         let mut dir = read_dir(dir).await?;
         while let Some(entry) = dir.next_entry().await? {
             if entry.metadata().await?.is_dir() {
                 let path = entry.path();
                 if let Some(catalog) = extract_album(
-                    path.file_name().ok_or(FileBackendError::InvalidPath)?
-                        .to_str().ok_or(FileBackendError::InvalidPath)?
+                    path.file_name().ok_or(BackendError::InvalidPath)?
+                        .to_str().ok_or(BackendError::InvalidPath)?
                 ) {
                     // look for inner discs
                     if !self.walk_discs(&path).await? {
@@ -38,14 +38,14 @@ impl FileBackend {
         Ok(())
     }
 
-    async fn walk_discs<P: AsRef<Path> + Send>(&mut self, album: P) -> Result<bool, FileBackendError> {
+    async fn walk_discs<P: AsRef<Path> + Send>(&mut self, album: P) -> Result<bool, BackendError> {
         let mut dir = read_dir(album).await?;
         let mut has_disc = false;
         while let Some(entry) = dir.next_entry().await? {
             if entry.metadata().await?.is_dir() {
                 let path = entry.path();
-                let disc_name = path.file_name().ok_or(FileBackendError::InvalidPath)?
-                    .to_str().ok_or(FileBackendError::InvalidPath)?;
+                let disc_name = path.file_name().ok_or(BackendError::InvalidPath)?
+                    .to_str().ok_or(BackendError::InvalidPath)?;
                 if let Some(catalog) = extract_disc(disc_name) {
                     self.inner.insert(catalog, path);
                     has_disc = true;
@@ -58,13 +58,11 @@ impl FileBackend {
 
 #[async_trait]
 impl Backend for FileBackend {
-    type Err = FileBackendError;
-
-    fn need_cache() -> bool {
+    fn need_cache(&self) -> bool {
         false
     }
 
-    async fn update_albums(&mut self) -> Result<Vec<&str>, Self::Err> {
+    async fn update_albums(&mut self) -> Result<Vec<&str>, BackendError> {
         self.inner.clear();
 
         let mut to_visit = Vec::new();
@@ -76,26 +74,16 @@ impl Backend for FileBackend {
         Ok(self.inner.keys().map(|r| r.as_str()).collect())
     }
 
-    async fn get_audio(&self, catalog: &str, track_id: u8, track_name: &str) -> Result<Box<dyn AsyncRead>, Self::Err> {
+    async fn get_audio(&self, catalog: &str, track_id: u8, track_name: &str) -> Result<Pin<Box<dyn AsyncRead>>, BackendError> {
         if let Some(path) = self.inner.get(catalog) {
             let mut p = path.clone();
             p.push(format!("{:02}. {}.flac", track_id, track_name));
             let file = File::open(p).await?;
-            Ok(Box::new(file))
+            Ok(Box::pin(file))
         } else {
-            Err(FileBackendError::UnknownCatalog)
+            Err(BackendError::UnknownCatalog)
         }
     }
-}
-
-#[derive(Debug, Error)]
-pub enum FileBackendError {
-    #[error("unknown catalog")]
-    UnknownCatalog,
-    #[error("invalid path")]
-    InvalidPath,
-    #[error(transparent)]
-    IOError(#[from] std::io::Error),
 }
 
 #[tokio::test]
