@@ -82,12 +82,18 @@ impl Backend for FileBackend {
         Ok(())
     }
 
-    async fn get_audio(&self, catalog: &str, track_id: u8, track_name: &str) -> Result<Pin<Box<dyn AsyncRead>>, BackendError> {
+    async fn get_audio(&self, catalog: &str, track_id: u8) -> Result<Pin<Box<dyn AsyncRead>>, BackendError> {
         if let Some(path) = self.inner.get(catalog) {
-            let mut p = path.clone();
-            p.push(format!("{:02}. {}.flac", track_id, track_name));
-            let file = File::open(p).await?;
-            Ok(Box::pin(file))
+            let mut dir = read_dir(path).await?;
+            while let Some(entry) = dir.next_entry().await? {
+                let filename = entry.file_name();
+                if filename.to_string_lossy().starts_with::<&str>(format!("{:02}.", track_id).as_ref()) {
+                    let file = File::open(entry.path()).await?;
+                    let result: Pin<Box<dyn AsyncRead>> = Box::pin(file);
+                    return Ok(result);
+                }
+            }
+            Err(BackendError::FileNotFound)
         } else {
             Err(BackendError::UnknownCatalog)
         }

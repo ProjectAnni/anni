@@ -22,8 +22,7 @@ pub trait Backend {
     async fn update_albums(&mut self) -> Result<(), BackendError>;
 
     /// Returns a reader implements AsyncRead for content reading
-    /// Since backend does not know which file to read, both track_id and track_name are necessary.
-    async fn get_audio(&self, catalog: &str, track_id: u8, track_name: &str) -> Result<Pin<Box<dyn AsyncRead>>, BackendError>;
+    async fn get_audio(&self, catalog: &str, track_id: u8) -> Result<Pin<Box<dyn AsyncRead>>, BackendError>;
 }
 
 lazy_static::lazy_static! {
@@ -44,8 +43,13 @@ pub(crate) fn extract_disc<S: AsRef<str>>(name: S) -> Option<String> {
 pub enum BackendError {
     #[error("unknown catalog")]
     UnknownCatalog,
+
     #[error("invalid path")]
     InvalidPath,
+
+    #[error("file not found")]
+    FileNotFound,
+
     #[error(transparent)]
     IOError(#[from] std::io::Error),
 }

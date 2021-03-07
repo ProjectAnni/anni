@@ -39,7 +39,7 @@ impl AnnivBackend {
         self.enabled = enable;
     }
 
-    pub async fn get_audio(&self, catalog: &str, track_id: u8, track_name: &str) -> Result<Pin<Box<dyn AsyncRead>>, BackendError> {
-        self.inner.get_audio(catalog, track_id, track_name).await
+    pub async fn get_audio(&self, catalog: &str, track_id: u8) -> Result<Pin<Box<dyn AsyncRead>>, BackendError> {
+        self.inner.get_audio(catalog, track_id).await
     }
 }

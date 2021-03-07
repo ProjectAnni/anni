@@ -27,12 +27,12 @@ async fn albums(data: web::Data<AppState>) -> impl Responder {
 }
 
 #[get("/song/{catalog}/{track_id}/{track_name}")]
-async fn song(path: web::Path<(String, u8, String)>, data: web::Data<AppState>) -> impl Responder {
-    let (catalog, track_id, track_name) = path.into_inner();
+async fn song(path: web::Path<(String, u8)>, data: web::Data<AppState>) -> impl Responder {
+    let (catalog, track_id) = path.into_inner();
     let backend = data.backends.lock().unwrap();
     for backend in backend.iter() {
         if backend.enabled() && backend.has_album(&catalog) {
-            let r = backend.get_audio(&catalog, track_id, &track_name).await.unwrap();
+            let r = backend.get_audio(&catalog, track_id).await.unwrap();
             return HttpResponse::Ok()
                 .append_header(("X-Library-Name", backend.name()))
                 .content_type(ContentType::octet_stream())
