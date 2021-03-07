@@ -31,6 +31,10 @@ impl AnnivBackend {
         self.inner.has(catalog)
     }
 
+    pub fn albums(&self) -> Vec<&str> {
+        self.inner.albums()
+    }
+
     pub fn set_enable(&mut self, enable: bool) {
         self.enabled = enable;
     }

@@ -14,6 +14,18 @@ struct AppState {
     backends: Mutex<Vec<AnnivBackend>>,
 }
 
+#[get("/albums")]
+async fn albums(data: web::Data<AppState>) -> impl Responder {
+    let mut albums: Vec<&str> = Vec::new();
+    let backends = data.backends.lock().unwrap();
+    for backend in backends.iter() {
+        let mut a = backend.albums();
+        albums.append(&mut a);
+    }
+    // TODO: Cache album list
+    HttpResponse::Ok().json(albums)
+}
+
 #[get("/song/{catalog}/{track_id}/{track_name}")]
 async fn song(path: web::Path<(String, u8, String)>, data: web::Data<AppState>) -> impl Responder {
     let (catalog, track_id, track_name) = path.into_inner();
@@ -59,6 +71,7 @@ async fn main() -> anyhow::Result<()> {
             .service(
                 web::scope("/api")
                     .service(song)
+                    .service(albums)
             )
     })
         .bind(&config.server.listen("localhost:3614"))?
