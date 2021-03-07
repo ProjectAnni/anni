@@ -11,9 +11,15 @@ pub trait Backend {
     /// Cache indicator for remote file systems.
     fn need_cache(&self) -> bool;
 
+    /// Whether backend has an album.
+    fn has(&self, catalog: &str) -> bool;
+
+    /// Get catalog of albums available.
+    fn albums(&self) -> Vec<&str>;
+
     /// Update album information provided by backend.
     /// Backends usually need to save a map between catalog and path, so this method is &mut.
-    async fn update_albums(&mut self) -> Result<Vec<&str>, BackendError>;
+    async fn update_albums(&mut self) -> Result<(), BackendError>;
 
     /// Returns a reader implements AsyncRead for content reading
     /// Since backend does not know which file to read, both track_id and track_name are necessary.

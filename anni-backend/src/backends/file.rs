@@ -62,7 +62,15 @@ impl Backend for FileBackend {
         false
     }
 
-    async fn update_albums(&mut self) -> Result<Vec<&str>, BackendError> {
+    fn has(&self, catalog: &str) -> bool {
+        self.inner.contains_key(catalog)
+    }
+
+    fn albums(&self) -> Vec<&str> {
+        self.inner.keys().map(|r| r.as_str()).collect()
+    }
+
+    async fn update_albums(&mut self) -> Result<(), BackendError> {
         self.inner.clear();
 
         let mut to_visit = Vec::new();
@@ -71,7 +79,7 @@ impl Backend for FileBackend {
         while let Some(dir) = to_visit.pop() {
             self.walk_dir(dir, &mut to_visit).await?;
         }
-        Ok(self.inner.keys().map(|r| r.as_str()).collect())
+        Ok(())
     }
 
     async fn get_audio(&self, catalog: &str, track_id: u8, track_name: &str) -> Result<Pin<Box<dyn AsyncRead>>, BackendError> {
