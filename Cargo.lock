@@ -339,8 +339,10 @@ dependencies = [
  "actix-web",
  "anni-backend",
  "anyhow",
+ "serde",
  "tokio",
  "tokio-util",
+ "toml",
 ]
 
 [[package]]
