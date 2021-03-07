@@ -31,12 +31,8 @@ impl AnnivBackend {
         self.inner.has(catalog)
     }
 
-    pub fn enable(&mut self) {
-        self.enabled = true;
-    }
-
-    pub fn disable(&mut self) {
-        self.enabled = false;
+    pub fn set_enable(&mut self, enable: bool) {
+        self.enabled = enable;
     }
 
     pub async fn get_audio(&self, catalog: &str, track_id: u8, track_name: &str) -> Result<Pin<Box<dyn AsyncRead>>, BackendError> {

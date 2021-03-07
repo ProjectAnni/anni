@@ -22,6 +22,7 @@ async fn song(path: web::Path<(String, u8, String)>, data: web::Data<AppState>) 
         if backend.enabled() && backend.has_album(&catalog) {
             let r = backend.get_audio(&catalog, track_id, &track_name).await.unwrap();
             return HttpResponse::Ok()
+                .append_header(("X-Library-Name", backend.name()))
                 .content_type(ContentType::octet_stream())
                 .streaming(ReaderStream::new(r));
         }
@@ -32,13 +33,15 @@ async fn song(path: web::Path<(String, u8, String)>, data: web::Data<AppState>) 
 async fn init_state(configs: &[BackendConfig]) -> anyhow::Result<web::Data<AppState>> {
     let mut backends = Vec::with_capacity(configs.len());
     for config in configs {
+        let mut backend: AnnivBackend;
         if config.backend_type == "file" {
-            let backend = FileBackend::new(PathBuf::from(config.root()));
-            let backend = AnnivBackend::new("default".to_owned(), Box::new(backend)).await?;
-            backends.push(backend);
+            let inner = FileBackend::new(PathBuf::from(config.root()));
+            backend = AnnivBackend::new(config.name.to_owned(), Box::new(inner)).await?;
         } else {
             unimplemented!();
         }
+        backend.set_enable(config.enable);
+        backends.push(backend);
     }
     Ok(web::Data::new(AppState {
         backends: Mutex::new(backends),

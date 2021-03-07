@@ -35,6 +35,7 @@ impl ServerConfig {
 #[derive(Serialize, Deserialize)]
 pub struct BackendConfig {
     pub name: String,
+    pub enable: bool,
     #[serde(rename = "type")]
     pub backend_type: String,
     root: Option<String>,
