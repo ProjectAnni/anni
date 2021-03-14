@@ -1,5 +1,7 @@
 mod backend;
 mod config;
+mod playlist;
+mod db;
 
 use actix_web::{HttpServer, App, web, Responder, get, HttpResponse};
 use std::sync::Mutex;
@@ -9,9 +11,13 @@ use crate::backend::AnnivBackend;
 use tokio_util::io::ReaderStream;
 use actix_web::http::header::ContentType;
 use crate::config::{Config, BackendConfig};
+use sqlx::{Pool, Postgres};
+use sqlx::postgres::PgPoolOptions;
+use actix_web::middleware::Logger;
 
 struct AppState {
     backends: Mutex<Vec<AnnivBackend>>,
+    pool: Pool<Postgres>,
 }
 
 #[get("/albums")]
@@ -26,7 +32,7 @@ async fn albums(data: web::Data<AppState>) -> impl Responder {
     HttpResponse::Ok().json(albums)
 }
 
-#[get("/song/{catalog}/{track_id}/{track_name}")]
+#[get("/song/{catalog}/{track_id}")]
 async fn song(path: web::Path<(String, u8)>, data: web::Data<AppState>) -> impl Responder {
     let (catalog, track_id) = path.into_inner();
     let backend = data.backends.lock().unwrap();
@@ -55,23 +61,39 @@ async fn init_state(configs: &[BackendConfig]) -> anyhow::Result<web::Data<AppSt
         backend.set_enable(config.enable);
         backends.push(backend);
     }
+
+    let pool = PgPoolOptions::new()
+        .max_connections(5)
+        .connect("postgres://postgres@localhost/anni").await?;
     Ok(web::Data::new(AppState {
         backends: Mutex::new(backends),
+        pool,
     }))
 }
 
 #[actix_web::main]
 async fn main() -> anyhow::Result<()> {
+    std::env::set_var("RUST_LOG", "actix_web=info");
+    env_logger::init();
     let config = Config::from_file("config.toml")?;
-
     let state = init_state(&config.backends).await?;
+
+    // Init db
+    db::init_db(state.pool.clone()).await?;
+
     HttpServer::new(move || {
         App::new()
             .app_data(state.clone())
+            .wrap(Logger::default())
             .service(
                 web::scope("/api")
                     .service(song)
                     .service(albums)
+                    .service(playlist::playlist_list)
+                    .service(playlist::playlist_detail)
+                    .service(playlist::playlist_new)
+                    .service(playlist::playlist_modify)
+                    .service(playlist::playlist_delete)
             )
     })
         .bind(&config.server.listen("localhost:3614"))?
