@@ -23,6 +23,9 @@ pub trait Backend {
 
     /// Returns a reader implements AsyncRead for content reading
     async fn get_audio(&self, catalog: &str, track_id: u8) -> Result<Pin<Box<dyn AsyncRead>>, BackendError>;
+
+    /// Returns a cover of corrsponding album
+    async fn get_cover(&self, catalog: &str) -> Result<Pin<Box<dyn AsyncRead>>, BackendError>;
 }
 
 lazy_static::lazy_static! {

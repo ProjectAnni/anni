@@ -83,20 +83,25 @@ impl Backend for FileBackend {
     }
 
     async fn get_audio(&self, catalog: &str, track_id: u8) -> Result<Pin<Box<dyn AsyncRead>>, BackendError> {
-        if let Some(path) = self.inner.get(catalog) {
-            let mut dir = read_dir(path).await?;
-            while let Some(entry) = dir.next_entry().await? {
-                let filename = entry.file_name();
-                if filename.to_string_lossy().starts_with::<&str>(format!("{:02}.", track_id).as_ref()) {
-                    let file = File::open(entry.path()).await?;
-                    let result: Pin<Box<dyn AsyncRead>> = Box::pin(file);
-                    return Ok(result);
-                }
+        let path = self.inner.get(catalog).ok_or(BackendError::UnknownCatalog)?;
+        let mut dir = read_dir(path).await?;
+        while let Some(entry) = dir.next_entry().await? {
+            let filename = entry.file_name();
+            if filename.to_string_lossy().starts_with::<&str>(format!("{:02}.", track_id).as_ref()) {
+                let file = File::open(entry.path()).await?;
+                let result: Pin<Box<dyn AsyncRead>> = Box::pin(file);
+                return Ok(result);
             }
-            Err(BackendError::FileNotFound)
-        } else {
-            Err(BackendError::UnknownCatalog)
         }
+        Err(BackendError::FileNotFound)
+    }
+
+    async fn get_cover(&self, catalog: &str) -> Result<Pin<Box<dyn AsyncRead>>, BackendError> {
+        let path = self.inner.get(catalog).ok_or(BackendError::UnknownCatalog)?;
+        let path = path.join("cover.jpg");
+        let file = File::open(path).await?;
+        let result = Box::pin(file);
+        Ok(result)
     }
 }
 
