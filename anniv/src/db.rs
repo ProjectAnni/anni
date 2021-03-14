@@ -57,10 +57,11 @@ CREATE TABLE IF NOT EXISTS anni_playlist (
     // Lyric
     sqlx::query(r#"
 CREATE TABLE IF NOT EXISTS anni_lyric (
-  id            UUID,               -- ID of lyric
-  song          anni_song NOT NULL, -- Song of lyric
-  lyric_type    anni_lyric_type,    -- Lyric type
-  lyric_text    TEXT,               -- Lyric content
+  id              UUID,               -- ID of lyric
+  song            anni_song NOT NULL, -- Song of lyric
+  lyric_type      anni_lyric_type,    -- Lyric type
+  lyric_locale    TEXT,               -- Language
+  lyric_text      TEXT,               -- Lyric content
   PRIMARY KEY (id, song)
 );"#).execute(&pool).await?;
 

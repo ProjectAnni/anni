@@ -35,8 +35,8 @@ pub(crate) async fn playlist_list(path: web::Path<String>, data: web::Data<AppSt
           AND
             (is_public = true OR $2)"#,
     )
-        .bind(username)
-        .bind(username == "") // TODO: username of current user
+        .bind(username.as_str())
+        .bind(username.as_str() == "") // TODO: username of current user
         .fetch_all(&data.pool.clone())
         .await
         .map(|p| HttpResponse::Ok().json(p))
