@@ -2,8 +2,9 @@ mod backend;
 mod config;
 mod db;
 mod auth;
+mod share;
 
-use actix_web::{HttpServer, App, web, Responder, get, post, HttpResponse, HttpRequest};
+use actix_web::{HttpServer, App, web, Responder, get, HttpResponse, HttpRequest};
 use std::sync::Mutex;
 use anni_backend::backends::FileBackend;
 use std::path::PathBuf;
@@ -22,7 +23,7 @@ struct AppState {
     key: HS256Key,
 }
 
-/// Get available albums of current anniv server
+/// Get available albums of current annil server
 #[get("/albums")]
 async fn albums(data: web::Data<AppState>) -> impl Responder {
     let mut albums: Vec<&str> = Vec::new();
@@ -81,25 +82,6 @@ async fn cover(req: HttpRequest, path: web::Path<String>, data: web::Data<AppSta
     HttpResponse::NotFound().finish()
 }
 
-/// Create share jwt token
-#[post("/share")]
-async fn share(req: HttpRequest, data: web::Data<AppState>) -> impl Responder {
-    match auth::auth_user(&req, &data.key) {
-        Some(c) => {
-            if !c.custom.allow_share {
-                return HttpResponse::Forbidden().finish();
-            }
-        }
-        None => {
-            return HttpResponse::Unauthorized().finish();
-        }
-    }
-    // TODO
-    HttpResponse::Ok()
-        .content_type(ContentType::plaintext())
-        .body("")
-}
-
 async fn init_state(config: &Config) -> anyhow::Result<web::Data<AppState>> {
     let mut backends = Vec::with_capacity(config.backends.len());
     for backend_config in config.backends.iter() {
@@ -144,6 +126,8 @@ async fn main() -> anyhow::Result<()> {
             .wrap(Logger::default())
             .service(audio)
             .service(albums)
+            .service(cover)
+            .service(share::share)
     })
         .bind(config.server.listen("localhost:3614"))?
         .run()

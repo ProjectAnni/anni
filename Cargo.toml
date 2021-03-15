@@ -1,7 +1,7 @@
 [workspace]
 members = [
     "anni",
-    "anniv",
+    "annil",
     "anni-backend",
     "anni-common",
     "anni-derive",
