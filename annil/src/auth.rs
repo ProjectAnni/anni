@@ -3,6 +3,8 @@ use jwt_simple::prelude::*;
 use serde::{Serialize, Deserialize};
 use serde::de::DeserializeOwned;
 use crate::share::SharePayload;
+use sqlx::{Pool, Postgres};
+use crate::db::iat_valid;
 
 pub(crate) trait CanFetch {
     fn can_fetch(&self, catalog: &str, track_id: Option<u8>) -> bool;
@@ -37,26 +39,26 @@ impl CanFetch for AnnilClaims {
     }
 }
 
-fn auth_impl<T: Serialize + DeserializeOwned>(jwt: &str, key: &HS256Key) -> Result<T, ()> {
+fn auth_impl<T: Serialize + DeserializeOwned>(jwt: &str, key: &HS256Key) -> Result<JWTClaims<T>, ()> {
     let claims = key.verify_token::<T>(jwt, None).map_err(|_| ())?;
-    Ok(claims.custom)
+    Ok(claims)
 }
 
-fn auth_user(jwt: &str, key: &HS256Key) -> Option<UserClaim> {
+fn auth_user(jwt: &str, key: &HS256Key) -> Option<JWTClaims<UserClaim>> {
     match auth_impl::<UserClaim>(jwt, key) {
-        Ok(c) => if c.claim_type == "user" { Some(c) } else { None },
+        Ok(c) => if c.custom.claim_type == "user" { Some(c) } else { None },
         Err(_) => None,
     }
 }
 
-fn auth_share(jwt: &str, key: &HS256Key) -> Option<SharePayload> {
+fn auth_share(jwt: &str, key: &HS256Key) -> Option<JWTClaims<SharePayload>> {
     match auth_impl::<SharePayload>(jwt, key) {
-        Ok(c) => if c.claim_type == "share" { Some(c) } else { None },
+        Ok(c) => if c.custom.claim_type == "share" { Some(c) } else { None },
         Err(_) => None,
     }
 }
 
-pub(crate) fn auth_header(req: &HttpRequest) -> Option<&str> {
+fn auth_header(req: &HttpRequest) -> Option<&str> {
     let header = req.headers()
         .get("Authorization")?
         .to_str().ok()?;
@@ -67,26 +69,37 @@ pub(crate) fn auth_header(req: &HttpRequest) -> Option<&str> {
     }
 }
 
-pub(crate) fn auth_user_or_share(req: &HttpRequest, key: &HS256Key) -> Option<AnnilClaims> {
+pub(crate) async fn auth_user_or_share(req: &HttpRequest, key: &HS256Key, pool: Pool<Postgres>) -> Option<AnnilClaims> {
     let header = auth_header(req)?;
     if let Some(user) = auth_user(header, key) {
-        return Some(AnnilClaims::User(user));
+        if user.issued_at.is_none() || !iat_valid(pool, &user.custom.username, user.issued_at.unwrap().as_secs()).await {
+            return None;
+        }
+        return Some(AnnilClaims::User(user.custom));
     }
     let share = auth_share(header, key)?;
-    Some(AnnilClaims::Share(share))
+    if share.issued_at.is_none() || !iat_valid(pool, &share.custom.username, share.issued_at.unwrap().as_secs()).await {
+        return None;
+    }
+    Some(AnnilClaims::Share(share.custom))
 }
 
-pub(crate) fn auth_user_can_share(req: &HttpRequest, key: &HS256Key) -> Option<UserClaim> {
+pub(crate) async fn auth_user_can_share(req: &HttpRequest, key: &HS256Key, pool: Pool<Postgres>) -> Option<UserClaim> {
     let header = auth_header(req)?;
-    auth_user(header, key)
+    let user = auth_user(header, key)?;
+    if user.issued_at.is_none() || !iat_valid(pool, &user.custom.username, user.issued_at.unwrap().as_secs()).await {
+        return None;
+    }
+    Some(user.custom)
 }
 
 #[test]
 fn test_sign() {
     let key = HS256Key::from_bytes(b"a token here");
+    let now = Some(Clock::now_since_epoch());
     let jwt = key.authenticate(
         JWTClaims {
-            issued_at: None,
+            issued_at: now,
             expires_at: None,
             invalid_before: None,
             issuer: None,
@@ -97,9 +110,8 @@ fn test_sign() {
             custom: UserClaim {
                 claim_type: "user".to_string(),
                 username: "test".to_string(),
-                allow_share: false,
+                allow_share: true,
             },
         }
     ).unwrap();
-    assert_eq!(jwt, "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ0eXBlIjoidXNlciIsInVzZXJuYW1lIjoidGVzdCIsImFsbG93U2hhcmUiOmZhbHNlfQ.35TW23ypqpICtZ_N_cSM71jp_ckUuGX5vdqAykeVhx8");
 }

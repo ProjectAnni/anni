@@ -13,8 +13,9 @@ anyhow = "1.0"
 
 serde = { version = "1.0", features = ["derive"] }
 toml = "0.5"
-sqlx = { version = "0.5", features = ["postgres", "runtime-actix-rustls", "macros", "json", "ipnetwork", "uuid"] }
+sqlx = { version = "0.5", features = ["postgres", "runtime-actix-rustls", "ipnetwork", "uuid", "chrono"] }
 uuid = { version = "0.8", features = ["serde", "v4"] }
 env_logger = "0.8.3"
 mime = "0.3.16"
 jwt-simple = "0.9"
+chrono = "0.4"

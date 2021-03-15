@@ -39,7 +39,7 @@ async fn albums(data: web::Data<AppState>) -> impl Responder {
 /// Get audio in an album with {catalog} and {track_id}
 #[get("/{catalog}/{track_id}")]
 async fn audio(req: HttpRequest, path: web::Path<(String, u8)>, data: web::Data<AppState>) -> impl Responder {
-    let validator = match auth::auth_user_or_share(&req, &data.key) {
+    let validator = match auth::auth_user_or_share(&req, &data.key, data.pool.clone()).await {
         Some(r) => r,
         None => return HttpResponse::Unauthorized().finish(),
     };
@@ -64,7 +64,7 @@ async fn audio(req: HttpRequest, path: web::Path<(String, u8)>, data: web::Data<
 /// Get audio cover of an album with {catalog}
 #[get("/{catalog}/cover")]
 async fn cover(req: HttpRequest, path: web::Path<String>, data: web::Data<AppState>) -> impl Responder {
-    let validator = match auth::auth_user_or_share(&req, &data.key) {
+    let validator = match auth::auth_user_or_share(&req, &data.key, data.pool.clone()).await {
         Some(r) => r,
         None => return HttpResponse::Unauthorized().finish(),
     };

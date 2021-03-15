@@ -1,17 +1,20 @@
-use sqlx::{Postgres, Pool};
+use sqlx::{Postgres, Pool, types::chrono};
 
 pub(crate) async fn init_db(pool: Pool<Postgres>) -> anyhow::Result<()> {
     sqlx::query(r#"
-CREATE TABLE IF NOT EXISTS anni_user (
-  id              UUID PRIMARY KEY,     -- User id.
-  inviter_id      UUID NOT NULL,        -- The first user is invited by 'anni',
-                                        --   which means the inviter is '5e9d2c21-963f-52c3-b832-fd4d3adc96cd',
-                                        --   equals to uuidv5(domain, 'anni.mmf.moe').
-  display_name    TEXT NOT NULL,        -- Display name of a user.
-  username        TEXT NOT NULL UNIQUE, -- User identifier string.
-  email           TEXT NOT NULL,        -- Login email.
+CREATE TABLE IF NOT EXISTS annil_user (
+  username        TEXT PRIMARY KEY,     -- Username.
+  inviter         TEXT NOT NULL,        -- Inviter username.
+  email           TEXT NOT NULL UNIQUE, -- Login email.
   password        TEXT NOT NULL,        -- Hash of user password.
-  avatar          TEXT                  -- Link to user avatar.
+  invoke_time     TIMESTAMPTZ NOT NULL  -- Time of last jwt revoke.
 );"#).execute(&pool).await?;
     Ok(())
+}
+
+pub(crate) async fn iat_valid(pool: Pool<Postgres>, username: &str, iat: u64) -> bool {
+    let row: Result<(chrono::DateTime<chrono::Utc>, ), _> = sqlx::query_as(r#"SELECT invoke_time FROM annil_user WHERE username = $1;"#)
+        .bind(username)
+        .fetch_one(&pool).await;
+    row.is_ok() && ((row.unwrap().0.timestamp() as u64) < iat)
 }
