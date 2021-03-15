@@ -33,6 +33,7 @@ impl AnnilBackend {
     }
 
     #[allow(clippy::needless_lifetimes)]
+    // FIXME: there must be some problems here, find and solve it
     pub async fn albums<'a>(&'a self) -> Vec<Cow<'a, str>> {
         self.inner.as_backend().albums().await
     }
