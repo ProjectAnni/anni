@@ -10,7 +10,6 @@ use anni_backend::backends::FileBackend;
 use std::path::PathBuf;
 use crate::backend::AnnivBackend;
 use tokio_util::io::ReaderStream;
-use actix_web::http::header::ContentType;
 use crate::config::Config;
 use sqlx::{Pool, Postgres};
 use sqlx::postgres::PgPoolOptions;
@@ -54,7 +53,7 @@ async fn audio(req: HttpRequest, path: web::Path<(String, u8)>, data: web::Data<
             let r = backend.get_audio(&catalog, track_id).await.unwrap();
             return HttpResponse::Ok()
                 .append_header(("X-Backend-Name", backend.name()))
-                .content_type(ContentType::octet_stream())
+                .content_type("audio/flac")// TODO: store MIME in backend
                 .streaming(ReaderStream::new(r));
         }
     }
@@ -80,7 +79,7 @@ async fn cover(req: HttpRequest, path: web::Path<String>, data: web::Data<AppSta
                 Ok(cover) => {
                     HttpResponse::Ok()
                         .append_header(("X-Backend-Name", backend.name()))
-                        .content_type(ContentType("audio/flac".parse().unwrap()))// TODO: store MIME in backend
+                        .content_type("image/jpeg")
                         .streaming(ReaderStream::new(cover))
                 }
                 Err(_) => {
