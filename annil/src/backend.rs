@@ -1,21 +1,22 @@
-use anni_backend::{Backend, BackendError};
+use anni_backend::{BackendError, AnniBackend};
 use std::pin::Pin;
 use tokio::io::AsyncRead;
+use std::borrow::Cow;
 
-pub struct AnnivBackend {
+pub struct AnnilBackend {
     name: String,
     enabled: bool,
-    inner: Box<dyn Backend + Send>,
+    inner: AnniBackend,
 }
 
-impl AnnivBackend {
-    pub async fn new(name: String, inner: Box<dyn Backend + Send>) -> Result<Self, BackendError> {
+impl AnnilBackend {
+    pub async fn new(name: String, inner: AnniBackend) -> Result<Self, BackendError> {
         let mut backend = Self {
             name,
             enabled: true,
             inner,
         };
-        backend.inner.update_albums().await?;
+        backend.inner.as_backend_mut().update_albums().await?;
         Ok(backend)
     }
 
@@ -27,12 +28,13 @@ impl AnnivBackend {
         self.enabled
     }
 
-    pub fn has_album(&self, catalog: &str) -> bool {
-        self.inner.has(catalog)
+    pub async fn has_album(&self, catalog: &str) -> bool {
+        self.inner.as_backend().has(catalog).await
     }
 
-    pub fn albums(&self) -> Vec<&str> {
-        self.inner.albums()
+    #[allow(clippy::needless_lifetimes)]
+    pub async fn albums<'a>(&'a self) -> Vec<Cow<'a, str>> {
+        self.inner.as_backend().albums().await
     }
 
     pub fn set_enable(&mut self, enable: bool) {
@@ -40,10 +42,10 @@ impl AnnivBackend {
     }
 
     pub async fn get_audio(&self, catalog: &str, track_id: u8) -> Result<Pin<Box<dyn AsyncRead>>, BackendError> {
-        self.inner.get_audio(catalog, track_id).await
+        self.inner.as_backend().get_audio(catalog, track_id).await
     }
 
     pub async fn get_cover(&self, catalog: &str) -> Result<Pin<Box<dyn AsyncRead>>, BackendError> {
-        self.inner.get_cover(catalog).await
+        self.inner.as_backend().get_cover(catalog).await
     }
 }

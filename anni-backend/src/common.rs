@@ -3,6 +3,8 @@ use tokio::io::AsyncRead;
 use regex::Regex;
 use std::pin::Pin;
 use thiserror::Error;
+use crate::backends;
+use std::borrow::Cow;
 
 /// Backend is a common trait for anni backends.
 /// It provides functions to update albums, and read from an initialized backend.
@@ -12,10 +14,10 @@ pub trait Backend {
     fn need_cache(&self) -> bool;
 
     /// Whether backend has an album.
-    fn has(&self, catalog: &str) -> bool;
+    async fn has(&self, catalog: &str) -> bool;
 
     /// Get catalog of albums available.
-    fn albums(&self) -> Vec<&str>;
+    async fn albums(&self) -> Vec<Cow<str>>;
 
     /// Update album information provided by backend.
     /// Backends usually need to save a map between catalog and path, so this method is &mut.
@@ -41,6 +43,25 @@ pub(crate) fn extract_disc<S: AsRef<str>>(name: S) -> Option<String> {
     DISC_REGEX.captures(name.as_ref()).map(|r| r.get(1).unwrap().as_str().to_owned())
 }
 
+pub enum AnniBackend {
+    File(backends::FileBackend),
+    StrictFile(backends::StrictFileBackend),
+}
+
+impl AnniBackend {
+    pub fn as_backend(&self) -> Box<&(dyn Backend + Send)> {
+        match self {
+            AnniBackend::File(b) => Box::new(b),
+            AnniBackend::StrictFile(b) => Box::new(b),
+        }
+    }
+    pub fn as_backend_mut(&mut self) -> Box<&mut (dyn Backend + Send)> {
+        match self {
+            AnniBackend::File(b) => Box::new(b),
+            AnniBackend::StrictFile(b) => Box::new(b),
+        }
+    }
+}
 
 #[derive(Debug, Error)]
 pub enum BackendError {

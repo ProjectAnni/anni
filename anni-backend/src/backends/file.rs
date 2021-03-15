@@ -5,6 +5,7 @@ use std::collections::HashMap;
 use std::path::{PathBuf, Path};
 use tokio::fs::{read_dir, File};
 use std::pin::Pin;
+use std::borrow::Cow;
 
 pub struct FileBackend {
     root: PathBuf,
@@ -62,12 +63,12 @@ impl Backend for FileBackend {
         false
     }
 
-    fn has(&self, catalog: &str) -> bool {
+    async fn has(&self, catalog: &str) -> bool {
         self.inner.contains_key(catalog)
     }
 
-    fn albums(&self) -> Vec<&str> {
-        self.inner.keys().map(|r| r.as_str()).collect()
+    async fn albums(&self) -> Vec<Cow<str>> {
+        self.inner.keys().map(|r| Cow::Borrowed(r.as_str())).collect()
     }
 
     async fn update_albums(&mut self) -> Result<(), BackendError> {

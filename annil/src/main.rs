@@ -8,7 +8,7 @@ use actix_web::{HttpServer, App, web, Responder, get, HttpResponse, HttpRequest}
 use std::sync::Mutex;
 use anni_backend::backends::FileBackend;
 use std::path::PathBuf;
-use crate::backend::AnnivBackend;
+use crate::backend::AnnilBackend;
 use tokio_util::io::ReaderStream;
 use crate::config::Config;
 use sqlx::{Pool, Postgres};
@@ -16,9 +16,11 @@ use sqlx::postgres::PgPoolOptions;
 use actix_web::middleware::Logger;
 use jwt_simple::prelude::HS256Key;
 use crate::auth::CanFetch;
+use anni_backend::AnniBackend;
+use std::borrow::Cow;
 
 struct AppState {
-    backends: Mutex<Vec<AnnivBackend>>,
+    backends: Mutex<Vec<AnnilBackend>>,
     pool: Pool<Postgres>,
     key: HS256Key,
 }
@@ -26,10 +28,10 @@ struct AppState {
 /// Get available albums of current annil server
 #[get("/albums")]
 async fn albums(data: web::Data<AppState>) -> impl Responder {
-    let mut albums: Vec<&str> = Vec::new();
+    let mut albums: Vec<Cow<str>> = Vec::new();
     let backends = data.backends.lock().unwrap();
     for backend in backends.iter() {
-        let mut a = backend.albums();
+        let mut a = backend.albums().await;
         albums.append(&mut a);
     }
     HttpResponse::Ok().json(albums)
@@ -49,7 +51,7 @@ async fn audio(req: HttpRequest, path: web::Path<(String, u8)>, data: web::Data<
 
     let backends = data.backends.lock().unwrap();
     for backend in backends.iter() {
-        if backend.enabled() && backend.has_album(&catalog) {
+        if backend.enabled() && backend.has_album(&catalog).await {
             let r = backend.get_audio(&catalog, track_id).await.unwrap();
             return HttpResponse::Ok()
                 .append_header(("X-Backend-Name", backend.name()))
@@ -74,7 +76,7 @@ async fn cover(req: HttpRequest, path: web::Path<String>, data: web::Data<AppSta
 
     let backends = data.backends.lock().unwrap();
     for backend in backends.iter() {
-        if backend.enabled() && backend.has_album(&catalog) {
+        if backend.enabled() && backend.has_album(&catalog).await {
             return match backend.get_cover(&catalog).await {
                 Ok(cover) => {
                     HttpResponse::Ok()
@@ -94,10 +96,10 @@ async fn cover(req: HttpRequest, path: web::Path<String>, data: web::Data<AppSta
 async fn init_state(config: &Config) -> anyhow::Result<web::Data<AppState>> {
     let mut backends = Vec::with_capacity(config.backends.len());
     for backend_config in config.backends.iter() {
-        let mut backend: AnnivBackend;
+        let mut backend: AnnilBackend;
         if backend_config.backend_type == "file" {
             let inner = FileBackend::new(PathBuf::from(backend_config.root()));
-            backend = AnnivBackend::new(backend_config.name.to_owned(), Box::new(inner)).await?;
+            backend = AnnilBackend::new(backend_config.name.to_owned(), AnniBackend::File(inner)).await?;
         } else {
             unimplemented!();
         }

@@ -355,6 +355,7 @@ dependencies = [
  "actix-web",
  "anni-backend",
  "anyhow",
+ "async-trait",
  "env_logger",
  "jwt-simple",
  "serde",

@@ -10,6 +10,7 @@ anni-backend = { path = "../anni-backend" }
 tokio = { version = "1", features = ["full"] }
 tokio-util = { version = "0.6.3", features = ["io"] }
 anyhow = "1.0"
+async-trait = "0.1.45"
 
 serde = { version = "1.0", features = ["derive"] }
 toml = "0.5"
