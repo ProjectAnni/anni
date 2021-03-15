@@ -133,9 +133,9 @@ async fn main() -> anyhow::Result<()> {
         App::new()
             .app_data(state.clone())
             .wrap(Logger::default())
+            .service(cover)
             .service(audio)
             .service(albums)
-            .service(cover)
             .service(share::share)
     })
         .bind(config.server.listen("localhost:3614"))?
