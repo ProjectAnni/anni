@@ -16,6 +16,7 @@ use sqlx::{Pool, Postgres};
 use sqlx::postgres::PgPoolOptions;
 use actix_web::middleware::Logger;
 use jwt_simple::prelude::HS256Key;
+use crate::auth::CanFetch;
 
 struct AppState {
     backends: Mutex<Vec<AnnivBackend>>,
@@ -38,11 +39,15 @@ async fn albums(data: web::Data<AppState>) -> impl Responder {
 /// Get audio in an album with {catalog} and {track_id}
 #[get("/{catalog}/{track_id}")]
 async fn audio(req: HttpRequest, path: web::Path<(String, u8)>, data: web::Data<AppState>) -> impl Responder {
-    if let None = auth::auth_user(&req, &data.key) {
-        return HttpResponse::Unauthorized().finish();
+    let validator = match auth::auth_user_or_share(&req, &data.key) {
+        Some(r) => r,
+        None => return HttpResponse::Unauthorized().finish(),
+    };
+    let (catalog, track_id) = path.into_inner();
+    if !validator.can_fetch(&catalog, Some(track_id)) {
+        return HttpResponse::Forbidden().finish();
     }
 
-    let (catalog, track_id) = path.into_inner();
     let backends = data.backends.lock().unwrap();
     for backend in backends.iter() {
         if backend.enabled() && backend.has_album(&catalog) {
@@ -59,10 +64,15 @@ async fn audio(req: HttpRequest, path: web::Path<(String, u8)>, data: web::Data<
 /// Get audio cover of an album with {catalog}
 #[get("/{catalog}/cover")]
 async fn cover(req: HttpRequest, path: web::Path<String>, data: web::Data<AppState>) -> impl Responder {
-    if let None = auth::auth_user(&req, &data.key) {
-        return HttpResponse::Unauthorized().finish();
-    }
+    let validator = match auth::auth_user_or_share(&req, &data.key) {
+        Some(r) => r,
+        None => return HttpResponse::Unauthorized().finish(),
+    };
     let catalog = path.into_inner();
+    if !validator.can_fetch(&catalog, None) {
+        return HttpResponse::Forbidden().finish();
+    }
+
     let backends = data.backends.lock().unwrap();
     for backend in backends.iter() {
         if backend.enabled() && backend.has_album(&catalog) {
