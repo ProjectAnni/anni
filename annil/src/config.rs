@@ -21,8 +21,8 @@ pub struct ServerConfig {
     pub name: String,
     listen: Option<String>,
     pub db: String,
-    #[serde(rename = "hmac-token")]
-    token: String,
+    #[serde(rename = "hmac-key")]
+    key: String,
 }
 
 impl ServerConfig {
@@ -34,8 +34,8 @@ impl ServerConfig {
         }
     }
 
-    pub fn token(&self) -> &str {
-        self.token.as_str()
+    pub fn key(&self) -> &str {
+        self.key.as_str()
     }
 }
 

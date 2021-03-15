@@ -6,7 +6,7 @@ mod share;
 
 use actix_web::{HttpServer, App, web, Responder, get, HttpResponse, HttpRequest};
 use std::sync::Mutex;
-use anni_backend::backends::FileBackend;
+use anni_backend::backends::{FileBackend, StrictFileBackend};
 use std::path::PathBuf;
 use crate::backend::AnnilBackend;
 use tokio_util::io::ReaderStream;
@@ -100,6 +100,9 @@ async fn init_state(config: &Config) -> anyhow::Result<web::Data<AppState>> {
         if backend_config.backend_type == "file" {
             let inner = FileBackend::new(PathBuf::from(backend_config.root()));
             backend = AnnilBackend::new(backend_config.name.to_owned(), AnniBackend::File(inner)).await?;
+        } else if backend_config.backend_type == "file_strict" {
+            let inner = StrictFileBackend::new(PathBuf::from(backend_config.root()));
+            backend = AnnilBackend::new(backend_config.name.to_owned(), AnniBackend::StrictFile(inner)).await?;
         } else {
             unimplemented!();
         }
@@ -113,7 +116,7 @@ async fn init_state(config: &Config) -> anyhow::Result<web::Data<AppState>> {
         .connect(&config.server.db).await?;
 
     // key
-    let key = HS256Key::from_bytes(config.server.token().as_ref());
+    let key = HS256Key::from_bytes(config.server.key().as_ref());
     Ok(web::Data::new(AppState {
         backends: Mutex::new(backends),
         pool,
