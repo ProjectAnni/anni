@@ -185,6 +185,7 @@ fn export(header: &FlacHeader, b: &str, export_config: ExportConfig) {
 }
 
 fn tags_check(filename: &str, stream: &FlacHeader, report_mode: &str) {
+    info!("Checking {}", filename);
     let mut reporter = report::new(report_mode);
     let mut fixes = Vec::new();
     let comments = stream.comments().expect("Failed to read comments");

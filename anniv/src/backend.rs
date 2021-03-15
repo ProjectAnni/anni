@@ -42,4 +42,8 @@ impl AnnivBackend {
     pub async fn get_audio(&self, catalog: &str, track_id: u8) -> Result<Pin<Box<dyn AsyncRead>>, BackendError> {
         self.inner.get_audio(catalog, track_id).await
     }
+
+    pub async fn get_cover(&self, catalog: &str) -> Result<Pin<Box<dyn AsyncRead>>, BackendError> {
+        self.inner.get_cover(catalog).await
+    }
 }

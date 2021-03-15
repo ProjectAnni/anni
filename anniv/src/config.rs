@@ -20,6 +20,9 @@ impl Config {
 pub struct ServerConfig {
     pub name: String,
     listen: Option<String>,
+    pub db: String,
+    #[serde(rename = "hmac-token")]
+    token: String,
 }
 
 impl ServerConfig {
@@ -29,6 +32,10 @@ impl ServerConfig {
         } else {
             default
         }
+    }
+
+    pub fn token(&self) -> &str {
+        self.token.as_str()
     }
 }
 

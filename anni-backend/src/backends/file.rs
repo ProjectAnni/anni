@@ -100,8 +100,7 @@ impl Backend for FileBackend {
         let path = self.inner.get(catalog).ok_or(BackendError::UnknownCatalog)?;
         let path = path.join("cover.jpg");
         let file = File::open(path).await?;
-        let result = Box::pin(file);
-        Ok(result)
+        Ok(Box::pin(file))
     }
 }
 
