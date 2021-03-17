@@ -192,6 +192,7 @@ dependencies = [
  "mime",
  "pin-project",
  "regex",
+ "rustls",
  "serde",
  "serde_json",
  "serde_urlencoded",

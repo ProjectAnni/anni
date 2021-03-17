@@ -5,7 +5,7 @@ authors = ["Yesterday17 <t@yesterday17.cn>"]
 edition = "2018"
 
 [dependencies]
-actix-web = "4.0.0-beta.4"
+actix-web = { version = "4.0.0-beta.4", features = ["tls-rustls"] }
 anni-backend = { path = "../anni-backend" }
 tokio = { version = "1", features = ["full"] }
 tokio-util = { version = "0.6.3", features = ["io"] }

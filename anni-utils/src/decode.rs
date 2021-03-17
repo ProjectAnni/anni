@@ -20,9 +20,14 @@ pub enum DecodeError {
 type Result<T> = std::result::Result<T, DecodeError>;
 
 pub fn take<R: Read>(reader: &mut R, len: usize) -> Result<Vec<u8>> {
-    let mut r = Vec::with_capacity(len);
-    std::io::copy(&mut reader.take(len as u64), &mut r)?;
+    let (r, _) = take_sized(reader, len)?;
     Ok(r)
+}
+
+pub fn take_sized<R: Read>(reader: &mut R, len: usize) -> std::io::Result<(Vec<u8>, u64)> {
+    let mut r = Vec::with_capacity(len);
+    let got = std::io::copy(&mut reader.take(len as u64), &mut r)?;
+    Ok((r, got))
 }
 
 pub fn take_to_end<R: Read>(reader: &mut R) -> Result<Vec<u8>> {
@@ -51,6 +56,11 @@ pub fn token<R: Read>(reader: &mut R, token: &[u8]) -> Result<()> {
             got,
         })
     }
+}
+
+#[inline]
+pub fn u8<R: Read>(reader: &mut R) -> Result<u8> {
+    Ok(reader.read_u8()?)
 }
 
 #[inline]
