@@ -1,10 +1,66 @@
+//! Anni describes artist in a nested way
+//! For example:
+//! ```text
+//! Petit Rabbit's（ココア（佐倉綾音）、チノ（水瀬いのり）、リゼ（種田梨沙）、千夜（佐藤聡美）、シャロ（内田真礼））
+//! ```
+//! `Petit Rabbit's` is an artist name, and everything in brackets are artist alias
+//! `Petit Rabbit's` contains five members, so alias has the meaning of 'containing'
+//! If there's only one member, then alias is exactly artist **alias**
+//!
+//! Then we know, a valid artist field is a list of valid artists,
+//! and a valid artist contains an artist name and a list of alias, which is a list of valid artists
+//! So we abstract the artist model to Artist and ArtistList. Each artist has an optional alias field.
+
 pub struct Artist<'a> {
     pub name: &'a str,
-    pub alias: Option<Vec<Artist<'a>>>,
+    pub alias: Option<ArtistList<'a>>,
 }
 
 pub struct ArtistList<'a> {
     pub artists: Vec<Artist<'a>>,
+}
+
+impl<'a> Artist<'a> {
+    pub fn from_str(input: &'a str) -> (Self, &str) {
+        for (offset, ch) in input.char_indices() {
+            match Symbol::from(ch) {
+                Symbol::Normal => {}
+                Symbol::LBracket => {
+                    let (alias, remaining) = ArtistList::from_str(&input[(offset + '（'.len_utf8())..]);
+                    let (name, _) = input.split_at(offset);
+                    return (Self { name, alias: Some(alias) }, remaining);
+                }
+                Symbol::Separator | Symbol::RBracket => return (Self { name: &input[..offset], alias: None }, &input[offset..]),
+            }
+        }
+        panic!("TODO")
+    }
+}
+
+impl<'a> ArtistList<'a> {
+    /// Parse input to ArtistList
+    /// Return the list and the remaining &str
+    pub fn from_str(input: &'a str) -> (Self, &str) {
+        let mut artists = Vec::new();
+        let mut chars = input.char_indices();
+        loop {
+            let (offset, ch) = match chars.next() {
+                Some(r) => r,
+                None => break,
+            };
+            match Symbol::from(ch) {
+                Symbol::Normal | Symbol::Separator => {}
+                Symbol::LBracket => {
+                    let (artist, remaining) = Artist::from_str(&input[(offset + '（'.len_utf8())..]);
+                    artists.push(artist);
+                    chars = remaining.char_indices();
+                }
+                Symbol::RBracket => return (Self { artists }, &input[offset..]),
+            }
+        }
+
+        (ArtistList { artists }, input)
+    }
 }
 
 enum Symbol {
