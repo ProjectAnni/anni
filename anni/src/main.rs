@@ -156,6 +156,7 @@ fn main() -> anyhow::Result<()> {
                 .arg(Arg::with_name("Filename")
                     .takes_value(true)
                     .empty_values(false)
+                    .multiple(true)
                     .required(true)
                 )
             )

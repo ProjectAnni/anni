@@ -27,7 +27,7 @@ fn handle_repo_add(matches: &ArgMatches, settings: &RepositoryManager) -> anyhow
     for to_add in to_add {
         let to_add = Path::new(to_add);
         let last = anni_repo::structure::file_name(to_add)?;
-        if last.ends_with("]") {
+        if !is_album_folder(&last) {
             bail!("You can only add a valid album directory in anni convention to anni metadata repository.");
         }
 
@@ -74,8 +74,8 @@ fn handle_repo_add(matches: &ArgMatches, settings: &RepositoryManager) -> anyhow
 fn handle_repo_edit(matches: &ArgMatches, settings: &RepositoryManager) -> anyhow::Result<()> {
     let to_add = Path::new(matches.value_of("Filename").unwrap());
     let last = anni_repo::structure::file_name(to_add)?;
-    if last.ends_with("]") {
-        bail!("You can only add a valid album directory in anni convention to anni metadata repository.");
+    if !is_album_folder(&last) {
+        bail!("You can only edit a valid album in anni metadata repository.");
     }
 
     let (_, catalog, _) = album_info(&last)?;
@@ -90,7 +90,7 @@ fn handle_repo_edit(matches: &ArgMatches, settings: &RepositoryManager) -> anyho
 fn handle_repo_apply(matches: &ArgMatches, settings: &RepositoryManager) -> anyhow::Result<()> {
     let to_apply = Path::new(matches.value_of("Filename").unwrap());
     let last = anni_repo::structure::file_name(to_apply)?;
-    if last.ends_with("]") {
+    if !is_album_folder(&last) {
         bail!("You can only apply album metadata to a valid anni convention album directory.");
     }
 
@@ -139,4 +139,10 @@ pub(crate) fn stream_to_track(stream: &FlacHeader) -> Track {
     let comment = stream.comments().unwrap();
     let map = comment.to_map();
     Track::new(map["TITLE"].value(), Some(map["ARTIST"].value()), None)
+}
+
+fn is_album_folder(input: &str) -> bool {
+    let bytes = input.as_bytes();
+    let second_last_byte = bytes[bytes.len() - 2];
+    !(bytes[bytes.len() - 1] == b']' && second_last_byte > b'0' && second_last_byte < b'9')
 }
