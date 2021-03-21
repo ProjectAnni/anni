@@ -23,47 +23,50 @@ pub(crate) fn handle_repo(matches: &ArgMatches) -> anyhow::Result<()> {
 }
 
 fn handle_repo_add(matches: &ArgMatches, settings: &RepositoryManager) -> anyhow::Result<()> {
-    let to_add = Path::new(matches.value_of("Filename").unwrap());
-    let last = anni_repo::structure::file_name(to_add)?;
-    if last.ends_with("]") {
-        bail!("You can only add a valid album directory in anni convention to anni metadata repository.");
-    }
-
-    let (release_date, catalog, title) = album_info(&last)?;
-    if settings.album_exists(&catalog) {
-        bail!("Album with the same catalog exists in repo. Aborted.");
-    }
-
-    let mut album = Album::new(&title, "Artist", release_date, &catalog);
-
-    let directories = fs::get_subdirectories(to_add)?;
-    let mut directories: Vec<_> = directories.iter().map(|r| r.as_path()).collect();
-    let mut has_discs = true;
-    if directories.len() == 0 {
-        directories.push(to_add);
-        has_discs = false;
-    }
-
-    for dir in directories.iter() {
-        let files = fs::get_ext_files(PathBuf::from(dir), "flac", false)?.unwrap();
-        let mut disc = if has_discs {
-            let (catalog, _, _) = disc_info(&*file_name(dir)?)?;
-            Disc::new(&catalog)
-        } else {
-            Disc::new(&catalog)
-        };
-        for path in files.iter() {
-            let header = FlacHeader::from_file(path)?;
-            let track = stream_to_track(&header);
-            disc.add_track(track);
+    let to_add = matches.values_of_os("Filename").unwrap();
+    for to_add in to_add {
+        let to_add = Path::new(to_add);
+        let last = anni_repo::structure::file_name(to_add)?;
+        if last.ends_with("]") {
+            bail!("You can only add a valid album directory in anni convention to anni metadata repository.");
         }
-        album.add_disc(disc);
-    }
 
-    let file = settings.with_album(&catalog);
-    fs::write(&file, album.to_string())?;
-    if matches.is_present("edit") {
-        edit::edit_file(&file)?;
+        let (release_date, catalog, title) = album_info(&last)?;
+        if settings.album_exists(&catalog) {
+            bail!("Album with the same catalog exists in repo. Aborted.");
+        }
+
+        let mut album = Album::new(&title, "Artist", release_date, &catalog);
+
+        let directories = fs::get_subdirectories(to_add)?;
+        let mut directories: Vec<_> = directories.iter().map(|r| r.as_path()).collect();
+        let mut has_discs = true;
+        if directories.len() == 0 {
+            directories.push(to_add);
+            has_discs = false;
+        }
+
+        for dir in directories.iter() {
+            let files = fs::get_ext_files(PathBuf::from(dir), "flac", false)?.unwrap();
+            let mut disc = if has_discs {
+                let (catalog, _, _) = disc_info(&*file_name(dir)?)?;
+                Disc::new(&catalog)
+            } else {
+                Disc::new(&catalog)
+            };
+            for path in files.iter() {
+                let header = FlacHeader::from_file(path)?;
+                let track = stream_to_track(&header);
+                disc.add_track(track);
+            }
+            album.add_disc(disc);
+        }
+
+        let file = settings.with_album(&catalog);
+        fs::write(&file, album.to_string())?;
+        if matches.is_present("edit") {
+            edit::edit_file(&file)?;
+        }
     }
     Ok(())
 }
