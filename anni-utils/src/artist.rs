@@ -11,6 +11,8 @@
 //! and a valid artist contains an artist name and a list of alias, which is a list of valid artists
 //! So we abstract the artist model to Artist and ArtistList. Each artist has an optional alias field.
 
+use std::fmt::{Display, Formatter};
+
 pub struct Artist<'a> {
     pub name: &'a str,
     pub alias: Option<ArtistList<'a>>,
@@ -26,21 +28,44 @@ impl<'a> Artist<'a> {
             match Symbol::from(ch) {
                 Symbol::Normal => {}
                 Symbol::LBracket => {
+                    // look for ArtistList
                     let (alias, remaining) = ArtistList::from_str(&input[(offset + '（'.len_utf8())..]);
                     let (name, _) = input.split_at(offset);
                     return (Self { name, alias: Some(alias) }, remaining);
                 }
-                Symbol::Separator | Symbol::RBracket => return (Self { name: &input[..offset], alias: None }, &input[offset..]),
+                Symbol::RBracket => {
+                    return (
+                        Self {
+                            name: &input[..offset],
+                            alias: None,
+                        },
+                        // &input[(offset + '）'.len_utf8())..]
+                        &input[offset..],
+                    );
+                }
+                Symbol::Separator => {
+                    panic!("unexpected Separator in Artist");
+                }
             }
         }
         panic!("TODO")
     }
 }
 
+impl Display for Artist<'_> {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        f.write_str(self.name)?;
+        if let Some(alias) = &self.alias {
+            alias.fmt(f)?;
+        }
+        Ok(())
+    }
+}
+
 impl<'a> ArtistList<'a> {
     /// Parse input to ArtistList
     /// Return the list and the remaining &str
-    pub fn from_str(input: &'a str) -> (Self, &str) {
+    pub fn from_str(mut input: &'a str) -> (Self, &str) {
         let mut artists = Vec::new();
         let mut chars = input.char_indices();
         loop {
@@ -49,17 +74,40 @@ impl<'a> ArtistList<'a> {
                 None => break,
             };
             match Symbol::from(ch) {
-                Symbol::Normal | Symbol::Separator => {}
-                Symbol::LBracket => {
-                    let (artist, remaining) = Artist::from_str(&input[(offset + '（'.len_utf8())..]);
+                Symbol::Normal => {
+                    let (artist, remaining) = Artist::from_str(&input[offset..]);
                     artists.push(artist);
+                    input = remaining;
                     chars = remaining.char_indices();
                 }
-                Symbol::RBracket => return (Self { artists }, &input[offset..]),
+                Symbol::Separator => {}
+                Symbol::LBracket => {
+                    panic!("unexpected LBracket");
+                }
+                Symbol::RBracket => {
+                    // does not return rbracket
+                    return (Self { artists }, &input[(offset + '）'.len_utf8())..]);
+                }
             }
         }
 
         (ArtistList { artists }, input)
+    }
+}
+
+impl Display for ArtistList<'_> {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        if self.artists.len() > 0 {
+            f.write_str("（")?;
+            let mut iter = (&self).artists.iter();
+            iter.next().unwrap().fmt(f)?;
+            for a in iter {
+                f.write_str("、")?;
+                a.fmt(f)?;
+            }
+            f.write_str("）")?;
+        }
+        Ok(())
     }
 }
 
@@ -210,6 +258,15 @@ mod tests {
         assert_eq!(false, ArtistList::is_valid("ArtistA（MemberB、MemberC））"));
         assert_eq!(false, ArtistList::is_valid("ArtistA（SubArtistD（MemberE、MemberF）"));
         assert_eq!(false, ArtistList::is_valid("ArtistA（SubArtistD（MemberE、MemberF）））"));
+    }
+
+    #[test]
+    fn deserialize_artist() {
+        let artist = "Petit Rabbit's（ココア（佐倉綾音）、チノ（水瀬いのり）、リゼ（種田梨沙）、千夜（佐藤聡美）、シャロ（内田真礼））";
+        println!("from: {}", artist);
+        let (artists, remaining) = ArtistList::from_str(artist);
+        println!("  to: {}", artists);
+        assert_eq!(remaining.len(), 0);
     }
 }
 
