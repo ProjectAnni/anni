@@ -11,19 +11,49 @@
 //! and a valid artist contains an artist name and a list of alias, which is a list of valid artists
 //! So we abstract the artist model to Artist and ArtistList. Each artist has an optional alias field.
 
-use std::fmt::{Display, Formatter};
+use std::fmt::{Display, Formatter, Debug};
+use thiserror::Error;
+
+pub struct AnniArtist {
+    inner: String,
+}
+
+impl AnniArtist {
+    pub fn new(artist: String) -> Result<Self, ArtistParseError> {
+        if !ArtistList::is_valid(&artist) {
+            return Err(ArtistParseError::InvalidArtistFormat);
+        }
+        Ok(Self {
+            inner: artist,
+        })
+    }
+
+    pub fn to_artist_list(&self) -> ArtistList {
+        let (list, _) = ArtistList::from_str(&self.inner);
+        list
+    }
+}
+
+impl Display for AnniArtist {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        std::fmt::Display::fmt(&self.inner, f)
+    }
+}
+
+#[derive(Error, Debug)]
+pub enum ArtistParseError {
+    #[error("invalid artist format")]
+    InvalidArtistFormat,
+}
 
 pub struct Artist<'a> {
     pub name: &'a str,
     pub alias: Option<ArtistList<'a>>,
 }
 
-pub struct ArtistList<'a> {
-    pub artists: Vec<Artist<'a>>,
-}
-
+// TODO: replace with TryFrom/TryInto
 impl<'a> Artist<'a> {
-    pub fn from_str(input: &'a str) -> (Self, &str) {
+    pub(crate) fn from_str(input: &'a str) -> (Self, &str) {
         for (offset, ch) in input.char_indices() {
             match Symbol::from(ch) {
                 Symbol::Normal => {}
@@ -39,7 +69,6 @@ impl<'a> Artist<'a> {
                             name: &input[..offset],
                             alias: None,
                         },
-                        // &input[(offset + '）'.len_utf8())..]
                         &input[offset..],
                     );
                 }
@@ -56,16 +85,20 @@ impl Display for Artist<'_> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         f.write_str(self.name)?;
         if let Some(alias) = &self.alias {
-            alias.fmt(f)?;
+            write!(f, "（{}）", alias)?;
         }
         Ok(())
     }
 }
 
+pub struct ArtistList<'a> {
+    pub artists: Vec<Artist<'a>>,
+}
+
 impl<'a> ArtistList<'a> {
     /// Parse input to ArtistList
     /// Return the list and the remaining &str
-    pub fn from_str(mut input: &'a str) -> (Self, &str) {
+    pub(crate) fn from_str(mut input: &'a str) -> (Self, &str) {
         let mut artists = Vec::new();
         let mut chars = input.char_indices();
         loop {
@@ -97,15 +130,12 @@ impl<'a> ArtistList<'a> {
 
 impl Display for ArtistList<'_> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        if self.artists.len() > 0 {
-            f.write_str("（")?;
-            let mut iter = (&self).artists.iter();
-            iter.next().unwrap().fmt(f)?;
-            for a in iter {
-                f.write_str("、")?;
-                a.fmt(f)?;
-            }
-            f.write_str("）")?;
+        assert!(self.artists.len() > 0);
+        let mut iter = (&self).artists.iter();
+        iter.next().unwrap().fmt(f)?;
+        for a in iter {
+            f.write_str("、")?;
+            a.fmt(f)?;
         }
         Ok(())
     }
@@ -234,7 +264,7 @@ impl<'a> ArtistList<'a> {
 
 #[cfg(test)]
 mod tests {
-    use crate::artist::ArtistList;
+    use crate::artist::{ArtistList, AnniArtist};
 
     #[test]
     fn valid_artist_list() {
@@ -252,6 +282,7 @@ mod tests {
         assert_eq!(false, ArtistList::is_valid("水瀬いのり）"));
         assert_eq!(false, ArtistList::is_valid("水瀬いのり））"));
         assert_eq!(false, ArtistList::is_valid("（水瀬いのり"));
+        assert_eq!(false, ArtistList::is_valid("水瀬いのり（）"));
         assert_eq!(false, ArtistList::is_valid("ArtistA（MemberB、MemberC、）"));
         assert_eq!(false, ArtistList::is_valid("ArtistA（MemberB、MemberC）ArtistB"));
         assert_eq!(false, ArtistList::is_valid("ArtistA（MemberB、MemberC"));
@@ -262,11 +293,11 @@ mod tests {
 
     #[test]
     fn deserialize_artist() {
-        let artist = "Petit Rabbit's（ココア（佐倉綾音）、チノ（水瀬いのり）、リゼ（種田梨沙）、千夜（佐藤聡美）、シャロ（内田真礼））";
-        println!("from: {}", artist);
-        let (artists, remaining) = ArtistList::from_str(artist);
-        println!("  to: {}", artists);
-        assert_eq!(remaining.len(), 0);
+        let input = "Petit Rabbit's（ココア（佐倉綾音）、チノ（水瀬いのり）、リゼ（種田梨沙）、千夜（佐藤聡美）、シャロ（内田真礼））";
+        let artist = AnniArtist::new(input.to_owned()).unwrap();
+        let list = artist.to_artist_list();
+        assert_eq!(input, format!("{}", artist));
+        assert_eq!(format!("{}", artist), format!("{}", list));
     }
 }
 
