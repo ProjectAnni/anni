@@ -3,8 +3,6 @@ use jwt_simple::prelude::*;
 use serde::{Serialize, Deserialize};
 use serde::de::DeserializeOwned;
 use crate::share::SharePayload;
-use sqlx::{Pool, Postgres};
-use crate::db::iat_valid;
 
 pub(crate) trait CanFetch {
     fn can_fetch(&self, catalog: &str, track_id: Option<u8>) -> bool;
@@ -69,25 +67,25 @@ fn auth_header(req: &HttpRequest) -> Option<&str> {
     }
 }
 
-pub(crate) async fn auth_user_or_share(req: &HttpRequest, key: &HS256Key, pool: Pool<Postgres>) -> Option<AnnilClaims> {
+pub(crate) async fn auth_user_or_share(req: &HttpRequest, key: &HS256Key) -> Option<AnnilClaims> {
     let header = auth_header(req)?;
     if let Some(user) = auth_user(header, key) {
-        if user.issued_at.is_none() || !iat_valid(pool, &user.custom.username, user.issued_at.unwrap().as_secs()).await {
+        if user.issued_at.is_none() {
             return None;
         }
         return Some(AnnilClaims::User(user.custom));
     }
     let share = auth_share(header, key)?;
-    if share.issued_at.is_none() || !iat_valid(pool, &share.custom.username, share.issued_at.unwrap().as_secs()).await {
+    if share.issued_at.is_none() {
         return None;
     }
     Some(AnnilClaims::Share(share.custom))
 }
 
-pub(crate) async fn auth_user_can_share(req: &HttpRequest, key: &HS256Key, pool: Pool<Postgres>) -> Option<UserClaim> {
+pub(crate) async fn auth_user_can_share(req: &HttpRequest, key: &HS256Key) -> Option<UserClaim> {
     let header = auth_header(req)?;
     let user = auth_user(header, key)?;
-    if user.issued_at.is_none() || !iat_valid(pool, &user.custom.username, user.issued_at.unwrap().as_secs()).await {
+    if user.issued_at.is_none() {
         return None;
     }
     Some(user.custom)
@@ -113,5 +111,6 @@ fn test_sign() {
                 allow_share: true,
             },
         }
-    ).unwrap();
+    ).expect("failed to sign jwt");
+    assert_eq!(jwt, "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpYXQiOjE2MTY1NjYxMzYsInR5cGUiOiJ1c2VyIiwidXNlcm5hbWUiOiJ0ZXN0IiwiYWxsb3dTaGFyZSI6dHJ1ZX0.uNb0sfSXjVw2ERg2VRwOTOByIfg3LR6xnkV7O-52bc4");
 }

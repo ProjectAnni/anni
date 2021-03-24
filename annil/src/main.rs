@@ -1,6 +1,5 @@
 mod backend;
 mod config;
-mod db;
 mod auth;
 mod share;
 
@@ -11,8 +10,6 @@ use std::path::PathBuf;
 use crate::backend::AnnilBackend;
 use tokio_util::io::ReaderStream;
 use crate::config::Config;
-use sqlx::{Pool, Postgres};
-use sqlx::postgres::PgPoolOptions;
 use actix_web::middleware::Logger;
 use jwt_simple::prelude::HS256Key;
 use crate::auth::CanFetch;
@@ -21,7 +18,6 @@ use std::borrow::Cow;
 
 struct AppState {
     backends: Mutex<Vec<AnnilBackend>>,
-    pool: Pool<Postgres>,
     key: HS256Key,
 }
 
@@ -40,7 +36,7 @@ async fn albums(data: web::Data<AppState>) -> impl Responder {
 /// Get audio in an album with {catalog} and {track_id}
 #[get("/{catalog}/{track_id}")]
 async fn audio(req: HttpRequest, path: web::Path<(String, u8)>, data: web::Data<AppState>) -> impl Responder {
-    let validator = match auth::auth_user_or_share(&req, &data.key, data.pool.clone()).await {
+    let validator = match auth::auth_user_or_share(&req, &data.key).await {
         Some(r) => r,
         None => return HttpResponse::Unauthorized().finish(),
     };
@@ -65,7 +61,7 @@ async fn audio(req: HttpRequest, path: web::Path<(String, u8)>, data: web::Data<
 /// Get audio cover of an album with {catalog}
 #[get("/{catalog}/cover")]
 async fn cover(req: HttpRequest, path: web::Path<String>, data: web::Data<AppState>) -> impl Responder {
-    let validator = match auth::auth_user_or_share(&req, &data.key, data.pool.clone()).await {
+    let validator = match auth::auth_user_or_share(&req, &data.key).await {
         Some(r) => r,
         None => return HttpResponse::Unauthorized().finish(),
     };
@@ -110,16 +106,10 @@ async fn init_state(config: &Config) -> anyhow::Result<web::Data<AppState>> {
         backends.push(backend);
     }
 
-    // database
-    let pool = PgPoolOptions::new()
-        .max_connections(5)
-        .connect(&config.server.db).await?;
-
     // key
     let key = HS256Key::from_bytes(config.server.key().as_ref());
     Ok(web::Data::new(AppState {
         backends: Mutex::new(backends),
-        pool,
         key,
     }))
 }
@@ -130,9 +120,6 @@ async fn main() -> anyhow::Result<()> {
     env_logger::init();
     let config = Config::from_file("config.toml")?;
     let state = init_state(&config).await?;
-
-    // Init db
-    db::init_db(state.pool.clone()).await?;
 
     HttpServer::new(move || {
         App::new()

@@ -31,7 +31,7 @@ fn share_default_type() -> String {
 /// Create share jwt token
 #[post("/share")]
 pub(crate) async fn share(req: HttpRequest, info: web::Json<SharePayload>, data: web::Data<AppState>) -> impl Responder {
-    let username = match auth::auth_user_can_share(&req, &data.key, data.pool.clone()).await {
+    let username = match auth::auth_user_can_share(&req, &data.key).await {
         Some(r) => if r.allow_share {
             r.username
         } else {
