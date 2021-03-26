@@ -101,16 +101,18 @@ struct AlbumInfo {
 #[derive(Serialize, Deserialize)]
 pub struct Disc {
     catalog: String,
+    artist: Option<String>,
     #[serde(rename = "type")]
     disc_type: Option<TrackType>,
     tracks: Vec<Track>,
 }
 
 impl Disc {
-    pub fn new(catalog: &str, album_type: Option<TrackType>) -> Self {
+    pub fn new(catalog: &str, artist: Option<String>, disc_type: Option<TrackType>) -> Self {
         Disc {
             catalog: catalog.to_owned(),
-            disc_type: album_type,
+            artist,
+            disc_type,
             tracks: vec![],
         }
     }

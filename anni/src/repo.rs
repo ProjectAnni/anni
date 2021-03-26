@@ -50,9 +50,9 @@ fn handle_repo_add(matches: &ArgMatches, settings: &RepositoryManager) -> anyhow
             let files = fs::get_ext_files(PathBuf::from(dir), "flac", false)?.unwrap();
             let mut disc = if has_discs {
                 let (catalog, _, _) = disc_info(&*file_name(dir)?)?;
-                Disc::new(&catalog, None)
+                Disc::new(&catalog, None, None)
             } else {
-                Disc::new(&catalog, None)
+                Disc::new(&catalog, None, None)
             };
             for path in files.iter() {
                 let header = FlacHeader::from_file(path)?;
