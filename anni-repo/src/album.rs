@@ -19,7 +19,7 @@ impl Album {
                 title: title.to_owned(),
                 artist: artist.to_owned(),
                 release_date,
-                track_type: TrackType::Normal,
+                album_type: TrackType::Normal,
                 catalog: catalog.to_owned(),
             },
             discs: Vec::new(),
@@ -43,7 +43,7 @@ impl FromStr for Album {
                 }
 
                 if let None = track.track_type {
-                    track.track_type = Some((&album.info.track_type).to_owned());
+                    track.track_type = Some((&album.info.album_type).to_owned());
                 }
             }
         }
@@ -71,7 +71,7 @@ impl Album {
     }
 
     pub fn track_type(&self) -> TrackType {
-        self.info.track_type.clone()
+        self.info.album_type.clone()
     }
 
     pub fn catalog(&self) -> &str {
@@ -94,20 +94,23 @@ struct AlbumInfo {
     #[serde(rename = "date")]
     release_date: Datetime,
     #[serde(rename = "type")]
-    track_type: TrackType,
+    album_type: TrackType,
     catalog: String,
 }
 
 #[derive(Serialize, Deserialize)]
 pub struct Disc {
     catalog: String,
+    #[serde(rename = "type")]
+    disc_type: Option<TrackType>,
     tracks: Vec<Track>,
 }
 
 impl Disc {
-    pub fn new(catalog: &str) -> Self {
+    pub fn new(catalog: &str, album_type: Option<TrackType>) -> Self {
         Disc {
             catalog: catalog.to_owned(),
+            disc_type: album_type,
             tracks: vec![],
         }
     }
