@@ -1,23 +1,24 @@
 use anni_backend::{BackendError, AnniBackend};
 use std::pin::Pin;
 use tokio::io::AsyncRead;
-use std::borrow::Cow;
+use std::collections::HashSet;
 
 pub struct AnnilBackend {
     name: String,
     enabled: bool,
     inner: AnniBackend,
+    albums: HashSet<String>,
 }
 
 impl AnnilBackend {
-    pub async fn new(name: String, inner: AnniBackend) -> Result<Self, BackendError> {
-        let mut backend = Self {
+    pub async fn new(name: String, mut inner: AnniBackend) -> Result<Self, BackendError> {
+        let albums = inner.as_backend_mut().albums().await?;
+        Ok(Self {
             name,
             enabled: true,
             inner,
-        };
-        backend.inner.as_backend_mut().update_albums().await?;
-        Ok(backend)
+            albums,
+        })
     }
 
     pub fn name(&self) -> &str {
@@ -28,14 +29,12 @@ impl AnnilBackend {
         self.enabled
     }
 
-    pub async fn has_album(&self, catalog: &str) -> bool {
-        self.inner.as_backend().has(catalog).await
+    pub fn has_album(&self, catalog: &str) -> bool {
+        self.albums.contains(catalog)
     }
 
-    #[allow(clippy::needless_lifetimes)]
-    // FIXME: there must be some problems here, find and solve it
-    pub async fn albums<'a>(&'a self) -> Vec<Cow<'a, str>> {
-        self.inner.as_backend().albums().await
+    pub fn albums(&self) -> HashSet<&str> {
+        self.albums.iter().map(|a| a.as_str()).collect()
     }
 
     pub fn set_enable(&mut self, enable: bool) {

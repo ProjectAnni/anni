@@ -1,20 +1,20 @@
 use crate::common::{Backend, extract_album, extract_disc, BackendError};
 use async_trait::async_trait;
 use tokio::io::AsyncRead;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::path::{PathBuf, Path};
 use tokio::fs::{read_dir, File};
 use std::pin::Pin;
-use std::borrow::Cow;
 
 pub struct FileBackend {
+    strict: bool,
     root: PathBuf,
     inner: HashMap<String, PathBuf>,
 }
 
 impl FileBackend {
-    pub fn new(root: PathBuf) -> Self {
-        FileBackend { root, inner: Default::default() }
+    pub fn new(root: PathBuf, strict: bool) -> Self {
+        FileBackend { root, strict, inner: Default::default() }
     }
 
     async fn walk_dir<P: AsRef<Path> + Send>(&mut self, dir: P, to_visit: &mut Vec<PathBuf>) -> Result<(), BackendError> {
@@ -55,36 +55,52 @@ impl FileBackend {
         }
         Ok(has_disc)
     }
+
+    async fn update(&self) -> Result<Vec<String>, BackendError> {
+        let mut albums: Vec<String> = Vec::new();
+        let mut dir = read_dir(&self.root).await?;
+        while let Some(entry) = dir.next_entry().await? {
+            if entry.metadata().await?.is_dir() {
+                let path = entry.path();
+                let catalog = path.file_name()
+                    .ok_or(BackendError::InvalidPath)?
+                    .to_str()
+                    .ok_or(BackendError::InvalidPath)?;
+                albums.push(catalog.to_string());
+            }
+        }
+        Ok(albums)
+    }
+
+    fn get_catalog_path(&self, catalog: &str) -> Result<PathBuf, BackendError> {
+        Ok(if self.strict {
+            self.root.join(catalog)
+        } else {
+            self.inner.get(catalog).ok_or(BackendError::UnknownCatalog)?.to_owned()
+        })
+    }
 }
 
 #[async_trait]
 impl Backend for FileBackend {
-    fn need_cache(&self) -> bool {
-        false
-    }
+    async fn albums(&mut self) -> Result<HashSet<String>, BackendError> {
+        if self.strict {
+            Ok(self.update().await?.into_iter().collect())
+        } else {
+            self.inner.clear();
 
-    async fn has(&self, catalog: &str) -> bool {
-        self.inner.contains_key(catalog)
-    }
+            let mut to_visit = Vec::new();
+            self.walk_dir(&self.root.clone(), &mut to_visit).await?;
 
-    async fn albums(&self) -> Vec<Cow<str>> {
-        self.inner.keys().map(|r| Cow::Borrowed(r.as_str())).collect()
-    }
-
-    async fn update_albums(&mut self) -> Result<(), BackendError> {
-        self.inner.clear();
-
-        let mut to_visit = Vec::new();
-        self.walk_dir(&self.root.clone(), &mut to_visit).await?;
-
-        while let Some(dir) = to_visit.pop() {
-            self.walk_dir(dir, &mut to_visit).await?;
+            while let Some(dir) = to_visit.pop() {
+                self.walk_dir(dir, &mut to_visit).await?;
+            }
+            Ok(self.inner.keys().into_iter().map(|a| a.to_owned()).collect())
         }
-        Ok(())
     }
 
     async fn get_audio(&self, catalog: &str, track_id: u8) -> Result<Pin<Box<dyn AsyncRead>>, BackendError> {
-        let path = self.inner.get(catalog).ok_or(BackendError::UnknownCatalog)?;
+        let path = self.get_catalog_path(catalog)?;
         let mut dir = read_dir(path).await?;
         while let Some(entry) = dir.next_entry().await? {
             let filename = entry.file_name();
@@ -98,7 +114,7 @@ impl Backend for FileBackend {
     }
 
     async fn get_cover(&self, catalog: &str) -> Result<Pin<Box<dyn AsyncRead>>, BackendError> {
-        let path = self.inner.get(catalog).ok_or(BackendError::UnknownCatalog)?;
+        let path = self.get_catalog_path(catalog)?;
         let path = path.join("cover.jpg");
         let file = File::open(path).await?;
         Ok(Box::pin(file))
@@ -107,7 +123,7 @@ impl Backend for FileBackend {
 
 #[tokio::test]
 async fn test_scan() {
-    let mut f = FileBackend::new(PathBuf::from("/home/yesterday17/音乐/"));
+    let mut f = FileBackend::new(PathBuf::from("/home/yesterday17/音乐/"), false);
     let d = f.update_albums().await.unwrap();
     println!("{:#?}", d);
 

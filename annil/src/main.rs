@@ -5,7 +5,7 @@ mod share;
 
 use actix_web::{HttpServer, App, web, Responder, get, HttpResponse, HttpRequest};
 use std::sync::Mutex;
-use anni_backend::backends::{FileBackend, StrictFileBackend};
+use anni_backend::backends::FileBackend;
 use std::path::PathBuf;
 use crate::backend::AnnilBackend;
 use tokio_util::io::ReaderStream;
@@ -14,7 +14,7 @@ use actix_web::middleware::Logger;
 use jwt_simple::prelude::HS256Key;
 use crate::auth::CanFetch;
 use anni_backend::AnniBackend;
-use std::borrow::Cow;
+use std::collections::HashSet;
 
 struct AppState {
     backends: Mutex<Vec<AnnilBackend>>,
@@ -24,13 +24,13 @@ struct AppState {
 /// Get available albums of current annil server
 #[get("/albums")]
 async fn albums(data: web::Data<AppState>) -> impl Responder {
-    let mut albums: Vec<Cow<str>> = Vec::new();
+    let mut result: HashSet<&str> = HashSet::new();
     let backends = data.backends.lock().unwrap();
     for backend in backends.iter() {
-        let mut a = backend.albums().await;
-        albums.append(&mut a);
+        let albums = backend.albums();
+        result.extend(albums.iter());
     }
-    HttpResponse::Ok().json(albums)
+    HttpResponse::Ok().json(result)
 }
 
 /// Get audio in an album with {catalog} and {track_id}
@@ -47,7 +47,7 @@ async fn audio(req: HttpRequest, path: web::Path<(String, u8)>, data: web::Data<
 
     let backends = data.backends.lock().unwrap();
     for backend in backends.iter() {
-        if backend.enabled() && backend.has_album(&catalog).await {
+        if backend.enabled() && backend.has_album(&catalog) {
             let r = backend.get_audio(&catalog, track_id).await.unwrap();
             return HttpResponse::Ok()
                 .append_header(("X-Backend-Name", backend.name()))
@@ -72,7 +72,7 @@ async fn cover(req: HttpRequest, path: web::Path<String>, data: web::Data<AppSta
 
     let backends = data.backends.lock().unwrap();
     for backend in backends.iter() {
-        if backend.enabled() && backend.has_album(&catalog).await {
+        if backend.enabled() && backend.has_album(&catalog) {
             return match backend.get_cover(&catalog).await {
                 Ok(cover) => {
                     HttpResponse::Ok()
@@ -94,11 +94,8 @@ async fn init_state(config: &Config) -> anyhow::Result<web::Data<AppState>> {
     for backend_config in config.backends.iter() {
         let mut backend: AnnilBackend;
         if backend_config.backend_type == "file" {
-            let inner = FileBackend::new(PathBuf::from(backend_config.root()));
+            let inner = FileBackend::new(PathBuf::from(backend_config.root()), backend_config.strict);
             backend = AnnilBackend::new(backend_config.name.to_owned(), AnniBackend::File(inner)).await?;
-        } else if backend_config.backend_type == "file_strict" {
-            let inner = StrictFileBackend::new(PathBuf::from(backend_config.root()));
-            backend = AnnilBackend::new(backend_config.name.to_owned(), AnniBackend::StrictFile(inner)).await?;
         } else {
             unimplemented!();
         }

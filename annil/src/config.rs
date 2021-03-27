@@ -44,7 +44,10 @@ pub struct BackendConfig {
     pub enable: bool,
     #[serde(rename = "type")]
     pub backend_type: String,
+
     root: Option<String>,
+    #[serde(default)]
+    pub strict: bool,
 }
 
 impl BackendConfig {

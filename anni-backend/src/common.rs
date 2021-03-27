@@ -4,24 +4,14 @@ use regex::Regex;
 use std::pin::Pin;
 use thiserror::Error;
 use crate::backends;
-use std::borrow::Cow;
+use std::collections::HashSet;
 
 /// Backend is a common trait for anni backends.
 /// It provides functions to update albums, and read from an initialized backend.
 #[async_trait]
 pub trait Backend {
-    /// Cache indicator for remote file systems.
-    fn need_cache(&self) -> bool;
-
-    /// Whether backend has an album.
-    async fn has(&self, catalog: &str) -> bool;
-
-    /// Get catalog of albums available.
-    async fn albums(&self) -> Vec<Cow<str>>;
-
-    /// Update album information provided by backend.
-    /// Backends usually need to save a map between catalog and path, so this method is &mut.
-    async fn update_albums(&mut self) -> Result<(), BackendError>;
+    /// Get album information provided by backend.
+    async fn albums(&mut self) -> Result<HashSet<String>, BackendError>;
 
     /// Returns a reader implements AsyncRead for content reading
     async fn get_audio(&self, catalog: &str, track_id: u8) -> Result<Pin<Box<dyn AsyncRead>>, BackendError>;
@@ -45,20 +35,17 @@ pub(crate) fn extract_disc<S: AsRef<str>>(name: S) -> Option<String> {
 
 pub enum AnniBackend {
     File(backends::FileBackend),
-    StrictFile(backends::StrictFileBackend),
 }
 
 impl AnniBackend {
-    pub fn as_backend(&self) -> Box<&(dyn Backend + Send)> {
+    pub fn as_backend(&self) -> Box<&dyn Backend> {
         match self {
             AnniBackend::File(b) => Box::new(b),
-            AnniBackend::StrictFile(b) => Box::new(b),
         }
     }
-    pub fn as_backend_mut(&mut self) -> Box<&mut (dyn Backend + Send)> {
+    pub fn as_backend_mut(&mut self) -> Box<&mut dyn Backend> {
         match self {
             AnniBackend::File(b) => Box::new(b),
-            AnniBackend::StrictFile(b) => Box::new(b),
         }
     }
 }
