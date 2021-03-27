@@ -20,7 +20,6 @@ impl Config {
 pub struct ServerConfig {
     pub name: String,
     listen: Option<String>,
-    pub db: String,
     #[serde(rename = "hmac-key")]
     key: String,
 }
