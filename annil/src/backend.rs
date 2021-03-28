@@ -37,6 +37,11 @@ impl AnnilBackend {
         self.albums.iter().map(|a| a.as_str()).collect()
     }
 
+    pub async fn update_albums(&mut self) {
+        // FIXME
+        self.albums = self.inner.as_backend_mut().albums().await.unwrap();
+    }
+
     pub fn set_enable(&mut self, enable: bool) {
         self.enabled = enable;
     }
