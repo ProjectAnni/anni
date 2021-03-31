@@ -2,6 +2,7 @@
 members = [
     "anni",
     "annil",
+    "anniu",
     "anni-backend",
     "anni-common",
     "anni-derive",
