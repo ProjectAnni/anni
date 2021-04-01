@@ -1,10 +1,9 @@
+use crate::backends;
 use async_trait::async_trait;
-use tokio::io::AsyncRead;
-use regex::Regex;
+use std::collections::HashSet;
 use std::pin::Pin;
 use thiserror::Error;
-use crate::backends;
-use std::collections::HashSet;
+use tokio::io::AsyncRead;
 
 /// Backend is a common trait for anni backends.
 /// It provides functions to update albums, and read from an initialized backend.
@@ -14,23 +13,14 @@ pub trait Backend {
     async fn albums(&mut self) -> Result<HashSet<String>, BackendError>;
 
     /// Returns a reader implements AsyncRead for content reading
-    async fn get_audio(&self, catalog: &str, track_id: u8) -> Result<Pin<Box<dyn AsyncRead>>, BackendError>;
+    async fn get_audio(
+        &self,
+        catalog: &str,
+        track_id: u8,
+    ) -> Result<Pin<Box<dyn AsyncRead>>, BackendError>;
 
     /// Returns a cover of corrsponding album
     async fn get_cover(&self, catalog: &str) -> Result<Pin<Box<dyn AsyncRead>>, BackendError>;
-}
-
-lazy_static::lazy_static! {
-    static ref ALBUM_REGEX: Regex = Regex::new(r"^\[(?:\d{2}|\d{4})-?\d{2}-?\d{2}]\[([^]]+)] .+$").unwrap();
-    static ref DISC_REGEX: Regex = Regex::new(r"^\[([^]]+)] .+ \[Disc \d+]$").unwrap();
-}
-
-pub(crate) fn extract_album<S: AsRef<str>>(name: S) -> Option<String> {
-    ALBUM_REGEX.captures(name.as_ref()).map(|r| r.get(1).unwrap().as_str().to_owned())
-}
-
-pub(crate) fn extract_disc<S: AsRef<str>>(name: S) -> Option<String> {
-    DISC_REGEX.captures(name.as_ref()).map(|r| r.get(1).unwrap().as_str().to_owned())
 }
 
 pub enum AnniBackend {
@@ -63,10 +53,4 @@ pub enum BackendError {
 
     #[error(transparent)]
     IOError(#[from] std::io::Error),
-}
-
-#[test]
-fn test_extract_catalog() {
-    assert_eq!(extract_album("[210306][CATA-LOG] Title"), Some("CATA-LOG".to_owned()));
-    assert_eq!(extract_album("233"), None);
 }

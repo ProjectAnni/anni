@@ -12,3 +12,4 @@ anyhow = "1.0"
 thiserror = "1.0"
 anni-common = { path = "../anni-common" }
 anni-derive = { path = "../anni-derive" }
+edit = "0.1.2"

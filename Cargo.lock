@@ -276,9 +276,8 @@ dependencies = [
 name = "anni-backend"
 version = "0.1.0"
 dependencies = [
+ "anni-repo",
  "async-trait",
- "lazy_static",
- "regex",
  "thiserror",
  "tokio",
 ]
@@ -316,6 +315,7 @@ dependencies = [
  "anni-common",
  "anni-derive",
  "anyhow",
+ "edit",
  "regex",
  "serde",
  "thiserror",
@@ -352,6 +352,7 @@ dependencies = [
 name = "anniu"
 version = "0.1.0"
 dependencies = [
+ "anni-repo",
  "gio",
  "gtk",
 ]

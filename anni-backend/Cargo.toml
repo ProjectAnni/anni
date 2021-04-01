@@ -6,7 +6,6 @@ edition = "2018"
 
 [dependencies]
 tokio = { version = "1", features = ["full"] }
-regex = "1"
-lazy_static = "1.4.0"
 async-trait = "0.1.45"
 thiserror = "1.0"
+anni-repo = { path = "../anni-repo" }

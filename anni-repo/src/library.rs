@@ -1,6 +1,6 @@
-use std::path::Path;
 use crate::Datetime;
 use regex::Regex;
+use std::path::Path;
 use std::str::FromStr;
 use thiserror::Error;
 use toml::value::DatetimeParseError;
@@ -11,10 +11,17 @@ pub fn file_name<P: AsRef<Path>>(path: P) -> std::io::Result<String> {
     } else {
         path.as_ref().canonicalize()?
     };
-    Ok(path.file_name()
-        .ok_or(std::io::Error::new(std::io::ErrorKind::InvalidInput, "No filename found"))?
+    Ok(path
+        .file_name()
+        .ok_or(std::io::Error::new(
+            std::io::ErrorKind::InvalidInput,
+            "No filename found",
+        ))?
         .to_str()
-        .ok_or(std::io::Error::new(std::io::ErrorKind::InvalidData, "Invalid UTF-8 path"))?
+        .ok_or(std::io::Error::new(
+            std::io::ErrorKind::InvalidData,
+            "Invalid UTF-8 path",
+        ))?
         .to_owned())
 }
 
@@ -47,6 +54,7 @@ pub enum InfoParseError {
     InvalidDateTime(#[from] DatetimeParseError),
 }
 
+// catalog, title, disc_id
 pub fn disc_info(path: &str) -> Result<(String, String, usize), InfoParseError> {
     let r = Regex::new(r"^\[([^]]+)] (.+) \[Disc (\d+)]$").unwrap();
     let r = r.captures(path).ok_or(InfoParseError::NotMatch)?;
@@ -57,9 +65,11 @@ pub fn disc_info(path: &str) -> Result<(String, String, usize), InfoParseError> 
     Ok((
         r.get(1).unwrap().as_str().to_owned(),
         r.get(2).unwrap().as_str().to_owned(),
-        usize::from_str(r.get(3).unwrap().as_str()).unwrap()))
+        usize::from_str(r.get(3).unwrap().as_str()).unwrap(),
+    ))
 }
 
+// Date, catalog, title
 pub fn album_info(path: &str) -> Result<(Datetime, String, String), InfoParseError> {
     let r = Regex::new(r"^\[(\d{2}|\d{4})-?(\d{2})-?(\d{2})]\[([^]]+)] (.+)$").unwrap();
     let r = r.captures(path).ok_or(InfoParseError::NotMatch)?;
@@ -74,5 +84,6 @@ pub fn album_info(path: &str) -> Result<(Datetime, String, String), InfoParseErr
             r.get(3).unwrap().as_str(),
         )?,
         r.get(4).unwrap().as_str().to_owned(),
-        r.get(5).unwrap().as_str().to_owned()))
+        r.get(5).unwrap().as_str().to_owned(),
+    ))
 }

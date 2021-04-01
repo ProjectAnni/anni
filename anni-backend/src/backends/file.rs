@@ -1,4 +1,5 @@
-use crate::common::{extract_album, extract_disc, Backend, BackendError};
+use crate::common::{Backend, BackendError};
+use anni_repo::library::{album_info, disc_info};
 use async_trait::async_trait;
 use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
@@ -30,7 +31,7 @@ impl FileBackend {
         while let Some(entry) = dir.next_entry().await? {
             if entry.metadata().await?.is_dir() {
                 let path = entry.path();
-                if let Some(catalog) = extract_album(
+                if let Ok((_, catalog, _)) = album_info(
                     path.file_name()
                         .ok_or(BackendError::InvalidPath)?
                         .to_str()
@@ -60,7 +61,7 @@ impl FileBackend {
                     .ok_or(BackendError::InvalidPath)?
                     .to_str()
                     .ok_or(BackendError::InvalidPath)?;
-                if let Some(catalog) = extract_disc(disc_name) {
+                if let Ok((catalog, _, _)) = disc_info(disc_name) {
                     self.inner.insert(catalog, path);
                     has_disc = true;
                 }
