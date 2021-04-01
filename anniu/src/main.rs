@@ -1,16 +1,14 @@
-extern crate gtk;
 extern crate gio;
+extern crate gtk;
 
-use gtk::prelude::*;
 use gio::prelude::*;
+use gtk::prelude::*;
 
-use gtk::{Application, ApplicationWindow, Container, SearchEntry, ListBox, Label};
+use gtk::{Application, ApplicationWindow, Container, Label, ListBox, SearchEntry};
 
 fn main() {
-    let application = Application::new(
-        Some("moe.mmf.anni.anniu"),
-        Default::default(),
-    ).expect("failed to initialize GTK application");
+    let application = Application::new(Some("moe.mmf.anni.anniu"), Default::default())
+        .expect("failed to initialize GTK application");
 
     application.connect_activate(|app| {
         let glade_src = include_str!("../assets/anniu.glade");
