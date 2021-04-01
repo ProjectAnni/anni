@@ -1,13 +1,13 @@
 pub mod album;
-pub mod repo;
-pub mod structure;
-mod manager;
 mod error;
+pub mod library;
+mod manager;
+pub mod repo;
 
-pub use repo::Repository;
 pub use album::Album;
-pub use manager::RepositoryManager;
 pub use error::Error;
+pub use manager::RepositoryManager;
+pub use repo::Repository;
 
 pub use toml::value::Datetime;
 

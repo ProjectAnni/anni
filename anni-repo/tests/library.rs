@@ -1,4 +1,4 @@
-use anni_repo::structure::{parts_to_date, album_info, disc_info};
+use anni_repo::library::{parts_to_date, album_info, disc_info};
 
 #[test]
 fn test_parts_to_date() -> Result<(), Box<dyn std::error::Error>> {

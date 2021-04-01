@@ -1,11 +1,11 @@
-use anni_repo::album::{Track, Disc};
-use clap::ArgMatches;
-use anni_repo::structure::{album_info, disc_info, file_name};
+use anni_flac::FlacHeader;
+use anni_repo::album::{Disc, Track};
+use anni_repo::library::{album_info, disc_info, file_name};
 use anni_repo::{Album, RepositoryManager};
 use anni_utils::fs;
-use std::path::{PathBuf, Path};
+use clap::ArgMatches;
 use shell_escape::escape;
-use anni_flac::FlacHeader;
+use std::path::{Path, PathBuf};
 
 pub(crate) fn handle_repo(matches: &ArgMatches) -> anyhow::Result<()> {
     let settings = RepositoryManager::new(PathBuf::from(matches.value_of("repo.root").unwrap()))?;
@@ -26,7 +26,7 @@ fn handle_repo_add(matches: &ArgMatches, settings: &RepositoryManager) -> anyhow
     let to_add = matches.values_of_os("Filename").unwrap();
     for to_add in to_add {
         let to_add = Path::new(to_add);
-        let last = anni_repo::structure::file_name(to_add)?;
+        let last = anni_repo::library::file_name(to_add)?;
         if !is_album_folder(&last) {
             bail!("You can only add a valid album directory in anni convention to anni metadata repository.");
         }
@@ -62,10 +62,9 @@ fn handle_repo_add(matches: &ArgMatches, settings: &RepositoryManager) -> anyhow
             album.add_disc(disc);
         }
 
-        let file = settings.with_album(&catalog);
-        fs::write(&file, album.to_string())?;
+        settings.add_album(&catalog, album)?;
         if matches.is_present("edit") {
-            edit::edit_file(&file)?;
+            settings.edit_album(&catalog)?;
         }
     }
     Ok(())
@@ -73,7 +72,7 @@ fn handle_repo_add(matches: &ArgMatches, settings: &RepositoryManager) -> anyhow
 
 fn handle_repo_edit(matches: &ArgMatches, settings: &RepositoryManager) -> anyhow::Result<()> {
     let to_add = Path::new(matches.value_of("Filename").unwrap());
-    let last = anni_repo::structure::file_name(to_add)?;
+    let last = anni_repo::library::file_name(to_add)?;
     if !is_album_folder(&last) {
         bail!("You can only edit a valid album in anni metadata repository.");
     }
@@ -89,7 +88,7 @@ fn handle_repo_edit(matches: &ArgMatches, settings: &RepositoryManager) -> anyho
 
 fn handle_repo_apply(matches: &ArgMatches, settings: &RepositoryManager) -> anyhow::Result<()> {
     let to_apply = Path::new(matches.value_of("Filename").unwrap());
-    let last = anni_repo::structure::file_name(to_apply)?;
+    let last = anni_repo::library::file_name(to_apply)?;
     if !is_album_folder(&last) {
         bail!("You can only apply album metadata to a valid anni convention album directory.");
     }
@@ -100,7 +99,10 @@ fn handle_repo_apply(matches: &ArgMatches, settings: &RepositoryManager) -> anyh
     }
 
     let album = settings.load_album(&catalog)?;
-    if album.title() != album_title || album.catalog() != catalog || album.release_date() != &release_date {
+    if album.title() != album_title
+        || album.catalog() != catalog
+        || album.release_date() != &release_date
+    {
         bail!("Album info mismatch. Aborted.");
     }
 
@@ -108,28 +110,51 @@ fn handle_repo_apply(matches: &ArgMatches, settings: &RepositoryManager) -> anyh
     for (i, disc) in album.discs().iter().enumerate() {
         let disc_num = i + 1;
         let disc_dir = if discs.len() > 1 {
-            to_apply.join(format!("[{}] {} [Disc {}]", disc.catalog(), album_title, disc_num))
+            to_apply.join(format!(
+                "[{}] {} [Disc {}]",
+                disc.catalog(),
+                album_title,
+                disc_num
+            ))
         } else {
             to_apply.to_owned()
         };
         let files = fs::get_ext_files(disc_dir, "flac", false)?.unwrap();
         let tracks = disc.tracks();
         if files.len() != tracks.len() {
-            bail!("Track number mismatch in Disc {} of {}. Aborted.", disc_num, catalog);
+            bail!(
+                "Track number mismatch in Disc {} of {}. Aborted.",
+                disc_num,
+                catalog
+            );
         }
 
         for i in 0..files.len() {
             let file = &files[i];
             let track = &tracks[i];
-            let meta = format!(r#"TITLE={}
+            let meta = format!(
+                r#"TITLE={}
 ALBUM={}
 ARTIST={}
 DATE={}
 TRACKNUMBER={}
 TRACKTOTAL={}
 DISCNUMBER={}
-DISCTOTAL={}"#, track.title(), album_title, track.artist(), album.release_date(), i + 1, tracks.len(), disc_num, discs.len());
-            println!("echo {} | metaflac --remove-all-tags --import-tags-from=- {}", escape(meta.into()), escape(file.to_str().unwrap().into()));
+DISCTOTAL={}"#,
+                track.title(),
+                album_title,
+                track.artist(),
+                album.release_date(),
+                i + 1,
+                tracks.len(),
+                disc_num,
+                discs.len()
+            );
+            println!(
+                "echo {} | metaflac --remove-all-tags --import-tags-from=- {}",
+                escape(meta.into()),
+                escape(file.to_str().unwrap().into())
+            );
         }
     }
     Ok(())

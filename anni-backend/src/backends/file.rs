@@ -1,10 +1,10 @@
-use crate::common::{Backend, extract_album, extract_disc, BackendError};
+use crate::common::{extract_album, extract_disc, Backend, BackendError};
 use async_trait::async_trait;
-use tokio::io::AsyncRead;
 use std::collections::{HashMap, HashSet};
-use std::path::{PathBuf, Path};
-use tokio::fs::{read_dir, File};
+use std::path::{Path, PathBuf};
 use std::pin::Pin;
+use tokio::fs::{read_dir, File};
+use tokio::io::AsyncRead;
 
 pub struct FileBackend {
     strict: bool,
@@ -14,17 +14,27 @@ pub struct FileBackend {
 
 impl FileBackend {
     pub fn new(root: PathBuf, strict: bool) -> Self {
-        FileBackend { root, strict, inner: Default::default() }
+        FileBackend {
+            root,
+            strict,
+            inner: Default::default(),
+        }
     }
 
-    async fn walk_dir<P: AsRef<Path> + Send>(&mut self, dir: P, to_visit: &mut Vec<PathBuf>) -> Result<(), BackendError> {
+    async fn walk_dir<P: AsRef<Path> + Send>(
+        &mut self,
+        dir: P,
+        to_visit: &mut Vec<PathBuf>,
+    ) -> Result<(), BackendError> {
         let mut dir = read_dir(dir).await?;
         while let Some(entry) = dir.next_entry().await? {
             if entry.metadata().await?.is_dir() {
                 let path = entry.path();
                 if let Some(catalog) = extract_album(
-                    path.file_name().ok_or(BackendError::InvalidPath)?
-                        .to_str().ok_or(BackendError::InvalidPath)?
+                    path.file_name()
+                        .ok_or(BackendError::InvalidPath)?
+                        .to_str()
+                        .ok_or(BackendError::InvalidPath)?,
                 ) {
                     // look for inner discs
                     if !self.walk_discs(&path).await? {
@@ -45,8 +55,11 @@ impl FileBackend {
         while let Some(entry) = dir.next_entry().await? {
             if entry.metadata().await?.is_dir() {
                 let path = entry.path();
-                let disc_name = path.file_name().ok_or(BackendError::InvalidPath)?
-                    .to_str().ok_or(BackendError::InvalidPath)?;
+                let disc_name = path
+                    .file_name()
+                    .ok_or(BackendError::InvalidPath)?
+                    .to_str()
+                    .ok_or(BackendError::InvalidPath)?;
                 if let Some(catalog) = extract_disc(disc_name) {
                     self.inner.insert(catalog, path);
                     has_disc = true;
@@ -62,7 +75,8 @@ impl FileBackend {
         while let Some(entry) = dir.next_entry().await? {
             if entry.metadata().await?.is_dir() {
                 let path = entry.path();
-                let catalog = path.file_name()
+                let catalog = path
+                    .file_name()
                     .ok_or(BackendError::InvalidPath)?
                     .to_str()
                     .ok_or(BackendError::InvalidPath)?;
@@ -76,7 +90,10 @@ impl FileBackend {
         Ok(if self.strict {
             self.root.join(catalog)
         } else {
-            self.inner.get(catalog).ok_or(BackendError::UnknownCatalog)?.to_owned()
+            self.inner
+                .get(catalog)
+                .ok_or(BackendError::UnknownCatalog)?
+                .to_owned()
         })
     }
 }
@@ -95,16 +112,28 @@ impl Backend for FileBackend {
             while let Some(dir) = to_visit.pop() {
                 self.walk_dir(dir, &mut to_visit).await?;
             }
-            Ok(self.inner.keys().into_iter().map(|a| a.to_owned()).collect())
+            Ok(self
+                .inner
+                .keys()
+                .into_iter()
+                .map(|a| a.to_owned())
+                .collect())
         }
     }
 
-    async fn get_audio(&self, catalog: &str, track_id: u8) -> Result<Pin<Box<dyn AsyncRead>>, BackendError> {
+    async fn get_audio(
+        &self,
+        catalog: &str,
+        track_id: u8,
+    ) -> Result<Pin<Box<dyn AsyncRead>>, BackendError> {
         let path = self.get_catalog_path(catalog)?;
         let mut dir = read_dir(path).await?;
         while let Some(entry) = dir.next_entry().await? {
             let filename = entry.file_name();
-            if filename.to_string_lossy().starts_with::<&str>(format!("{:02}.", track_id).as_ref()) {
+            if filename
+                .to_string_lossy()
+                .starts_with::<&str>(format!("{:02}.", track_id).as_ref())
+            {
                 let file = File::open(entry.path()).await?;
                 let result: Pin<Box<dyn AsyncRead>> = Box::pin(file);
                 return Ok(result);
@@ -124,8 +153,8 @@ impl Backend for FileBackend {
 #[tokio::test]
 async fn test_scan() {
     let mut f = FileBackend::new(PathBuf::from("/home/yesterday17/音乐/"), false);
-    let d = f.update_albums().await.unwrap();
+    let d = f.albums().await.unwrap();
     println!("{:#?}", d);
 
-    let _audio = f.get_audio("LACM-14986", 2, "Anniversary").await.unwrap();
+    let _audio = f.get_audio("LACM-14986", 2).await.unwrap();
 }
