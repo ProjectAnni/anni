@@ -4,7 +4,7 @@ extern crate gtk;
 use gio::prelude::*;
 use gtk::prelude::*;
 
-use gtk::{Application, ApplicationWindow, Container, Label, ListBox, SearchEntry};
+use gtk::{Application, ApplicationWindow, Container, GtkWindowExt, Label, ListBox, SearchEntry, Widget};
 
 fn main() {
     let application = Application::new(Some("moe.mmf.anni.anniu"), Default::default())
@@ -18,6 +18,9 @@ fn main() {
         window.set_application(Some(app));
         window.set_title("Anniu");
         window.set_default_size(1280, 720);
+
+        let title_bar: Widget = builder.get_object("player-appbar").unwrap();
+        window.set_titlebar(Some(&title_bar));
 
         let search: SearchEntry = builder.get_object("search").unwrap();
         search.connect_search_changed(move |e| {
