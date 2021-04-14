@@ -168,7 +168,7 @@ fn split_wav_input<R: Read, P: AsRef<Path>>(audio: &mut R, cue_path: P, output_f
     let mut processes = Vec::with_capacity(tracks.len() - 1);
     for now in track_iter {
         eprintln!("{}...", prev.0);
-        let output = cue_path.as_ref().with_file_name(format!("{}.{}", prev.0, output_format));
+        let output = cue_path.as_ref().with_file_name(format!("{}.{}", prev.0, output_format).replace("/", "／"));
         let mut process = match output_format {
             "wav" => FileProcess::File(File::create(output)?),
             "flac" => {

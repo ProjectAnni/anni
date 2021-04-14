@@ -119,7 +119,6 @@ fn tracks(file: &str) -> io::Result<Vec<String>> {
         for track in file.tracks.iter() {
             let title = track.info.get("TITLE").expect("Track TITIE not provided!");
             let artist = track.info.get("ARTIST").map(String::as_str).unwrap_or(artist);
-            assert!(artist.len() > 0);
 
             result.push(format!(r#"TITLE={}
 ALBUM={}
