@@ -145,6 +145,14 @@ pub fn handle_split(matches: &ArgMatches) -> anyhow::Result<()> {
                     .stdout(Stdio::piped())
                     .spawn()?;
                 FileProcess::Process(process)
+            },
+            "ape" => {
+                let process = Command::new("mac")
+                    .arg(audio.into_os_string())
+                    .args(&["-", "-d"])
+                    .stdout(Stdio::piped())
+                    .spawn()?;
+                FileProcess::Process(process)
             }
             _ => unreachable!(),
         };

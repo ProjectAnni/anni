@@ -122,7 +122,7 @@ fn main() -> anyhow::Result<()> {
                 .short("i")
                 .takes_value(true)
                 .default_value("wav")
-                .possible_values(&["wav", "flac"])
+                .possible_values(&["wav", "flac", "ape"])
             )
             .arg(Arg::with_name("split.format.output")
                 .help(fl!("split-format-output"))
