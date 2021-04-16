@@ -20,21 +20,21 @@ fn main() -> anyhow::Result<()> {
         .map(|cfg| PathBuf::from(cfg))
         .unwrap_or({
             let dir = directories_next::ProjectDirs::from("moe", "mmf", "anni").expect("Failed to get project dirs.");
-            dir.config_dir().join("config.conf")
+            dir.config_dir().join("anni.conf")
         });
     if config.exists() {
         // apply env from config path
         dotenv::from_path(&config)?;
         // initialize env_logger
         env_logger::builder()
-            .filter_level(LevelFilter::Warn)
+            .filter_level(LevelFilter::Info)
             .parse_env("ANNI_LOG")
             .init();
         info!("Read config from: {:?}", config);
     } else {
         // initialize env_logger
         env_logger::builder()
-            .filter_level(LevelFilter::Warn)
+            .filter_level(LevelFilter::Info)
             .parse_env("ANNI_LOG")
             .init();
         // config file not exist
