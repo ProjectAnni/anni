@@ -63,6 +63,7 @@ impl Subcommand for FlacSubcommand {
             )
             .arg(Arg::new("Filename")
                 .takes_value(true)
+                .required(true)
                 .min_values(1)
             )
     }

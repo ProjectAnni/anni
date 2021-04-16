@@ -41,6 +41,7 @@ impl Subcommand for CueSubcommand {
             )
             .arg(Arg::new("Filename")
                 .takes_value(true)
+                .required(true)
                 .min_values(1)
             )
     }
@@ -52,15 +53,14 @@ impl Subcommand for CueSubcommand {
             let c = matches.value_of("cue.file")
                 .map(|u| PathBuf::from_str(u)) // map file path to PathBuf
                 .unwrap()?; // match must present
-            let f = matches.values_of("Filename")
-                .ok_or(anyhow!("No FLAC file provided."))?
+            let f = matches.values_of("Filename").unwrap()
                 .map(|u| PathBuf::from_str(u)).collect::<Result<Vec<_>, _>>()?;
             (c, f)
-        } else if matches.is_present("cue.dir") && matches.is_present("Filename") {
+        } else if matches.is_present("cue.dir") {
             // In directory mode, only one path is used: <Filename>[0]
             // The first CUE file found in that directory is treated as CUE input
             // All other FLAC file in that directory are treated as input
-            let dir = matches.value_of("Filename").ok_or(anyhow!("No filename provided."))?;
+            let dir = matches.value_of("Filename").unwrap();
             let c = fs::get_ext_file(dir, "cue", false)?.ok_or(anyhow!("No CUE file found."))?;
             let f = fs::get_ext_files(PathBuf::from(dir), "flac", false)?
                 .ok_or(anyhow!("No FLAC file found"))?;
