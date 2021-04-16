@@ -2,40 +2,80 @@ use cue_sheet::tracklist::Tracklist;
 use shell_escape::escape;
 use std::io;
 use std::path::{Path, PathBuf};
-use clap::ArgMatches;
+use clap::{ArgMatches, App, ArgGroup, Arg};
+use crate::fl;
 use anni_utils::fs;
 use std::str::FromStr;
 
-pub(crate) fn handle_cue(matches: &ArgMatches) -> anyhow::Result<()> {
-    let (cue, files) = if matches.is_present("cue.file") {
-        // In file mode, the path of CUE file is specified by -f
-        // And all the files in <Filename> are FLAC files
-        let c = matches.value_of("cue.file")
-            .map(|u| PathBuf::from_str(u)) // map file path to PathBuf
-            .unwrap()?; // match must present
-        let f = matches.values_of("Filename")
-            .ok_or(anyhow!("No FLAC file provided."))?
-            .map(|u| PathBuf::from_str(u)).collect::<Result<Vec<_>, _>>()?;
-        (c, f)
-    } else if matches.is_present("cue.dir") && matches.is_present("Filename") {
-        // In directory mode, only one path is used: <Filename>[0]
-        // The first CUE file found in that directory is treated as CUE input
-        // All other FLAC file in that directory are treated as input
-        let dir = matches.value_of("Filename").ok_or(anyhow!("No filename provided."))?;
-        let c = fs::get_ext_file(dir, "cue", false)?.ok_or(anyhow!("No CUE file found."))?;
-        let f = fs::get_ext_files(PathBuf::from(dir), "flac", false)?
-            .ok_or(anyhow!("No FLAC file found"))?;
-        // .map(|p| p.iter().map(|t| t.to_str().unwrap().to_owned()).collect::<Vec<_>>());
-        (c, f)
-    } else {
-        unimplemented!();
-    };
+use crate::subcommands::Subcommand;
 
-    if matches.is_present("cue.tagsh") {
-        let result = parse_file(cue, &files)?;
-        println!("{}", result);
+pub(crate) struct CueSubcommand;
+
+impl Subcommand for CueSubcommand {
+    fn name(&self) -> &'static str {
+        "cue"
     }
-    Ok(())
+
+    fn create(&self) -> App<'static> {
+        App::new("cue")
+            .about(fl!("cue"))
+            .arg(Arg::new("cue.file")
+                .about(fl!("cue-file"))
+                .long("file")
+                .short('f')
+                .takes_value(true)
+            )
+            .arg(Arg::new("cue.dir")
+                .about(fl!("cue-dir"))
+                .long("dir")
+                .short('d')
+            )
+            .group(ArgGroup::new("cue.source")
+                .args(&["cue.file", "cue.dir"])
+                .required(true)
+            )
+            .arg(Arg::new("cue.tagsh")
+                .about(fl!("cue-tagsh"))
+                .long("tag-sh")
+                .short('t')
+            )
+            .arg(Arg::new("Filename")
+                .takes_value(true)
+                .min_values(1)
+            )
+    }
+
+    fn handle(&self, matches: &ArgMatches) -> anyhow::Result<()> {
+        let (cue, files) = if matches.is_present("cue.file") {
+            // In file mode, the path of CUE file is specified by -f
+            // And all the files in <Filename> are FLAC files
+            let c = matches.value_of("cue.file")
+                .map(|u| PathBuf::from_str(u)) // map file path to PathBuf
+                .unwrap()?; // match must present
+            let f = matches.values_of("Filename")
+                .ok_or(anyhow!("No FLAC file provided."))?
+                .map(|u| PathBuf::from_str(u)).collect::<Result<Vec<_>, _>>()?;
+            (c, f)
+        } else if matches.is_present("cue.dir") && matches.is_present("Filename") {
+            // In directory mode, only one path is used: <Filename>[0]
+            // The first CUE file found in that directory is treated as CUE input
+            // All other FLAC file in that directory are treated as input
+            let dir = matches.value_of("Filename").ok_or(anyhow!("No filename provided."))?;
+            let c = fs::get_ext_file(dir, "cue", false)?.ok_or(anyhow!("No CUE file found."))?;
+            let f = fs::get_ext_files(PathBuf::from(dir), "flac", false)?
+                .ok_or(anyhow!("No FLAC file found"))?;
+            // .map(|p| p.iter().map(|t| t.to_str().unwrap().to_owned()).collect::<Vec<_>>());
+            (c, f)
+        } else {
+            unimplemented!();
+        };
+
+        if matches.is_present("cue.tagsh") {
+            let result = parse_file(cue, &files)?;
+            println!("{}", result);
+        }
+        Ok(())
+    }
 }
 
 fn parse_file<P: AsRef<Path>>(path: P, files: &[P]) -> anyhow::Result<String> {

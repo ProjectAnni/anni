@@ -1,3 +1,6 @@
+use crate::subcommands::Subcommand;
+use clap::{App, ArgMatches, Arg};
+use crate::fl;
 use std::io::{Write, Read};
 use anni_common::{Decode, Encode};
 use anni_utils::{decode, fs};
@@ -6,7 +9,77 @@ use std::fs::File;
 use anni_utils::encode::{btoken_w, u32_le_w, u16_le_w};
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio, Child};
-use clap::ArgMatches;
+
+pub struct SplitSubcommand;
+
+impl Subcommand for SplitSubcommand {
+    fn name(&self) -> &'static str {
+        "split"
+    }
+
+    fn create(&self) -> App<'static> {
+        App::new("split")
+            .about(fl!("split"))
+            .arg(Arg::new("split.format.input")
+                .about(fl!("split-format-input"))
+                .long("input-format")
+                .short('i')
+                .takes_value(true)
+                .default_value("wav")
+                .possible_values(&["wav", "flac", "ape"])
+                .env("Anni_Split_Input_Format")
+            )
+            .arg(Arg::new("split.format.output")
+                .about(fl!("split-format-output"))
+                .long("output-format")
+                .short('o')
+                .takes_value(true)
+                .default_value("flac")
+                .possible_values(&["wav", "flac"])
+                .env("Anni_Split_Output_Format")
+            )
+            .arg(Arg::new("Filename")
+                .required(true)
+                .takes_value(true)
+            )
+    }
+
+    fn handle(&self, matches: &ArgMatches) -> anyhow::Result<()> {
+        let input_format = matches.value_of("split.format.input").unwrap();
+        let output_format = matches.value_of("split.format.output").unwrap();
+        if let Some(dir) = matches.value_of("Filename") {
+            let path = PathBuf::from(dir);
+            let cue = fs::get_ext_file(&path, "cue", false)?
+                .ok_or(anyhow!("Failed to find CUE sheet."))?;
+            let audio = fs::get_ext_file(&path, input_format, false)?
+                .ok_or(anyhow!("Failed to find audio file."))?;
+
+            let mut input = match input_format {
+                "wav" => FileProcess::File(File::open(audio)?),
+                "flac" => {
+                    let process = Command::new("flac")
+                        .args(&["-c", "-d"])
+                        .arg(audio.into_os_string())
+                        .stdout(Stdio::piped())
+                        .spawn()?;
+                    FileProcess::Process(process)
+                }
+                "ape" => {
+                    let process = Command::new("mac")
+                        .arg(audio.into_os_string())
+                        .args(&["-", "-d"])
+                        .stdout(Stdio::piped())
+                        .spawn()?;
+                    FileProcess::Process(process)
+                }
+                _ => unreachable!(),
+            };
+            split_wav_input(&mut input.get_reader(), cue, output_format)?;
+        }
+        Ok(())
+    }
+}
+
 
 #[derive(Debug)]
 pub struct WaveHeader {
@@ -126,45 +199,10 @@ impl FileProcess {
     }
 }
 
-pub fn handle_split(matches: &ArgMatches) -> anyhow::Result<()> {
-    let input_format = matches.value_of("split.format.input").unwrap();
-    let output_format = matches.value_of("split.format.output").unwrap();
-    if let Some(dir) = matches.value_of("Filename") {
-        let path = PathBuf::from(dir);
-        let cue = fs::get_ext_file(&path, "cue", false)?
-            .ok_or(anyhow!("Failed to find CUE sheet."))?;
-        let audio = fs::get_ext_file(&path, input_format, false)?
-            .ok_or(anyhow!("Failed to find audio file."))?;
-
-        let mut input = match input_format {
-            "wav" => FileProcess::File(File::open(audio)?),
-            "flac" => {
-                let process = Command::new("flac")
-                    .args(&["-c", "-d"])
-                    .arg(audio.into_os_string())
-                    .stdout(Stdio::piped())
-                    .spawn()?;
-                FileProcess::Process(process)
-            },
-            "ape" => {
-                let process = Command::new("mac")
-                    .arg(audio.into_os_string())
-                    .args(&["-", "-d"])
-                    .stdout(Stdio::piped())
-                    .spawn()?;
-                FileProcess::Process(process)
-            }
-            _ => unreachable!(),
-        };
-        split_wav_input(&mut input.get_reader(), cue, output_format)?;
-    }
-    Ok(())
-}
-
 fn split_wav_input<R: Read, P: AsRef<Path>>(audio: &mut R, cue_path: P, output_format: &str) -> anyhow::Result<()> {
     let mut header = WaveHeader::from_reader(audio)?;
 
-    let mut tracks: Vec<(String, usize)> = crate::cue::extract_breakpoints(cue_path.as_ref())
+    let mut tracks: Vec<(String, usize)> = crate::subcommands::cue::extract_breakpoints(cue_path.as_ref())
         .iter()
         .map(|i| (format!("{:02}. {}", i.index, i.title), (&header).mmssff(i.mm, i.ss, i.ff)))
         .collect();

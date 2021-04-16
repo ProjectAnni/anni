@@ -1,7 +1,7 @@
 [package]
 name = "anni-repo"
 version = "0.1.0"
-authors = ["Yesterday17 <t@yesterday17.cn>"]
+authors = ["Yesterday17 <mmf@mmf.moe>"]
 edition = "2018"
 
 [dependencies]

@@ -3,23 +3,71 @@ use anni_repo::album::{Disc, Track};
 use anni_repo::library::{album_info, disc_info, file_name};
 use anni_repo::{Album, RepositoryManager};
 use anni_utils::fs;
-use clap::ArgMatches;
+use clap::{ArgMatches, App, Arg};
+use crate::fl;
 use shell_escape::escape;
 use std::path::{Path, PathBuf};
+use crate::subcommands::Subcommand;
 
-pub(crate) fn handle_repo(matches: &ArgMatches) -> anyhow::Result<()> {
-    let settings = RepositoryManager::new(PathBuf::from(matches.value_of("repo.root").unwrap()))?;
+pub(crate) struct RepoSubcommand;
 
-    if let Some(matches) = matches.subcommand_matches("apply") {
-        handle_repo_apply(matches, &settings)?;
-    } else if let Some(matches) = matches.subcommand_matches("edit") {
-        handle_repo_edit(matches, &settings)?;
-    } else if let Some(matches) = matches.subcommand_matches("add") {
-        handle_repo_add(matches, &settings)?;
-    } else {
-        unimplemented!();
+impl Subcommand for RepoSubcommand {
+    fn name(&self) -> &'static str {
+        "repo"
     }
-    Ok(())
+
+    fn create(&self) -> App<'static> {
+        App::new("repo")
+            .about(fl!("repo"))
+            .arg(Arg::new("repo.root")
+                .about(fl!("repo-root"))
+                .long("root")
+                .env("ANNI_ROOT")
+                .takes_value(true)
+                .required(true)
+            )
+            .subcommand(App::new("add")
+                .about(fl!("repo-add"))
+                .arg(Arg::new("edit")
+                    .about(fl!("repo-add-edit"))
+                    .long("edit")
+                    .short('e')
+                )
+                .arg(Arg::new("Filename")
+                    .takes_value(true)
+                    .min_values(1)
+                )
+            )
+            .subcommand(App::new("edit")
+                .about(fl!("repo-edit"))
+                .arg(Arg::new("Filename")
+                    .takes_value(true)
+                    .min_values(1)
+                )
+            )
+            .subcommand(App::new("apply")
+                .about(fl!("repo-apply"))
+                .arg(Arg::new("Filename")
+                    .takes_value(true)
+                    .min_values(1)
+                )
+            )
+    }
+
+    fn handle(&self, matches: &ArgMatches) -> anyhow::Result<()> {
+        let settings = RepositoryManager::new(PathBuf::from(matches.value_of("repo.root").unwrap()))?;
+
+        if let Some(matches) = matches.subcommand_matches("apply") {
+            handle_repo_apply(matches, &settings)?;
+        } else if let Some(matches) = matches.subcommand_matches("edit") {
+            handle_repo_edit(matches, &settings)?;
+        } else if let Some(matches) = matches.subcommand_matches("add") {
+            handle_repo_add(matches, &settings)?;
+        } else {
+            unimplemented!();
+        }
+        Ok(())
+    }
 }
 
 fn handle_repo_add(matches: &ArgMatches, settings: &RepositoryManager) -> anyhow::Result<()> {

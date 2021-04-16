@@ -11,8 +11,112 @@ use shell_escape::escape;
 use anni_utils::fs::PathWalker;
 use std::iter::FilterMap;
 use anni_flac::{MetadataBlockData, FlacHeader};
-use clap::ArgMatches;
+use clap::{ArgMatches, App, Arg, ArgGroup};
+use crate::fl;
 use std::process::exit;
+use crate::subcommands::Subcommand;
+
+pub(crate) struct FlacSubcommand;
+
+impl Subcommand for FlacSubcommand {
+    fn name(&self) -> &'static str {
+        "flac"
+    }
+
+    fn create(&self) -> App<'static> {
+        App::new("flac")
+            .about(fl!("flac"))
+            .arg(Arg::new("flac.export")
+                .about(fl!("flac-export"))
+                .long("export")
+                .short('e')
+            )
+            .arg(Arg::new("flac.export.type")
+                .about(fl!("flac-export-type"))
+                .long("export-type")
+                .short('t')
+                .takes_value(true)
+                .default_value("tag")
+                .possible_values(&[
+                    // block types
+                    "info", "application", "seektable", "cue",
+                    // comment & alias
+                    "comment", "tag",
+                    // common picture
+                    "picture",
+                    // picture: cover
+                    "cover",
+                    // list
+                    "list", "all",
+                ])
+            )
+            .arg(Arg::new("flac.export.to")
+                .about(fl!("flac-export-to"))
+                .long("export-to")
+                .short('o')
+                .takes_value(true)
+                .default_value("-")
+            )
+            .group(ArgGroup::new("group.flac.export")
+                .args(&["flac.export", "flac.export.type", "flac.export.to"])
+                .multiple(true)
+            )
+            .arg(Arg::new("Filename")
+                .takes_value(true)
+                .min_values(1)
+            )
+    }
+
+    fn handle(&self, matches: &ArgMatches) -> anyhow::Result<()> {
+        if matches.is_present("flac.check") {
+            // TODO: remove
+            let pwd = PathBuf::from("./");
+            let (paths, is_pwd) = match matches.values_of("Filename") {
+                Some(files) => (files.collect(), false),
+                None => (vec![pwd.to_str().expect("Failed to convert to str")], true),
+            };
+            for input in paths {
+                for (file, header) in parse_input_iter(input) {
+                    if let Err(e) = header {
+                        error!("Failed to parse header of {:?}: {:?}", file, e);
+                        exit(1);
+                    }
+
+                    tags_check(file.to_string_lossy().as_ref(), &header.unwrap());
+                    if is_pwd {
+                        break;
+                    }
+                }
+            }
+        } else if matches.is_present("flac.export") {
+            let mut files = if let Some(filename) = matches.value_of("Filename") {
+                parse_input_iter(filename)
+            } else {
+                panic!("No filename provided.");
+            };
+
+            let (_, file) = files.nth(0).ok_or(anyhow!("No valid file found."))?;
+            let file = file?;
+            match matches.value_of("flac.export.type").unwrap() {
+                "info" => export(&file, "STREAMINFO", ExportConfig::None),
+                "application" => export(&file, "APPLICATION", ExportConfig::None),
+                "seektable" => export(&file, "SEEKTABLE", ExportConfig::None),
+                "cue" => export(&file, "CUESHEET", ExportConfig::None),
+                "comment" | "tag" => export(&file, "VORBIS_COMMENT", ExportConfig::None),
+                "picture" =>
+                    export(&file, "PICTURE", ExportConfig::Cover(ExportConfigCover::default())),
+                "cover" =>
+                    export(&file, "PICTURE", ExportConfig::Cover(ExportConfigCover {
+                        picture_type: Some(PictureType::CoverFront),
+                        block_num: None,
+                    })),
+                "list" | "all" => info_list(&file),
+                _ => panic!("Unknown export type.")
+            }
+        }
+        Ok(())
+    }
+}
 
 enum FlacTag {
     Must(&'static str, Validator),
@@ -52,56 +156,6 @@ const TAG_INCLUDED: [&'static str; 11] = [
     "ALBUMARTIST", "DISCNUMBER", "DISCTOTAL",
     "TOTALTRACKS", "TOTALDISCS",
 ];
-
-pub(crate) fn handle_flac(matches: &ArgMatches) -> anyhow::Result<()> {
-    if matches.is_present("flac.check") {
-        // TODO: remove
-        let pwd = PathBuf::from("./");
-        let (paths, is_pwd) = match matches.values_of("Filename") {
-            Some(files) => (files.collect(), false),
-            None => (vec![pwd.to_str().expect("Failed to convert to str")], true),
-        };
-        for input in paths {
-            for (file, header) in parse_input_iter(input) {
-                if let Err(e) = header {
-                    error!("Failed to parse header of {:?}: {:?}", file, e);
-                    exit(1);
-                }
-
-                tags_check(file.to_string_lossy().as_ref(), &header.unwrap());
-                if is_pwd {
-                    break;
-                }
-            }
-        }
-    } else if matches.is_present("flac.export") {
-        let mut files = if let Some(filename) = matches.value_of("Filename") {
-            parse_input_iter(filename)
-        } else {
-            panic!("No filename provided.");
-        };
-
-        let (_, file) = files.nth(0).ok_or(anyhow!("No valid file found."))?;
-        let file = file?;
-        match matches.value_of("flac.export.type").unwrap() {
-            "info" => export(&file, "STREAMINFO", ExportConfig::None),
-            "application" => export(&file, "APPLICATION", ExportConfig::None),
-            "seektable" => export(&file, "SEEKTABLE", ExportConfig::None),
-            "cue" => export(&file, "CUESHEET", ExportConfig::None),
-            "comment" | "tag" => export(&file, "VORBIS_COMMENT", ExportConfig::None),
-            "picture" =>
-                export(&file, "PICTURE", ExportConfig::Cover(ExportConfigCover::default())),
-            "cover" =>
-                export(&file, "PICTURE", ExportConfig::Cover(ExportConfigCover {
-                    picture_type: Some(PictureType::CoverFront),
-                    block_num: None,
-                })),
-            "list" | "all" => info_list(&file),
-            _ => panic!("Unknown export type.")
-        }
-    }
-    Ok(())
-}
 
 fn parse_input_iter(input: &str) -> FilterMap<PathWalker, fn(PathBuf) -> Option<(PathBuf, anni_flac::prelude::Result<FlacHeader>)>> {
     fs::PathWalker::new(PathBuf::from(input), true).filter_map(|file| {
