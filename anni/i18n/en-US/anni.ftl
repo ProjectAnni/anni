@@ -3,7 +3,6 @@ anni-about = A set of tools for self-hosting music sites.
 
 ## flac
 flac = Provide FLAC-related utilities.
-flac-check = Check whether tags in FLAC file meet anni requirements.
 flac-export = Export data.
 flac-export-type = Type of data to export.
 flac-export-to = Path for exported data.
@@ -19,6 +18,11 @@ cue-tagsh = Output script to add tags to FLAC files. Works like cuetag.sh, but y
 split = Provided helper to split audios.
 split-format-input = Extension of input audio file.
 split-format-output = Format of output audio file.
+
+## convention
+## FIXME
+convention = Provided audio convention utilities.
+convention-check = Check audio.
 
 ## repo
 repo = Anni metadata repository manager.

@@ -55,6 +55,7 @@ const TAG_INCLUDED: [&'static str; 11] = [
 
 pub(crate) fn handle_flac(matches: &ArgMatches) -> anyhow::Result<()> {
     if matches.is_present("flac.check") {
+        // TODO: remove
         let pwd = PathBuf::from("./");
         let (paths, is_pwd) = match matches.values_of("Filename") {
             Some(files) => (files.collect(), false),
@@ -148,7 +149,7 @@ fn export(header: &FlacHeader, b: &str, export_config: ExportConfig) {
     for (i, block) in header.blocks.iter().enumerate() {
         if block.data.as_str() == b {
             match &block.data {
-                MetadataBlockData::Comment(s) => { println!("{}", s); }
+                MetadataBlockData::Comment(s) => { print!("{}", s); }
                 MetadataBlockData::CueSheet(_) => {} // TODO
                 MetadataBlockData::Picture(p) => {
                     // Load config

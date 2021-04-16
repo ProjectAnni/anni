@@ -23,7 +23,7 @@ lazy_static::lazy_static! {
 #[macro_export]
 macro_rules! fl {
     ($message_id:literal) => {{
-        &i18n_embed_fl::fl!(i18n::LOCALIZATION_LOADER, $message_id)[..]
+        &i18n_embed_fl::fl!(crate::i18n::LOCALIZATION_LOADER, $message_id)[..]
     }};
 
     ($message_id:literal, $($args:expr),*) => {{

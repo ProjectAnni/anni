@@ -3,7 +3,6 @@ anni-about = 为自建音乐站点构建的一整套工具
 
 ## flac
 flac = 提供 FLAC 处理相关的功能
-flac-check = 检查 FLAC 文件的标签是否符合 anni 要求
 flac-export = 导出内容
 flac-export-type = 导出内容类型
 flac-export-to = 导出内容存放的路径
@@ -19,6 +18,10 @@ cue-tagsh = 输出给 FLAC 文件加上标签的脚本，功能类似 cuetag.sh�
 split = 提供音频分割相关的功能
 split-format-input = 待切分音频的文件类型
 split-format-output = 切分后输出音频的文件类型
+
+## convention
+convention = 提供定制化的音频检查约定检测
+convention-check = 检查音频是否符合约定
 
 ## repo
 repo = 提供 Anni 元数据仓库的管理功能

@@ -1,5 +1,7 @@
-use clap::{App, Arg, ArgGroup, crate_authors, crate_version, SubCommand, AppSettings};
+use clap::{App, Arg, ArgGroup, crate_authors, crate_version, AppSettings};
 use log::LevelFilter;
+use std::env;
+use std::path::PathBuf;
 
 mod flac;
 mod encoding;
@@ -7,6 +9,7 @@ mod cue;
 mod i18n;
 mod repo;
 mod split;
+mod convention;
 
 #[macro_use]
 extern crate anyhow;
@@ -15,32 +18,48 @@ extern crate anyhow;
 extern crate log;
 
 fn main() -> anyhow::Result<()> {
-    env_logger::builder()
-        .filter_level(LevelFilter::Warn)
-        .parse_env("ANNI_LOG")
-        .init();
+    let config = env::var("ANNI_CONFIG")
+        .map(|cfg| PathBuf::from(cfg))
+        .unwrap_or({
+            let dir = directories_next::ProjectDirs::from("moe", "mmf", "anni").expect("Failed to get project dirs.");
+            dir.config_dir().join("config.conf")
+        });
+    if config.exists() {
+        // apply env from config path
+        dotenv::from_path(&config)?;
+        // initialize env_logger
+        env_logger::builder()
+            .filter_level(LevelFilter::Warn)
+            .parse_env("ANNI_LOG")
+            .init();
+        info!("Read config from: {:?}", config);
+    } else {
+        // initialize env_logger
+        env_logger::builder()
+            .filter_level(LevelFilter::Warn)
+            .parse_env("ANNI_LOG")
+            .init();
+        // config file not exist
+        warn!("Config file not exist: {:?}", config);
+    }
 
     let matches = App::new("Project Anni")
         .about(fl!("anni-about"))
         .version(crate_version!())
         .author(crate_authors!())
         .setting(AppSettings::ArgRequiredElseHelp)
-        .subcommand(SubCommand::with_name("flac")
+        .setting(AppSettings::ColoredHelp)
+        .subcommand(App::new("flac")
             .about(fl!("flac"))
-            .arg(Arg::with_name("flac.check")
-                .help(fl!("flac-check"))
-                .long("check")
-                .short("c")
-            )
-            .arg(Arg::with_name("flac.export")
-                .help(fl!("flac-export"))
+            .arg(Arg::new("flac.export")
+                .about(fl!("flac-export"))
                 .long("export")
-                .short("e")
+                .short('e')
             )
-            .arg(Arg::with_name("flac.export.type")
-                .help(fl!("flac-export-type"))
+            .arg(Arg::new("flac.export.type")
+                .about(fl!("flac-export-type"))
                 .long("export-type")
-                .short("t")
+                .short('t')
                 .takes_value(true)
                 .default_value("tag")
                 .possible_values(&[
@@ -56,121 +75,120 @@ fn main() -> anyhow::Result<()> {
                     "list", "all",
                 ])
             )
-            .arg(Arg::with_name("flac.export.to")
-                .help(fl!("flac-export-to"))
+            .arg(Arg::new("flac.export.to")
+                .about(fl!("flac-export-to"))
                 .long("export-to")
-                .short("o")
+                .short('o')
                 .takes_value(true)
                 .default_value("-")
             )
-            .group(ArgGroup::with_name("group.flac")
-                .args(&["flac.check", "flac.export"])
-                .required(true)
-            )
-            .group(ArgGroup::with_name("group.flac.export")
+            .group(ArgGroup::new("group.flac.export")
                 .args(&["flac.export", "flac.export.type", "flac.export.to"])
                 .multiple(true)
             )
-            .arg(Arg::with_name("Filename")
+            .arg(Arg::new("Filename")
                 .takes_value(true)
-                .empty_values(false)
-                .multiple(true)
+                .min_values(1)
             )
         )
-        .subcommand(SubCommand::with_name("cue")
+        .subcommand(App::new("cue")
             .about(fl!("cue"))
-            .arg(Arg::with_name("cue.file")
-                .help(fl!("cue-file"))
+            .arg(Arg::new("cue.file")
+                .about(fl!("cue-file"))
                 .long("file")
-                .short("f")
+                .short('f')
                 .takes_value(true)
             )
-            .arg(Arg::with_name("cue.dir")
-                .help(fl!("cue-dir"))
+            .arg(Arg::new("cue.dir")
+                .about(fl!("cue-dir"))
                 .long("dir")
-                .short("d")
+                .short('d')
             )
-            .group(ArgGroup::with_name("cue.source")
+            .group(ArgGroup::new("cue.source")
                 .args(&["cue.file", "cue.dir"])
                 .required(true)
             )
-            .arg(Arg::with_name("cue.tagsh")
-                .help(fl!("cue-tagsh"))
+            .arg(Arg::new("cue.tagsh")
+                .about(fl!("cue-tagsh"))
                 .long("tag-sh")
-                .short("t")
+                .short('t')
             )
-            .arg(Arg::with_name("Filename")
+            .arg(Arg::new("Filename")
                 .takes_value(true)
-                .empty_values(false)
-                .multiple(true)
+                .min_values(1)
             )
         )
-        .subcommand(SubCommand::with_name("split")
+        .subcommand(App::new("split")
             .about(fl!("split"))
-            .arg(Arg::with_name("split.format.input")
-                .help(fl!("split-format-input"))
+            .arg(Arg::new("split.format.input")
+                .about(fl!("split-format-input"))
                 .long("input-format")
-                .short("i")
+                .short('i')
                 .takes_value(true)
                 .default_value("wav")
                 .possible_values(&["wav", "flac", "ape"])
+                .env("Anni_Split_Input_Format")
             )
-            .arg(Arg::with_name("split.format.output")
-                .help(fl!("split-format-output"))
+            .arg(Arg::new("split.format.output")
+                .about(fl!("split-format-output"))
                 .long("output-format")
-                .short("o")
+                .short('o')
                 .takes_value(true)
                 .default_value("flac")
                 .possible_values(&["wav", "flac"])
+                .env("Anni_Split_Output_Format")
             )
-            .arg(Arg::with_name("Filename")
+            .arg(Arg::new("Filename")
+                .required(true)
                 .takes_value(true)
-                .empty_values(false)
             )
         )
-        .subcommand(SubCommand::with_name("repo")
+        .subcommand(App::new("convention")
+            .about(fl!("convention"))
+            .alias("conv")
+            .subcommand(App::new("check")
+                .about(fl!("convention-check"))
+            )
+        )
+        .subcommand(App::new("repo")
             .about(fl!("repo"))
-            .arg(Arg::with_name("repo.root")
-                .help(fl!("repo-root"))
+            .arg(Arg::new("repo.root")
+                .about(fl!("repo-root"))
                 .long("root")
                 .env("ANNI_ROOT")
                 .takes_value(true)
                 .required(true)
             )
-            .subcommand(SubCommand::with_name("add")
+            .subcommand(App::new("add")
                 .about(fl!("repo-add"))
-                .arg(Arg::with_name("edit")
-                    .help(fl!("repo-add-edit"))
+                .arg(Arg::new("edit")
+                    .about(fl!("repo-add-edit"))
                     .long("edit")
-                    .short("e")
+                    .short('e')
                 )
-                .arg(Arg::with_name("Filename")
+                .arg(Arg::new("Filename")
                     .takes_value(true)
-                    .empty_values(false)
-                    .multiple(true)
-                    .required(true)
+                    .min_values(1)
                 )
             )
-            .subcommand(SubCommand::with_name("edit")
+            .subcommand(App::new("edit")
                 .about(fl!("repo-edit"))
-                .arg(Arg::with_name("Filename")
+                .arg(Arg::new("Filename")
                     .takes_value(true)
-                    .empty_values(false)
+                    .min_values(1)
                 )
             )
-            .subcommand(SubCommand::with_name("apply")
+            .subcommand(App::new("apply")
                 .about(fl!("repo-apply"))
-                .arg(Arg::with_name("Filename")
+                .arg(Arg::new("Filename")
                     .takes_value(true)
-                    .empty_values(false)
-                    .required(true)
+                    .min_values(1)
                 )
             )
         )
         .get_matches();
 
     if let Some(matches) = matches.subcommand_matches("flac") {
-        debug!("SubCommand matched: flac");
         flac::handle_flac(matches)?;
     } else if let Some(matches) = matches.subcommand_matches("cue") {
         debug!("SubCommand matched: cue");
@@ -178,6 +196,9 @@ fn main() -> anyhow::Result<()> {
     } else if let Some(matches) = matches.subcommand_matches("split") {
         debug!("SubCommand matched: split");
         split::handle_split(matches)?;
+    } else if let Some(matches) = matches.subcommand_matches("convention") {
+        debug!("SubCommand matched: convention");
+        convention::handle_convention(matches)?;
     } else if let Some(matches) = matches.subcommand_matches("repo") {
         debug!("SubCommand matched: repo");
         repo::handle_repo(matches)?;
