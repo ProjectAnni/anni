@@ -148,6 +148,7 @@ pub fn get_subdirectories<P: AsRef<Path>>(dir: P) -> std::io::Result<Vec<PathBuf
 }
 
 pub fn read_to_string<P: AsRef<Path>>(input: P) -> io::Result<String> {
+    log::debug!("Reading file to string: {:?}", input.as_ref());
     let r = std::fs::read(input)?;
     Ok(raw_to_string(&r))
 }

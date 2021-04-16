@@ -96,6 +96,7 @@ pub fn u24_be<R: Read>(reader: &mut R) -> Result<u32> {
 pub fn raw_to_string(input: &[u8]) -> String {
     let mut detector = chardetng::EncodingDetector::new();
     detector.feed(input, true);
-    let (result, _, _) = detector.guess(None, true).decode(input);
+    let (result, encoding, _) = detector.guess(None, true).decode(input);
+    log::debug!("Encoding detected: {}", encoding.name());
     result.into()
 }

@@ -4,7 +4,6 @@ anni-about = 为自建音乐站点构建的一整套工具
 ## flac
 flac = 提供 FLAC 处理相关的功能
 flac-check = 检查 FLAC 文件的标签是否符合 anni 要求
-flac-report-format = 输出日志的格式
 flac-export = 导出内容
 flac-export-type = 导出内容类型
 flac-export-to = 导出内容存放的路径
