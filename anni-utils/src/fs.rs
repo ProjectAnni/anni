@@ -2,6 +2,7 @@ use std::path::{PathBuf, Path};
 use std::fs::{read_dir};
 use std::io;
 pub use std::fs::*;
+use crate::decode::raw_to_string;
 
 pub struct PathWalker {
     path: Vec<PathBuf>,
@@ -144,4 +145,9 @@ pub fn get_subdirectories<P: AsRef<Path>>(dir: P) -> std::io::Result<Vec<PathBuf
         }
     }
     Ok(ret)
+}
+
+pub fn read_to_string<P: AsRef<Path>>(input: P) -> io::Result<String> {
+    let r = std::fs::read(input)?;
+    Ok(raw_to_string(&r))
 }

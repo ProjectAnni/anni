@@ -69,16 +69,9 @@ pub(crate) struct CueTrack {
 }
 
 pub(crate) fn extract_breakpoints<P: AsRef<Path>>(path: P) -> Vec<CueTrack> {
-    let mut str: &str = &std::fs::read_to_string(path).unwrap();
-
-    let first = str.chars().next().ok_or(io::Error::new(io::ErrorKind::InvalidData, "Empty CUE file")).unwrap();
-    // UTF-8 BOM
-    if first == '\u{feff}' {
-        str = &str[3..];
-    }
-
+    let cue = anni_utils::fs::read_to_string(path).unwrap();
     let mut result = Vec::new();
-    let cue = Tracklist::parse(str).unwrap();
+    let cue = Tracklist::parse(&cue).unwrap();
     for file in cue.files.iter() {
         for (i, track) in file.tracks.iter().enumerate() {
             for (index, time) in track.index.iter() {

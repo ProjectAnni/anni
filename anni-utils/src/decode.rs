@@ -92,3 +92,10 @@ pub fn u24_le<R: Read>(reader: &mut R) -> Result<u32> {
 pub fn u24_be<R: Read>(reader: &mut R) -> Result<u32> {
     Ok(reader.read_u24::<BigEndian>()?)
 }
+
+pub fn raw_to_string(input: &[u8]) -> String {
+    let mut detector = chardetng::EncodingDetector::new();
+    detector.feed(input, true);
+    let (result, _, _) = detector.guess(None, true).decode(input);
+    result.into()
+}
