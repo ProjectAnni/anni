@@ -212,13 +212,16 @@ DISCTOTAL={}"#,
 }
 
 pub(crate) fn stream_to_track(stream: &FlacHeader) -> Track {
-    let comment = stream.comments().unwrap();
-    let map = comment.to_map();
-    Track::new(
-        map.get("TITLE").map(|v| v.value()).unwrap_or(""),
-        map.get("ARTIST").map(|v| v.value()),
-        None,
-    )
+    if let Some(comment) = stream.comments() {
+        let map = comment.to_map();
+        Track::new(
+            map.get("TITLE").map(|v| v.value()).unwrap_or(""),
+            map.get("ARTIST").map(|v| v.value()),
+            None,
+        )
+    } else {
+        Track::new("", None, None)
+    }
 }
 
 fn is_album_folder(input: &str) -> bool {
