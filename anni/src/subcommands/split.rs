@@ -27,7 +27,6 @@ impl Subcommand for SplitSubcommand {
                 .takes_value(true)
                 .default_value("wav")
                 .possible_values(&["wav", "flac", "ape"])
-                .env("Anni_Split_Input_Format")
             )
             .arg(Arg::new("split.format.output")
                 .about(fl!("split-format-output"))
@@ -36,9 +35,8 @@ impl Subcommand for SplitSubcommand {
                 .takes_value(true)
                 .default_value("flac")
                 .possible_values(&["wav", "flac"])
-                .env("Anni_Split_Output_Format")
             )
-            .arg(Arg::new("Filename")
+            .arg(Arg::new("Directory")
                 .required(true)
                 .takes_value(true)
             )
@@ -46,40 +44,37 @@ impl Subcommand for SplitSubcommand {
 
     fn handle(&self, matches: &ArgMatches) -> anyhow::Result<()> {
         let input_format = matches.value_of("split.format.input").unwrap();
+        encoder_of(input_format)?;
+
         let output_format = matches.value_of("split.format.output").unwrap();
-        if let Some(dir) = matches.value_of("Filename") {
+        if input_format != output_format {
+            encoder_of(output_format)?;
+        }
+
+        if let Some(dir) = matches.value_of("Directory") {
             let path = PathBuf::from(dir);
             let cue = fs::get_ext_file(&path, "cue", false)?
                 .ok_or(anyhow!("Failed to find CUE sheet."))?;
             let audio = fs::get_ext_file(&path, input_format, false)?
                 .ok_or(anyhow!("Failed to find audio file."))?;
 
-            let mut input = match input_format {
-                "wav" => FileProcess::File(File::open(audio)?),
-                "flac" => {
-                    let process = Command::new("flac")
-                        .args(&["-c", "-d"])
-                        .arg(audio.into_os_string())
-                        .stdout(Stdio::piped())
-                        .spawn()?;
-                    FileProcess::Process(process)
-                }
-                "ape" => {
-                    let process = Command::new("mac")
-                        .arg(audio.into_os_string())
-                        .args(&["-", "-d"])
-                        .stdout(Stdio::piped())
-                        .spawn()?;
-                    FileProcess::Process(process)
-                }
-                _ => unreachable!(),
-            };
-            split_wav_input(&mut input.get_reader(), cue, output_format)?;
+            SplitTask::new(audio, input_format, output_format)?
+                .split(cue)?;
         }
         Ok(())
     }
 }
 
+fn encoder_of(format: &str) -> anyhow::Result<PathBuf> {
+    let encoder = match format {
+        "flac" => "flac",
+        "ape" => "mac",
+        "wav" => return Ok(PathBuf::new()),
+        _ => unimplemented!(),
+    };
+    let path = which::which(encoder)?;
+    Ok(path)
+}
 
 #[derive(Debug)]
 pub struct WaveHeader {
@@ -166,6 +161,90 @@ impl WaveHeader {
     }
 }
 
+struct SplitTask<'a> {
+    output_format: &'a str,
+    input: FileProcess,
+}
+
+impl<'a> SplitTask<'a> {
+    pub fn new(audio_path: PathBuf, input_format: &str, output_format: &'a str) -> anyhow::Result<Self> {
+        let input = match input_format {
+            "wav" => FileProcess::File(File::open(audio_path)?),
+            "flac" => {
+                let process = Command::new(encoder_of("flac").unwrap())
+                    .args(&["-c", "-d"])
+                    .arg(audio_path.into_os_string())
+                    .stdout(Stdio::piped())
+                    .stderr(Stdio::null()) // ignore flac log output
+                    .spawn()?;
+                FileProcess::Process(process)
+            }
+            "ape" => {
+                let process = Command::new(encoder_of("ape").unwrap())
+                    .arg(audio_path.into_os_string())
+                    .args(&["-", "-d"])
+                    .stdout(Stdio::piped())
+                    .spawn()?;
+                FileProcess::Process(process)
+            }
+            _ => unreachable!(),
+        };
+        Ok(Self { output_format, input })
+    }
+
+    pub fn split<P: AsRef<Path>>(&mut self, cue_path: P) -> anyhow::Result<()> {
+        let mut audio = self.input.get_reader();
+        let audio = &mut audio;
+
+        // read header first
+        let mut header = WaveHeader::from_reader(audio)?;
+
+        // extract cue break points
+        let mut tracks: Vec<(String, usize)> = crate::subcommands::cue::extract_breakpoints(cue_path.as_ref())
+            .iter()
+            .map(|i| (format!("{:02}. {}", i.index, i.title), (&header).mmssff(i.mm, i.ss, i.ff)))
+            .collect();
+        tracks.push((String::new(), header.data_size as usize));
+        let mut track_iter = tracks.iter();
+        eprintln!("Splitting...");
+
+        let mut prev = track_iter.next().unwrap();
+        let mut processes = Vec::with_capacity(tracks.len() - 1);
+        for now in track_iter {
+            eprintln!("{}...", prev.0);
+            // split track with filename
+            let output = cue_path.as_ref().with_file_name(format!("{}.{}", prev.0, self.output_format).replace("/", "／"));
+            // output file exists
+            if output.exists() {
+                bail!("Output file exists! Please remove the file and try again!");
+            }
+            // choose output format
+            let mut process = match self.output_format {
+                "wav" => FileProcess::File(File::create(output)?),
+                "flac" => {
+                    let process = Command::new(encoder_of("flac").unwrap())
+                        .args(&["--totally-silent", "-", "-o"])
+                        .arg(output.into_os_string())
+                        .stdin(Stdio::piped())
+                        .spawn()?;
+                    FileProcess::Process(process)
+                }
+                _ => unimplemented!(),
+            };
+            // split wav from start to end
+            split_wav(&mut header, audio, &mut process.get_writer(), prev.1, now.1)?;
+            processes.push(process);
+            prev = now;
+        }
+        // wait for all processes
+        for mut p in processes {
+            p.wait();
+        }
+        eprintln!("Finished!");
+        Ok(())
+    }
+}
+
 enum FileProcess {
     File(File),
     Process(Child),
@@ -197,45 +276,6 @@ impl FileProcess {
             _ => {}
         };
     }
-}
-
-fn split_wav_input<R: Read, P: AsRef<Path>>(audio: &mut R, cue_path: P, output_format: &str) -> anyhow::Result<()> {
-    let mut header = WaveHeader::from_reader(audio)?;
-
-    let mut tracks: Vec<(String, usize)> = crate::subcommands::cue::extract_breakpoints(cue_path.as_ref())
-        .iter()
-        .map(|i| (format!("{:02}. {}", i.index, i.title), (&header).mmssff(i.mm, i.ss, i.ff)))
-        .collect();
-    tracks.push((String::new(), header.data_size as usize));
-    let mut track_iter = tracks.iter();
-    eprintln!("Splitting...");
-
-    let mut prev = track_iter.next().unwrap();
-    let mut processes = Vec::with_capacity(tracks.len() - 1);
-    for now in track_iter {
-        eprintln!("{}...", prev.0);
-        let output = cue_path.as_ref().with_file_name(format!("{}.{}", prev.0, output_format).replace("/", "／"));
-        let mut process = match output_format {
-            "wav" => FileProcess::File(File::create(output)?),
-            "flac" => {
-                let process = Command::new("flac")
-                    .args(&["--totally-silent", "-", "-o"])
-                    .arg(output.into_os_string())
-                    .stdin(Stdio::piped())
-                    .spawn()?;
-                FileProcess::Process(process)
-            }
-            _ => unimplemented!(),
-        };
-        split_wav(&mut header, audio, &mut process.get_writer(), prev.1, now.1)?;
-        processes.push(process);
-        prev = now;
-    }
-    for mut p in processes {
-        p.wait();
-    }
-    eprintln!("Finished!");
-    Ok(())
 }
 
 fn split_wav<I: Read, O: Write>(header: &mut WaveHeader, input: &mut I, output: &mut O, start: usize, end: usize) -> anyhow::Result<()> {

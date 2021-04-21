@@ -35,7 +35,7 @@ impl Album {
                         if album_artist.is_empty() {
                             // the first track
                             album_artist = artist.clone()
-                        } else if album_artist != artist {
+                        } else if &album_artist != artist {
                             // not all artists are the same, exit
                             return;
                         }

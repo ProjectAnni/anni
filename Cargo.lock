@@ -271,6 +271,7 @@ dependencies = [
  "reqwest",
  "rust-embed",
  "shell-escape",
+ "which 4.1.0",
 ]
 
 [[package]]
@@ -931,7 +932,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "323032447eba6f5aca88b46d6e7815151c16c53e4128569420c09d7840db3bfc"
 dependencies = [
  "tempfile",
- "which",
+ "which 3.1.1",
 ]
 
 [[package]]
@@ -3550,6 +3551,16 @@ version = "3.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d011071ae14a2f6671d0b74080ae0cd8ebf3a6f8c9589a2cd45f23126fe29724"
 dependencies = [
+ "libc",
+]
+
+[[package]]
+name = "which"
+version = "4.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b55551e42cbdf2ce2bedd2203d0cc08dba002c27510f86dab6d0ce304cba3dfe"
+dependencies = [
+ "either",
  "libc",
 ]
 
