@@ -149,7 +149,7 @@ impl Disc {
     }
 
     pub fn title(&self) -> Option<&str> {
-        self.title().as_deref()
+        self.title.as_deref()
     }
 
     pub fn catalog(&self) -> &str {

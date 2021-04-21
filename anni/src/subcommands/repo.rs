@@ -82,12 +82,12 @@ fn handle_repo_add(matches: &ArgMatches, settings: &RepositoryManager) -> anyhow
             ball!("repo-add-invalid-album");
         }
 
-        let (release_date, catalog, title) = album_info(&last)?;
+        let (release_date, catalog, album_title) = album_info(&last)?;
         if settings.album_exists(&catalog) {
             ball!("repo-album-exists", catalog = catalog);
         }
 
-        let mut album = Album::new(&title, "[Unknown Artist]", release_date, &catalog);
+        let mut album = Album::new(&album_title, "[Unknown Artist]", release_date, &catalog);
 
         let directories = fs::get_subdirectories(to_add)?;
         let mut directories: Vec<_> = directories.iter().map(|r| r.as_path()).collect();
@@ -100,8 +100,13 @@ fn handle_repo_add(matches: &ArgMatches, settings: &RepositoryManager) -> anyhow
         for dir in directories.iter() {
             let files = fs::get_ext_files(PathBuf::from(dir), "flac", false)?.unwrap();
             let mut disc = if has_discs {
-                let (catalog, _, _) = disc_info(&*file_name(dir)?)?;
-                Disc::new(catalog, None, None, None)
+                let (catalog, disc_title, _) = disc_info(&*file_name(dir)?)?;
+                Disc::new(
+                    catalog,
+                    if album_title != disc_title { Some(disc_title) } else { None },
+                    None,
+                    None,
+                )
             } else {
                 Disc::new(catalog.clone(), None, None, None)
             };
