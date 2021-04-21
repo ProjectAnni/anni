@@ -183,6 +183,10 @@ fn handle_repo_apply(matches: &ArgMatches, settings: &RepositoryManager) -> anyh
         };
         debug!("Disc dir: {:?}", disc_dir);
 
+        if !disc_dir.exists() {
+            bail!("Disc directory does not exist: {:?}", disc_dir);
+        }
+
         let files = fs::get_ext_files(disc_dir, "flac", false)?.unwrap();
         let tracks = disc.tracks();
         if files.len() != tracks.len() {
@@ -193,9 +197,7 @@ fn handle_repo_apply(matches: &ArgMatches, settings: &RepositoryManager) -> anyh
             );
         }
 
-        for track_num in 0..files.len() {
-            let file = &files[track_num];
-            let track = &tracks[track_num];
+        for (track_num, (file, track)) in files.iter().zip(tracks).enumerate() {
             let track_num = track_num + 1;
             let meta = format!(
                 r#"TITLE={title}
