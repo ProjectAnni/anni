@@ -101,9 +101,9 @@ fn handle_repo_add(matches: &ArgMatches, settings: &RepositoryManager) -> anyhow
             let files = fs::get_ext_files(PathBuf::from(dir), "flac", false)?.unwrap();
             let mut disc = if has_discs {
                 let (catalog, _, _) = disc_info(&*file_name(dir)?)?;
-                Disc::new(&catalog, None, None)
+                Disc::new(catalog, None, None, None)
             } else {
-                Disc::new(&catalog, None, None)
+                Disc::new(catalog.clone(), None, None, None)
             };
             for path in files.iter() {
                 let header = FlacHeader::from_file(path)?;
@@ -169,16 +169,19 @@ fn handle_repo_apply(matches: &ArgMatches, settings: &RepositoryManager) -> anyh
     let discs = album.discs();
     for (disc_num, disc) in album.discs().iter().enumerate() {
         let disc_num = disc_num + 1;
+        let title = disc.title().unwrap_or(album_title.as_str());
         let disc_dir = if discs.len() > 1 {
             to_apply.join(format!(
                 "[{catalog}] {title} [Disc {disc_num}]",
                 catalog = disc.catalog(),
-                title = album_title,
+                title = title,
                 disc_num = disc_num,
             ))
         } else {
             to_apply.to_owned()
         };
+        debug!("Disc dir: {:?}", disc_dir);
+
         let files = fs::get_ext_files(disc_dir, "flac", false)?.unwrap();
         let tracks = disc.tracks();
         if files.len() != tracks.len() {
