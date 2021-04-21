@@ -41,18 +41,16 @@ impl Subcommand for RepoSubcommand {
             )
             .subcommand(App::new("edit")
                 .about(fl!("repo-edit"))
-                .arg(Arg::new("Directories")
+                .arg(Arg::new("Directory")
                     .takes_value(true)
                     .required(true)
-                    .min_values(1)
                 )
             )
             .subcommand(App::new("apply")
                 .about(fl!("repo-apply"))
-                .arg(Arg::new("Directories")
+                .arg(Arg::new("Directory")
                     .takes_value(true)
                     .required(true)
-                    .min_values(1)
                 )
             )
     }
@@ -128,8 +126,7 @@ fn handle_repo_add(matches: &ArgMatches, settings: &RepositoryManager) -> anyhow
 }
 
 fn handle_repo_edit(matches: &ArgMatches, settings: &RepositoryManager) -> anyhow::Result<()> {
-    // TODO: handle more directories
-    let to_add = Path::new(matches.value_of_os("Directories").unwrap());
+    let to_add = Path::new(matches.value_of_os("Directory").unwrap());
     let last = anni_repo::library::file_name(to_add)?;
     debug!("Edit directory: {}", last);
     if !is_album_folder(&last) {
@@ -147,8 +144,7 @@ fn handle_repo_edit(matches: &ArgMatches, settings: &RepositoryManager) -> anyho
 }
 
 fn handle_repo_apply(matches: &ArgMatches, settings: &RepositoryManager) -> anyhow::Result<()> {
-    // TODO: handle more directories
-    let to_apply = Path::new(matches.value_of_os("Directories").unwrap());
+    let to_apply = Path::new(matches.value_of_os("Directory").unwrap());
     let last = anni_repo::library::file_name(to_apply)?;
     debug!("Apply directory: {}", last);
     if !is_album_folder(&last) {
