@@ -4,7 +4,7 @@ use anni_repo::library::{album_info, disc_info, file_name};
 use anni_repo::{Album, RepositoryManager};
 use anni_utils::fs;
 use clap::{ArgMatches, App, Arg};
-use crate::fl;
+use crate::{fl, ball};
 use shell_escape::escape;
 use std::path::{Path, PathBuf};
 use crate::subcommands::Subcommand;
@@ -33,7 +33,7 @@ impl Subcommand for RepoSubcommand {
                     .long("edit")
                     .short('e')
                 )
-                .arg(Arg::new("Filename")
+                .arg(Arg::new("Directories")
                     .takes_value(true)
                     .required(true)
                     .min_values(1)
@@ -41,7 +41,7 @@ impl Subcommand for RepoSubcommand {
             )
             .subcommand(App::new("edit")
                 .about(fl!("repo-edit"))
-                .arg(Arg::new("Filename")
+                .arg(Arg::new("Directories")
                     .takes_value(true)
                     .required(true)
                     .min_values(1)
@@ -49,7 +49,7 @@ impl Subcommand for RepoSubcommand {
             )
             .subcommand(App::new("apply")
                 .about(fl!("repo-apply"))
-                .arg(Arg::new("Filename")
+                .arg(Arg::new("Directories")
                     .takes_value(true)
                     .required(true)
                     .min_values(1)
@@ -58,36 +58,35 @@ impl Subcommand for RepoSubcommand {
     }
 
     fn handle(&self, matches: &ArgMatches) -> anyhow::Result<()> {
-        let settings = RepositoryManager::new(PathBuf::from(matches.value_of("repo.root").unwrap()))?;
+        // TODO: read repo root from config
+        let settings = RepositoryManager::new(matches.value_of("repo.root").unwrap())?;
 
-        if let Some(matches) = matches.subcommand_matches("apply") {
-            handle_repo_apply(matches, &settings)?;
-        } else if let Some(matches) = matches.subcommand_matches("edit") {
-            handle_repo_edit(matches, &settings)?;
-        } else if let Some(matches) = matches.subcommand_matches("add") {
-            handle_repo_add(matches, &settings)?;
-        } else {
-            unimplemented!();
+        let (subcommand, matches) = matches.subcommand().unwrap();
+        match subcommand {
+            "apply" => handle_repo_apply(matches, &settings)?,
+            "edit" => handle_repo_edit(matches, &settings)?,
+            "add" => handle_repo_add(matches, &settings)?,
+            _ => unimplemented!()
         }
         Ok(())
     }
 }
 
 fn handle_repo_add(matches: &ArgMatches, settings: &RepositoryManager) -> anyhow::Result<()> {
-    let to_add = matches.values_of_os("Filename").unwrap();
+    let to_add = matches.values_of_os("Directories").unwrap();
     for to_add in to_add {
         let to_add = Path::new(to_add);
         let last = anni_repo::library::file_name(to_add)?;
         if !is_album_folder(&last) {
-            bail!("You can only add a valid album directory in anni convention to anni metadata repository.");
+            ball!("repo-add-invalid-album");
         }
 
         let (release_date, catalog, title) = album_info(&last)?;
         if settings.album_exists(&catalog) {
-            bail!("Album with the same catalog exists in repo. Aborted.");
+            ball!("repo-album-exists", catalog = catalog);
         }
 
-        let mut album = Album::new(&title, "Artist", release_date, &catalog);
+        let mut album = Album::new(&title, "[Unknown Artist]", release_date, &catalog);
 
         let directories = fs::get_subdirectories(to_add)?;
         let mut directories: Vec<_> = directories.iter().map(|r| r.as_path()).collect();
@@ -113,6 +112,7 @@ fn handle_repo_add(matches: &ArgMatches, settings: &RepositoryManager) -> anyhow
             album.add_disc(disc);
         }
 
+        album.format();
         settings.add_album(&catalog, album)?;
         if matches.is_present("edit") {
             settings.edit_album(&catalog)?;
@@ -122,15 +122,15 @@ fn handle_repo_add(matches: &ArgMatches, settings: &RepositoryManager) -> anyhow
 }
 
 fn handle_repo_edit(matches: &ArgMatches, settings: &RepositoryManager) -> anyhow::Result<()> {
-    let to_add = Path::new(matches.value_of("Filename").unwrap());
+    let to_add = Path::new(matches.value_of("Directories").unwrap());
     let last = anni_repo::library::file_name(to_add)?;
     if !is_album_folder(&last) {
-        bail!("You can only edit a valid album in anni metadata repository.");
+        ball!("repo-add-invalid-album");
     }
 
     let (_, catalog, _) = album_info(&last)?;
     if !settings.album_exists(&catalog) {
-        bail!("Catalog not found in repo. Aborted.");
+        ball!("repo-album-not-found", catalog = catalog);
     }
     let file = settings.with_album(&catalog);
     edit::edit_file(&file)?;
@@ -138,34 +138,36 @@ fn handle_repo_edit(matches: &ArgMatches, settings: &RepositoryManager) -> anyho
 }
 
 fn handle_repo_apply(matches: &ArgMatches, settings: &RepositoryManager) -> anyhow::Result<()> {
-    let to_apply = Path::new(matches.value_of("Filename").unwrap());
+    let to_apply = Path::new(matches.value_of("Directories").unwrap());
     let last = anni_repo::library::file_name(to_apply)?;
     if !is_album_folder(&last) {
-        bail!("You can only apply album metadata to a valid anni convention album directory.");
+        ball!("repo-add-invalid-album");
     }
 
+    // extract album info
     let (release_date, catalog, album_title) = album_info(&last)?;
     if !settings.album_exists(&catalog) {
-        bail!("Catalog not found in repo. Aborted.");
+        ball!("repo-album-not-found", catalog = catalog);
     }
 
+    // get track metadata & compare with album folder
     let album = settings.load_album(&catalog)?;
     if album.title() != album_title
         || album.catalog() != catalog
-        || album.release_date() != &release_date
-    {
-        bail!("Album info mismatch. Aborted.");
+        || album.release_date() != &release_date {
+        ball!("repo-album-info-mismatch");
     }
 
+    // check discs & tracks
     let discs = album.discs();
-    for (i, disc) in album.discs().iter().enumerate() {
-        let disc_num = i + 1;
+    for (disc_num, disc) in album.discs().iter().enumerate() {
+        let disc_num = disc_num + 1;
         let disc_dir = if discs.len() > 1 {
             to_apply.join(format!(
-                "[{}] {} [Disc {}]",
-                disc.catalog(),
-                album_title,
-                disc_num
+                "[{catalog}] {title} [Disc {disc_num}]",
+                catalog = disc.catalog(),
+                title = album_title,
+                disc_num = disc_num,
             ))
         } else {
             to_apply.to_owned()
@@ -180,26 +182,27 @@ fn handle_repo_apply(matches: &ArgMatches, settings: &RepositoryManager) -> anyh
             );
         }
 
-        for i in 0..files.len() {
-            let file = &files[i];
-            let track = &tracks[i];
+        for track_num in 0..files.len() {
+            let file = &files[track_num];
+            let track = &tracks[track_num];
+            let track_num = track_num + 1;
             let meta = format!(
-                r#"TITLE={}
-ALBUM={}
-ARTIST={}
-DATE={}
-TRACKNUMBER={}
-TRACKTOTAL={}
-DISCNUMBER={}
-DISCTOTAL={}"#,
-                track.title(),
-                album_title,
-                track.artist(),
-                album.release_date(),
-                i + 1,
-                tracks.len(),
-                disc_num,
-                discs.len()
+                r#"TITLE={title}
+ALBUM={album}
+ARTIST={artist}
+DATE={release_date}
+TRACKNUMBER={track_number}
+TRACKTOTAL={track_total}
+DISCNUMBER={disc_number}
+DISCTOTAL={disc_total}"#,
+                title = track.title(),
+                album = album_title,
+                artist = track.artist(),
+                release_date = album.release_date(),
+                track_number = track_num,
+                track_total = tracks.len(),
+                disc_number = disc_num,
+                disc_total = discs.len(),
             );
             println!(
                 "echo {} | metaflac --remove-all-tags --import-tags-from=- {}",

@@ -2,7 +2,7 @@ use crate::Result;
 use crate::{Album, Repository};
 use anni_common::FromFile;
 use std::fs;
-use std::path::PathBuf;
+use std::path::{PathBuf, Path};
 
 pub struct RepositoryManager {
     root: PathBuf,
@@ -10,10 +10,10 @@ pub struct RepositoryManager {
 }
 
 impl RepositoryManager {
-    pub fn new(root: PathBuf) -> Result<Self> {
-        let repo = root.join("repo.toml");
+    pub fn new<P: AsRef<Path>>(root: P) -> Result<Self> {
+        let repo = root.as_ref().join("repo.toml");
         Ok(Self {
-            root,
+            root: root.as_ref().to_owned(),
             repo: Repository::from_file(repo).map_err(|e| crate::Error::RepoInitError(e))?,
         })
     }

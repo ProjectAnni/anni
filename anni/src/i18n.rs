@@ -31,3 +31,26 @@ macro_rules! fl {
         Box::leak(i18n_embed_fl::fl!(crate::i18n::LOCALIZATION_LOADER, $message_id, $($args), *).into_boxed_str()) as &'static str
     };
 }
+
+#[macro_export]
+macro_rules! ll {
+    ($message_id: literal) => {
+        i18n_embed_fl::fl!(crate::i18n::LOCALIZATION_LOADER, $message_id)
+    };
+
+    ($message_id: literal, $($args: expr),*) => {
+        i18n_embed_fl::fl!(crate::i18n::LOCALIZATION_LOADER, $message_id, $($args), *)
+    };
+}
+
+
+#[macro_export]
+macro_rules! ball {
+    ($message_id: literal) => {
+        bail!(crate::ll!($message_id))
+    };
+
+    ($message_id: literal, $($args: expr),*) => {
+        bail!(crate::ll!($message_id, $($args), *))
+    };
+}

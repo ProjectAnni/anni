@@ -25,6 +25,35 @@ impl Album {
             discs: Vec::new(),
         }
     }
+
+    pub fn format(&mut self) {
+        let mut album_artist = String::new();
+        for disc in self.discs.iter_mut() {
+            for track in disc.tracks.iter_mut() {
+                match &track.artist {
+                    Some(artist) => {
+                        if album_artist.is_empty() {
+                            // the first track
+                            album_artist = artist.clone()
+                        } else if album_artist != artist {
+                            // not all artists are the same, exit
+                            return;
+                        }
+                    }
+                    None => {}
+                }
+            }
+        }
+
+        // all artists are the same, remove them in discs and tracks
+        self.info.artist = album_artist;
+        for disc in self.discs.iter_mut() {
+            disc.artist = None;
+            for track in disc.tracks.iter_mut() {
+                track.artist = None;
+            }
+        }
+    }
 }
 
 impl FromStr for Album {
