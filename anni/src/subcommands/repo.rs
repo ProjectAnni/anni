@@ -62,6 +62,7 @@ impl Subcommand for RepoSubcommand {
         let settings = RepositoryManager::new(matches.value_of("repo.root").unwrap())?;
 
         let (subcommand, matches) = matches.subcommand().unwrap();
+        debug!("Repo subcommand matched: {}", subcommand);
         match subcommand {
             "apply" => handle_repo_apply(matches, &settings)?,
             "edit" => handle_repo_edit(matches, &settings)?,
@@ -122,13 +123,16 @@ fn handle_repo_add(matches: &ArgMatches, settings: &RepositoryManager) -> anyhow
 }
 
 fn handle_repo_edit(matches: &ArgMatches, settings: &RepositoryManager) -> anyhow::Result<()> {
-    let to_add = Path::new(matches.value_of("Directories").unwrap());
+    // TODO: handle more directories
+    let to_add = Path::new(matches.value_of_os("Directories").unwrap());
     let last = anni_repo::library::file_name(to_add)?;
+    debug!("Edit directory: {}", last);
     if !is_album_folder(&last) {
         ball!("repo-add-invalid-album");
     }
 
     let (_, catalog, _) = album_info(&last)?;
+    debug!("Catalog: {}", catalog);
     if !settings.album_exists(&catalog) {
         ball!("repo-album-not-found", catalog = catalog);
     }
@@ -138,14 +142,17 @@ fn handle_repo_edit(matches: &ArgMatches, settings: &RepositoryManager) -> anyho
 }
 
 fn handle_repo_apply(matches: &ArgMatches, settings: &RepositoryManager) -> anyhow::Result<()> {
-    let to_apply = Path::new(matches.value_of("Directories").unwrap());
+    // TODO: handle more directories
+    let to_apply = Path::new(matches.value_of_os("Directories").unwrap());
     let last = anni_repo::library::file_name(to_apply)?;
+    debug!("Apply directory: {}", last);
     if !is_album_folder(&last) {
         ball!("repo-add-invalid-album");
     }
 
     // extract album info
     let (release_date, catalog, album_title) = album_info(&last)?;
+    debug!("Release date: {}, Catalog: {}, Title: {}", release_date, catalog, album_title);
     if !settings.album_exists(&catalog) {
         ball!("repo-album-not-found", catalog = catalog);
     }
