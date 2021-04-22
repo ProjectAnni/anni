@@ -91,6 +91,8 @@ async fn cover(req: HttpRequest, path: web::Path<String>, data: web::Data<AppSta
 }
 
 async fn init_state(config: &Config) -> anyhow::Result<web::Data<AppState>> {
+    log::info!("Start initializing backends...");
+    let now = std::time::SystemTime::now();
     let mut backends = Vec::with_capacity(config.backends.len());
     for backend_config in config.backends.iter() {
         let mut backend: AnnilBackend;
@@ -104,6 +106,7 @@ async fn init_state(config: &Config) -> anyhow::Result<web::Data<AppState>> {
         backend.set_enable(backend_config.enable);
         backends.push(backend);
     }
+    log::info!("Backend initialization finished, used {:?}", now.elapsed().unwrap());
 
     // key
     let key = HS256Key::from_bytes(config.server.key().as_ref());
