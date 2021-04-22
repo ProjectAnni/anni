@@ -32,16 +32,18 @@ impl FileBackend {
         while let Some(entry) = dir.next_entry().await? {
             if entry.metadata().await?.is_dir() {
                 let path = entry.path();
-                if let Ok((_, catalog, _)) = album_info(
+                if let Ok((_, catalog, _, disc_count)) = album_info(
                     path.file_name()
                         .ok_or(BackendError::InvalidPath)?
                         .to_str()
                         .ok_or(BackendError::InvalidPath)?,
                 ) {
                     log::debug!("Found album {} at: {:?}", catalog, path);
-                    // look for inner discs
-                    if !self.walk_discs(&path).await? {
-                        // no disc found, one disc by default
+                    if disc_count > 1 {
+                        // look for inner discs
+                        self.walk_discs(path).await?;
+                    } else {
+                        // no inner discs
                         self.inner.insert(catalog, path);
                     }
                 } else {
@@ -52,9 +54,8 @@ impl FileBackend {
         Ok(())
     }
 
-    async fn walk_discs<P: AsRef<Path> + Send>(&mut self, album: P) -> Result<bool, BackendError> {
+    async fn walk_discs<P: AsRef<Path> + Send>(&mut self, album: P) -> Result<(), BackendError> {
         let mut dir = read_dir(album).await?;
-        let mut has_disc = false;
         while let Some(entry) = dir.next_entry().await? {
             if entry.metadata().await?.is_dir() {
                 let path = entry.path();
@@ -66,11 +67,10 @@ impl FileBackend {
                 if let Ok((catalog, _, _)) = disc_info(disc_name) {
                     log::debug!("Found disc {} at: {:?}", catalog, path);
                     self.inner.insert(catalog, path);
-                    has_disc = true;
                 }
             }
         }
-        Ok(has_disc)
+        Ok(())
     }
 
     async fn update(&self) -> Result<Vec<String>, BackendError> {

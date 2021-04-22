@@ -80,7 +80,7 @@ fn handle_repo_add(matches: &ArgMatches, settings: &RepositoryManager) -> anyhow
             ball!("repo-add-invalid-album");
         }
 
-        let (release_date, catalog, album_title) = album_info(&last)?;
+        let (release_date, catalog, album_title, discs) = album_info(&last)?;
         if settings.album_exists(&catalog) {
             ball!("repo-album-exists", catalog = catalog);
         }
@@ -89,15 +89,16 @@ fn handle_repo_add(matches: &ArgMatches, settings: &RepositoryManager) -> anyhow
 
         let directories = fs::get_subdirectories(to_add)?;
         let mut directories: Vec<_> = directories.iter().map(|r| r.as_path()).collect();
-        let mut has_discs = true;
-        if directories.len() == 0 {
+        if discs == 1 {
             directories.push(to_add);
-            has_discs = false;
+        }
+        if discs != directories.len() {
+            bail!("Subdirectory count != disc number!")
         }
 
         for dir in directories.iter() {
             let files = fs::get_ext_files(PathBuf::from(dir), "flac", false)?.unwrap();
-            let mut disc = if has_discs {
+            let mut disc = if discs > 1 {
                 let (catalog, disc_title, _) = disc_info(&*file_name(dir)?)?;
                 Disc::new(
                     catalog,
@@ -133,7 +134,7 @@ fn handle_repo_edit(matches: &ArgMatches, settings: &RepositoryManager) -> anyho
         ball!("repo-add-invalid-album");
     }
 
-    let (_, catalog, _) = album_info(&last)?;
+    let (_, catalog, _, _) = album_info(&last)?;
     debug!("Catalog: {}", catalog);
     if !settings.album_exists(&catalog) {
         ball!("repo-album-not-found", catalog = catalog);
@@ -152,7 +153,7 @@ fn handle_repo_apply(matches: &ArgMatches, settings: &RepositoryManager) -> anyh
     }
 
     // extract album info
-    let (release_date, catalog, album_title) = album_info(&last)?;
+    let (release_date, catalog, album_title, disc_count) = album_info(&last)?;
     debug!("Release date: {}, Catalog: {}, Title: {}", release_date, catalog, album_title);
     if !settings.album_exists(&catalog) {
         ball!("repo-album-not-found", catalog = catalog);
@@ -168,6 +169,9 @@ fn handle_repo_apply(matches: &ArgMatches, settings: &RepositoryManager) -> anyh
 
     // check discs & tracks
     let discs = album.discs();
+    if discs.len() != disc_count {
+        bail!("discs.len() != disc_count!");
+    }
     for (disc_num, disc) in album.discs().iter().enumerate() {
         let disc_num = disc_num + 1;
         let title = disc.title().unwrap_or(album_title.as_str());

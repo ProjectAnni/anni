@@ -11,8 +11,11 @@ fn test_parts_to_date() -> Result<(), Box<dyn std::error::Error>> {
 #[test]
 fn test_album_info() -> Result<(), Box<dyn std::error::Error>> {
     assert_eq!(album_info("[200102][CATA-001] TITLE")?,
-               (parts_to_date("2020", "01", "02")?, "CATA-001".to_owned(), "TITLE".to_owned()));
-
+               (parts_to_date("2020", "01", "02")?, "CATA-001".to_owned(), "TITLE".to_owned(), 1));
+    assert_eq!(album_info("[200102][CATA-001] TITLE [2 Discs")?,
+               (parts_to_date("2020", "01", "02")?, "CATA-001".to_owned(), "TITLE [2 Discs".to_owned(), 1));
+    assert_eq!(album_info("[200102][CATA-001] TITLE [2 Discs]")?,
+               (parts_to_date("2020", "01", "02")?, "CATA-001".to_owned(), "TITLE".to_owned(), 2));
     Ok(())
 }
 
