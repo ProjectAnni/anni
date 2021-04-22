@@ -77,7 +77,6 @@ async fn cover(req: HttpRequest, path: web::Path<String>, data: web::Data<AppSta
             return match backend.get_cover(&catalog).await {
                 Ok(cover) => {
                     HttpResponse::Ok()
-                        .append_header(("X-Backend-Name", backend.name()))
                         .content_type("image/jpeg")
                         .streaming(ReaderStream::new(cover))
                 }

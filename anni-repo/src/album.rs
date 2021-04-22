@@ -127,7 +127,7 @@ struct AlbumInfo {
     catalog: String,
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Clone)]
 pub struct Disc {
     catalog: String,
     title: Option<String>,
@@ -152,6 +152,10 @@ impl Disc {
         self.title.as_deref()
     }
 
+    pub fn artist(&self) -> Option<&str> {
+        self.artist.as_deref()
+    }
+
     pub fn catalog(&self) -> &str {
         self.catalog.as_ref()
     }
@@ -165,7 +169,7 @@ impl Disc {
     }
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Clone)]
 pub struct Track {
     title: String,
     artist: Option<String>,
