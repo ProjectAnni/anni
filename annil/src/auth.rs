@@ -94,10 +94,9 @@ pub(crate) async fn auth_user_can_share(req: &HttpRequest, key: &HS256Key) -> Op
 #[test]
 fn test_sign() {
     let key = HS256Key::from_bytes(b"a token here");
-    let now = Some(Clock::now_since_epoch());
     let jwt = key.authenticate(
         JWTClaims {
-            issued_at: now,
+            issued_at: Some(0.into()),
             expires_at: None,
             invalid_before: None,
             issuer: None,
@@ -112,5 +111,5 @@ fn test_sign() {
             },
         }
     ).expect("failed to sign jwt");
-    assert_eq!(jwt, "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpYXQiOjE2MTY1NjYxMzYsInR5cGUiOiJ1c2VyIiwidXNlcm5hbWUiOiJ0ZXN0IiwiYWxsb3dTaGFyZSI6dHJ1ZX0.uNb0sfSXjVw2ERg2VRwOTOByIfg3LR6xnkV7O-52bc4");
+    assert_eq!(jwt, "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpYXQiOjAsInR5cGUiOiJ1c2VyIiwidXNlcm5hbWUiOiJ0ZXN0IiwiYWxsb3dTaGFyZSI6dHJ1ZX0.7CH27OBvUnJhKxBdtZbJSXA-JIwQ4MWqI5JsZ46NoKk");
 }

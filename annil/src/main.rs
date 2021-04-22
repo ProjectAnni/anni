@@ -95,6 +95,7 @@ async fn init_state(config: &Config) -> anyhow::Result<web::Data<AppState>> {
     for backend_config in config.backends.iter() {
         let mut backend: AnnilBackend;
         if backend_config.backend_type == "file" {
+            log::debug!("Initializing backend: {}", backend_config.name);
             let inner = FileBackend::new(PathBuf::from(backend_config.root()), backend_config.strict);
             backend = AnnilBackend::new(backend_config.name.to_owned(), AnniBackend::File(inner)).await?;
         } else {
@@ -114,7 +115,6 @@ async fn init_state(config: &Config) -> anyhow::Result<web::Data<AppState>> {
 
 #[actix_web::main]
 async fn main() -> anyhow::Result<()> {
-    std::env::set_var("RUST_LOG", "actix_web=info");
     env_logger::init();
     let config = Config::from_file(std::env::args().nth(1).unwrap_or("config.toml".to_owned()))?;
     let state = init_state(&config).await?;

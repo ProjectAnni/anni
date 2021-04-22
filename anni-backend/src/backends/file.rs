@@ -27,6 +27,7 @@ impl FileBackend {
         dir: P,
         to_visit: &mut Vec<PathBuf>,
     ) -> Result<(), BackendError> {
+        log::debug!("Walking dir: {:?}", dir.as_ref());
         let mut dir = read_dir(dir).await?;
         while let Some(entry) = dir.next_entry().await? {
             if entry.metadata().await?.is_dir() {
@@ -37,6 +38,7 @@ impl FileBackend {
                         .to_str()
                         .ok_or(BackendError::InvalidPath)?,
                 ) {
+                    log::debug!("Found album {} at: {:?}", catalog, path);
                     // look for inner discs
                     if !self.walk_discs(&path).await? {
                         // no disc found, one disc by default
@@ -62,6 +64,7 @@ impl FileBackend {
                     .to_str()
                     .ok_or(BackendError::InvalidPath)?;
                 if let Ok((catalog, _, _)) = disc_info(disc_name) {
+                    log::debug!("Found disc {} at: {:?}", catalog, path);
                     self.inner.insert(catalog, path);
                     has_disc = true;
                 }

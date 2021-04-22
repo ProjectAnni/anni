@@ -279,6 +279,7 @@ version = "0.1.0"
 dependencies = [
  "anni-repo",
  "async-trait",
+ "log",
  "thiserror",
  "tokio",
 ]
@@ -345,6 +346,7 @@ dependencies = [
  "async-trait",
  "env_logger",
  "jwt-simple",
+ "log",
  "serde",
  "tokio",
  "tokio-util",
