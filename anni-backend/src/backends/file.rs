@@ -1,4 +1,4 @@
-use crate::common::{Backend, BackendError};
+use crate::common::{Backend, BackendAudio, BackendError};
 use anni_repo::library::{album_info, disc_info};
 use async_trait::async_trait;
 use std::collections::{HashMap, HashSet};
@@ -126,7 +126,7 @@ impl Backend for FileBackend {
         &self,
         catalog: &str,
         track_id: u8,
-    ) -> Result<Pin<Box<dyn AsyncRead>>, BackendError> {
+    ) -> Result<BackendAudio, BackendError> {
         let path = self.get_catalog_path(catalog)?;
         let mut dir = read_dir(path).await?;
         while let Some(entry) = dir.next_entry().await? {
@@ -135,9 +135,12 @@ impl Backend for FileBackend {
                 .to_string_lossy()
                 .starts_with::<&str>(format!("{:02}.", track_id).as_ref())
             {
-                let file = File::open(entry.path()).await?;
-                let result: Pin<Box<dyn AsyncRead>> = Box::pin(file);
-                return Ok(result);
+                let path = entry.path();
+                return Ok(BackendAudio {
+                    extension: path.extension().map(|s| s.to_string_lossy().to_string()).unwrap_or(String::new()),
+                    size: entry.metadata().await?.len(),
+                    reader: Box::pin(File::open(&path).await?),
+                });
             }
         }
         Err(BackendError::FileNotFound)

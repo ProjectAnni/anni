@@ -48,11 +48,12 @@ async fn audio(req: HttpRequest, path: web::Path<(String, u8)>, data: web::Data<
     let backends = data.backends.lock().unwrap();
     for backend in backends.iter() {
         if backend.enabled() && backend.has_album(&catalog) {
-            let r = backend.get_audio(&catalog, track_id).await.unwrap();
+            let audio = backend.get_audio(&catalog, track_id).await.unwrap();
             return HttpResponse::Ok()
-                .append_header(("X-Backend-Name", backend.name()))
-                .content_type("audio/flac")// TODO: store MIME in backend
-                .streaming(ReaderStream::new(r));
+                .append_header(("X-Origin-Type", format!("audio/{}", audio.extension)))
+                .append_header(("X-Origin-Size", audio.size))
+                .content_type(format!("audio/{}", audio.extension))
+                .streaming(ReaderStream::new(audio.reader));
         }
     }
     HttpResponse::NotFound().finish()

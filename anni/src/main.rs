@@ -27,18 +27,22 @@ fn main() -> anyhow::Result<()> {
         dotenv::from_path(&config)?;
         // initialize env_logger
         env_logger::builder()
-            .filter_level(LevelFilter::Info)
+            .filter_level(LevelFilter::Error)
+            .filter_module("i18n_embed::requester", LevelFilter::Error)
+            .filter_module("anni::subcommands::convention", LevelFilter::Info)
             .parse_env("ANNI_LOG")
             .init();
         info!("Read config from: {:?}", config);
     } else {
         // initialize env_logger
         env_logger::builder()
-            .filter_level(LevelFilter::Info)
+            .filter_level(LevelFilter::Error)
+            .filter_module("i18n_embed::requester", LevelFilter::Error)
+            .filter_module("anni::subcommands::convention", LevelFilter::Info)
             .parse_env("ANNI_LOG")
             .init();
         // config file not exist
-        warn!("Config file not exist: {:?}", config);
+        info!("Config file does not exist: {:?}", config);
     }
 
     let subcommands: Subcommands = Default::default();
@@ -46,8 +50,8 @@ fn main() -> anyhow::Result<()> {
         .about(fl!("anni-about"))
         .version(crate_version!())
         .author(crate_authors!())
-        .setting(AppSettings::ArgRequiredElseHelp)
-        .setting(AppSettings::ColoredHelp)
+        .global_setting(AppSettings::ArgRequiredElseHelp)
+        .global_setting(AppSettings::ColoredHelp)
         .subcommands(subcommands.iter())
         .get_matches();
 
