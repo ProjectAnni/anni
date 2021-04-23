@@ -174,12 +174,11 @@ fn handle_repo_apply(matches: &ArgMatches, settings: &RepositoryManager) -> anyh
     }
     for (disc_num, disc) in album.discs().iter().enumerate() {
         let disc_num = disc_num + 1;
-        let title = disc.title().unwrap_or(album_title.as_str());
         let disc_dir = if discs.len() > 1 {
             to_apply.join(format!(
                 "[{catalog}] {title} [Disc {disc_num}]",
                 catalog = disc.catalog(),
-                title = title,
+                title = disc.title(),
                 disc_num = disc_num,
             ))
         } else {

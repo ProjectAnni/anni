@@ -66,13 +66,22 @@ impl FromStr for Album {
                 err: e,
             })?;
         for disc in &mut album.discs {
+            if let None = disc.title {
+                disc.title = Some(album.info.title.to_owned());
+            }
+            if let None = disc.artist {
+                disc.artist = Some(album.info.artist.to_owned());
+            }
+            if let None = disc.disc_type {
+                disc.disc_type = Some(album.info.album_type.to_owned());
+            }
             for track in &mut disc.tracks {
                 if let None = track.artist {
-                    track.artist = Some(album.info.artist.to_owned());
+                    track.artist = Some(disc.artist.as_ref().unwrap().to_owned());
                 }
 
                 if let None = track.track_type {
-                    track.track_type = Some((&album.info.album_type).to_owned());
+                    track.track_type = Some((disc.disc_type.as_ref().unwrap()).to_owned());
                 }
             }
         }
@@ -148,12 +157,18 @@ impl Disc {
         }
     }
 
-    pub fn title(&self) -> Option<&str> {
-        self.title.as_deref()
+    pub fn title(&self) -> &str {
+        match &self.title {
+            Some(title) => title,
+            None => unreachable!(),
+        }
     }
 
-    pub fn artist(&self) -> Option<&str> {
-        self.artist.as_deref()
+    pub fn artist(&self) -> &str {
+        match &self.artist {
+            Some(artist) => artist,
+            None => unreachable!(),
+        }
     }
 
     pub fn catalog(&self) -> &str {
