@@ -309,7 +309,7 @@ FILE "{filename}" WAVE
     TITLE "{title}"
     PERFORMER "{artist}"
     INDEX 01 00:00:00"#,
-                       filename = format!("{:02}. {}.flac", track_id, track.title()),
+                       filename = format!("{:02}. {}.flac", track_id, track.title().replace("/", "／")),
                        title = track.title(),
                        artist = track.artist(),
                 );
