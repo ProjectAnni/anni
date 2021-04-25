@@ -4,11 +4,12 @@ use anni_repo::library::{album_info, disc_info, file_name};
 use anni_repo::{Album, RepositoryManager};
 use anni_utils::fs;
 use clap::{ArgMatches, App, Arg, crate_version};
-use crate::{fl, ball};
+use crate::ball;
 use shell_escape::escape;
 use std::path::{Path, PathBuf};
 use crate::subcommands::Subcommand;
 use std::str::FromStr;
+use crate::i18n::ClapI18n;
 
 pub(crate) struct RepoSubcommand;
 
@@ -19,18 +20,18 @@ impl Subcommand for RepoSubcommand {
 
     fn create(&self) -> App<'static> {
         App::new("repo")
-            .about(fl!("repo"))
+            .about_ll("repo")
             .arg(Arg::new("repo.root")
-                .about(fl!("repo-root"))
+                .about("repo-root")
                 .long("root")
                 .env("ANNI_ROOT")
                 .takes_value(true)
                 .required(true)
             )
             .subcommand(App::new("add")
-                .about(fl!("repo-add"))
+                .about_ll("repo-add")
                 .arg(Arg::new("edit")
-                    .about(fl!("repo-add-edit"))
+                    .about_ll("repo-add-edit")
                     .long("edit")
                     .short('e')
                 )
@@ -41,23 +42,23 @@ impl Subcommand for RepoSubcommand {
                 )
             )
             .subcommand(App::new("edit")
-                .about(fl!("repo-edit"))
+                .about_ll("repo-edit")
                 .arg(Arg::new("Directory")
                     .takes_value(true)
                     .required(true)
                 )
             )
             .subcommand(App::new("apply")
-                .about(fl!("repo-apply"))
+                .about_ll("repo-apply")
                 .arg(Arg::new("Directory")
                     .takes_value(true)
                     .required(true)
                 )
             )
             .subcommand(App::new("print")
-                .about(fl!("repo-print"))
+                .about_ll("repo-print")
                 .arg(Arg::new("type")
-                    .about(fl!("repo-print-type"))
+                    .about("repo-print-type")
                     .long("type")
                     .short('t')
                     .takes_value(true)
@@ -66,7 +67,7 @@ impl Subcommand for RepoSubcommand {
                     .default_value("title")
                 )
                 .arg(Arg::new("clean")
-                    .about(fl!("repo-print-clean"))
+                    .about_ll("repo-print-clean")
                     .long("clean")
                     .short('c')
                 )
@@ -76,7 +77,7 @@ impl Subcommand for RepoSubcommand {
                 .replace("--cue", &["--type=cue"])
                 .replace("--toml", &["--type=toml"])
                 .arg(Arg::new("Catalog")
-                    .about(fl!("repo-print-catalog"))
+                    .about_ll("repo-print-catalog")
                     .takes_value(true)
                     .required(true)
                 )

@@ -4,6 +4,7 @@ use std::path::PathBuf;
 use clap::{App, AppSettings, crate_authors, crate_version};
 use log::LevelFilter;
 use crate::subcommands::Subcommands;
+use crate::i18n::ClapI18n;
 
 mod encoding;
 mod i18n;
@@ -47,7 +48,7 @@ fn main() -> anyhow::Result<()> {
 
     let subcommands: Subcommands = Default::default();
     let matches = App::new("Project Anni")
-        .about(fl!("anni-about"))
+        .about_ll("anni-about")
         .version(crate_version!())
         .author(crate_authors!())
         .global_setting(AppSettings::ArgRequiredElseHelp)

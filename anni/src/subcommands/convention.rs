@@ -1,12 +1,13 @@
 use clap::{ArgMatches, App, Arg};
 use crate::subcommands::Subcommand;
-use crate::{fl, encoding};
+use crate::encoding;
 use std::path::Path;
 use crate::subcommands::flac::parse_input_iter;
 use shell_escape::escape;
 use std::collections::HashSet;
 use anni_flac::FlacHeader;
 use anni_utils::validator::*;
+use crate::i18n::ClapI18n;
 
 pub(crate) struct ConventionSubcommand;
 
@@ -17,10 +18,10 @@ impl Subcommand for ConventionSubcommand {
 
     fn create(&self) -> App<'static> {
         App::new("convention")
-            .about(fl!("convention"))
+            .about_ll("convention")
             .alias("conv")
             .subcommand(App::new("check")
-                .about(fl!("convention-check"))
+                .about_ll("convention-check")
                 .arg(Arg::new("Filename")
                     .takes_value(true)
                     .required(true)

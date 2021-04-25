@@ -3,11 +3,11 @@ use shell_escape::escape;
 use std::io;
 use std::path::{Path, PathBuf};
 use clap::{ArgMatches, App, ArgGroup, Arg};
-use crate::fl;
 use anni_utils::fs;
 use std::str::FromStr;
 
 use crate::subcommands::Subcommand;
+use crate::i18n::ClapI18n;
 
 pub(crate) struct CueSubcommand;
 
@@ -18,15 +18,15 @@ impl Subcommand for CueSubcommand {
 
     fn create(&self) -> App<'static> {
         App::new("cue")
-            .about(fl!("cue"))
+            .about_ll("cue")
             .arg(Arg::new("cue.file")
-                .about(fl!("cue-file"))
+                .about_ll("cue-file")
                 .long("file")
                 .short('f')
                 .takes_value(true)
             )
             .arg(Arg::new("cue.dir")
-                .about(fl!("cue-dir"))
+                .about_ll("cue-dir")
                 .long("dir")
                 .short('d')
             )
@@ -35,7 +35,7 @@ impl Subcommand for CueSubcommand {
                 .required(true)
             )
             .arg(Arg::new("cue.tagsh")
-                .about(fl!("cue-tagsh"))
+                .about_ll("cue-tagsh")
                 .long("tag-sh")
                 .short('t')
             )

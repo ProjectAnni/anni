@@ -1,6 +1,5 @@
 use crate::subcommands::Subcommand;
 use clap::{App, ArgMatches, Arg};
-use crate::fl;
 use std::io::{Write, Read};
 use anni_common::{Decode, Encode};
 use anni_utils::{decode, fs};
@@ -9,6 +8,7 @@ use std::fs::File;
 use anni_utils::encode::{btoken_w, u32_le_w, u16_le_w};
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio, Child};
+use crate::i18n::ClapI18n;
 
 pub struct SplitSubcommand;
 
@@ -19,9 +19,9 @@ impl Subcommand for SplitSubcommand {
 
     fn create(&self) -> App<'static> {
         App::new("split")
-            .about(fl!("split"))
+            .about_ll("split")
             .arg(Arg::new("split.format.input")
-                .about(fl!("split-format-input"))
+                .about_ll("split-format-input")
                 .long("input-format")
                 .short('i')
                 .takes_value(true)
@@ -29,7 +29,7 @@ impl Subcommand for SplitSubcommand {
                 .possible_values(&["wav", "flac", "ape"])
             )
             .arg(Arg::new("split.format.output")
-                .about(fl!("split-format-output"))
+                .about_ll("split-format-output")
                 .long("output-format")
                 .short('o')
                 .takes_value(true)

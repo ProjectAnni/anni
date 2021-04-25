@@ -3,11 +3,11 @@ use std::path::{PathBuf, Path};
 use anni_flac::blocks::PictureType;
 use anni_flac::{MetadataBlockData, FlacHeader};
 use clap::{ArgMatches, App, Arg};
-use crate::fl;
 use crate::subcommands::Subcommand;
 use std::iter::FilterMap;
 use anni_utils::fs::PathWalker;
 use anni_utils::fs;
+use crate::i18n::ClapI18n;
 
 pub(crate) struct FlacSubcommand;
 
@@ -18,11 +18,11 @@ impl Subcommand for FlacSubcommand {
 
     fn create(&self) -> App<'static> {
         App::new("flac")
-            .about(fl!("flac"))
+            .about_ll("flac")
             .subcommand(App::new("export")
-                .about(fl!("flac-export"))
+                .about_ll("flac-export")
                 .arg(Arg::new("type")
-                    .about(fl!("flac-export-type"))
+                    .about_ll("flac-export-type")
                     .long("type")
                     .short('t')
                     .takes_value(true)
@@ -41,7 +41,7 @@ impl Subcommand for FlacSubcommand {
                     ])
                 )
                 .arg(Arg::new("output")
-                    .about(fl!("flac-export-to"))
+                    .about_ll("flac-export-to")
                     .long("output")
                     .short('o')
                     .takes_value(true)

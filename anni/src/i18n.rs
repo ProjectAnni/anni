@@ -21,18 +21,6 @@ lazy_static::lazy_static! {
 }
 
 #[macro_export]
-macro_rules! fl {
-    ($message_id: literal) => {
-        //TODO: do not leak if possible
-        Box::leak(i18n_embed_fl::fl!(crate::i18n::LOCALIZATION_LOADER, $message_id).into_boxed_str()) as &'static str
-    };
-
-    ($message_id: literal, $($args: expr),*) => {
-        Box::leak(i18n_embed_fl::fl!(crate::i18n::LOCALIZATION_LOADER, $message_id, $($args), *).into_boxed_str()) as &'static str
-    };
-}
-
-#[macro_export]
 macro_rules! ll {
     ($message_id: literal) => {
         i18n_embed_fl::fl!(crate::i18n::LOCALIZATION_LOADER, $message_id)
@@ -53,4 +41,20 @@ macro_rules! ball {
     ($message_id: literal, $($args: expr),*) => {
         bail!(crate::ll!($message_id, $($args), *))
     };
+}
+
+pub trait ClapI18n {
+    fn about_ll(self, key: &'static str) -> Self;
+}
+
+impl ClapI18n for clap::App<'_> {
+    fn about_ll(self, key: &'static str) -> Self {
+        self.about(Box::leak(LOCALIZATION_LOADER.get(key).into_boxed_str()) as &'static str)
+    }
+}
+
+impl ClapI18n for clap::Arg<'_> {
+    fn about_ll(self, key: &'static str) -> Self {
+        self.about(Box::leak(LOCALIZATION_LOADER.get(key).into_boxed_str()) as &'static str)
+    }
 }
