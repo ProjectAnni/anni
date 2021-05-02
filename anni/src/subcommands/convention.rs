@@ -6,11 +6,12 @@ use std::path::Path;
 use shell_escape::escape;
 use std::collections::{HashSet, HashMap};
 use anni_utils::validator::*;
-use serde::Deserialize;
+use serde::{Deserialize, Deserializer};
 use std::rc::Rc;
 use std::iter::FromIterator;
 use anni_flac::blocks::BlockVorbisComment;
 use std::str::FromStr;
+use serde::de::Error;
 
 pub(crate) struct ConventionSubcommand;
 
@@ -54,6 +55,8 @@ impl Subcommand for ConventionSubcommand {
 }
 
 struct ConventionRules {
+    types: HashMap<String, Vec<Validator>>,
+
     required: HashMap<String, Rc<ConventionTag>>,
     optional: HashMap<String, Rc<ConventionTag>>,
     unrecommended: HashMap<String, Rc<ConventionTag>>,
@@ -104,6 +107,14 @@ impl ConventionRules {
                 continue;
             };
 
+            // type validators
+            for v in self.types[tag.value_type.as_str()].iter() {
+                if !v.validate(value) {
+                    error!("Type validator {} not passed: invalid tag value {}={}", v.name(), key_raw, value);
+                }
+            }
+
+            // field validators
             if let Err(v) = tag.validate(value) {
                 error!("Validator {} not passed: invalid tag value {}={}", v, key_raw, value);
             } else if &tag.name == "TITLE" {
@@ -137,27 +148,27 @@ impl ConventionRules {
 
 #[derive(Debug, Deserialize)]
 struct ConventionConfig {
-    tags: Vec<ConventionTag>,
+    types: HashMap<String, Vec<Validator>>,
+    tags: ConventionTagConfig,
 }
 
 impl ConventionConfig {
     pub(crate) fn into_rules(self) -> ConventionRules {
-        let mut rules = ConventionRules { required: Default::default(), optional: Default::default(), unrecommended: Default::default() };
-
-        for tag in self.tags {
+        let mut rules = ConventionRules { types: self.types, required: Default::default(), optional: Default::default(), unrecommended: Default::default() };
+        for tag in self.tags.required {
             let this = Rc::new(tag);
             for key in this.alias.iter() {
-                if this.required {
-                    rules.unrecommended.insert(key.clone(), this.clone());
-                } else {
-                    rules.optional.insert(key.clone(), this.clone());
-                }
+                rules.unrecommended.insert(key.clone(), this.clone());
             }
-            if this.required {
-                rules.required.insert(this.name.clone(), this);
-            } else {
-                rules.optional.insert(this.name.clone(), this);
+            rules.required.insert(this.name.clone(), this);
+        }
+
+        for tag in self.tags.optional {
+            let this = Rc::new(tag);
+            for key in this.alias.iter() {
+                rules.optional.insert(key.clone(), this.clone());
             }
+            rules.optional.insert(this.name.clone(), this);
         }
 
         rules
@@ -167,64 +178,78 @@ impl ConventionConfig {
 impl Default for ConventionConfig {
     fn default() -> Self {
         Self {
-            tags: vec![
-                ConventionTag {
-                    name: "TITLE".to_string(),
-                    alias: Default::default(),
-                    required: true,
-                    validators: vec![Validator::from_str("trim").unwrap()],
-                },
-                ConventionTag {
-                    name: "ARTIST".to_string(),
-                    alias: Default::default(),
-                    required: true,
-                    validators: vec![Validator::from_str("artist").unwrap()],
-                },
-                ConventionTag {
-                    name: "ALBUM".to_string(),
-                    alias: Default::default(),
-                    required: true,
-                    validators: vec![Validator::from_str("trim").unwrap()],
-                },
-                ConventionTag {
-                    name: "DATE".to_string(),
-                    alias: Default::default(),
-                    required: true,
-                    validators: vec![Validator::from_str("date").unwrap()],
-                },
-                ConventionTag {
-                    name: "TRACKNUMBER".to_string(),
-                    alias: Default::default(),
-                    required: true,
-                    validators: vec![Validator::from_str("number").unwrap()],
-                },
-                ConventionTag {
-                    name: "TRACKTOTAL".to_string(),
-                    alias: HashSet::from_iter(vec!["TOTALTRACKS".to_string()].into_iter()),
-                    required: true,
-                    validators: vec![Validator::from_str("number").unwrap()],
-                },
-                ConventionTag {
-                    name: "DISCNUMBER".to_string(),
-                    alias: Default::default(),
-                    required: false,
-                    validators: vec![Validator::from_str("number").unwrap()],
-                },
-                ConventionTag {
-                    name: "DISCTOTAL".to_string(),
-                    alias: HashSet::from_iter(vec!["TOTALDISCS".to_string()].into_iter()),
-                    required: false,
-                    validators: vec![Validator::from_str("number").unwrap()],
-                },
-                ConventionTag {
-                    name: "ALBUMARTIST".to_string(),
-                    alias: Default::default(),
-                    required: false,
-                    validators: vec![Validator::from_str("trim").unwrap()],
-                }
-            ]
+            types: HashMap::from_iter(vec![
+                ("string".to_string(), vec![Validator::from_str("trim").unwrap(), Validator::from_str("dot").unwrap()]),
+                ("number".to_string(), vec![Validator::from_str("number").unwrap()])
+            ].into_iter()),
+            tags: ConventionTagConfig {
+                required: vec![
+                    ConventionTag {
+                        name: "TITLE".to_string(),
+                        alias: Default::default(),
+                        value_type: ValueType::String,
+                        validators: Default::default(),
+                    },
+                    ConventionTag {
+                        name: "ARTIST".to_string(),
+                        alias: Default::default(),
+                        value_type: ValueType::String,
+                        validators: vec![Validator::from_str("artist").unwrap()],
+                    },
+                    ConventionTag {
+                        name: "ALBUM".to_string(),
+                        alias: Default::default(),
+                        value_type: ValueType::String,
+                        validators: Default::default(),
+                    },
+                    ConventionTag {
+                        name: "DATE".to_string(),
+                        alias: Default::default(),
+                        value_type: ValueType::String,
+                        validators: vec![Validator::from_str("date").unwrap()],
+                    },
+                    ConventionTag {
+                        name: "TRACKNUMBER".to_string(),
+                        alias: Default::default(),
+                        value_type: ValueType::Number,
+                        validators: Default::default(),
+                    },
+                    ConventionTag {
+                        name: "TRACKTOTAL".to_string(),
+                        alias: HashSet::from_iter(vec!["TOTALTRACKS".to_string()].into_iter()),
+                        value_type: ValueType::Number,
+                        validators: Default::default(),
+                    },
+                ],
+                optional: vec![
+                    ConventionTag {
+                        name: "DISCNUMBER".to_string(),
+                        alias: Default::default(),
+                        value_type: ValueType::Number,
+                        validators: Default::default(),
+                    },
+                    ConventionTag {
+                        name: "DISCTOTAL".to_string(),
+                        alias: HashSet::from_iter(vec!["TOTALDISCS".to_string()].into_iter()),
+                        value_type: ValueType::Number,
+                        validators: Default::default(),
+                    },
+                    ConventionTag {
+                        name: "ALBUMARTIST".to_string(),
+                        alias: Default::default(),
+                        value_type: ValueType::String,
+                        validators: Default::default(),
+                    }
+                ],
+            },
         }
     }
+}
+
+#[derive(Debug, Deserialize)]
+struct ConventionTagConfig {
+    required: Vec<ConventionTag>,
+    optional: Vec<ConventionTag>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -236,9 +261,9 @@ struct ConventionTag {
     #[serde(default)]
     alias: HashSet<String>,
 
-    /// Whether this tag is required
-    #[serde(default)]
-    required: bool,
+    /// Value inner type
+    #[serde(rename = "type")]
+    value_type: ValueType,
 
     /// Validators for this tag
     #[serde(default)]
@@ -253,6 +278,34 @@ impl ConventionTag {
             }
         }
         Ok(())
+    }
+}
+
+#[derive(Debug)]
+enum ValueType {
+    String,
+    Number,
+}
+
+impl ValueType {
+    pub(crate) fn as_str(&self) -> &'static str {
+        match self {
+            ValueType::String => "string",
+            ValueType::Number => "number"
+        }
+    }
+}
+
+impl<'de> Deserialize<'de> for ValueType {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+        where D: Deserializer<'de>
+    {
+        let s = String::deserialize(deserializer)?;
+        match s.as_str() {
+            "string" => Ok(ValueType::String),
+            "number" => Ok(ValueType::Number),
+            _ => Err(D::Error::custom("invalid ValueType")),
+        }
     }
 }
 

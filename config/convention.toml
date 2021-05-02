@@ -1,0 +1,46 @@
+# Global type validators
+[types]
+string = ["trim", "dot"]
+number = ["number"]
+
+# Required Tags
+[[tags.required]]
+name = "TITLE"
+type = "string"
+
+[[tags.required]]
+name = "ARTIST"
+type = "string"
+validators = ["artist"]
+
+[[tags.required]]
+name = "ALBUM"
+type = "string"
+
+[[tags.required]]
+name = "DATE"
+type = "string"
+validators = ["date"]
+
+[[tags.required]]
+name = "TRACKNUMBER"
+type = "number"
+
+[[tags.required]]
+name = "TRACKTOTAL"
+alias = ["TOTALTRACKS"]
+type = "number"
+
+# Optional Tags
+[[tags.optional]]
+name = "DISCNUMBER"
+type = "number"
+
+[[tags.optional]]
+name = "DISCTOTAL"
+alias = ["TOTALDISCS"]
+type = "number"
+
+[[tags.optional]]
+name = "ALBUMARTIST"
+type = "string"
