@@ -52,3 +52,4 @@ repo-print-catalog = Catalog to print. '/{"{disc_id}"}' can be appended to indic
 ## get
 get = Get information from outer API.
 get-vgmdb = VGMdb API
+get-vgmdb-catalog = Get info from catalog.
