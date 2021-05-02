@@ -15,8 +15,6 @@ edit = "0.1.2"
 directories-next = "2.0.0"
 dotenv = "0.15.0"
 
-# reqwest = { version = "0.11", features = ["json", "rustls-tls"] }
-
 anni-common = { path = "../anni-common" }
 anni-flac = { path = "../anni-flac" }
 anni-repo = { path = "../anni-repo" }
@@ -31,3 +29,9 @@ env_logger = "0.8.3"
 anyhow = "1.0"
 
 cue_sheet = { git = "https://github.com/Yesterday17/cue_sheet" }
+anni-vgmdb = { git = "https://github.com/project-anni/anni-vgmdb" }
+
+[dependencies.reqwest]
+version = "0.11"
+default-features = false
+features = ["json", "rustls-tls"]

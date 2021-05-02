@@ -7,12 +7,14 @@ use crate::subcommands::convention::ConventionSubcommand;
 use crate::subcommands::repo::RepoSubcommand;
 use std::collections::HashMap;
 use std::collections::hash_map::Values;
+use crate::subcommands::get::GetSubcommand;
 
 mod split;
 mod convention;
 mod cue;
 mod flac;
 mod repo;
+mod get;
 
 pub trait Subcommand {
     fn name(&self) -> &'static str;
@@ -34,6 +36,7 @@ impl Default for Subcommands {
         result.add_subcommand(Box::new(SplitSubcommand));
         result.add_subcommand(Box::new(ConventionSubcommand));
         result.add_subcommand(Box::new(RepoSubcommand));
+        result.add_subcommand(Box::new(GetSubcommand));
         result
     }
 }
