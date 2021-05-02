@@ -6,7 +6,6 @@ use log::LevelFilter;
 use crate::subcommands::Subcommands;
 use crate::i18n::ClapI18n;
 
-mod encoding;
 mod i18n;
 mod subcommands;
 

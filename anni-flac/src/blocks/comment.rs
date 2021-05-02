@@ -2,7 +2,7 @@ use std::io::Read;
 use byteorder::{ReadBytesExt, LittleEndian};
 use crate::utils::take_string;
 use crate::prelude::{Decode, Result};
-use std::collections::BTreeMap;
+use std::collections::HashMap;
 use std::fmt;
 
 /// Also known as FLAC tags, the contents of a vorbis comment packet as specified here (without the framing bit).
@@ -44,8 +44,8 @@ impl BlockVorbisComment {
         self.comments.len()
     }
 
-    pub fn to_map(&self) -> BTreeMap<String, &UserComment> {
-        let mut map = BTreeMap::new();
+    pub fn to_map(&self) -> HashMap<String, &UserComment> {
+        let mut map: HashMap<_, _> = Default::default();
         for comment in self.comments.iter() {
             // NOT override only when key exists AND comment.value is EMPTY.
             if !(map.contains_key(&comment.key()) && comment.value().len() == 0) {
