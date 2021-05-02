@@ -68,41 +68,44 @@ impl ConventionRules {
         let mut required: HashSet<&str> = self.required.keys().map(|s| s.as_str()).collect();
         let (mut track_number, mut title) = (None, None);
         for comment in comment.comments.iter() {
-            let (key, value) = (comment.key_raw(), comment.value());
+            let (key, key_raw, value) = (comment.key(), comment.key_raw(), comment.value());
             if value.is_empty() {
-                warn!("Empty value for tag: {}", key);
+                warn!("Empty value for tag: {}", key_raw);
             }
             if !comment.is_key_uppercase() {
-                warn!("Lowercase tag: {}", key);
+                warn!("Lowercase tag: {}", key_raw);
             }
+            let key = key.as_str();
 
-            let tag = if !required.contains(key) {
-                // Required key duplicated
-                // duplication detection is only enabled for Required tags
-                warn!("Required key duplicated: {}", key);
-                continue;
-            } else if self.required.contains_key(key) {
-                // remove from required key set
-                // required tag
-                required.remove(key);
-                &self.required[key]
+            let tag = if self.required.contains_key(key) {
+                if !required.contains(key) {
+                    // Required key duplicated
+                    // duplication detection is only enabled for Required tags
+                    warn!("Required key duplicated: {}", key_raw);
+                    continue;
+                } else {
+                    // remove from required key set
+                    // required tag
+                    required.remove(key);
+                    &self.required[key]
+                }
             } else if self.optional.contains_key(key) {
                 // optional tag
                 &self.optional[key]
             } else if self.unrecommended.contains_key(key) {
                 // unrecommended tag
                 let tag = &self.unrecommended[key];
-                warn!("Unrecommended key: {}={}, use {} instead", key, value, &tag.name);
+                warn!("Unrecommended key: {}={}, use {} instead", key_raw, value, &tag.name);
                 tag
             } else {
                 // No tag rule found
-                warn!("Unnecessary tag: {}", key);
-                fixes.push(format!("metaflac --remove-tag={} {}", escape(key.into()), escape(filename.as_ref().to_string_lossy())));
+                warn!("Unnecessary tag: {}", key_raw);
+                fixes.push(format!("metaflac --remove-tag={} {}", escape(key_raw.into()), escape(filename.as_ref().to_string_lossy())));
                 continue;
             };
 
             if let Err(v) = tag.validate(value) {
-                error!("Validator {} not passed: invalid tag value {}={}", v, key, value);
+                error!("Validator {} not passed: invalid tag value {}={}", v, key_raw, value);
             } else if &tag.name == "TITLE" {
                 title = Some(value.to_string());
             } else if &tag.name == "TRACKNUMBER" {
@@ -117,7 +120,7 @@ impl ConventionRules {
 
         // Filename check
         if let (Some(title), Some(track_number)) = (title, track_number) {
-            let filename_expected: &str = &format!("{:02}. {}.flac", track_number, title).replace("/", "／");
+            let filename_expected: &str = &format!("{:0>2}. {}.flac", track_number, title).replace("/", "／");
             let filename_raw = filename.as_ref().file_name().unwrap().to_str().expect("Non-UTF8 filenames are currently not supported!");
             if filename_raw != filename_expected {
                 error!("Filename mismatch, got {}, expected {}", filename_raw, filename_expected);
@@ -204,19 +207,19 @@ impl Default for ConventionConfig {
                 ConventionTag {
                     name: "DISCNUMBER".to_string(),
                     alias: Default::default(),
-                    required: true,
+                    required: false,
                     validators: vec![Validator::from_str("number").unwrap()],
                 },
                 ConventionTag {
                     name: "DISCTOTAL".to_string(),
                     alias: HashSet::from_iter(vec!["TOTALDISCS".to_string()].into_iter()),
-                    required: true,
+                    required: false,
                     validators: vec![Validator::from_str("number").unwrap()],
                 },
                 ConventionTag {
                     name: "ALBUMARTIST".to_string(),
                     alias: Default::default(),
-                    required: true,
+                    required: false,
                     validators: vec![Validator::from_str("trim").unwrap()],
                 }
             ]
