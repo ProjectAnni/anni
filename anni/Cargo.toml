@@ -15,7 +15,6 @@ edit = "0.1.2"
 serde = { version = "1.0", features = ["derive"] }
 toml = "0.5"
 directories-next = "2.0.0"
-dotenv = "0.15.0"
 
 anni-common = { path = "../anni-common" }
 anni-flac = { path = "../anni-flac" }

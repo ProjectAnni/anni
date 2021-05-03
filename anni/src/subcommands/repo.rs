@@ -24,7 +24,7 @@ impl Subcommand for RepoSubcommand {
             .arg(Arg::new("repo.root")
                 .about("repo-root")
                 .long("root")
-                .env("ANNI_ROOT")
+                .env("ANNI_REPO")
                 .takes_value(true)
                 .required(true)
             )
