@@ -9,7 +9,7 @@ use anni_utils::validator::*;
 use serde::{Deserialize, Deserializer};
 use std::rc::Rc;
 use std::iter::FromIterator;
-use anni_flac::blocks::BlockVorbisComment;
+use anni_flac::blocks::{BlockVorbisComment, BlockStreamInfo};
 use std::str::FromStr;
 use serde::de::Error;
 use crate::config::read_config;
@@ -62,6 +62,7 @@ impl Subcommand for ConventionSubcommand {
 }
 
 struct ConventionRules {
+    stream_info: ConventionStreamInfo,
     types: HashMap<String, Vec<Validator>>,
 
     required: HashMap<String, Rc<ConventionTag>>,
@@ -74,6 +75,8 @@ impl ConventionRules {
         where P: AsRef<Path> {
         info!("Checking {:?}", filename.as_ref());
 
+        self.validate_stream_info(flac.stream_info());
+
         // validate comments
         let fixes = flac.comments()
             .map_or_else(|| {
@@ -84,6 +87,24 @@ impl ConventionRules {
         for fix in fixes {
             println!("{}", fix);
         }
+    }
+
+    fn validate_stream_info(&self, info: &BlockStreamInfo) {
+        self.stream_info.sample_rate.map(|expected| {
+            if info.sample_rate != expected {
+                error!("Stream sample-rate mismatch: expected {}, got {}", expected, info.sample_rate);
+            }
+        });
+        self.stream_info.bit_per_sample.map(|expected| {
+            if info.bits_per_sample != expected {
+                error!("Stream bit-per-sample mismatch: expected {}, got {}", expected, info.bits_per_sample);
+            }
+        });
+        self.stream_info.channels.map(|expected| {
+            if info.channels != expected {
+                error!("Stream channel num mismatch: expected {}, got {}", expected, info.channels);
+            }
+        });
     }
 
     fn validate_tags<P>(&self, filename: P, comment: &BlockVorbisComment) -> Vec<String>
@@ -165,14 +186,23 @@ impl ConventionRules {
 }
 
 #[derive(Debug, Deserialize)]
+#[serde(rename_all = "kebab-case")]
 struct ConventionConfig {
+    #[serde(default)]
+    stream_info: ConventionStreamInfo,
     types: HashMap<String, Vec<Validator>>,
     tags: ConventionTagConfig,
 }
 
 impl ConventionConfig {
     pub(crate) fn into_rules(self) -> ConventionRules {
-        let mut rules = ConventionRules { types: self.types, required: Default::default(), optional: Default::default(), unrecommended: Default::default() };
+        let mut rules = ConventionRules {
+            stream_info: self.stream_info,
+            types: self.types,
+            required: Default::default(),
+            optional: Default::default(),
+            unrecommended: Default::default(),
+        };
         for tag in self.tags.required {
             let this = Rc::new(tag);
             for key in this.alias.iter() {
@@ -196,6 +226,7 @@ impl ConventionConfig {
 impl Default for ConventionConfig {
     fn default() -> Self {
         Self {
+            stream_info: Default::default(),
             types: HashMap::from_iter(vec![
                 ("string".to_string(), vec![Validator::from_str("trim").unwrap(), Validator::from_str("dot").unwrap()]),
                 ("number".to_string(), vec![Validator::from_str("number").unwrap()])
@@ -265,12 +296,32 @@ impl Default for ConventionConfig {
 }
 
 #[derive(Debug, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+struct ConventionStreamInfo {
+    sample_rate: Option<u32>,
+    channels: Option<u8>,
+    bit_per_sample: Option<u8>,
+}
+
+impl Default for ConventionStreamInfo {
+    fn default() -> Self {
+        Self {
+            sample_rate: Some(44100),
+            channels: Some(2),
+            bit_per_sample: Some(16),
+        }
+    }
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "kebab-case")]
 struct ConventionTagConfig {
     required: Vec<ConventionTag>,
     optional: Vec<ConventionTag>,
 }
 
 #[derive(Debug, Deserialize)]
+#[serde(rename_all = "kebab-case")]
 struct ConventionTag {
     /// Tag name
     name: String,
