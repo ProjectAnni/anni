@@ -12,6 +12,7 @@ use std::iter::FromIterator;
 use anni_flac::blocks::BlockVorbisComment;
 use std::str::FromStr;
 use serde::de::Error;
+use crate::config::read_config;
 
 pub(crate) struct ConventionSubcommand;
 
@@ -36,13 +37,19 @@ impl Subcommand for ConventionSubcommand {
 
     fn handle(&self, matches: &ArgMatches) -> anyhow::Result<()> {
         if let Some(matches) = matches.subcommand_matches("check") {
+            // Initialize rules
+            let config: ConventionConfig = read_config("convention").map_err(|e| {
+                warn!("Failed to read convention.toml: {}", e);
+                warn!("Using default anni convention");
+                e
+            }).unwrap_or_default();
+            let rules = config.into_rules();
+
             for input in matches.values_of_os("Filename").unwrap().collect::<Vec<_>>() {
                 for (file, header) in parse_input_iter(input) {
                     match header {
                         Ok(header) => {
                             let comments = header.comments().expect("Failed to read comments");
-                            // TODO: user-defined rules
-                            let rules = ConventionConfig::default().into_rules();
                             rules.validate(file, comments);
                         }
                         Err(e) => error!("Failed to parse header of {:?}: {:?}", file, e),
