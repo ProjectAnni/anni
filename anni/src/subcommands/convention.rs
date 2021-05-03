@@ -13,6 +13,7 @@ use anni_flac::blocks::BlockVorbisComment;
 use std::str::FromStr;
 use serde::de::Error;
 use crate::config::read_config;
+use anni_flac::FlacHeader;
 
 pub(crate) struct ConventionSubcommand;
 
@@ -36,21 +37,20 @@ impl Subcommand for ConventionSubcommand {
     }
 
     fn handle(&self, matches: &ArgMatches) -> anyhow::Result<()> {
-        if let Some(matches) = matches.subcommand_matches("check") {
-            // Initialize rules
-            let config: ConventionConfig = read_config("convention").map_err(|e| {
-                warn!("Failed to read convention.toml: {}", e);
-                warn!("Using default anni convention");
-                e
-            }).unwrap_or_default();
-            let rules = config.into_rules();
+        // Initialize rules
+        let config: ConventionConfig = read_config("convention").map_err(|e| {
+            warn!("Failed to read convention.toml: {}", e);
+            warn!("Using default anni convention");
+            e
+        }).unwrap_or_default();
+        let rules = config.into_rules();
 
+        if let Some(matches) = matches.subcommand_matches("check") {
             for input in matches.values_of_os("Filename").unwrap().collect::<Vec<_>>() {
                 for (file, header) in parse_input_iter(input) {
                     match header {
                         Ok(header) => {
-                            let comments = header.comments().expect("Failed to read comments");
-                            rules.validate(file, comments);
+                            rules.validate(file, &header);
                         }
                         Err(e) => error!("Failed to parse header of {:?}: {:?}", file, e),
                     }
@@ -70,10 +70,24 @@ struct ConventionRules {
 }
 
 impl ConventionRules {
-    pub(crate) fn validate<P>(&self, filename: P, comment: &BlockVorbisComment)
+    pub(crate) fn validate<P>(&self, filename: P, flac: &FlacHeader)
         where P: AsRef<Path> {
         info!("Checking {:?}", filename.as_ref());
 
+        // validate comments
+        let fixes = flac.comments()
+            .map_or_else(|| {
+                error!("No VorbisComment block found!");
+                Vec::new()
+            }, |c| self.validate_tags(filename, c));
+
+        for fix in fixes {
+            println!("{}", fix);
+        }
+    }
+
+    fn validate_tags<P>(&self, filename: P, comment: &BlockVorbisComment) -> Vec<String>
+        where P: AsRef<Path> {
         let mut fixes = Vec::default();
         let mut required: HashSet<&str> = self.required.keys().map(|s| s.as_str()).collect();
         let (mut track_number, mut title) = (None, None);
@@ -146,10 +160,7 @@ impl ConventionRules {
                 fixes.push(format!("mv {} {}", escape(filename.as_ref().to_string_lossy()), escape(path_expected.to_string_lossy())));
             }
         }
-
-        for fix in fixes.iter() {
-            println!("{}", fix);
-        }
+        fixes
     }
 }
 
