@@ -1,3 +1,9 @@
+# Stream Info
+[stream-info]
+sample-rate = 44100
+channels = 2
+bit-per-sample = 16
+
 # Global type validators
 [types]
 string = ["trim", "dot"]
