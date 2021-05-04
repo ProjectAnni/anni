@@ -135,7 +135,7 @@ fn tracks(file: &str) -> io::Result<Vec<String>> {
     let cue = Tracklist::parse(file).unwrap();
     let album = cue.info.get("TITLE").expect("Album TITLE not provided!");
     let artist = cue.info.get("ARTIST").map(String::as_str).unwrap_or("");
-    let date = cue.info.get("DATE").expect("Album DATE not provided!");
+    let date = cue.info.get("DATE").map(String::as_str).unwrap_or("");
     let disc_number = cue.info.get("DISCNUMBER").map(String::as_str).unwrap_or("1");
     let disc_total = cue.info.get("TOTALDISCS").map(String::as_str).unwrap_or("1");
 
