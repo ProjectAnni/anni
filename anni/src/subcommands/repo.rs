@@ -202,6 +202,8 @@ fn handle_repo_apply(matches: &ArgMatches, settings: &RepositoryManager) -> anyh
     if discs.len() != disc_count {
         bail!("discs.len() != disc_count!");
     }
+
+    let mut output = Vec::new();
     for (disc_num, disc) in album.discs().iter().enumerate() {
         let disc_num = disc_num + 1;
         let disc_dir = if discs.len() > 1 {
@@ -232,6 +234,9 @@ fn handle_repo_apply(matches: &ArgMatches, settings: &RepositoryManager) -> anyh
 
         for (track_num, (file, track)) in files.iter().zip(tracks).enumerate() {
             let track_num = track_num + 1;
+
+            let flac = FlacHeader::from_file(file)?;
+            let comments = flac.comments();
             let meta = format!(
                 r#"TITLE={title}
 ALBUM={album}
@@ -240,7 +245,8 @@ DATE={release_date}
 TRACKNUMBER={track_number}
 TRACKTOTAL={track_total}
 DISCNUMBER={disc_number}
-DISCTOTAL={disc_total}"#,
+DISCTOTAL={disc_total}
+"#,
                 title = track.title(),
                 album = disc.title(),
                 artist = track.artist(),
@@ -250,12 +256,19 @@ DISCTOTAL={disc_total}"#,
                 disc_number = disc_num,
                 disc_total = discs.len(),
             );
-            println!(
-                "echo {} | metaflac --remove-all-tags --import-tags-from=- {}",
-                escape(meta.into()),
-                escape(file.to_str().unwrap().into())
-            );
+            // no comment block exist, or comments is not correct
+            if comments.is_none() || comments.unwrap().to_string() != meta {
+                output.push(format!(
+                    "echo {} | metaflac --remove-all-tags --import-tags-from=- {}",
+                    escape(meta.into()),
+                    escape(file.to_str().unwrap().into())
+                ));
+            }
         }
+    }
+
+    for meta in output {
+        println!("{}", meta);
     }
     Ok(())
 }
