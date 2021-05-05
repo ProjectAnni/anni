@@ -260,7 +260,7 @@ DISCTOTAL={disc_total}
             if comments.is_none() || comments.unwrap().to_string() != meta {
                 output.push(format!(
                     "echo {} | metaflac --remove-all-tags --import-tags-from=- {}",
-                    escape(meta.into()),
+                    escape(meta.trim().into()),
                     escape(file.to_str().unwrap().into())
                 ));
             }
