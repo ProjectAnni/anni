@@ -13,7 +13,8 @@ extern crate anyhow;
 #[macro_use]
 extern crate log;
 
-fn main() -> anyhow::Result<()> {
+#[tokio::main]
+async fn main() -> anyhow::Result<()> {
     // initialize env_logger
     env_logger::builder()
         .filter_level(LevelFilter::Error)

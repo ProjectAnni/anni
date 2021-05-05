@@ -11,6 +11,8 @@ lazy_static = "1.4.0"
 shell-escape = "0.1.5"
 which = "4.1.0"
 edit = "0.1.2"
+futures = "0.3"
+tokio = { version = "1.5.0", features = ["full"] }
 
 serde = { version = "1.0", features = ["derive"] }
 toml = "0.5"
@@ -29,7 +31,7 @@ log = "0.4.0"
 env_logger = "0.8.3"
 anyhow = "1.0"
 
-cue_sheet = { git = "https://github.com/Yesterday17/cue_sheet" }
+cue_sheet = { git = "https://github.com/project-anni/cue_sheet" }
 anni-vgmdb = { git = "https://github.com/project-anni/anni-vgmdb" }
 
 [dependencies.reqwest]
