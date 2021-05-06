@@ -31,19 +31,19 @@ impl Default for Subcommands {
         let mut result = Self {
             subcommands: Default::default(),
         };
-        result.add_subcommand(Box::new(FlacSubcommand));
-        result.add_subcommand(Box::new(CueSubcommand));
-        result.add_subcommand(Box::new(SplitSubcommand));
-        result.add_subcommand(Box::new(ConventionSubcommand));
-        result.add_subcommand(Box::new(RepoSubcommand));
-        result.add_subcommand(Box::new(GetSubcommand));
+        result.add_subcommand(FlacSubcommand);
+        result.add_subcommand(CueSubcommand);
+        result.add_subcommand(SplitSubcommand);
+        result.add_subcommand(ConventionSubcommand);
+        result.add_subcommand(RepoSubcommand);
+        result.add_subcommand(GetSubcommand);
         result
     }
 }
 
 impl Subcommands {
-    fn add_subcommand(&mut self, cmd: Box<dyn Subcommand>) {
-        self.subcommands.insert(cmd.name(), cmd);
+    fn add_subcommand(&mut self, cmd: impl Subcommand + 'static) {
+        self.subcommands.insert(cmd.name(), Box::new(cmd));
     }
 
     pub fn iter(&self) -> Map<Values<'_, &'static str, Box<dyn Subcommand>>, fn(&Box<dyn Subcommand>) -> App<'static>> {
