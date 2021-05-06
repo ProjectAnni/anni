@@ -115,7 +115,7 @@ fn handle_repo_add(matches: &ArgMatches, settings: &RepositoryManager) -> anyhow
             ball!("repo-album-exists", catalog = catalog);
         }
 
-        let mut album = Album::new(&album_title, "[Unknown Artist]", release_date, &catalog);
+        let mut album = Album::new(album_title.clone(), "[Unknown Artist]".to_string(), release_date, catalog.clone());
 
         let directories = fs::get_subdirectories(to_add)?;
         let mut directories: Vec<_> = directories.iter().map(|r| r.as_path()).collect();
@@ -277,12 +277,12 @@ pub(crate) fn stream_to_track(stream: &FlacHeader) -> Track {
     if let Some(comment) = stream.comments() {
         let map = comment.to_map();
         Track::new(
-            map.get("TITLE").map(|v| v.value()).unwrap_or(""),
+            map.get("TITLE").map(|v| v.value()).unwrap_or("").to_string(),
             map.get("ARTIST").map(|v| v.value()),
             None,
         )
     } else {
-        Track::new("", None, None)
+        Track::new(String::new(), None, None)
     }
 }
 

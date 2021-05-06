@@ -13,14 +13,14 @@ pub struct Album {
 }
 
 impl Album {
-    pub fn new(title: &str, artist: &str, release_date: Datetime, catalog: &str) -> Self {
+    pub fn new(title: String, artist: String, release_date: Datetime, catalog: String) -> Self {
         Album {
             info: AlbumInfo {
-                title: title.to_owned(),
-                artist: artist.to_owned(),
+                title,
+                artist,
                 release_date,
                 album_type: TrackType::Normal,
-                catalog: catalog.to_owned(),
+                catalog,
             },
             discs: Vec::new(),
         }
@@ -193,9 +193,9 @@ pub struct Track {
 }
 
 impl Track {
-    pub fn new(title: &str, artist: Option<&str>, track_type: Option<TrackType>) -> Self {
+    pub fn new(title: String, artist: Option<&str>, track_type: Option<TrackType>) -> Self {
         Track {
-            title: title.to_owned(),
+            title,
             artist: artist.map(|u| u.to_owned()),
             track_type,
         }
