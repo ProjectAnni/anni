@@ -34,15 +34,15 @@ pub enum AnniBackend {
 }
 
 impl AnniBackend {
-    pub fn as_backend(&self) -> Box<&dyn Backend> {
+    pub fn as_backend(&self) -> &impl Backend {
         match self {
-            AnniBackend::File(b) => Box::new(b),
+            AnniBackend::File(b) => b,
         }
     }
 
-    pub fn as_backend_mut(&mut self) -> Box<&mut dyn Backend> {
+    pub fn as_backend_mut(&mut self) -> &mut impl Backend {
         match self {
-            AnniBackend::File(b) => Box::new(b),
+            AnniBackend::File(b) => b,
         }
     }
 }

@@ -1,4 +1,4 @@
-use anni_backend::{BackendError, AnniBackend, BackendAudio};
+use anni_backend::{BackendError, AnniBackend, BackendAudio, Backend};
 use std::pin::Pin;
 use tokio::io::AsyncRead;
 use std::collections::HashSet;
