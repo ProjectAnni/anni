@@ -1,5 +1,4 @@
 use anni_backend::{BackendError, AnniBackend, BackendAudio, Backend};
-use std::pin::Pin;
 use tokio::io::AsyncRead;
 use std::collections::HashSet;
 
@@ -50,7 +49,7 @@ impl AnnilBackend {
         self.inner.as_backend().get_audio(catalog, track_id).await
     }
 
-    pub async fn get_cover(&self, catalog: &str) -> Result<Pin<Box<dyn AsyncRead>>, BackendError> {
+    pub async fn get_cover(&self, catalog: &str) -> Result<impl AsyncRead, BackendError> {
         self.inner.as_backend().get_cover(catalog).await
     }
 }

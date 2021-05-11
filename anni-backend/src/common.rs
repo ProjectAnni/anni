@@ -60,4 +60,10 @@ pub enum BackendError {
 
     #[error(transparent)]
     IOError(#[from] std::io::Error),
+
+    #[error(transparent)]
+    OAuthError(#[from] yup_oauth2::Error),
+
+    #[error(transparent)]
+    DriveError(#[from] google_drive3::Error),
 }

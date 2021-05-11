@@ -6,7 +6,16 @@ edition = "2018"
 
 [dependencies]
 tokio = { version = "1", features = ["full"] }
+tokio-util = { version = "0.6.3", features = ["compat"] }
+futures = "0.3"
 async-trait = "0.1.45"
 thiserror = "1.0"
 anni-repo = { path = "../anni-repo" }
 log = "0.4.0"
+
+google-drive3 = "*"
+yup-oauth2 = "^5.0"
+hyper = { version = "^0.14", features = ["stream"] }
+hyper-rustls = "^0.22"
+serde = "^1.0"
+serde_json = "^1.0"
