@@ -171,7 +171,7 @@ impl Backend for DriveBackend {
                 let reader = self.get_file(file.id.as_ref().unwrap()).await?;
                 Ok(BackendReaderExt {
                     extension: file.file_extension.as_ref().unwrap().to_string(),
-                    size: u64::from_str(file.size.as_ref().unwrap()).unwrap(),
+                    size: usize::from_str(file.size.as_ref().unwrap()).unwrap(),
                     reader,
                 })
             }

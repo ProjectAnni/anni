@@ -3,13 +3,12 @@ use std::path::PathBuf;
 use std::collections::{HashSet, HashMap};
 use async_trait::async_trait;
 use std::sync::{Mutex, Arc};
-use tokio::io::{AsyncRead, ReadBuf, AsyncWrite};
+use tokio::io::{AsyncRead, ReadBuf};
 use std::task::{Context, Poll};
 use std::pin::Pin;
 use tokio::time::Duration;
 use std::future::Future;
 use tokio::fs::File;
-use futures::FutureExt;
 
 #[macro_export]
 macro_rules! cache {
@@ -40,15 +39,10 @@ impl Backend for Cache {
     }
 
     async fn get_audio(&self, catalog: &str, track_id: u8) -> Result<BackendReaderExt, BackendError> {
-        let reader = self.pool.fetch(
+        self.pool.fetch(
             do_hash(format!("{}/{:02}", catalog, track_id)),
-            self.inner.get_audio(catalog, track_id).map(|e| e.unwrap().reader),
-        ).await;
-        Ok(BackendReaderExt {
-            extension: "flac".to_string(),
-            size: 0,
-            reader: Box::pin(reader),
-        })
+            self.inner.get_audio(catalog, track_id),
+        ).await
     }
 
     async fn get_cover(&self, catalog: &str) -> Result<BackendReader, BackendError> {
@@ -67,21 +61,27 @@ pub struct CachePool {
 }
 
 impl CachePool {
-    async fn fetch(&self, key: String, on_miss: impl Future<Output=BackendReader>)
-                   -> BackendReader {
-        if !self.has_cache(&key) {
+    async fn fetch(&self, key: String, on_miss: impl Future<Output=Result<BackendReaderExt, BackendError>>)
+                   -> Result<BackendReaderExt, BackendError> {
+        let item = if !self.has_cache(&key) {
             // TODO: remove when cache space is full
             let path = self.root.join(&key);
-            let file = tokio::fs::File::create(&path).await.unwrap();
-            let item = Arc::new(CacheItem::new(path));
+            let mut file = tokio::fs::File::create(&path).await.unwrap();
+            let BackendReaderExt { extension, size, mut reader } = on_miss.await?;
+            let item = Arc::new(CacheItem::new(path, extension, size, false));
             self.cache.lock().unwrap().insert(key.clone(), item.clone());
-            Box::pin(item.to_tee_reader(on_miss.await, file))
+
+            let item_spawn = item.clone();
+            tokio::spawn(async move {
+                tokio::io::copy(&mut reader, &mut file).await.unwrap();
+                *item_spawn.cached.lock().unwrap() = true;
+            });
+            item
         } else {
-            let item = self.cache.lock().unwrap()
-                .get(&key).unwrap().clone();
-            let reader = item.to_reader(tokio::fs::File::open(&item.path).await.unwrap());
-            Box::pin(reader)
-        }
+            self.cache.lock().unwrap()
+                .get(&key).unwrap().clone()
+        };
+        Ok(item.to_backend_reader_ext(tokio::fs::File::open(&item.path).await.unwrap()))
     }
 
     fn has_cache(&self, key: &str) -> bool {
@@ -98,34 +98,31 @@ fn do_hash(key: String) -> String {
 }
 
 struct CacheItem {
+    ext: String,
     path: PathBuf,
-    size: Mutex<usize>,
+    size: usize,
     cached: Mutex<bool>,
 }
 
 impl CacheItem {
-    fn new(path: PathBuf) -> Self {
+    fn new(path: PathBuf, ext: String, size: usize, cached: bool) -> Self {
         CacheItem {
             path,
-            size: Mutex::new(0),
-            cached: Mutex::new(false),
+            ext,
+            size,
+            cached: Mutex::new(cached),
         }
     }
 
     fn cached(&self) -> bool {
         *self.cached.lock().unwrap()
     }
-
-    fn size(&self) -> usize {
-        *self.size.lock().unwrap()
-    }
 }
 
-#[async_trait]
 trait CacheReader {
     fn to_reader(&self, file: tokio::fs::File) -> CacheItemReader;
 
-    fn to_tee_reader(&self, reader: BackendReader, file: tokio::fs::File) -> CacheTeeReader;
+    fn to_backend_reader_ext(&self, file: tokio::fs::File) -> BackendReaderExt;
 }
 
 impl CacheReader for Arc<CacheItem> {
@@ -138,13 +135,11 @@ impl CacheReader for Arc<CacheItem> {
         }
     }
 
-    fn to_tee_reader(&self, reader: BackendReader, file: File) -> CacheTeeReader {
-        CacheTeeReader {
-            item: self.clone(),
-            file: Box::pin(file),
-            reader,
-            buf: Default::default(),
-            state: CacheTeeReaderState::Reading,
+    fn to_backend_reader_ext(&self, file: File) -> BackendReaderExt {
+        BackendReaderExt {
+            extension: self.ext.clone(),
+            size: self.size,
+            reader: Box::pin(self.to_reader(file)),
         }
     }
 }
@@ -197,7 +192,7 @@ impl AsyncRead for CacheItemReader {
                             self.filled += now - before;
                             Poll::Ready(Ok(()))
                         } else if self.item.cached() {
-                            if self.filled != self.item.size() {
+                            if self.filled != self.item.size {
                                 // caching finished just now
                                 // wake immediately to finish the last part
                                 cx.waker().wake_by_ref();
@@ -221,89 +216,6 @@ impl AsyncRead for CacheItemReader {
             }
             // wait
             Poll::Pending => Poll::Pending,
-        }
-    }
-}
-
-impl Drop for CacheItemReader {
-    fn drop(&mut self) {
-        //
-    }
-}
-
-struct CacheTeeReader {
-    item: Arc<CacheItem>,
-    file: Pin<Box<tokio::fs::File>>,
-    reader: BackendReader,
-
-    state: CacheTeeReaderState,
-    buf: Vec<u8>,
-}
-
-enum CacheTeeReaderState {
-    Reading,
-    Writing,
-    Flushing,
-}
-
-impl AsyncRead for CacheTeeReader {
-    fn poll_read(mut self: Pin<&mut Self>, cx: &mut Context<'_>, buf: &mut ReadBuf<'_>) -> Poll<std::io::Result<()>> {
-        match self.state {
-            CacheTeeReaderState::Reading => {
-                // step 1: read
-                let begin = buf.filled().len();
-                let ret = self.reader.as_mut().poll_read(cx, buf);
-                match ret {
-                    Poll::Ready(Ok(())) => {
-                        let end = buf.filled().len();
-                        if begin == end {
-                            // EOF, flush
-                            self.state = CacheTeeReaderState::Flushing;
-                        } else {
-                            // Write
-                            self.buf.extend_from_slice(&buf.filled()[begin..end]);
-                            buf.set_filled(begin);
-                            self.state = CacheTeeReaderState::Writing;
-                        }
-                        // wake immediately to finish the last part
-                        cx.waker().wake_by_ref();
-                        // return pending
-                        Poll::Pending
-                    }
-                    Poll::Ready(Err(e)) => Poll::Ready(Err(e)),
-                    Poll::Pending => Poll::Pending,
-                }
-            }
-            CacheTeeReaderState::Writing => {
-                let me = self.get_mut();
-                let ret = me.file.as_mut().poll_write(cx, &me.buf);
-                match ret {
-                    Poll::Ready(Ok(written)) => {
-                        *me.item.size.lock().unwrap() += written;
-                        if me.buf.len() != written {
-                            // partial written
-                            me.buf.drain(0..written);
-                            cx.waker().wake_by_ref();
-                            Poll::Pending
-                        } else {
-                            // fully written, read again
-                            buf.put_slice(&me.buf);
-                            me.buf.clear();
-                            me.state = CacheTeeReaderState::Reading;
-                            Poll::Ready(Ok(()))
-                        }
-                    }
-                    Poll::Ready(Err(e)) => Poll::Ready(Err(e)),
-                    Poll::Pending => Poll::Pending,
-                }
-            }
-            CacheTeeReaderState::Flushing => match self.file.as_mut().poll_flush(cx) {
-                Poll::Ready(_) => {
-                    *self.item.cached.lock().unwrap() = true;
-                    Poll::Ready(Ok(()))
-                }
-                Poll::Pending => Poll::Pending,
-            }
         }
     }
 }

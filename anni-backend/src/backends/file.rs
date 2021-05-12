@@ -140,7 +140,7 @@ impl Backend for FileBackend {
                 let path = entry.path();
                 return Ok(BackendReaderExt {
                     extension: path.extension().map(|s| s.to_string_lossy().to_string()).unwrap_or(String::new()),
-                    size: entry.metadata().await?.len(),
+                    size: entry.metadata().await?.len() as usize,
                     reader: Box::pin(File::open(&path).await?),
                 });
             }

@@ -12,7 +12,7 @@ pub struct BackendReaderExt {
     /// File extension of audio file
     pub extension: String,
     /// File size of audio file
-    pub size: u64,
+    pub size: usize,
     /// Async Reader for audio file
     pub reader: BackendReader,
 }
