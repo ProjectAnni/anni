@@ -154,7 +154,7 @@ impl Drop for CacheItem {
         // not cached, means:
         // a. file not fully cached and program reaches program termination
         // b. manually set cached to false
-        if !&self.cached {
+        if *self.cached.lock().unwrap() {
             // TODO: handle error here?
             std::fs::remove_file(&self.path);
         }
