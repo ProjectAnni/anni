@@ -223,7 +223,6 @@ impl AsyncRead for CacheItemReader {
 struct CacheTeeReader {
     item: Arc<CacheItem>,
     file: Pin<Box<tokio::fs::File>>,
-    // file: tokio::fs::File,
     reader: BackendReader,
 
     state: CacheTeeReaderState,
@@ -265,21 +264,21 @@ impl AsyncRead for CacheTeeReader {
                 }
             }
             CacheTeeReaderState::Writing => {
-                let inner_buf = self.buf.clone();
-                let ret = self.file.as_mut().poll_write(cx, &inner_buf);
+                let me = self.get_mut();
+                let ret = me.file.as_mut().poll_write(cx, &me.buf);
                 match ret {
                     Poll::Ready(Ok(written)) => {
-                        *self.item.size.lock().unwrap() += written;
-                        if self.buf.len() != written {
+                        *me.item.size.lock().unwrap() += written;
+                        if me.buf.len() != written {
                             // partial written
-                            self.buf.drain(0..written);
+                            me.buf.drain(0..written);
                             cx.waker().wake_by_ref();
                             Poll::Pending
                         } else {
                             // fully written, read again
-                            buf.put_slice(&self.buf);
-                            self.buf.clear();
-                            self.state = CacheTeeReaderState::Reading;
+                            buf.put_slice(&me.buf);
+                            me.buf.clear();
+                            me.state = CacheTeeReaderState::Reading;
                             Poll::Ready(Ok(()))
                         }
                     }
@@ -300,7 +299,7 @@ impl AsyncRead for CacheTeeReader {
 
 #[cfg(test)]
 mod test {
-    use crate::cache::{Cache, CachePool, do_hash};
+    use crate::cache::{Cache, CachePool};
     use crate::backends::drive::{DriveBackendSettings, DriveBackend};
     use std::path::PathBuf;
     use crate::Backend;
