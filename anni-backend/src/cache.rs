@@ -151,8 +151,13 @@ impl CacheReader for Arc<CacheItem> {
 
 impl Drop for CacheItem {
     fn drop(&mut self) {
-        // TODO: handle error here?
-        // std::fs::remove_file(&self.path);
+        // not cached, means:
+        // a. file not fully cached and program reaches program termination
+        // b. manually set cached to false
+        if !&self.cached {
+            // TODO: handle error here?
+            std::fs::remove_file(&self.path);
+        }
     }
 }
 
@@ -217,6 +222,12 @@ impl AsyncRead for CacheItemReader {
             // wait
             Poll::Pending => Poll::Pending,
         }
+    }
+}
+
+impl Drop for CacheItemReader {
+    fn drop(&mut self) {
+        //
     }
 }
 
