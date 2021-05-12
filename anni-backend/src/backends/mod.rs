@@ -1,5 +1,4 @@
-mod file;
-mod drive;
+pub use file::FileBackend;
 
-pub use file::*;
-pub use drive::*;
+mod file;
+pub mod drive;

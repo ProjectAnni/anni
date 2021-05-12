@@ -5,14 +5,16 @@ use std::pin::Pin;
 use thiserror::Error;
 use tokio::io::AsyncRead;
 
+pub type BackendReader = Pin<Box<dyn AsyncRead + Send>>;
+
 /// BackendAudio abstracts the audio result a backend returns when `get_audio` is called
-pub struct BackendAudio {
+pub struct BackendReaderExt {
     /// File extension of audio file
     pub extension: String,
     /// File size of audio file
     pub size: u64,
     /// Async Reader for audio file
-    pub reader: Pin<Box<dyn AsyncRead>>,
+    pub reader: BackendReader,
 }
 
 /// Backend is a common trait for anni backends.
@@ -23,10 +25,10 @@ pub trait Backend {
     async fn albums(&mut self) -> Result<HashSet<String>, BackendError>;
 
     /// Returns a reader implements AsyncRead for content reading
-    async fn get_audio(&self, catalog: &str, track_id: u8) -> Result<BackendAudio, BackendError>;
+    async fn get_audio(&self, catalog: &str, track_id: u8) -> Result<BackendReaderExt, BackendError>;
 
     /// Returns a cover of corrsponding album
-    async fn get_cover(&self, catalog: &str) -> Result<Pin<Box<dyn AsyncRead>>, BackendError>;
+    async fn get_cover(&self, catalog: &str) -> Result<BackendReader, BackendError>;
 }
 
 pub enum AnniBackend {

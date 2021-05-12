@@ -1,4 +1,4 @@
-use anni_backend::{BackendError, AnniBackend, BackendAudio, Backend};
+use anni_backend::{BackendError, AnniBackend, BackendReaderExt, Backend};
 use tokio::io::AsyncRead;
 use std::collections::HashSet;
 
@@ -45,7 +45,7 @@ impl AnnilBackend {
         self.enabled = enable;
     }
 
-    pub async fn get_audio(&self, catalog: &str, track_id: u8) -> Result<BackendAudio, BackendError> {
+    pub async fn get_audio(&self, catalog: &str, track_id: u8) -> Result<BackendReaderExt, BackendError> {
         self.inner.as_backend().get_audio(catalog, track_id).await
     }
 

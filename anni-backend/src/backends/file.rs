@@ -1,11 +1,10 @@
-use crate::common::{Backend, BackendAudio, BackendError};
+use crate::common::{Backend, BackendReaderExt, BackendError};
 use anni_repo::library::{album_info, disc_info};
 use async_trait::async_trait;
 use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
-use std::pin::Pin;
 use tokio::fs::{read_dir, File};
-use tokio::io::AsyncRead;
+use crate::BackendReader;
 
 pub struct FileBackend {
     strict: bool,
@@ -129,7 +128,7 @@ impl Backend for FileBackend {
         &self,
         catalog: &str,
         track_id: u8,
-    ) -> Result<BackendAudio, BackendError> {
+    ) -> Result<BackendReaderExt, BackendError> {
         let path = self.get_catalog_path(catalog)?;
         let mut dir = read_dir(path).await?;
         while let Some(entry) = dir.next_entry().await? {
@@ -139,7 +138,7 @@ impl Backend for FileBackend {
                 .starts_with::<&str>(format!("{:02}.", track_id).as_ref())
             {
                 let path = entry.path();
-                return Ok(BackendAudio {
+                return Ok(BackendReaderExt {
                     extension: path.extension().map(|s| s.to_string_lossy().to_string()).unwrap_or(String::new()),
                     size: entry.metadata().await?.len(),
                     reader: Box::pin(File::open(&path).await?),
@@ -149,7 +148,7 @@ impl Backend for FileBackend {
         Err(BackendError::FileNotFound)
     }
 
-    async fn get_cover(&self, catalog: &str) -> Result<Pin<Box<dyn AsyncRead>>, BackendError> {
+    async fn get_cover(&self, catalog: &str) -> Result<BackendReader, BackendError> {
         let path = self.get_catalog_path(catalog)?;
         let path = path.join("cover.jpg");
         let file = File::open(path).await?;

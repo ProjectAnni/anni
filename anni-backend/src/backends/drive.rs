@@ -1,6 +1,4 @@
-use crate::{Backend, BackendError, BackendAudio};
-use std::pin::Pin;
-use tokio::io::AsyncRead;
+use crate::{Backend, BackendError, BackendReaderExt, BackendReader};
 use std::collections::{HashSet, HashMap};
 use async_trait::async_trait;
 use google_drive3::DriveHub;
@@ -58,12 +56,12 @@ impl DriveAuth {
 }
 
 pub struct DriveBackendSettings {
-    corpora: String,
-    drive_id: Option<String>,
-    token_path: String,
+    pub corpora: String,
+    pub drive_id: Option<String>,
+    pub token_path: String,
 }
 
-struct DriveBackend {
+pub struct DriveBackend {
     /// Google Drive API Hub
     hub: DriveHub,
     /// HashMap mapping Catalog and folder_id
@@ -99,7 +97,7 @@ impl DriveBackend {
         }
     }
 
-    async fn get_file(&self, file_id: &str) -> Result<Pin<Box<dyn AsyncRead>>, BackendError> {
+    async fn get_file(&self, file_id: &str) -> Result<BackendReader, BackendError> {
         let (resp, _) = self.hub.files().get(file_id)
             .supports_all_drives(true)
             .param("alt", "media")
@@ -155,7 +153,7 @@ impl Backend for DriveBackend {
             .collect())
     }
 
-    async fn get_audio(&self, catalog: &str, track_id: u8) -> Result<BackendAudio, BackendError> {
+    async fn get_audio(&self, catalog: &str, track_id: u8) -> Result<BackendReaderExt, BackendError> {
         // catalog not found
         if !self.folders.contains_key(catalog) {
             return Err(BackendError::UnknownCatalog);
@@ -171,7 +169,7 @@ impl Backend for DriveBackend {
         match id {
             Some(file) => {
                 let reader = self.get_file(file.id.as_ref().unwrap()).await?;
-                Ok(BackendAudio {
+                Ok(BackendReaderExt {
                     extension: file.file_extension.as_ref().unwrap().to_string(),
                     size: u64::from_str(file.size.as_ref().unwrap()).unwrap(),
                     reader,
@@ -181,7 +179,7 @@ impl Backend for DriveBackend {
         }
     }
 
-    async fn get_cover(&self, catalog: &str) -> Result<Pin<Box<dyn AsyncRead>>, BackendError> {
+    async fn get_cover(&self, catalog: &str) -> Result<BackendReader, BackendError> {
         // catalog not found
         if !self.folders.contains_key(catalog) {
             return Err(BackendError::UnknownCatalog);
@@ -203,7 +201,7 @@ impl Backend for DriveBackend {
 
 #[cfg(test)]
 mod test {
-    use crate::backends::drive::{DriveBackend, DriveBackendSettings, DriveAuth};
+    use crate::backends::drive::{DriveBackend, DriveBackendSettings};
     use crate::Backend;
 
     #[tokio::test]
