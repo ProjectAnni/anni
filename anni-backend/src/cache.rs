@@ -149,7 +149,7 @@ impl Drop for CacheItem {
         // not cached, means:
         // a. file not fully cached and program reaches program termination
         // b. manually set cached to false
-        if *self.cached.lock().unwrap() {
+        if !*self.cached.lock().unwrap() {
             // TODO: handle error here?
             std::fs::remove_file(&self.path);
         }
@@ -204,7 +204,7 @@ impl AsyncRead for CacheItemReader {
                         } else {
                             // not done, wait for more data
                             // set up timer to wait 250ms
-                            self.timer = Some(Box::pin(tokio::time::sleep(Duration::from_millis(250))));
+                            self.timer = Some(Box::pin(tokio::time::sleep(Duration::from_millis(100))));
                             // wait immediately to poll the timer
                             cx.waker().wake_by_ref();
                             Poll::Pending
