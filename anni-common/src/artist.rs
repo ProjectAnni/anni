@@ -264,7 +264,7 @@ impl<'a> ArtistList<'a> {
 
 #[cfg(test)]
 mod tests {
-    use anni_common::artist::{ArtistList, AnniArtist};
+    use crate::artist::{ArtistList, AnniArtist};
 
     #[test]
     fn valid_artist_list() {

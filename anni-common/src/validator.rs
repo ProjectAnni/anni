@@ -104,7 +104,7 @@ pub fn middle_dot_replace(input: &str) -> String {
 
 #[cfg(test)]
 mod tests {
-    use anni_common::validator::{trim_validator, date_validator, middle_dot_validator, middle_dot_replace};
+    use crate::validator::{trim_validator, date_validator, middle_dot_validator, middle_dot_replace};
 
     #[test]
     fn trim_exist() {
