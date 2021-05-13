@@ -290,6 +290,7 @@ dependencies = [
  "hyper",
  "hyper-rustls",
  "log 0.4.14",
+ "parking_lot",
  "sha2",
  "thiserror",
  "tokio",

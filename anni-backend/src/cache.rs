@@ -1,6 +1,6 @@
 use crate::{Backend, BackendError, BackendReaderExt, BackendReader};
 use std::path::PathBuf;
-use std::collections::{HashSet, HashMap};
+use std::collections::{HashSet, HashMap, BTreeMap};
 use async_trait::async_trait;
 use std::sync::{Mutex, Arc};
 use tokio::io::{AsyncRead, ReadBuf};
@@ -9,6 +9,8 @@ use std::pin::Pin;
 use tokio::time::Duration;
 use std::future::Future;
 use tokio::fs::File;
+use parking_lot::RwLock;
+use std::time::SystemTime;
 
 #[macro_export]
 macro_rules! cache {
@@ -57,35 +59,65 @@ pub struct CachePool {
     /// Maximium space used by cache
     /// 0 means unlimited
     max_space: usize,
-    cache: Arc<Mutex<HashMap<String, Arc<CacheItem>>>>,
+    cache: RwLock<HashMap<String, Arc<CacheItem>>>,
+    last_used: RwLock<BTreeMap<String, u128>>,
 }
 
 impl CachePool {
     async fn fetch(&self, key: String, on_miss: impl Future<Output=Result<BackendReaderExt, BackendError>>)
                    -> Result<BackendReaderExt, BackendError> {
+        let now = SystemTime::now().duration_since(SystemTime::UNIX_EPOCH).unwrap().as_millis();
         let item = if !self.has_cache(&key) {
-            // TODO: remove when cache space is full
+            // calculate current space used
+            let space_used = self.space_used();
+
+            // prepare for new item
             let path = self.root.join(&key);
             let mut file = tokio::fs::File::create(&path).await.unwrap();
             let BackendReaderExt { extension, size, mut reader } = on_miss.await?;
             let item = Arc::new(CacheItem::new(path, extension, size, false));
-            self.cache.lock().unwrap().insert(key.clone(), item.clone());
 
+            // write to map
+            self.cache.write().insert(key.clone(), item.clone());
+            self.last_used.write().insert(key.clone(), now);
+
+            // remove old item if space is full
+            if self.max_space != 0 && space_used > self.max_space {
+                // get the first item of BTreeMap
+                let read = self.last_used.read();
+                let key = read.keys().next().unwrap();
+                // remove it from last_used map
+                // if key does not exist, it means other futures has removed it yet
+                // so ignore here
+                if let Some((key, ..)) = self.last_used.write().remove_entry(key) {
+                    // remove it from cache map
+                    // drop would do the removal
+                    self.cache.write().remove(&key).unwrap().set_cached(false);
+                }
+            }
+
+            // cache
             let item_spawn = item.clone();
             tokio::spawn(async move {
                 tokio::io::copy(&mut reader, &mut file).await.unwrap();
-                *item_spawn.cached.lock().unwrap() = true;
+                item_spawn.set_cached(true);
             });
             item
         } else {
-            self.cache.lock().unwrap()
-                .get(&key).unwrap().clone()
+            // update last_used time
+            self.last_used.write().insert(key.clone(), now);
+            self.cache.read().get(&key).unwrap().clone()
         };
+
         Ok(item.to_backend_reader_ext(tokio::fs::File::open(&item.path).await.unwrap()))
     }
 
     fn has_cache(&self, key: &str) -> bool {
-        self.cache.lock().unwrap().contains_key(key)
+        self.last_used.read().contains_key(key)
+    }
+
+    fn space_used(&self) -> usize {
+        self.cache.read().values().map(|a| a.size).reduce(|a, b| a + b).unwrap_or(0)
     }
 }
 
@@ -116,6 +148,10 @@ impl CacheItem {
 
     fn cached(&self) -> bool {
         *self.cached.lock().unwrap()
+    }
+
+    fn set_cached(&self, cached: bool) {
+        *self.cached.lock().unwrap() = cached
     }
 }
 
@@ -203,7 +239,7 @@ impl AsyncRead for CacheItemReader {
                             }
                         } else {
                             // not done, wait for more data
-                            // set up timer to wait 250ms
+                            // set up timer to wait
                             self.timer = Some(Box::pin(tokio::time::sleep(Duration::from_millis(100))));
                             // wait immediately to poll the timer
                             cx.waker().wake_by_ref();
@@ -238,6 +274,7 @@ mod test {
             root: PathBuf::from("/tmp"),
             max_space: 0,
             cache: Default::default(),
+            last_used: Default::default(),
         });
         cache.albums().await.unwrap();
         let mut reader = cache.get_audio("TGCS-10948", 1).await.unwrap();

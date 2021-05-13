@@ -21,3 +21,4 @@ hyper-rustls = "^0.22"
 
 sha2 = "0.9.4"
 hex = "0.4.2"
+parking_lot = "0.11.1"
