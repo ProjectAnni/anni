@@ -12,20 +12,13 @@ use tokio::fs::File;
 use parking_lot::RwLock;
 use std::time::SystemTime;
 
-#[macro_export]
-macro_rules! cache {
-    ($backend: expr, $s: expr) => {
-        Cache::new($backend, $s)
-    };
-}
-
 pub struct Cache {
     inner: Box<dyn Backend + Send + Sync>,
-    pool: CachePool,
+    pool: Arc<CachePool>,
 }
 
 impl Cache {
-    pub fn new(inner: impl Backend + Send + Sync + 'static, pool: CachePool) -> Self {
+    pub fn new(inner: impl Backend + Send + Sync + 'static, pool: Arc<CachePool>) -> Self {
         Self {
             inner: Box::new(inner),
             pool,
@@ -263,19 +256,23 @@ mod test {
     use std::path::PathBuf;
     use crate::Backend;
     use tokio::io::AsyncReadExt;
+    use std::sync::Arc;
 
     #[tokio::test]
     async fn test_cache() {
-        let mut cache = cache!(DriveBackend::new(Default::default(), DriveBackendSettings {
-            corpora: "drive".to_string(),
-            drive_id: Some("0AJIJiIDxF1yBUk9PVA".to_string()),
-            token_path: "/tmp/anni_token".to_string(),
-        }).await.unwrap(), CachePool{
-            root: PathBuf::from("/tmp"),
-            max_space: 0,
-            cache: Default::default(),
-            last_used: Default::default(),
-        });
+        let mut cache = Cache::new(
+            DriveBackend::new(Default::default(), DriveBackendSettings {
+                corpora: "drive".to_string(),
+                drive_id: Some("0AJIJiIDxF1yBUk9PVA".to_string()),
+                token_path: "/tmp/anni_token".to_string(),
+            }).await.unwrap(),
+            Arc::new(CachePool {
+                root: PathBuf::from("/tmp"),
+                max_space: 0,
+                cache: Default::default(),
+                last_used: Default::default(),
+            }),
+        );
         cache.albums().await.unwrap();
         let mut reader = cache.get_audio("TGCS-10948", 1).await.unwrap();
         let mut r = Vec::new();
