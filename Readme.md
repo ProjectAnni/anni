@@ -13,9 +13,11 @@
 ## Child Projects
 
 - anni: Cli-tool with all features.
+- annil: Simple music library backend.
+- anni-backend: Music backend provider.
+- anni-common: Common part used by anni projects.
 - anni-flac: FLAC parsing library(header only for now).
 - anni-repo: Music-repository related works.
-- anni-utils: Utilities used by other projects.
 
 ## Use Cases
 
