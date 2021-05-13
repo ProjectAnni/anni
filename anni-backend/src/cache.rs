@@ -66,8 +66,11 @@ impl CachePool {
         }
     }
 
-    async fn fetch(&self, key: String, on_miss: impl Future<Output=Result<BackendReaderExt, BackendError>>)
-                   -> Result<BackendReaderExt, BackendError> {
+    async fn fetch(
+        &self,
+        key: String,
+        on_miss: impl Future<Output=Result<BackendReaderExt, BackendError>>,
+    ) -> Result<BackendReaderExt, BackendError> {
         let now = SystemTime::now().duration_since(SystemTime::UNIX_EPOCH).unwrap().as_millis();
         let item = if !self.has_cache(&key) {
             // calculate current space used
@@ -75,7 +78,7 @@ impl CachePool {
 
             // prepare for new item
             let path = self.root.join(&key);
-            let mut file = tokio::fs::File::create(&path).await.unwrap();
+            let mut file = tokio::fs::File::create(&path).await?;
             let BackendReaderExt { extension, size, mut reader } = on_miss.await?;
             let item = Arc::new(CacheItem::new(path, extension, size, false));
 
@@ -111,7 +114,7 @@ impl CachePool {
             self.cache.read().get(&key).unwrap().clone()
         };
 
-        Ok(item.to_backend_reader_ext(tokio::fs::File::open(&item.path).await.unwrap()))
+        Ok(item.to_backend_reader_ext(tokio::fs::File::open(&item.path).await?))
     }
 
     fn has_cache(&self, key: &str) -> bool {

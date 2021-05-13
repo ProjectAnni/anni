@@ -7,13 +7,13 @@ use tokio::io::AsyncRead;
 
 pub type BackendReader = Pin<Box<dyn AsyncRead + Send>>;
 
-/// BackendAudio abstracts the audio result a backend returns when `get_audio` is called
+/// BackendReaderExt abstracts the file result a backend returns with extra information other than a reader
 pub struct BackendReaderExt {
-    /// File extension of audio file
+    /// File extension of the file
     pub extension: String,
-    /// File size of audio file
+    /// File size of the file
     pub size: usize,
-    /// Async Reader for audio file
+    /// Async Reader for the file
     pub reader: BackendReader,
 }
 
