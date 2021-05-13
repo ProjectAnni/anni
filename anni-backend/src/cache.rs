@@ -51,16 +51,16 @@ pub struct CachePool {
     root: PathBuf,
     /// Maximium space used by cache
     /// 0 means unlimited
-    max_space: usize,
+    max_size: usize,
     cache: RwLock<HashMap<String, Arc<CacheItem>>>,
     last_used: RwLock<BTreeMap<String, u128>>,
 }
 
 impl CachePool {
-    pub fn new<P: AsRef<Path>>(root: P, max_space: usize) -> Self {
+    pub fn new<P: AsRef<Path>>(root: P, max_size: usize) -> Self {
         Self {
             root: PathBuf::from(root.as_ref()),
-            max_space,
+            max_size,
             cache: Default::default(),
             last_used: Default::default(),
         }
@@ -84,7 +84,7 @@ impl CachePool {
             self.last_used.write().insert(key.clone(), now);
 
             // remove old item if space is full
-            if self.max_space != 0 && space_used > self.max_space {
+            if self.max_size != 0 && space_used > self.max_size {
                 // get the first item of BTreeMap
                 let read = self.last_used.read();
                 let key = read.keys().next().unwrap();
@@ -277,7 +277,7 @@ mod test {
             }).await.unwrap()),
             Arc::new(CachePool {
                 root: PathBuf::from("/tmp"),
-                max_space: 0,
+                max_size: 0,
                 cache: Default::default(),
                 last_used: Default::default(),
             }),
