@@ -5,7 +5,7 @@ mod share;
 
 use actix_web::{HttpServer, App, web, Responder, get, HttpResponse, HttpRequest};
 use std::sync::{Mutex, Arc};
-use anni_backend::backends::FileBackend;
+use anni_backend::backends::{FileBackend, DriveBackend};
 use std::path::PathBuf;
 use crate::backend::AnnilBackend;
 use tokio_util::io::ReaderStream;
@@ -16,6 +16,7 @@ use crate::auth::CanFetch;
 use anni_backend::AnniBackend;
 use std::collections::{HashSet, HashMap};
 use anni_backend::cache::{CachePool, Cache};
+use anni_backend::backends::drive::DriveBackendSettings;
 
 struct AppState {
     backends: Mutex<Vec<AnnilBackend>>,
@@ -98,11 +99,14 @@ async fn init_state(config: &Config) -> anyhow::Result<web::Data<AppState>> {
     for (backend_name, backend_config) in config.backends.iter() {
         log::debug!("Initializing backend: {}", backend_name);
         let mut backend = match &backend_config.item {
-            BackendItem::File { root, strict } => {
-                let inner = FileBackend::new(PathBuf::from(root), *strict);
-                AnniBackend::File(inner)
-            }
-            BackendItem::Drive { .. } => todo!()
+            BackendItem::File { root, strict } =>
+                AnniBackend::File(FileBackend::new(PathBuf::from(root), *strict)),
+            BackendItem::Drive { drive_id, corpora, token_path } =>
+                AnniBackend::Drive(DriveBackend::new(Default::default(), DriveBackendSettings {
+                    corpora: corpora.to_string(),
+                    drive_id: drive_id.clone(),
+                    token_path: token_path.as_deref().unwrap_or("annil.token").to_string(),
+                }).await?),
         };
         if let Some(cache) = backend_config.cache() {
             log::debug!("Cache configuration detected: root = {}, max-size = {}", cache.root(), cache.max_size);

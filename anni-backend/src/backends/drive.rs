@@ -44,7 +44,7 @@ impl DriveAuth {
                     client_email: None,
                     client_x509_cert_url: None,
                 }, oauth2::InstalledFlowReturnMethod::HTTPRedirect)
-                    .persist_tokens_to_disk("/tmp/anni_token")
+                    .persist_tokens_to_disk(persist_path)
                     .flow_delegate(Box::new(DefaultInstalledFlowDelegate))
                     .build().await
             }

@@ -58,13 +58,19 @@ impl BackendConfig {
 #[serde(tag = "type")]
 pub enum BackendItem {
     #[serde(rename = "file")]
+    #[serde(rename_all = "kebab-case")]
     File {
         root: String,
         #[serde(default)]
         strict: bool,
     },
     #[serde(rename = "drive")]
-    Drive {},
+    #[serde(rename_all = "kebab-case")]
+    Drive {
+        corpora: String,
+        drive_id: Option<String>,
+        token_path: Option<String>,
+    },
 }
 
 #[derive(Serialize, Deserialize)]
