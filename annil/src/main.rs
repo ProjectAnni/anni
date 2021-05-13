@@ -9,7 +9,7 @@ use anni_backend::backends::FileBackend;
 use std::path::PathBuf;
 use crate::backend::AnnilBackend;
 use tokio_util::io::ReaderStream;
-use crate::config::Config;
+use crate::config::{Config, BackendItem};
 use actix_web::middleware::Logger;
 use jwt_simple::prelude::HS256Key;
 use crate::auth::CanFetch;
@@ -96,16 +96,13 @@ async fn init_state(config: &Config) -> anyhow::Result<web::Data<AppState>> {
     let mut backends = Vec::with_capacity(config.backends.len());
     let mut caches = HashMap::new();
     for (backend_name, backend_config) in config.backends.iter() {
-        log::debug!("Initializing backend({}): {}", backend_config.backend_type, backend_name);
-        let mut backend = match backend_config.backend_type.as_str() {
-            "file" => {
-                let inner = FileBackend::new(PathBuf::from(backend_config.root()), backend_config.strict);
+        log::debug!("Initializing backend: {}", backend_name);
+        let mut backend = match &backend_config.item {
+            BackendItem::File { root, strict } => {
+                let inner = FileBackend::new(PathBuf::from(root), *strict);
                 AnniBackend::File(inner)
             }
-            "drive" => {
-                todo!()
-            }
-            _ => unimplemented!()
+            BackendItem::Drive { .. } => todo!()
         };
         if let Some(cache) = backend_config.cache() {
             log::debug!("Cache configuration detected: root = {}, max-size = {}", cache.root(), cache.max_size);

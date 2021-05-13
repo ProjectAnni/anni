@@ -42,29 +42,29 @@ impl ServerConfig {
 #[derive(Serialize, Deserialize)]
 pub struct BackendConfig {
     pub enable: bool,
-    #[serde(rename = "type")]
-    pub backend_type: String,
-
-    root: Option<String>,
-    #[serde(default)]
-    pub strict: bool,
-
+    #[serde(flatten)]
+    pub item: BackendItem,
     cache: Option<CacheConfig>,
 }
 
 impl BackendConfig {
-    pub fn root(&self) -> &str {
-        if let Some(root) = &self.root {
-            root.as_str()
-        } else {
-            panic!("no root provided!")
-        }
-    }
-
     #[inline]
     pub fn cache(&self) -> Option<&CacheConfig> {
         self.cache.as_ref()
     }
+}
+
+#[derive(Serialize, Deserialize)]
+#[serde(tag = "type")]
+pub enum BackendItem {
+    #[serde(rename = "file")]
+    File {
+        root: String,
+        #[serde(default)]
+        strict: bool,
+    },
+    #[serde(rename = "drive")]
+    Drive {},
 }
 
 #[derive(Serialize, Deserialize)]
