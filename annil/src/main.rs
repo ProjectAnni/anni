@@ -4,7 +4,7 @@ mod auth;
 mod share;
 
 use actix_web::{HttpServer, App, web, Responder, get, HttpResponse, HttpRequest};
-use std::sync::Mutex;
+use std::sync::{Mutex, Arc};
 use anni_backend::backends::FileBackend;
 use std::path::PathBuf;
 use crate::backend::AnnilBackend;
@@ -14,7 +14,8 @@ use actix_web::middleware::Logger;
 use jwt_simple::prelude::HS256Key;
 use crate::auth::CanFetch;
 use anni_backend::AnniBackend;
-use std::collections::HashSet;
+use std::collections::{HashSet, HashMap};
+use anni_backend::cache::{CachePool, Cache};
 
 struct AppState {
     backends: Mutex<Vec<AnnilBackend>>,
@@ -93,15 +94,29 @@ async fn init_state(config: &Config) -> anyhow::Result<web::Data<AppState>> {
     log::info!("Start initializing backends...");
     let now = std::time::SystemTime::now();
     let mut backends = Vec::with_capacity(config.backends.len());
-    for backend_config in config.backends.iter() {
-        let mut backend: AnnilBackend;
-        if backend_config.backend_type == "file" {
-            log::debug!("Initializing backend: {}", backend_config.name);
-            let inner = FileBackend::new(PathBuf::from(backend_config.root()), backend_config.strict);
-            backend = AnnilBackend::new(backend_config.name.to_owned(), AnniBackend::File(inner)).await?;
-        } else {
-            unimplemented!();
+    let mut caches = HashMap::new();
+    for (backend_name, backend_config) in config.backends.iter() {
+        log::debug!("Initializing backend({}): {}", backend_config.backend_type, backend_name);
+        let mut backend = match backend_config.backend_type.as_str() {
+            "file" => {
+                let inner = FileBackend::new(PathBuf::from(backend_config.root()), backend_config.strict);
+                AnniBackend::File(inner)
+            }
+            "drive" => {
+                todo!()
+            }
+            _ => unimplemented!()
+        };
+        if let Some(cache) = backend_config.cache() {
+            log::debug!("Cache configuration detected: root = {}, max-size = {}", cache.root(), cache.max_size);
+            if !caches.contains_key(cache.root()) {
+                // new cache pool
+                let pool = CachePool::new(cache.root(), cache.max_size);
+                caches.insert(cache.root().to_string(), Arc::new(pool));
+            }
+            backend = AnniBackend::Cache(Cache::new(backend.into_box(), caches[cache.root()].clone()));
         }
+        let mut backend = AnnilBackend::new(backend_name.to_string(), backend).await?;
         backend.set_enable(backend_config.enable);
         backends.push(backend);
     }

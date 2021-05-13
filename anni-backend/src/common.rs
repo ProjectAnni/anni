@@ -38,6 +38,14 @@ pub enum AnniBackend {
 }
 
 impl AnniBackend {
+    pub fn into_box(self) -> Box<dyn Backend + Send + Sync> {
+        match self {
+            AnniBackend::File(b) => Box::new(b),
+            AnniBackend::Drive(b) => Box::new(b),
+            AnniBackend::Cache(b) => Box::new(b),
+        }
+    }
+
     pub fn as_backend(&self) -> Box<&dyn Backend> {
         match self {
             AnniBackend::File(b) => Box::new(b),

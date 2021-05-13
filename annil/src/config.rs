@@ -1,11 +1,12 @@
 use serde::{Serialize, Deserialize};
 use std::path::Path;
 use std::fs;
+use std::collections::HashMap;
 
 #[derive(Serialize, Deserialize)]
 pub struct Config {
     pub server: ServerConfig,
-    pub backends: Vec<BackendConfig>,
+    pub backends: HashMap<String, BackendConfig>,
 }
 
 impl Config {
@@ -40,7 +41,6 @@ impl ServerConfig {
 
 #[derive(Serialize, Deserialize)]
 pub struct BackendConfig {
-    pub name: String,
     pub enable: bool,
     #[serde(rename = "type")]
     pub backend_type: String,
@@ -48,6 +48,8 @@ pub struct BackendConfig {
     root: Option<String>,
     #[serde(default)]
     pub strict: bool,
+
+    cache: Option<CacheConfig>,
 }
 
 impl BackendConfig {
@@ -57,5 +59,24 @@ impl BackendConfig {
         } else {
             panic!("no root provided!")
         }
+    }
+
+    #[inline]
+    pub fn cache(&self) -> Option<&CacheConfig> {
+        self.cache.as_ref()
+    }
+}
+
+#[derive(Serialize, Deserialize)]
+pub struct CacheConfig {
+    root: String,
+    #[serde(default, rename = "max-size")]
+    pub max_size: usize,
+}
+
+impl CacheConfig {
+    #[inline]
+    pub fn root(&self) -> &str {
+        self.root.as_str()
     }
 }

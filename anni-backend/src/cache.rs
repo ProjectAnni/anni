@@ -1,5 +1,5 @@
 use crate::{Backend, BackendError, BackendReaderExt, BackendReader};
-use std::path::PathBuf;
+use std::path::{PathBuf, Path};
 use std::collections::{HashSet, HashMap, BTreeMap};
 use async_trait::async_trait;
 use std::sync::Arc;
@@ -18,9 +18,9 @@ pub struct Cache {
 }
 
 impl Cache {
-    pub fn new(inner: impl Backend + Send + Sync + 'static, pool: Arc<CachePool>) -> Self {
+    pub fn new(inner: Box<dyn Backend + Send + Sync>, pool: Arc<CachePool>) -> Self {
         Self {
-            inner: Box::new(inner),
+            inner,
             pool,
         }
     }
@@ -57,6 +57,15 @@ pub struct CachePool {
 }
 
 impl CachePool {
+    pub fn new<P: AsRef<Path>>(root: P, max_space: usize) -> Self {
+        Self {
+            root: PathBuf::from(root.as_ref()),
+            max_space,
+            cache: Default::default(),
+            last_used: Default::default(),
+        }
+    }
+
     async fn fetch(&self, key: String, on_miss: impl Future<Output=Result<BackendReaderExt, BackendError>>)
                    -> Result<BackendReaderExt, BackendError> {
         let now = SystemTime::now().duration_since(SystemTime::UNIX_EPOCH).unwrap().as_millis();
@@ -261,11 +270,11 @@ mod test {
     #[tokio::test]
     async fn test_cache() {
         let mut cache = Cache::new(
-            DriveBackend::new(Default::default(), DriveBackendSettings {
+            Box::new(DriveBackend::new(Default::default(), DriveBackendSettings {
                 corpora: "drive".to_string(),
                 drive_id: Some("0AJIJiIDxF1yBUk9PVA".to_string()),
                 token_path: "/tmp/anni_token".to_string(),
-            }).await.unwrap(),
+            }).await.unwrap()),
             Arc::new(CachePool {
                 root: PathBuf::from("/tmp"),
                 max_space: 0,

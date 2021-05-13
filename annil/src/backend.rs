@@ -1,4 +1,4 @@
-use anni_backend::{BackendError, AnniBackend, BackendReaderExt, Backend};
+use anni_backend::{BackendError, AnniBackend, BackendReaderExt};
 use tokio::io::AsyncRead;
 use std::collections::HashSet;
 
@@ -20,14 +20,17 @@ impl AnnilBackend {
         })
     }
 
+    #[inline]
     pub fn name(&self) -> &str {
         self.name.as_str()
     }
 
+    #[inline]
     pub fn enabled(&self) -> bool {
         self.enabled
     }
 
+    #[inline]
     pub fn has_album(&self, catalog: &str) -> bool {
         self.albums.contains(catalog)
     }
@@ -38,18 +41,22 @@ impl AnnilBackend {
 
     pub async fn update_albums(&mut self) {
         // FIXME
+        log::debug!("[{}] Updating backend albums", self.name());
         self.albums = self.inner.as_backend_mut().albums().await.unwrap();
     }
 
+    #[inline]
     pub fn set_enable(&mut self, enable: bool) {
         self.enabled = enable;
     }
 
     pub async fn get_audio(&self, catalog: &str, track_id: u8) -> Result<BackendReaderExt, BackendError> {
+        log::trace!("[{}] Getting audio: {}/{}", self.name(), catalog, track_id);
         self.inner.as_backend().get_audio(catalog, track_id).await
     }
 
     pub async fn get_cover(&self, catalog: &str) -> Result<impl AsyncRead, BackendError> {
+        log::trace!("[{}] Getting cover: {}", self.name(), catalog);
         self.inner.as_backend().get_cover(catalog).await
     }
 }
