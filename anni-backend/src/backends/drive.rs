@@ -43,7 +43,7 @@ impl DriveAuth {
                     redirect_uris: vec!["urn:ietf:wg:oauth:2.0:oob".to_string()],
                     client_email: None,
                     client_x509_cert_url: None,
-                }, oauth2::InstalledFlowReturnMethod::HTTPRedirect)
+                }, oauth2::InstalledFlowReturnMethod::Interactive)
                     .persist_tokens_to_disk(persist_path)
                     .flow_delegate(Box::new(DefaultInstalledFlowDelegate))
                     .build().await
