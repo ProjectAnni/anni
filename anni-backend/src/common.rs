@@ -33,18 +33,24 @@ pub trait Backend {
 
 pub enum AnniBackend {
     File(backends::FileBackend),
+    Drive(backends::DriveBackend),
+    Cache(crate::cache::Cache),
 }
 
 impl AnniBackend {
-    pub fn as_backend(&self) -> &impl Backend {
+    pub fn as_backend(&self) -> Box<&dyn Backend> {
         match self {
-            AnniBackend::File(b) => b,
+            AnniBackend::File(b) => Box::new(b),
+            AnniBackend::Drive(b) => Box::new(b),
+            AnniBackend::Cache(b) => Box::new(b),
         }
     }
 
-    pub fn as_backend_mut(&mut self) -> &mut impl Backend {
+    pub fn as_backend_mut(&mut self) -> Box<&mut dyn Backend> {
         match self {
-            AnniBackend::File(b) => b,
+            AnniBackend::File(b) => Box::new(b),
+            AnniBackend::Drive(b) => Box::new(b),
+            AnniBackend::Cache(b) => Box::new(b),
         }
     }
 }
