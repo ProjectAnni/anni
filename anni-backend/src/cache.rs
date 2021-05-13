@@ -2,7 +2,7 @@ use crate::{Backend, BackendError, BackendReaderExt, BackendReader};
 use std::path::PathBuf;
 use std::collections::{HashSet, HashMap, BTreeMap};
 use async_trait::async_trait;
-use std::sync::{Mutex, Arc};
+use std::sync::Arc;
 use tokio::io::{AsyncRead, ReadBuf};
 use std::task::{Context, Poll};
 use std::pin::Pin;
@@ -133,7 +133,7 @@ struct CacheItem {
     ext: String,
     path: PathBuf,
     size: usize,
-    cached: Mutex<bool>,
+    cached: RwLock<bool>,
 }
 
 impl CacheItem {
@@ -142,16 +142,16 @@ impl CacheItem {
             path,
             ext,
             size,
-            cached: Mutex::new(cached),
+            cached: RwLock::new(cached),
         }
     }
 
     fn cached(&self) -> bool {
-        *self.cached.lock().unwrap()
+        *self.cached.read()
     }
 
     fn set_cached(&self, cached: bool) {
-        *self.cached.lock().unwrap() = cached
+        *self.cached.write() = cached
     }
 }
 
@@ -185,7 +185,7 @@ impl Drop for CacheItem {
         // not cached, means:
         // a. file not fully cached and program reaches program termination
         // b. manually set cached to false
-        if !*self.cached.lock().unwrap() {
+        if !self.cached() {
             // TODO: handle error here?
             std::fs::remove_file(&self.path);
         }
