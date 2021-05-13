@@ -255,7 +255,6 @@ dependencies = [
  "anni-common",
  "anni-flac",
  "anni-repo",
- "anni-utils",
  "anni-vgmdb",
  "anyhow",
  "clap",
@@ -303,6 +302,13 @@ name = "anni-common"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "byteorder",
+ "chardetng",
+ "lazy_static",
+ "log 0.4.14",
+ "regex",
+ "serde",
+ "thiserror",
 ]
 
 [[package]]
@@ -336,19 +342,6 @@ dependencies = [
  "serde",
  "thiserror",
  "toml",
-]
-
-[[package]]
-name = "anni-utils"
-version = "0.1.0"
-dependencies = [
- "byteorder",
- "chardetng",
- "lazy_static",
- "log 0.4.14",
- "regex",
- "serde",
- "thiserror",
 ]
 
 [[package]]

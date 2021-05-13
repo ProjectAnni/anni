@@ -1,6 +1,6 @@
 use std::path::PathBuf;
 use directories_next::ProjectDirs;
-use anni_utils::fs::read_to_string;
+use anni_common::fs::read_to_string;
 use serde::de::DeserializeOwned;
 
 lazy_static::lazy_static! {

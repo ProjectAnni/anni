@@ -53,7 +53,7 @@ pub struct Artist<'a> {
 
 // TODO: replace with TryFrom/TryInto
 impl<'a> Artist<'a> {
-    pub(crate) fn from_str(input: &'a str) -> (Self, &str) {
+    pub fn from_str(input: &'a str) -> (Self, &str) {
         for (offset, ch) in input.char_indices() {
             match Symbol::from(ch) {
                 Symbol::Normal => {}
@@ -98,7 +98,7 @@ pub struct ArtistList<'a> {
 impl<'a> ArtistList<'a> {
     /// Parse input to ArtistList
     /// Return the list and the remaining &str
-    pub(crate) fn from_str(mut input: &'a str) -> (Self, &str) {
+    pub fn from_str(mut input: &'a str) -> (Self, &str) {
         let mut artists = Vec::new();
         let mut chars = input.char_indices();
         loop {
@@ -264,7 +264,7 @@ impl<'a> ArtistList<'a> {
 
 #[cfg(test)]
 mod tests {
-    use crate::artist::{ArtistList, AnniArtist};
+    use anni_common::artist::{ArtistList, AnniArtist};
 
     #[test]
     fn valid_artist_list() {

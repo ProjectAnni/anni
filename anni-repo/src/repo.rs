@@ -1,7 +1,7 @@
 use serde::{Serialize, Deserialize};
 use std::str::FromStr;
 use std::path::Path;
-use anni_common::FromFile;
+use anni_common::traits::FromFile;
 use anni_derive::FromFile;
 
 #[derive(Serialize, Deserialize, FromFile)]

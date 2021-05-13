@@ -1,14 +1,17 @@
-use crate::subcommands::Subcommand;
-use clap::{App, ArgMatches, Arg};
-use std::io::{Write, Read};
-use anni_common::{Decode, Encode};
-use anni_utils::{decode, fs};
-use anni_utils::decode::{u32_le, u16_le, DecodeError};
 use std::fs::File;
-use anni_utils::encode::{btoken_w, u32_le_w, u16_le_w};
+use std::io::{Read, Write};
 use std::path::{Path, PathBuf};
-use std::process::{Command, Stdio, Child};
+use std::process::{Child, Command, Stdio};
+
+use clap::{App, Arg, ArgMatches};
+
+use anni_common::fs;
+use anni_common::decode::{DecodeError, u16_le, u32_le, token};
+use anni_common::encode::{btoken_w, u16_le_w, u32_le_w};
+
 use crate::i18n::ClapI18n;
+use crate::subcommands::Subcommand;
+use anni_common::traits::{Decode, Encode};
 
 pub struct SplitSubcommand;
 
@@ -91,13 +94,13 @@ impl Decode for WaveHeader {
 
     fn from_reader<R: Read>(reader: &mut R) -> Result<Self, Self::Err> {
         // RIFF chunk
-        decode::token(reader, b"RIFF")?;
+        token(reader, b"RIFF")?;
         let _chunk_size = u32_le(reader)?;
         debug!("RIFF chunk detected, size = {size}", size = _chunk_size);
-        decode::token(reader, b"WAVE")?;
+        token(reader, b"WAVE")?;
 
         // fmt sub-chunk
-        decode::token(reader, b"fmt ")?;
+        token(reader, b"fmt ")?;
         let _fmt_size = u32_le(reader)?;
         debug!("Chunk [fmt ] found, size = {size}", size = _fmt_size);
 
@@ -119,7 +122,7 @@ impl Decode for WaveHeader {
         debug!("  bit_per_sample = {}", bit_per_sample);
 
         // data sub-chunk
-        decode::token(reader, b"data")?;
+        token(reader, b"data")?;
         let data_size = u32_le(reader)?;
         debug!("Chunk [data] found, size = {size}", size = data_size);
         Ok(WaveHeader {

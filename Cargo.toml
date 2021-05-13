@@ -7,5 +7,4 @@ members = [
     "anni-derive",
     "anni-flac",
     "anni-repo",
-    "anni-utils",
 ]

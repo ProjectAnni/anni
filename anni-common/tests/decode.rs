@@ -1,6 +1,7 @@
 use std::io::Cursor;
-use anni_utils::decode;
-use anni_utils::decode::{DecodeError, raw_to_string};
+
+use anni_common::decode;
+use anni_common::decode::{DecodeError, raw_to_string};
 
 #[test]
 fn take_token() {

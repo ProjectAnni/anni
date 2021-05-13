@@ -3,7 +3,7 @@ use shell_escape::escape;
 use std::io;
 use std::path::{Path, PathBuf};
 use clap::{ArgMatches, App, ArgGroup, Arg};
-use anni_utils::fs;
+use anni_common::fs;
 use std::str::FromStr;
 
 use crate::subcommands::Subcommand;
@@ -109,7 +109,7 @@ pub(crate) struct CueTrack {
 }
 
 pub(crate) fn extract_breakpoints<P: AsRef<Path>>(path: P) -> Vec<CueTrack> {
-    let cue = anni_utils::fs::read_to_string(path).unwrap();
+    let cue = anni_common::fs::read_to_string(path).unwrap();
     let mut result = Vec::new();
     let cue = Tracklist::parse(&cue).unwrap();
     for file in cue.files.iter() {

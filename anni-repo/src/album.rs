@@ -2,7 +2,7 @@ use serde::{Serialize, Deserialize, Deserializer, Serializer};
 use std::str::FromStr;
 use std::path::Path;
 use crate::Datetime;
-use anni_common::FromFile;
+use anni_common::traits::FromFile;
 use anni_derive::FromFile;
 
 #[derive(Serialize, Deserialize, FromFile)]

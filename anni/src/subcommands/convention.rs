@@ -5,7 +5,7 @@ use crate::i18n::ClapI18n;
 use std::path::Path;
 use shell_escape::escape;
 use std::collections::{HashSet, HashMap};
-use anni_utils::validator::*;
+use anni_common::validator::*;
 use serde::{Deserialize, Deserializer};
 use std::rc::Rc;
 use std::iter::FromIterator;

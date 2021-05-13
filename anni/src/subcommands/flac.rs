@@ -5,8 +5,8 @@ use anni_flac::{MetadataBlockData, FlacHeader};
 use clap::{ArgMatches, App, Arg};
 use crate::subcommands::Subcommand;
 use std::iter::FilterMap;
-use anni_utils::fs::PathWalker;
-use anni_utils::fs;
+use anni_common::fs::PathWalker;
+use anni_common::fs;
 use crate::i18n::ClapI18n;
 
 pub(crate) struct FlacSubcommand;

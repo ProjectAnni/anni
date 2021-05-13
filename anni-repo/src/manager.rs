@@ -1,6 +1,6 @@
 use crate::Result;
 use crate::{Album, Repository};
-use anni_common::FromFile;
+use anni_common::traits::FromFile;
 use std::fs;
 use std::path::{PathBuf, Path};
 
