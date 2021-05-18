@@ -115,7 +115,7 @@ impl Decode for WaveHeader {
         let byte_rate = u32_le(reader)?;
         let block_align = u16_le(reader)?;
         let bit_per_sample = u16_le(reader)?;
-        debug!("  channles = {}", channels);
+        debug!("  channels = {}", channels);
         debug!("  sample_rate = {}", sample_rate);
         debug!("  byte_rate = {}", byte_rate);
         debug!("  block_alibn = {}", block_align);
