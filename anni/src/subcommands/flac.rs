@@ -4,8 +4,6 @@ use anni_flac::blocks::PictureType;
 use anni_flac::{MetadataBlockData, FlacHeader};
 use clap::{ArgMatches, App, Arg};
 use crate::subcommands::Subcommand;
-use std::iter::FilterMap;
-use anni_common::fs::PathWalker;
 use anni_common::fs;
 use crate::i18n::ClapI18n;
 
@@ -87,7 +85,7 @@ impl Subcommand for FlacSubcommand {
     }
 }
 
-pub(crate) fn parse_input_iter<P: AsRef<Path>>(input: P) -> FilterMap<PathWalker, fn(PathBuf) -> Option<(PathBuf, anni_flac::prelude::Result<FlacHeader>)>> {
+pub(crate) fn parse_input_iter<P: AsRef<Path>>(input: P) -> impl Iterator<Item=(PathBuf, anni_flac::prelude::Result<FlacHeader>)> {
     fs::PathWalker::new(input, true).filter_map(|file| {
         match file.extension() {
             None => return None,
