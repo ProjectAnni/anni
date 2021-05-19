@@ -1,0 +1,13 @@
+refresh_rate = "30 seconds"
+
+[appenders.stdout]
+kind = "console"
+encoder = { pattern = "[{l}][{t}] {m}{n}" }
+
+[root]
+level = "warn"
+appenders = ["stdout"]
+
+[loggers]
+"i18n_embed::requester" = { level = "error" }
+"anni" = { level = "info" }

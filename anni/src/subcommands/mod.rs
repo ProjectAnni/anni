@@ -1,5 +1,5 @@
 use std::iter::Map;
-use clap::{App, ArgMatches};
+use clap::{App, ArgMatches, AppSettings};
 use crate::subcommands::flac::FlacSubcommand;
 use crate::subcommands::cue::CueSubcommand;
 use crate::subcommands::split::SplitSubcommand;
@@ -47,7 +47,8 @@ impl Subcommands {
     }
 
     pub fn iter(&self) -> Map<Values<'_, &'static str, Box<dyn Subcommand>>, fn(&Box<dyn Subcommand>) -> App<'static>> {
-        self.subcommands.values().map(|r| r.create())
+        self.subcommands.values().map(|r| r.create()
+            .setting(AppSettings::ArgRequiredElseHelp))
     }
 
     pub fn handle(&self, subcommand: &str, matches: &ArgMatches) -> anyhow::Result<()> {

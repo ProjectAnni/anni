@@ -57,9 +57,6 @@ impl Subcommand for RepoSubcommand {
             )
             .subcommand(App::new("validate")
                 .about_ll("repo-validate")
-                .arg(Arg::new("Directory")
-                    .takes_value(true)
-                )
             )
             .subcommand(App::new("print")
                 .about_ll("repo-print")
@@ -100,7 +97,7 @@ impl Subcommand for RepoSubcommand {
             "apply" => handle_repo_apply(matches, &manager)?,
             "edit" => handle_repo_edit(matches, &manager)?,
             "add" => handle_repo_add(matches, &manager)?,
-            "validate" => handle_repo_validate(matches, manager)?,
+            "validate" => handle_repo_validate(matches, &manager)?,
             "print" => handle_repo_print(matches, &manager)?,
             _ => unimplemented!()
         }
@@ -299,22 +296,18 @@ fn is_album_folder(input: &str) -> bool {
     !(bytes[bytes.len() - 1] == b']' && second_last_byte > b'0' && second_last_byte < b'9')
 }
 
-fn handle_repo_validate(matches: &ArgMatches, manager: RepositoryManager) -> anyhow::Result<()> {
-    let manager = if matches.is_present("Directory") {
-        RepositoryManager::new(matches.value_of_os("Directory").unwrap())?
-    } else {
-        manager
-    };
-
+fn handle_repo_validate(_matches: &ArgMatches, manager: &RepositoryManager) -> anyhow::Result<()> {
+    info!(target: "anni", "Repository validation started.");
     for catalog in manager.catalogs()? {
         let album = manager.load_album(&catalog)?;
         if album.catalog() != catalog {
-            error!("In {catalog}.toml: Album catalog '{album_catalog}' does not match filename", catalog = catalog, album_catalog = album.catalog());
+            error!("[{catalog}] Album catalog '{album_catalog}' does not match filename", catalog = catalog, album_catalog = album.catalog());
         }
         if album.artist() == "[Unknown Artist]" {
-            error!("In {catalog}.toml: Invalid artist '{artist}'", catalog = catalog, artist = album.artist());
+            error!("[{catalog}] Invalid artist '{artist}'", catalog = catalog, artist = album.artist());
         }
     }
+    info!(target: "anni", "Repository validation finished.");
     Ok(())
 }
 

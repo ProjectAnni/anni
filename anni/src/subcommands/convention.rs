@@ -46,7 +46,7 @@ impl Subcommand for ConventionSubcommand {
         let rules = config.into_rules();
 
         if let Some(matches) = matches.subcommand_matches("check") {
-            for input in matches.values_of_os("Filename").unwrap().collect::<Vec<_>>() {
+            for input in matches.values_of_os("Filename").unwrap() {
                 for (file, header) in parse_input_iter(input) {
                     match header {
                         Ok(header) => {

@@ -27,7 +27,7 @@ i18n-embed-fl = "0.4.0"
 rust-embed = "5"
 
 log = "0.4.0"
-env_logger = "0.8.3"
+log4rs = { version = "1.0.0", default-features = false, features = ["all_components", "config_parsing", "toml_format"] }
 anyhow = "1.0"
 
 cue_sheet = { git = "https://github.com/project-anni/cue_sheet" }
