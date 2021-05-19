@@ -41,6 +41,7 @@ repo-album-info-mismatch = 专辑信息与专辑目录不一致
 
 repo-edit = 当元数据仓库中存在该专辑时，打开仓库中对应的文件
 repo-apply = 将元数据仓库中的数据应用到专辑
+repo-validate = 检查仓库数据的合法性
 
 repo-print = 根据品番输出元数据仓库中的数据
 repo-print-type = 输出数据的类型

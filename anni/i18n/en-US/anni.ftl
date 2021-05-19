@@ -42,6 +42,7 @@ repo-album-info-mismatch = Album info mismatch with folder.
 
 repo-edit = Open text editor for an album if metadata exists.
 repo-apply = Apply metadata from repository to album.
+repo-validate = Check whether data in repository is valid.
 
 repo-print = Print metadata information of given catalog.
 repo-print-type = Print type.

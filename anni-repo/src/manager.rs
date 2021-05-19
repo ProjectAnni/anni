@@ -48,4 +48,14 @@ impl RepositoryManager {
         edit::edit_file(&file)?;
         Ok(())
     }
+
+    pub fn catalogs(&self) -> Result<impl Iterator<Item=String>> {
+        Ok(fs::read_dir(self.album_root())?
+            .filter_map(|p| {
+                let p = p.ok()?;
+                if let Some("toml") = p.path().extension()?.to_str() {
+                    p.path().file_stem().map(|f| f.to_string_lossy().to_string())
+                } else { None }
+            }))
+    }
 }
