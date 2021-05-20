@@ -16,9 +16,9 @@ fn init_config() -> PathBuf {
         });
 
     if config.exists() {
-        info!("Config root: {:?}", config);
+        debug!("Config root: {:?}", config);
     } else {
-        info!("Config root does not exist: {:?}", config);
+        debug!("Config root does not exist: {:?}", config);
     }
     config
 }

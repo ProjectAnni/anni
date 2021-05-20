@@ -72,13 +72,13 @@ impl Subcommand for FlacSubcommand {
                             block_num: None,
                         })),
                     "list" | "all" => info_list(&file),
-                    _ => panic!("Unknown export type.")
+                    _ => bail!("Unknown export type.")
                 }
                 count += 1;
             }
 
             if count == 0 {
-                warn!("No flac file found.")
+                warn!(target: "flac", "No flac file found.")
             }
         }
         Ok(())

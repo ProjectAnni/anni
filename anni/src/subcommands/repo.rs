@@ -92,7 +92,7 @@ impl Subcommand for RepoSubcommand {
         let manager = RepositoryManager::new(matches.value_of_os("repo.root").unwrap())?;
 
         let (subcommand, matches) = matches.subcommand().unwrap();
-        debug!("Repo subcommand matched: {}", subcommand);
+        debug!(target: "repo", "Subcommand matched: {}", subcommand);
         match subcommand {
             "apply" => handle_repo_apply(matches, &manager)?,
             "edit" => handle_repo_edit(matches, &manager)?,
@@ -163,13 +163,13 @@ fn handle_repo_add(matches: &ArgMatches, manager: &RepositoryManager) -> anyhow:
 fn handle_repo_edit(matches: &ArgMatches, manager: &RepositoryManager) -> anyhow::Result<()> {
     let to_add = Path::new(matches.value_of_os("Directory").unwrap());
     let last = anni_repo::library::file_name(to_add)?;
-    debug!("Edit directory: {}", last);
+    debug!(target: "repo][edit", "Directory: {}", last);
     if !is_album_folder(&last) {
         ball!("repo-add-invalid-album");
     }
 
     let (_, catalog, _, _) = album_info(&last)?;
-    debug!("Catalog: {}", catalog);
+    debug!(target: "repo][edit", "Catalog: {}", catalog);
     if !manager.album_exists(&catalog) {
         ball!("repo-album-not-found", catalog = catalog);
     }
@@ -181,14 +181,14 @@ fn handle_repo_edit(matches: &ArgMatches, manager: &RepositoryManager) -> anyhow
 fn handle_repo_apply(matches: &ArgMatches, manager: &RepositoryManager) -> anyhow::Result<()> {
     let to_apply = Path::new(matches.value_of_os("Directory").unwrap());
     let last = anni_repo::library::file_name(to_apply)?;
-    debug!("Apply directory: {}", last);
+    debug!(target: "repo][apply", "Directory: {}", last);
     if !is_album_folder(&last) {
         ball!("repo-add-invalid-album");
     }
 
     // extract album info
     let (release_date, catalog, album_title, disc_count) = album_info(&last)?;
-    debug!("Release date: {}, Catalog: {}, Title: {}", release_date, catalog, album_title);
+    debug!(target: "repo][apply", "Release date: {}, Catalog: {}, Title: {}", release_date, catalog, album_title);
     if !manager.album_exists(&catalog) {
         ball!("repo-album-not-found", catalog = catalog);
     }
@@ -220,7 +220,7 @@ fn handle_repo_apply(matches: &ArgMatches, manager: &RepositoryManager) -> anyho
         } else {
             to_apply.to_owned()
         };
-        debug!("Disc dir: {:?}", disc_dir);
+        debug!(target: "repo][apply", "Disc dir: {}", disc_dir.to_string_lossy());
 
         if !disc_dir.exists() {
             bail!("Disc directory does not exist: {:?}", disc_dir);
@@ -301,10 +301,10 @@ fn handle_repo_validate(_matches: &ArgMatches, manager: &RepositoryManager) -> a
     for catalog in manager.catalogs()? {
         let album = manager.load_album(&catalog)?;
         if album.catalog() != catalog {
-            error!("[{catalog}] Album catalog '{album_catalog}' does not match filename", catalog = catalog, album_catalog = album.catalog());
+            error!(target: &format!("repo][{}", catalog), "Album catalog '{album_catalog}' does not match filename", album_catalog = album.catalog());
         }
         if album.artist() == "[Unknown Artist]" {
-            error!("[{catalog}] Invalid artist '{artist}'", catalog = catalog, artist = album.artist());
+            error!(target: &format!("repo][{}", catalog), "Invalid artist '{artist}'", artist = album.artist());
         }
     }
     info!(target: "anni", "Repository validation finished.");
