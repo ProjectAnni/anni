@@ -53,7 +53,7 @@ impl Subcommand for ConventionSubcommand {
                         Ok(header) => {
                             rules.validate(file, &header);
                         }
-                        Err(e) => error!(target: &format!("convention][{}", file.to_string_lossy()), "Failed to parse header: {:?}", e),
+                        Err(e) => error!(target: &format!("convention|{}", file.to_string_lossy()), "Failed to parse header: {:?}", e),
                     }
                 }
             }
@@ -80,7 +80,7 @@ impl ConventionRules {
         // validate comments
         let fixes = flac.comments()
             .map_or_else(|| {
-                error!(target: &format!("convention][{}", filename.as_ref().to_string_lossy()), "No VorbisComment block found!");
+                error!(target: &format!("convention|{}", filename.as_ref().to_string_lossy()), "No VorbisComment block found!");
                 Vec::new()
             }, |c| self.validate_tags(filename.as_ref(), c));
 
@@ -94,17 +94,17 @@ impl ConventionRules {
         let filename = filename.as_ref().to_string_lossy();
         self.stream_info.sample_rate.map(|expected| {
             if info.sample_rate != expected {
-                error!(target: &format!("convention][{}", filename), "Stream sample-rate mismatch: expected {}, got {}", expected, info.sample_rate);
+                error!(target: &format!("convention|{}", filename), "Stream sample-rate mismatch: expected {}, got {}", expected, info.sample_rate);
             }
         });
         self.stream_info.bit_per_sample.map(|expected| {
             if info.bits_per_sample != expected {
-                error!(target: &format!("convention][{}", filename), "Stream bit-per-sample mismatch: expected {}, got {}", expected, info.bits_per_sample);
+                error!(target: &format!("convention|{}", filename), "Stream bit-per-sample mismatch: expected {}, got {}", expected, info.bits_per_sample);
             }
         });
         self.stream_info.channels.map(|expected| {
             if info.channels != expected {
-                error!(target: &format!("convention][{}", filename), "Stream channel num mismatch: expected {}, got {}", expected, info.channels);
+                error!(target: &format!("convention|{}", filename), "Stream channel num mismatch: expected {}, got {}", expected, info.channels);
             }
         });
     }
@@ -119,10 +119,10 @@ impl ConventionRules {
         for comment in comment.comments.iter() {
             let (key, key_raw, value) = (comment.key(), comment.key_raw(), comment.value());
             if value.is_empty() {
-                warn!(target: &format!("convention][{}", filename_str), "Empty value for tag: {}", key_raw);
+                warn!(target: &format!("convention|{}", filename_str), "Empty value for tag: {}", key_raw);
             }
             if !comment.is_key_uppercase() {
-                warn!(target: &format!("convention][{}", filename_str), "Lowercase tag: {}", key_raw);
+                warn!(target: &format!("convention|{}", filename_str), "Lowercase tag: {}", key_raw);
             }
             let key = key.as_str();
 
@@ -130,7 +130,7 @@ impl ConventionRules {
                 if !required.contains(key) {
                     // Required key duplicated
                     // duplication detection is only enabled for Required tags
-                    warn!(target: &format!("convention][{}", filename_str), "Required key duplicated: {}", key_raw);
+                    warn!(target: &format!("convention|{}", filename_str), "Required key duplicated: {}", key_raw);
                     continue;
                 } else {
                     // remove from required key set
@@ -144,11 +144,11 @@ impl ConventionRules {
             } else if self.unrecommended.contains_key(key) {
                 // unrecommended tag
                 let tag = &self.unrecommended[key];
-                warn!(target: &format!("convention][{}", filename_str), "Unrecommended key: {}={}, use {} instead", key_raw, value, &tag.name);
+                warn!(target: &format!("convention|{}", filename_str), "Unrecommended key: {}={}, use {} instead", key_raw, value, &tag.name);
                 tag
             } else {
                 // No tag rule found
-                warn!(target: &format!("convention][{}", filename_str), "Unnecessary tag: {}", key_raw);
+                warn!(target: &format!("convention|{}", filename_str), "Unnecessary tag: {}", key_raw);
                 fixes.push(format!("metaflac --remove-tag={} {}", escape(key_raw.into()), escape(filename.as_ref().to_string_lossy())));
                 continue;
             };
@@ -156,13 +156,13 @@ impl ConventionRules {
             // type validators
             for v in self.types[tag.value_type.as_str()].iter() {
                 if !v.validate(value) {
-                    error!(target: &format!("convention][{}", filename_str), "Type validator {} not passed: invalid tag value {}={}", v.name(), key_raw, value);
+                    error!(target: &format!("convention|{}", filename_str), "Type validator {} not passed: invalid tag value {}={}", v.name(), key_raw, value);
                 }
             }
 
             // field validators
             if let Err(v) = tag.validate(value) {
-                error!(target: &format!("convention][{}", filename_str), "Validator {} not passed: invalid tag value {}={}", v, key_raw, value);
+                error!(target: &format!("convention|{}", filename_str), "Validator {} not passed: invalid tag value {}={}", v, key_raw, value);
             } else if &tag.name == "TITLE" {
                 title = Some(value.to_string());
             } else if &tag.name == "TRACKNUMBER" {
@@ -172,7 +172,7 @@ impl ConventionRules {
 
         // remaining keys in set are missing
         for key in required {
-            error!(target: &format!("convention][{}", filename_str), "Missing tag: {}", key);
+            error!(target: &format!("convention|{}", filename_str), "Missing tag: {}", key);
         }
 
         // Filename check
@@ -180,7 +180,7 @@ impl ConventionRules {
             let filename_expected: &str = &format!("{:0>2}. {}.flac", track_number, title).replace("/", "／");
             let filename_raw = filename.as_ref().file_name().unwrap().to_str().expect("Non-UTF8 filenames are currently not supported!");
             if filename_raw != filename_expected {
-                error!(target: &format!("convention][{}", filename_str), "Filename mismatch. Expected {}", filename_expected);
+                error!(target: &format!("convention|{}", filename_str), "Filename mismatch. Expected {}", filename_expected);
                 let path_expected = filename.as_ref().with_file_name(filename_expected);
                 fixes.push(format!("mv {} {}", escape(filename.as_ref().to_string_lossy()), escape(path_expected.to_string_lossy())));
             }
