@@ -1,12 +1,13 @@
 refresh_rate = "30 seconds"
 
-[appenders.stdout]
+[appenders.stderr]
 kind = "console"
-encoder = { pattern = "[{l}][{t}] {m}{n}" }
+target = "stderr"
+encoder = { pattern = "[{h({l})}][{t}] {m}{n}" }
 
 [root]
 level = "warn"
-appenders = ["stdout"]
+appenders = ["stderr"]
 
 [loggers]
 "i18n_embed::requester" = { level = "error" }

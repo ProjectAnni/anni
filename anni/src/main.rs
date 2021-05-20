@@ -29,20 +29,17 @@ async fn main() -> anyhow::Result<()> {
 
     let log_config = matches.value_of("log")
         .map(|p| std::fs::read_to_string(p).unwrap())
-        .unwrap_or(r#"refresh_rate = "30 seconds"
+        .unwrap_or(r#"
+refresh_rate = "30 seconds"
 
-[appenders.stdout]
+[appenders.stderr]
 kind = "console"
-encoder = { pattern = "[{l}][{t}] {m}{n}" }
-
-[appenders.requests]
-kind = "file"
-path = "log/requests.log"
-encoder = { pattern = "{d} - {m}{n}" }
+target = "stderr"
+encoder = { pattern = "[{h({l})}][{t}] {m}{n}" }
 
 [root]
 level = "warn"
-appenders = ["stdout"]
+appenders = ["stderr"]
 
 [loggers]
 "i18n_embed::requester" = { level = "error" }
