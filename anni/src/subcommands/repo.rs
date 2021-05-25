@@ -10,6 +10,7 @@ use std::path::{Path, PathBuf};
 use crate::subcommands::Subcommand;
 use std::str::FromStr;
 use crate::i18n::ClapI18n;
+use anni_flac::blocks::BlockVorbisComment;
 
 pub(crate) struct RepoSubcommand;
 
@@ -150,6 +151,7 @@ fn handle_repo_add(matches: &ArgMatches, manager: &RepositoryManager) -> anyhow:
             }
             album.add_disc(disc);
         }
+        album.inherit();
 
         manager.add_album(&catalog, album)?;
         if matches.is_present("edit") {
@@ -277,15 +279,16 @@ DISCTOTAL={disc_total}
 }
 
 pub(crate) fn stream_to_track(stream: &FlacHeader) -> Track {
-    if let Some(comment) = stream.comments() {
-        let map = comment.to_map();
-        Track::new(
-            map.get("TITLE").map(|v| v.value()).unwrap_or("").to_string(),
-            map.get("ARTIST").map(|v| v.value().to_string()),
-            None,
-        )
-    } else {
-        Track::new(String::new(), None, None)
+    match stream.comments() {
+        Some(comment) => {
+            let map = comment.to_map();
+            Track::new(
+                map.get("TITLE").map(|v| v.value()).unwrap_or("").to_string(),
+                map.get("ARTIST").map(|v| v.value().to_string()),
+                None,
+            )
+        }
+        None => Track::empty()
     }
 }
 

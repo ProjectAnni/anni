@@ -174,6 +174,10 @@ impl Track {
         }
     }
 
+    pub fn empty() -> Self {
+        Track::new(String::new(), None, None)
+    }
+
     pub fn title(&self) -> &str {
         self.title.as_ref()
     }
