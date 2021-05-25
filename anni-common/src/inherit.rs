@@ -127,3 +127,12 @@ impl<'de, T> Deserialize<'de> for InheritableValue<T>
         })
     }
 }
+
+impl<T> From<Option<T>> for InheritableValue<T> {
+    fn from(v: Option<T>) -> Self {
+        match v {
+            Some(v) => InheritableValue::own(v),
+            None => InheritableValue::new(),
+        }
+    }
+}

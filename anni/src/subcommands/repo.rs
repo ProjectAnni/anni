@@ -281,7 +281,7 @@ pub(crate) fn stream_to_track(stream: &FlacHeader) -> Track {
         let map = comment.to_map();
         Track::new(
             map.get("TITLE").map(|v| v.value()).unwrap_or("").to_string(),
-            map.get("ARTIST").map(|v| v.value()),
+            map.get("ARTIST").map(|v| v.value().to_string()),
             None,
         )
     } else {

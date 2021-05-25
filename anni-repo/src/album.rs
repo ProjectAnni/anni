@@ -113,12 +113,14 @@ pub struct Disc {
 }
 
 impl Disc {
-    pub fn new(catalog: String, title: InheritableValue<String>, artist: InheritableValue<String>, disc_type: InheritableValue<TrackType>) -> Self {
+    pub fn new<I, T>(catalog: String, title: I, artist: I, disc_type: T) -> Self
+        where
+            I: Into<InheritableValue<String>>, T: Into<InheritableValue<TrackType>> {
         Disc {
             catalog,
-            title,
-            artist,
-            disc_type,
+            title: title.into(),
+            artist: artist.into(),
+            disc_type: disc_type.into(),
             tracks: Vec::new(),
         }
     }
@@ -162,11 +164,13 @@ pub struct Track {
 }
 
 impl Track {
-    pub fn new(title: String, artist: InheritableValue<String>, track_type: InheritableValue<TrackType>) -> Self {
+    pub fn new<I, T>(title: String, artist: I, track_type: T) -> Self
+        where
+            I: Into<InheritableValue<String>>, T: Into<InheritableValue<TrackType>> {
         Track {
             title,
-            artist,
-            track_type,
+            artist: artist.into(),
+            track_type: track_type.into(),
         }
     }
 
