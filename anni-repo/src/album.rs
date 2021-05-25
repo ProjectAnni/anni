@@ -4,6 +4,7 @@ use std::path::Path;
 use crate::Datetime;
 use anni_common::traits::FromFile;
 use anni_derive::FromFile;
+use anni_common::inherit::InheritableValue;
 
 #[derive(Serialize, Deserialize, FromFile)]
 pub struct Album {
@@ -16,42 +17,13 @@ impl Album {
     pub fn new(title: String, artist: String, release_date: Datetime, catalog: String) -> Self {
         Album {
             info: AlbumInfo {
-                title,
-                artist,
+                title: InheritableValue::own(title),
+                artist: InheritableValue::own(artist),
                 release_date,
                 album_type: TrackType::Normal,
                 catalog,
             },
             discs: Vec::new(),
-        }
-    }
-
-    pub fn format(&mut self) {
-        let mut album_artist = String::new();
-        for disc in self.discs.iter_mut() {
-            for track in disc.tracks.iter_mut() {
-                match &track.artist {
-                    Some(artist) => {
-                        if album_artist.is_empty() {
-                            // the first track
-                            album_artist = artist.clone()
-                        } else if &album_artist != artist {
-                            // not all artists are the same, exit
-                            return;
-                        }
-                    }
-                    None => {}
-                }
-            }
-        }
-
-        // all artists are the same, remove them in discs and tracks
-        self.info.artist = album_artist;
-        for disc in self.discs.iter_mut() {
-            disc.artist = None;
-            for track in disc.tracks.iter_mut() {
-                track.artist = None;
-            }
         }
     }
 }
@@ -65,26 +37,8 @@ impl FromStr for Album {
                 target: "Album",
                 err: e,
             })?;
-        for disc in &mut album.discs {
-            if let None = disc.title {
-                disc.title = Some(album.info.title.to_owned());
-            }
-            if let None = disc.artist {
-                disc.artist = Some(album.info.artist.to_owned());
-            }
-            if let None = disc.disc_type {
-                disc.disc_type = Some(album.info.album_type.to_owned());
-            }
-            for track in &mut disc.tracks {
-                if let None = track.artist {
-                    track.artist = Some(disc.artist.as_ref().unwrap().to_owned());
-                }
 
-                if let None = track.track_type {
-                    track.track_type = Some((disc.disc_type.as_ref().unwrap()).to_owned());
-                }
-            }
-        }
+        album.inherit();
         Ok(album)
     }
 }
@@ -120,15 +74,27 @@ impl Album {
         &self.discs
     }
 
-    pub fn add_disc(&mut self, disc: Disc) {
+    pub fn inherit(&mut self) {
+        for disc in self.discs.iter_mut() {
+            disc.title.inherit_from(&self.info.title);
+            disc.artist.inherit_from(&self.info.artist);
+            disc.disc_type.inherit_from_owned(&self.info.album_type);
+            disc.inherit();
+        }
+    }
+
+    pub fn add_disc(&mut self, mut disc: Disc) {
+        disc.title.inherit_from(&self.info.title);
+        disc.artist.inherit_from(&self.info.artist);
+        disc.disc_type.inherit_from_owned(&self.info.album_type);
         self.discs.push(disc);
     }
 }
 
 #[derive(Serialize, Deserialize)]
 struct AlbumInfo {
-    title: String,
-    artist: String,
+    title: InheritableValue<String>,
+    artist: InheritableValue<String>,
     #[serde(rename = "date")]
     release_date: Datetime,
     #[serde(rename = "type")]
@@ -139,36 +105,30 @@ struct AlbumInfo {
 #[derive(Serialize, Deserialize, Clone)]
 pub struct Disc {
     catalog: String,
-    title: Option<String>,
-    artist: Option<String>,
+    title: InheritableValue<String>,
+    artist: InheritableValue<String>,
     #[serde(rename = "type")]
-    disc_type: Option<TrackType>,
+    disc_type: InheritableValue<TrackType>,
     tracks: Vec<Track>,
 }
 
 impl Disc {
-    pub fn new(catalog: String, title: Option<String>, artist: Option<String>, disc_type: Option<TrackType>) -> Self {
+    pub fn new(catalog: String, title: InheritableValue<String>, artist: InheritableValue<String>, disc_type: InheritableValue<TrackType>) -> Self {
         Disc {
             catalog,
             title,
             artist,
             disc_type,
-            tracks: vec![],
+            tracks: Vec::new(),
         }
     }
 
     pub fn title(&self) -> &str {
-        match &self.title {
-            Some(title) => title,
-            None => unreachable!(),
-        }
+        self.title.as_ref()
     }
 
     pub fn artist(&self) -> &str {
-        match &self.artist {
-            Some(artist) => artist,
-            None => unreachable!(),
-        }
+        self.artist.as_ref()
     }
 
     pub fn catalog(&self) -> &str {
@@ -179,7 +139,16 @@ impl Disc {
         self.tracks.as_ref()
     }
 
-    pub fn add_track(&mut self, track: Track) {
+    pub fn inherit(&mut self) {
+        for track in self.tracks.iter_mut() {
+            track.artist.inherit_from(&self.artist);
+            track.track_type.inherit_from(&self.disc_type);
+        }
+    }
+
+    pub fn add_track(&mut self, mut track: Track) {
+        track.artist.inherit_from(&self.artist);
+        track.track_type.inherit_from(&self.disc_type);
         self.tracks.push(track);
     }
 }
@@ -187,16 +156,16 @@ impl Disc {
 #[derive(Serialize, Deserialize, Clone)]
 pub struct Track {
     title: String,
-    artist: Option<String>,
+    artist: InheritableValue<String>,
     #[serde(rename = "type")]
-    track_type: Option<TrackType>,
+    track_type: InheritableValue<TrackType>,
 }
 
 impl Track {
-    pub fn new(title: String, artist: Option<&str>, track_type: Option<TrackType>) -> Self {
+    pub fn new(title: String, artist: InheritableValue<String>, track_type: InheritableValue<TrackType>) -> Self {
         Track {
             title,
-            artist: artist.map(|u| u.to_owned()),
+            artist,
             track_type,
         }
     }
@@ -206,17 +175,11 @@ impl Track {
     }
 
     pub fn artist(&self) -> &str {
-        match &self.artist {
-            Some(a) => a.as_ref(),
-            None => unreachable!(),
-        }
+        self.artist.as_ref()
     }
 
     pub fn track_type(&self) -> TrackType {
-        match &self.track_type {
-            Some(t) => t.clone(),
-            None => unreachable!(),
-        }
+        self.track_type.get_raw()
     }
 }
 

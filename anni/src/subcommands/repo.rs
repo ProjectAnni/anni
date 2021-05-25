@@ -151,7 +151,6 @@ fn handle_repo_add(matches: &ArgMatches, manager: &RepositoryManager) -> anyhow:
             album.add_disc(disc);
         }
 
-        album.format();
         manager.add_album(&catalog, album)?;
         if matches.is_present("edit") {
             manager.edit_album(&catalog)?;
@@ -361,8 +360,6 @@ FILE "{filename}" WAVE
             }
         }
         "toml" => {
-            let mut album = album;
-            album.format();
             print!("{}", album.to_string());
         }
         _ => unimplemented!()
