@@ -1,9 +1,13 @@
-use std::rc::Rc;
 use serde::{Serialize, Serializer, Deserialize, Deserializer};
 use serde::de::Visitor;
 use std::fmt::Formatter;
 use std::fmt;
 use std::marker::PhantomData;
+
+#[cfg(feature = "arc")]
+use std::sync::Arc as Rc;
+#[cfg(not(feature = "arc"))]
+use std::rc::Rc;
 
 #[derive(Clone)]
 pub enum InheritableValue<T> {

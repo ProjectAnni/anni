@@ -4,6 +4,10 @@ version = "0.1.0"
 authors = ["Yesterday17 <mmf@mmf.moe>"]
 edition = "2018"
 
+[features]
+default = []
+arc = []
+
 [dependencies]
 anyhow = "1.0"
 byteorder = "1"
