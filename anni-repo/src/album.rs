@@ -90,7 +90,7 @@ impl Album {
         self.discs.push(disc);
     }
 
-    pub fn into_disc(self) -> Vec<Disc> {
+    pub fn into_discs(self) -> Vec<Disc> {
         self.discs
     }
 }
@@ -160,7 +160,9 @@ impl Disc {
 
     pub fn into_album(mut self, title: String, release_date: Datetime) -> Album {
         let mut album = Album::new(title, self.artist.as_ref().to_string(), release_date, self.catalog.to_string());
+        self.title.reset();
         self.artist.reset();
+        self.disc_type.reset();
         album.add_disc(self);
         album
     }
