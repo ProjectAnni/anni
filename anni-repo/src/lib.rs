@@ -1,8 +1,9 @@
 pub mod album;
-mod error;
+pub mod error;
 pub mod library;
 mod manager;
 pub mod repo;
+pub mod category;
 
 pub use album::Album;
 pub use error::Error;
