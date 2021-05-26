@@ -1,5 +1,6 @@
 use crate::Result;
 use crate::{Album, Repository};
+use crate::category::Category;
 use anni_common::traits::FromFile;
 use std::fs;
 use std::path::{PathBuf, Path};
@@ -57,5 +58,20 @@ impl RepositoryManager {
                     p.path().file_stem().map(|f| f.to_string_lossy().to_string())
                 } else { None }
             }))
+    }
+
+    pub fn category_root(&self) -> PathBuf {
+        self.root.join("category")
+    }
+
+    pub fn with_category(&self, catalog: &str) -> PathBuf {
+        self.category_root().join(format!("{}.toml", catalog))
+    }
+
+    pub fn load_category(&self, category: &str) -> Result<Category> {
+        Category::from_file(self.with_category(category)).map_err(|e| crate::Error::RepoCategoryLoadError {
+            category: category.to_owned(),
+            err: e,
+        })
     }
 }
