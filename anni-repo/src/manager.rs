@@ -74,4 +74,14 @@ impl RepositoryManager {
             err: e,
         })
     }
+
+    pub fn categories(&self) -> Result<impl Iterator<Item=String>> {
+        Ok(fs::read_dir(self.category_root())?
+            .filter_map(|p| {
+                let path = p.ok()?.path();
+                if let Some("toml") = path.extension()?.to_str() {
+                    path.file_stem().map(|f| f.to_string_lossy().to_string())
+                } else { None }
+            }))
+    }
 }
