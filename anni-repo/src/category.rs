@@ -8,6 +8,7 @@ use std::str::FromStr;
 pub struct Category {
     #[serde(rename = "category")]
     info: CategoryInfo,
+    #[serde(default)]
     subcategory: Vec<SubCategory>,
 }
 
