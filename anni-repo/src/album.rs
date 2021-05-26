@@ -20,7 +20,7 @@ impl Album {
                 title: InheritableValue::own(title),
                 artist: InheritableValue::own(artist),
                 release_date,
-                album_type: TrackType::Normal,
+                album_type: TrackType::Normal, // TODO: custom album type
                 catalog,
             },
             discs: Vec::new(),
@@ -89,6 +89,10 @@ impl Album {
         disc.disc_type.inherit_from_owned(&self.info.album_type);
         self.discs.push(disc);
     }
+
+    pub fn into_disc(self) -> Vec<Disc> {
+        self.discs
+    }
 }
 
 #[derive(Serialize, Deserialize)]
@@ -152,6 +156,13 @@ impl Disc {
         track.artist.inherit_from(&self.artist);
         track.track_type.inherit_from(&self.disc_type);
         self.tracks.push(track);
+    }
+
+    pub fn into_album(mut self, title: String, release_date: Datetime) -> Album {
+        let mut album = Album::new(title, self.artist.as_ref().to_string(), release_date, self.catalog.to_string());
+        self.artist.reset();
+        album.add_disc(self);
+        album
     }
 }
 

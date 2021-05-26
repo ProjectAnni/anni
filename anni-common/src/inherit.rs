@@ -43,6 +43,13 @@ impl<T> InheritableValue<T> {
             InheritableValue::Owned(_) => {}
         }
     }
+
+    pub fn reset(&mut self) {
+        match self {
+            InheritableValue::Inherited(Some(_)) => *self = InheritableValue::new(),
+            _ => {}
+        }
+    }
 }
 
 impl<T> AsRef<T> for InheritableValue<T> {
