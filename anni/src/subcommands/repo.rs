@@ -10,7 +10,6 @@ use std::path::{Path, PathBuf};
 use crate::subcommands::Subcommand;
 use std::str::FromStr;
 use crate::i18n::ClapI18n;
-use anni_flac::blocks::BlockVorbisComment;
 
 pub(crate) struct RepoSubcommand;
 
@@ -147,9 +146,9 @@ fn handle_repo_add(matches: &ArgMatches, manager: &RepositoryManager) -> anyhow:
             for path in files.iter() {
                 let header = FlacHeader::from_file(path)?;
                 let track = stream_to_track(&header);
-                disc.add_track(track);
+                disc.push_track(track); // use push_track here to avoid metadata inherit
             }
-            album.add_disc(disc);
+            album.push_disc(disc); // the same
         }
         album.inherit();
 

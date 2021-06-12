@@ -87,6 +87,10 @@ impl Album {
         disc.title.inherit_from(&self.info.title);
         disc.artist.inherit_from(&self.info.artist);
         disc.disc_type.inherit_from_owned(&self.info.album_type);
+        self.push_disc(disc);
+    }
+
+    pub fn push_disc(&mut self, disc: Disc) {
         self.discs.push(disc);
     }
 
@@ -155,6 +159,10 @@ impl Disc {
     pub fn add_track(&mut self, mut track: Track) {
         track.artist.inherit_from(&self.artist);
         track.track_type.inherit_from(&self.disc_type);
+        self.push_track(track);
+    }
+
+    pub fn push_track(&mut self, track: Track) {
         self.tracks.push(track);
     }
 
