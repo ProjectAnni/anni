@@ -219,6 +219,7 @@ pub enum TrackType {
     Absolute,
     Drama,
     Radio,
+    Vocal,
     Other(String),
 }
 
@@ -230,6 +231,7 @@ impl AsRef<str> for TrackType {
             TrackType::Absolute => "absolute",
             TrackType::Drama => "drama",
             TrackType::Radio => "radio",
+            TrackType::Vocal => "vocal",
             TrackType::Other(s) => s.as_ref(),
         }
     }
@@ -253,6 +255,7 @@ impl<'de> Deserialize<'de> for TrackType {
             "absolute" => TrackType::Absolute,
             "drama" => TrackType::Drama,
             "radio" => TrackType::Radio,
+            "vocal" => TrackType::Vocal,
             _ => TrackType::Other(s),
         })
     }
