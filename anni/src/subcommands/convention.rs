@@ -9,11 +9,11 @@ use anni_common::validator::*;
 use serde::{Deserialize, Deserializer};
 use std::rc::Rc;
 use std::iter::FromIterator;
-use anni_flac::blocks::{BlockVorbisComment, BlockStreamInfo};
 use std::str::FromStr;
 use serde::de::Error;
 use crate::config::read_config;
-use anni_flac::FlacHeader;
+use anni_flac::{FlacHeader, MetadataBlockData};
+use anni_flac::blocks::{BlockVorbisComment, BlockStreamInfo, PictureType};
 
 pub(crate) struct ConventionSubcommand;
 
@@ -75,7 +75,22 @@ struct ConventionRules {
 impl ConventionRules {
     pub(crate) fn validate<P>(&self, filename: P, flac: &FlacHeader)
         where P: AsRef<Path> {
+
+        // validate stream info
         self.validate_stream_info(filename.as_ref(), flac.stream_info());
+
+        // validate cover existence
+        let mut has_cover = false;
+        for block in flac.blocks.iter() {
+            if let MetadataBlockData::Picture(data) = &block.data {
+                if let PictureType::CoverFront = data.picture_type {
+                    has_cover = true;
+                }
+            }
+        }
+        if !has_cover {
+            error!(target: &format!("convention|{}", filename.as_ref().to_string_lossy()), "Cover does not exist!");
+        }
 
         // validate comments
         let fixes = flac.comments()
