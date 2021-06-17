@@ -179,9 +179,18 @@ impl ConventionRules {
             if let Err(v) = tag.validate(value) {
                 error!(target: &format!("convention|{}", filename_str), "Validator {} not passed: invalid tag value {}={}", v, key_raw, value);
             } else if &tag.name == "TITLE" {
+                // save track title for further use
                 title = Some(value.to_string());
             } else if &tag.name == "TRACKNUMBER" {
+                // save track number for further use
                 track_number = Some(value.to_string());
+            } else if &tag.name == "ARTIST" {
+                // additional artist name check
+                match value {
+                    "[Unknown Artist]" => error!(target: &format!("convention|{}", filename_str), "Invalid artist: {}", value),
+                    "Various Artists" => warn!(target: &format!("convention|{}", filename_str), "Various Artist is used as track artist. Could it be more accurate?"),
+                    _ => {}
+                }
             }
         }
 
