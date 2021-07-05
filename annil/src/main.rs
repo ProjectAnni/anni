@@ -4,7 +4,7 @@ mod auth;
 mod share;
 
 use actix_web::{HttpServer, App, web, Responder, get, HttpResponse, HttpRequest};
-use std::sync::{Mutex, Arc};
+use std::sync::Arc;
 use anni_backend::backends::{FileBackend, DriveBackend};
 use std::path::PathBuf;
 use crate::backend::AnnilBackend;
@@ -19,7 +19,7 @@ use anni_backend::cache::{CachePool, Cache};
 use anni_backend::backends::drive::DriveBackendSettings;
 
 struct AppState {
-    backends: Mutex<Vec<AnnilBackend>>,
+    backends: Vec<AnnilBackend>,
     key: HS256Key,
 }
 
@@ -27,8 +27,7 @@ struct AppState {
 #[get("/albums")]
 async fn albums(data: web::Data<AppState>) -> impl Responder {
     let mut result: HashSet<&str> = HashSet::new();
-    let backends = data.backends.lock().unwrap();
-    for backend in backends.iter() {
+    for backend in data.backends.iter() {
         let albums = backend.albums();
         result.extend(albums.iter());
     }
@@ -47,8 +46,7 @@ async fn audio(req: HttpRequest, path: web::Path<(String, u8)>, data: web::Data<
         return HttpResponse::Forbidden().finish();
     }
 
-    let backends = data.backends.lock().unwrap();
-    for backend in backends.iter() {
+    for backend in data.backends.iter() {
         if backend.enabled() && backend.has_album(&catalog) {
             let audio = backend.get_audio(&catalog, track_id).await.unwrap();
             return HttpResponse::Ok()
@@ -73,8 +71,7 @@ async fn cover(req: HttpRequest, path: web::Path<String>, data: web::Data<AppSta
         return HttpResponse::Forbidden().finish();
     }
 
-    let backends = data.backends.lock().unwrap();
-    for backend in backends.iter() {
+    for backend in data.backends.iter() {
         if backend.enabled() && backend.has_album(&catalog) {
             return match backend.get_cover(&catalog).await {
                 Ok(cover) => {
@@ -125,10 +122,7 @@ async fn init_state(config: &Config) -> anyhow::Result<web::Data<AppState>> {
 
     // key
     let key = HS256Key::from_bytes(config.server.key().as_ref());
-    Ok(web::Data::new(AppState {
-        backends: Mutex::new(backends),
-        key,
-    }))
+    Ok(web::Data::new(AppState { backends, key }))
 }
 
 #[actix_web::main]
