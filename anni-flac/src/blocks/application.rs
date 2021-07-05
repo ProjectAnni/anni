@@ -1,6 +1,6 @@
-use std::io::Read;
-use byteorder::{ReadBytesExt, BigEndian};
-use crate::prelude::{Decode, Result};
+use std::io::{Read, Write};
+use byteorder::{ReadBytesExt, BigEndian, WriteBytesExt};
+use crate::prelude::{Decode, Result, Encode};
 use crate::utils::take_to_end;
 use std::fmt;
 
@@ -18,6 +18,14 @@ impl Decode for BlockApplication {
             application_id: reader.read_u32::<BigEndian>()?,
             data: take_to_end(reader)?,
         })
+    }
+}
+
+impl Encode for BlockApplication {
+    fn write_to<W: Write>(&self, writer: &mut W) -> Result<()> {
+        writer.write_u32::<BigEndian>(self.application_id)?;
+        writer.write_all(&self.data)?;
+        Ok(())
     }
 }
 

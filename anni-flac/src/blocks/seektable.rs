@@ -1,7 +1,7 @@
-use std::io::Read;
-use byteorder::{ReadBytesExt, BigEndian};
+use std::io::{Read, Write};
+use byteorder::{ReadBytesExt, BigEndian, WriteBytesExt};
 use crate::error::FlacError;
-use crate::prelude::{Decode, Result};
+use crate::prelude::{Decode, Result, Encode};
 use crate::utils::take_to_end;
 use std::fmt;
 
@@ -56,6 +56,17 @@ impl Decode for BlockSeekTable {
         }
 
         Ok(BlockSeekTable { seek_points })
+    }
+}
+
+impl Encode for BlockSeekTable {
+    fn write_to<W: Write>(&self, writer: &mut W) -> Result<()> {
+        for point in self.seek_points.iter() {
+            writer.write_u64::<BigEndian>(point.sample_number)?;
+            writer.write_u64::<BigEndian>(point.stream_offset)?;
+            writer.write_u16::<BigEndian>(point.frame_samples)?;
+        }
+        Ok(())
     }
 }
 

@@ -1,6 +1,6 @@
-use std::io::Read;
-use byteorder::{BigEndian, ReadBytesExt};
-use crate::prelude::{Decode, Result};
+use std::io::{Read, Write};
+use byteorder::{BigEndian, ReadBytesExt, WriteBytesExt};
+use crate::prelude::{Decode, Result, Encode};
 use crate::blocks::*;
 use crate::utils::skip;
 use std::fmt;
@@ -60,6 +60,36 @@ impl FlacHeader {
             _ => unreachable!(),
         })
     }
+
+    pub fn format(&mut self) {
+        // merge padding blocks
+        let mut padding_size: Option<usize> = None;
+        self.blocks.retain(|block| match &block.data {
+            MetadataBlockData::Padding(size) => {
+                // update padding block size
+                padding_size = Some(padding_size.unwrap_or_default() + size);
+                // remove all padding blocks
+                false
+            }
+            // keep all other blocks
+            _ => true,
+        });
+
+        // insert padding block if necessary
+        if let Some(padding_block_size) = padding_size {
+            self.blocks.push(MetadataBlock {
+                is_last: true,
+                length: padding_block_size,
+                data: MetadataBlockData::Padding(padding_block_size),
+            })
+        }
+
+        // fix is_last identifier
+        for block in self.blocks.iter_mut() {
+            block.is_last = false;
+        }
+        self.blocks.last_mut().unwrap().is_last = true;
+    }
 }
 
 pub struct MetadataBlock {
@@ -87,6 +117,24 @@ impl Decode for MetadataBlock {
                 _ => MetadataBlockData::Reserved((block_type, crate::utils::take(reader, length)?)),
             },
         })
+    }
+}
+
+impl Encode for MetadataBlock {
+    fn write_to<W: Write>(&self, writer: &mut W) -> Result<()> {
+        writer.write_u8((if self.is_last { 0b10000000 } else { 0 }) + u8::from(&self.data))?;
+        writer.write_u24::<BigEndian>(self.length as u32)?;
+        match &self.data {
+            MetadataBlockData::StreamInfo(s) => s.write_to(writer)?,
+            MetadataBlockData::Padding(p) => writer.write_all(&vec![0u8; *p])?, // FIXME: Why does writing zero needs to allocate memory?!
+            MetadataBlockData::Application(a) => a.write_to(writer)?,
+            MetadataBlockData::SeekTable(s) => s.write_to(writer)?,
+            MetadataBlockData::Comment(c) => c.write_to(writer)?,
+            MetadataBlockData::CueSheet(c) => c.write_to(writer)?,
+            MetadataBlockData::Picture(p) => p.write_to(writer)?,
+            MetadataBlockData::Reserved((_, data)) => writer.write_all(data)?,
+        }
+        Ok(())
     }
 }
 
@@ -138,6 +186,19 @@ impl MetadataBlockData {
             MetadataBlockData::CueSheet(_) => "CUESHEET",
             MetadataBlockData::Picture(_) => "PICTURE",
             _ => "RESERVED",
+        }
+    }
+
+    pub fn len(&self) -> usize {
+        match self {
+            MetadataBlockData::StreamInfo(_) => 34,
+            MetadataBlockData::Padding(p) => *p,
+            MetadataBlockData::Application(a) => a.data.len() + 4,
+            MetadataBlockData::SeekTable(t) => t.seek_points.len() * 18,
+            MetadataBlockData::Comment(c) => 8 + c.vendor_string.len() + c.comments.iter().map(|c| 4 + c.len()).sum::<usize>(),
+            MetadataBlockData::CueSheet(c) => 396 + c.tracks.iter().map(|t| 36 + t.track_index.len() * 12).sum::<usize>(),
+            MetadataBlockData::Picture(p) => 32 + p.mime_type.len() + p.description.len() + p.data.len(),
+            MetadataBlockData::Reserved((_, arr)) => arr.len(),
         }
     }
 }

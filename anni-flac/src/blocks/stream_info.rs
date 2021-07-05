@@ -1,6 +1,6 @@
-use std::io::Read;
-use byteorder::{ReadBytesExt, BigEndian};
-use crate::prelude::{Decode, Result};
+use std::io::{Read, Write};
+use byteorder::{ReadBytesExt, BigEndian, WriteBytesExt};
+use crate::prelude::{Decode, Result, Encode};
 use std::fmt;
 
 /// Notes:
@@ -79,6 +79,28 @@ impl Decode for BlockStreamInfo {
             total_samples,
             md5_signature,
         })
+    }
+}
+
+impl Encode for BlockStreamInfo {
+    fn write_to<W: Write>(&self, writer: &mut W) -> Result<()> {
+        writer.write_u16::<BigEndian>(self.min_block_size)?;
+        writer.write_u16::<BigEndian>(self.max_block_size)?;
+        writer.write_u24::<BigEndian>(self.min_frame_size)?;
+        writer.write_u24::<BigEndian>(self.max_frame_size)?;
+
+        // 16/20 bits
+        writer.write_u16::<BigEndian>((self.sample_rate >> 4) as u16)?;
+        let channels = self.channels - 1;
+        let bps = self.bits_per_sample - 1;
+        writer.write_u48::<BigEndian>(
+            // 4 bits of sample rate + 3 bits of channel num + 1 bit bps
+            ((((((self.sample_rate & 0b1111) as u8) << 4) + ((channels & 0b111) << 1) + (bps >> 4)) as u64) << 40) +
+                (((bps & 0b1111) as u64) << 36) +
+                self.total_samples
+        )?;
+        writer.write_all(&self.md5_signature)?;
+        Ok(())
     }
 }
 

@@ -1,14 +1,14 @@
-use std::io::Read;
-use byteorder::{ReadBytesExt, BigEndian};
+use std::io::{Read, Write};
+use byteorder::{ReadBytesExt, BigEndian, WriteBytesExt};
 use crate::utils::{take_string, skip};
-use crate::prelude::{Decode, Result};
+use crate::prelude::{Decode, Result, Encode};
 use std::fmt;
 
 pub struct BlockCueSheet {
     /// <128*8> Media catalog number, in ASCII printable characters 0x20-0x7e.
     /// In general, the media catalog number may be 0 to 128 bytes long; any unused characters should be right-padded with NUL characters.
     /// For CD-DA, this is a thirteen digit number, followed by 115 NUL bytes.
-    pub catalog_number: String,
+    pub catalog: String,
     /// <64> The number of lead-in samples.
     /// This field has meaning only for CD-DA cuesheets; for other uses it should be 0.
     /// For CD-DA, the lead-in is the TRACK 00 area where the table of contents is stored;
@@ -46,12 +46,29 @@ impl Decode for BlockCueSheet {
             tracks.push(CueSheetTrack::from_reader(reader)?);
         }
         Ok(BlockCueSheet {
-            catalog_number,
+            catalog: catalog_number,
             leadin_samples,
             is_cd,
             track_number,
             tracks,
         })
+    }
+}
+
+impl Encode for BlockCueSheet {
+    fn write_to<W: Write>(&self, writer: &mut W) -> Result<()> {
+        let padding = 128 - self.catalog.len();
+        writer.write_all(self.catalog.as_bytes())?;
+        writer.write_all(&vec![0u8; padding])?;
+        writer.write_u64::<BigEndian>(self.leadin_samples)?;
+        writer.write_u8(if self.is_cd { 0b10000000 } else { 0 })?;
+        writer.write_all(&vec![0u8; 258])?;
+
+        writer.write_u8(self.track_number)?;
+        for track in self.tracks.iter() {
+            track.write_to(writer)?;
+        }
+        Ok(())
     }
 }
 
@@ -61,7 +78,7 @@ impl fmt::Debug for BlockCueSheet {
         if let Some(width) = f.width() {
             prefix = " ".repeat(width);
         }
-        writeln!(f, "{prefix}media catalog number: {}", self.catalog_number, prefix = prefix)?;
+        writeln!(f, "{prefix}media catalog number: {}", self.catalog, prefix = prefix)?;
         writeln!(f, "{prefix}lead-in: {}", self.leadin_samples, prefix = prefix)?;
         writeln!(f, "{prefix}is CD: {}", self.is_cd, prefix = prefix)?;
         writeln!(f, "{prefix}number of tracks: {}", self.track_number, prefix = prefix)?;
@@ -138,6 +155,24 @@ impl Decode for CueSheetTrack {
     }
 }
 
+impl Encode for CueSheetTrack {
+    fn write_to<W: Write>(&self, writer: &mut W) -> Result<()> {
+        writer.write_u64::<BigEndian>(self.track_offset)?;
+        writer.write_u8(self.track_number)?;
+        writer.write_all(&self.isrc)?;
+
+        let b = if self.is_audio { 0b10000000 } else { 0 } + if self.is_pre_emphasis { 0b01000000 } else { 0 };
+        writer.write_u8(b)?;
+        writer.write_all(&vec![0; 13])?;
+
+        writer.write_u8(self.index_point_number)?;
+        for index in self.track_index.iter() {
+            index.write_to(writer)?;
+        }
+        Ok(())
+    }
+}
+
 #[derive(Debug)]
 pub struct CueSheetTrackIndex {
     /// <64> Offset in samples, relative to the track offset, of the index point.
@@ -158,5 +193,14 @@ impl Decode for CueSheetTrackIndex {
         let index_point = reader.read_u8()?;
         skip(reader, 3)?;
         Ok(CueSheetTrackIndex { sample_offset, index_point })
+    }
+}
+
+impl Encode for CueSheetTrackIndex {
+    fn write_to<W: Write>(&self, writer: &mut W) -> Result<()> {
+        writer.write_u64::<BigEndian>(self.sample_offset)?;
+        writer.write_u8(self.index_point)?;
+        writer.write_all(&vec![0; 3])?;
+        Ok(())
     }
 }

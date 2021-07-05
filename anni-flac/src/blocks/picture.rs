@@ -1,8 +1,8 @@
-use std::io::Read;
+use std::io::{Read, Write};
 use num_traits::FromPrimitive;
-use byteorder::{ReadBytesExt, BigEndian};
+use byteorder::{ReadBytesExt, BigEndian, WriteBytesExt};
 use crate::utils::{take_string, take};
-use crate::prelude::{Decode, Result};
+use crate::prelude::{Decode, Result, Encode};
 use std::fmt;
 
 pub struct BlockPicture {
@@ -56,6 +56,28 @@ impl Decode for BlockPicture {
             colors,
             data,
         })
+    }
+}
+
+impl Encode for BlockPicture {
+    fn write_to<W: Write>(&self, writer: &mut W) -> Result<()> {
+        writer.write_u32::<BigEndian>(self.picture_type as u32)?;
+
+        writer.write_u32::<BigEndian>(self.mime_type.len() as u32)?;
+        writer.write_all(self.mime_type.as_bytes())?;
+
+        writer.write_u32::<BigEndian>(self.description.len() as u32)?;
+        writer.write_all(self.description.as_bytes())?;
+
+        writer.write_u32::<BigEndian>(self.width)?;
+        writer.write_u32::<BigEndian>(self.height)?;
+
+        writer.write_u32::<BigEndian>(self.depth)?;
+        writer.write_u32::<BigEndian>(self.colors)?;
+
+        writer.write_u32::<BigEndian>(self.data.len() as u32)?;
+        writer.write_all(&self.data)?;
+        Ok(())
     }
 }
 

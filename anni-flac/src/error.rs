@@ -7,7 +7,7 @@ pub enum FlacError {
     InvalidMagicNumber,
     #[error("invalid block type 0xff")]
     InvalidBlockType,
-    #[error("invalid seektable size")]
+    #[error("invalid seek table size")]
     InvalidSeekTableSize,
     #[error(transparent)]
     InvalidString(#[from] FromUtf8Error),

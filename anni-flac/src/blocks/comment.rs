@@ -1,7 +1,7 @@
-use std::io::Read;
-use byteorder::{ReadBytesExt, LittleEndian};
+use std::io::{Read, Write};
+use byteorder::{ReadBytesExt, LittleEndian, WriteBytesExt};
 use crate::utils::take_string;
-use crate::prelude::{Decode, Result};
+use crate::prelude::{Decode, Result, Encode};
 use std::collections::HashMap;
 use std::fmt;
 
@@ -74,6 +74,18 @@ impl Decode for BlockVorbisComment {
     }
 }
 
+impl Encode for BlockVorbisComment {
+    fn write_to<W: Write>(&self, writer: &mut W) -> Result<()> {
+        writer.write_u32::<LittleEndian>(self.vendor_string.len() as u32)?;
+        writer.write_all(self.vendor_string.as_bytes())?;
+        writer.write_u32::<LittleEndian>(self.comments.len() as u32)?;
+        for comment in self.comments.iter() {
+            comment.write_to(writer)?;
+        }
+        Ok(())
+    }
+}
+
 impl fmt::Debug for BlockVorbisComment {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let mut prefix = "".to_owned();
@@ -143,6 +155,10 @@ impl UserComment {
         }
     }
 
+    pub fn len(&self) -> usize {
+        self.comment.len()
+    }
+
     pub fn entry(&self) -> String {
         self.comment.clone()
     }
@@ -156,3 +172,10 @@ impl Decode for UserComment {
     }
 }
 
+impl Encode for UserComment {
+    fn write_to<W: Write>(&self, writer: &mut W) -> Result<()> {
+        writer.write_u32::<LittleEndian>(self.comment.len() as u32)?;
+        writer.write_all(self.comment.as_bytes())?;
+        Ok(())
+    }
+}

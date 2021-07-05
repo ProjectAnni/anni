@@ -1,4 +1,4 @@
-use anni_flac::blocks::UserComment;
+use anni_flac::blocks::{UserComment, BlockVorbisComment};
 
 mod common;
 
@@ -36,4 +36,18 @@ fn user_comment_no_value() {
     assert_eq!(c.key_raw(), "A_WITHOUT_VaLuE");
     assert_eq!(c.value(), "");
     assert_eq!(c.is_key_uppercase(), false);
+}
+
+#[test]
+fn user_comment_encode_decode() {
+    let comment = BlockVorbisComment {
+        vendor_string: "Project Anni".to_string(),
+        comments: vec![
+            UserComment::new("KEY1=value1".to_string()),
+            UserComment::new("KEY2=value2".to_string()),
+            UserComment::new("KEY3=".to_string()),
+        ],
+    };
+    let parsed = common::encode_and_decode(&comment);
+    assert_eq!(format!("{:?}", parsed), format!("{:?}", comment));
 }

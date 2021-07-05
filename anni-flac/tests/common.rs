@@ -1,7 +1,8 @@
 use std::fs::File;
-use std::io::Read;
+use std::io::{Read, Cursor, SeekFrom, Seek};
 use anni_flac::{MetadataBlockData, FlacHeader};
 use anni_flac::blocks::PictureType;
+use anni_flac::prelude::{Encode, Decode};
 
 /// Make sure test file exists.
 ///
@@ -37,6 +38,14 @@ pub fn parse_test_audio() -> FlacHeader {
     FlacHeader::parse(&mut file).unwrap()
 }
 
+pub fn encode_and_decode<T: Encode + Decode>(to_encode: &T) -> T {
+    let buf = Vec::new();
+    let mut buf = Cursor::new(buf);
+    to_encode.write_to(&mut buf).unwrap();
+    buf.seek(SeekFrom::Start(0)).unwrap();
+    T::from_reader(&mut buf).expect("Failed to parse block")
+}
+
 #[test]
 fn test_audio_tags() {
     let stream = parse_test_audio();
@@ -54,6 +63,7 @@ fn test_audio_tags() {
     assert_eq!(info.md5_signature, [0xee, 0xc1, 0xef, 0x02, 0x73, 0xe8, 0xc0, 0x26, 0x1e, 0x52, 0x15, 0x9f, 0xc2, 0x13, 0x67, 0xb0]);
 
     for (i, block) in stream.blocks.iter().enumerate().skip(1) {
+        assert_eq!(block.length, block.data.len());
         match &block.data {
             MetadataBlockData::SeekTable(table) => {
                 assert_eq!(i, 1);
@@ -110,4 +120,12 @@ fn test_audio_tags() {
             _ => panic!("Invalid block.")
         }
     }
+}
+
+#[test]
+fn test_blocks_format() {
+    let mut stream = parse_test_audio();
+    stream.blocks.swap(2, 4);
+    stream.format();
+    // FIXME: assert_eq!(stream, parse_test_audio());
 }
