@@ -4,6 +4,7 @@ use crate::utils::take_string;
 use crate::prelude::{Decode, Result, Encode};
 use std::collections::HashMap;
 use std::fmt;
+use std::fmt::Display;
 
 /// Also known as FLAC tags, the contents of a vorbis comment packet as specified here (without the framing bit).
 /// Note that the vorbis comment spec allows for on the order of 2 ^ 64 bytes of data where as the FLAC metadata block is limited to 2 ^ 24 bytes.
@@ -36,12 +37,16 @@ pub struct BlockVorbisComment {
 }
 
 impl BlockVorbisComment {
-    pub fn insert(&mut self, comment: UserComment) {
+    pub fn push(&mut self, comment: UserComment) {
         self.comments.push(comment);
     }
 
     pub fn len(&self) -> usize {
         self.comments.len()
+    }
+
+    pub fn clear(&mut self) {
+        self.comments.clear()
     }
 
     pub fn to_map(&self) -> HashMap<String, &UserComment> {
@@ -95,7 +100,8 @@ impl fmt::Debug for BlockVorbisComment {
         writeln!(f, "{prefix}vendor string: {}", self.vendor_string, prefix = prefix)?;
         writeln!(f, "{prefix}comments: {}", self.len(), prefix = prefix)?;
         for (i, c) in self.comments.iter().enumerate() {
-            writeln!(f, "{prefix}{prefix}comment[{}]: {}={}", i, c.key_raw(), c.value(), prefix = prefix)?;
+            write!(f, "{}", prefix)?;
+            writeln!(f, "{prefix}comment[{}]: {}={}", i, c.key_raw(), c.value(), prefix = prefix)?;
         }
         Ok(())
     }
@@ -104,7 +110,7 @@ impl fmt::Debug for BlockVorbisComment {
 impl fmt::Display for BlockVorbisComment {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         for c in self.comments.iter() {
-            writeln!(f, "{}={}", c.key_raw(), c.value())?;
+            writeln!(f, "{}", c.comment)?;
         }
         Ok(())
     }
@@ -177,5 +183,55 @@ impl Encode for UserComment {
         writer.write_u32::<LittleEndian>(self.comment.len() as u32)?;
         writer.write_all(self.comment.as_bytes())?;
         Ok(())
+    }
+}
+
+pub trait UserCommentExt {
+    fn title<S>(value: S) -> Self where S: Display;
+    fn artist<S>(value: S) -> Self where S: Display;
+    fn album<S>(value: S) -> Self where S: Display;
+    fn date<S>(value: S) -> Self where S: Display;
+    fn track_number<S>(value: S) -> Self where S: Display;
+    fn track_total<S>(value: S) -> Self where S: Display;
+    fn disc_number<S>(value: S) -> Self where S: Display;
+    fn disc_total<S>(value: S) -> Self where S: Display;
+    fn album_artist<S>(value: S) -> Self where S: Display;
+}
+
+impl UserCommentExt for UserComment {
+    fn title<S>(value: S) -> Self where S: Display {
+        Self::new(format!("TITLE={}", value))
+    }
+
+    fn artist<S>(value: S) -> Self where S: Display {
+        Self::new(format!("ARTIST={}", value))
+    }
+
+    fn album<S>(value: S) -> Self where S: Display {
+        Self::new(format!("ALBUM={}", value))
+    }
+
+    fn date<S>(value: S) -> Self where S: Display {
+        Self::new(format!("DATE={}", value))
+    }
+
+    fn track_number<S>(value: S) -> Self where S: Display {
+        Self::new(format!("TRACKNUMBER={}", value))
+    }
+
+    fn track_total<S>(value: S) -> Self where S: Display {
+        Self::new(format!("TRACKTOTAL={}", value))
+    }
+
+    fn disc_number<S>(value: S) -> Self where S: Display {
+        Self::new(format!("DISCNUMBER={}", value))
+    }
+
+    fn disc_total<S>(value: S) -> Self where S: Display {
+        Self::new(format!("DISCTOTAL={}", value))
+    }
+
+    fn album_artist<S>(value: S) -> Self where S: Display {
+        Self::new(format!("ALBUMARTIST={}", value))
     }
 }
