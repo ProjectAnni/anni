@@ -12,6 +12,8 @@ use anni_common::encode::{btoken_w, u16_le_w, u32_le_w};
 use crate::i18n::ClapI18n;
 use crate::subcommands::Subcommand;
 use anni_common::traits::{Decode, Encode};
+use anni_flac::FlacHeader;
+use anni_flac::blocks::BlockVorbisComment;
 
 pub struct SplitSubcommand;
 
@@ -38,6 +40,11 @@ impl Subcommand for SplitSubcommand {
                 .takes_value(true)
                 .default_value("flac")
                 .possible_values(&["wav", "flac"])
+            )
+            .arg(Arg::new("split.tags.skip")
+                .about_ll("split-skip-tags")
+                .long("skip-tags")
+                .short('s')
             )
             .arg(Arg::new("Directory")
                 .required(true)
@@ -213,6 +220,7 @@ impl<'a> SplitTask<'a> {
 
         let mut prev = track_iter.next().unwrap();
         let mut processes = Vec::with_capacity(tracks.len() - 1);
+        let mut files = Vec::new();
         for now in track_iter {
             eprintln!("{}...", prev.0);
             // split track with filename
@@ -223,11 +231,11 @@ impl<'a> SplitTask<'a> {
             }
             // choose output format
             let mut process = match self.output_format {
-                "wav" => FileProcess::File(File::create(output)?),
+                "wav" => FileProcess::File(File::create(&output)?),
                 "flac" => {
                     let process = Command::new(encoder_of("flac").unwrap())
                         .args(&["--totally-silent", "-", "-o"])
-                        .arg(output.into_os_string())
+                        .arg(output.clone().into_os_string())
                         .stdin(Stdio::piped())
                         .spawn()?;
                     FileProcess::Process(process)
@@ -237,11 +245,25 @@ impl<'a> SplitTask<'a> {
             // split wav from start to end
             split_wav(&mut header, audio, &mut process.get_writer(), prev.1, now.1)?;
             processes.push(process);
+            files.push(output);
             prev = now;
         }
         // wait for all processes
         for mut p in processes {
             p.wait();
+        }
+        eprintln!("Finished splitting. Writing tags...");
+
+        // Write tags
+        // TODO: skip-tags argument
+        let mut tracks = crate::subcommands::cue::tracks(cue_path)?;
+        for (mut track, path) in tracks.iter_mut().zip(files) {
+            let mut flac = FlacHeader::from_file(&path)?;
+            let mut block = BlockVorbisComment { vendor_string: "Project Anni".to_string(), comments: vec![] };
+            let comment = flac.comments_mut().unwrap_or(&mut block);
+            comment.clear();
+            comment.comments.append(&mut track);
+            flac.save(Some(path))?;
         }
         eprintln!("Finished!");
         Ok(())

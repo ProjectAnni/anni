@@ -1,5 +1,4 @@
 use cue_sheet::tracklist::Tracklist;
-use shell_escape::escape;
 use std::io;
 use std::path::{Path, PathBuf};
 use clap::{ArgMatches, App, ArgGroup, Arg};
@@ -8,6 +7,7 @@ use std::str::FromStr;
 
 use crate::subcommands::Subcommand;
 use crate::i18n::ClapI18n;
+use anni_flac::blocks::{UserComment, UserCommentExt};
 
 pub(crate) struct CueSubcommand;
 
@@ -78,6 +78,7 @@ impl Subcommand for CueSubcommand {
     }
 }
 
+// TODO: remove
 fn parse_file<P: AsRef<Path>>(path: P, files: &[P]) -> anyhow::Result<String> {
     let mut str: &str = &fs::read_to_string(path)?;
 
@@ -87,15 +88,10 @@ fn parse_file<P: AsRef<Path>>(path: P, files: &[P]) -> anyhow::Result<String> {
         str = &str[3..];
     }
 
-    let mut result = String::new();
+    let result = String::new();
     let tracks = tracks(str)?;
     if files.len() != tracks.len() {
         bail!("Incorrect file number. Expected {}, got {}", tracks.len(), files.len());
-    }
-
-    for (i, meta) in tracks.iter().enumerate() {
-        result += &format!("echo {} | metaflac --remove-all-tags --import-tags-from=- {}", escape(meta.into()), escape(files[i].as_ref().to_string_lossy()));
-        result.push('\n');
     }
     Ok(result)
 }
@@ -131,8 +127,9 @@ pub(crate) fn extract_breakpoints<P: AsRef<Path>>(path: P) -> Vec<CueTrack> {
     result
 }
 
-fn tracks(file: &str) -> io::Result<Vec<String>> {
-    let cue = Tracklist::parse(file).unwrap();
+pub fn tracks<P: AsRef<Path>>(path: P) -> io::Result<Vec<Vec<UserComment>>> {
+    let cue = anni_common::fs::read_to_string(path).unwrap();
+    let cue = Tracklist::parse(&cue).unwrap();
     let album = cue.info.get("TITLE").expect("Album TITLE not provided!");
     let artist = cue.info.get("ARTIST").map(String::as_str).unwrap_or("");
     let date = cue.info.get("DATE").map(String::as_str).unwrap_or("");
@@ -150,18 +147,16 @@ fn tracks(file: &str) -> io::Result<Vec<String>> {
     let mut result = Vec::with_capacity(track_total);
     for file in cue.files.iter() {
         for track in file.tracks.iter() {
-            let title = track.info.get("TITLE").expect("Track TITIE not provided!");
-            let artist = track.info.get("ARTIST").map(String::as_str).unwrap_or(artist);
-
-            result.push(format!(r#"TITLE={}
-ALBUM={}
-ARTIST={}
-DATE={}
-TRACKNUMBER={}
-TRACKTOTAL={}
-DISCNUMBER={}
-DISCTOTAL={}"#, title, album, artist, date, track_number, track_total, disc_number, disc_total));
-
+            result.push(vec![
+                UserComment::title(track.info.get("TITLE").map(String::as_str).unwrap_or("")),
+                UserComment::album(album),
+                UserComment::artist(track.info.get("ARTIST").map(String::as_str).unwrap_or(artist)),
+                UserComment::date(date),
+                UserComment::track_number(track_number),
+                UserComment::track_total(track_total),
+                UserComment::disc_number(disc_number),
+                UserComment::disc_total(disc_total),
+            ]);
             track_number += 1;
         }
     }

@@ -21,6 +21,7 @@ cue-tagsh = Output script to add tags to FLAC files. Works like cuetag.sh, but y
 split = Provided helper to split audios.
 split-format-input = Extension of input audio file.
 split-format-output = Format of output audio file.
+split-skip-tags = Skip writing tags into output audio file.
 
 
 ## convention
