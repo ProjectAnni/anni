@@ -13,7 +13,7 @@ use crate::i18n::ClapI18n;
 use crate::subcommands::Subcommand;
 use anni_common::traits::{Decode, Encode};
 use anni_flac::FlacHeader;
-use anni_flac::blocks::{BlockVorbisComment, UserComment, UserCommentExt};
+use anni_flac::blocks::{UserComment, UserCommentExt};
 use cue_sheet::tracklist::Tracklist;
 
 pub struct SplitSubcommand;
@@ -259,8 +259,7 @@ impl<'a> SplitTask<'a> {
             eprintln!("Writing tags...");
             for ((_, _, mut tags), path) in tracks.into_iter().zip(files) {
                 let mut flac = FlacHeader::from_file(&path)?;
-                let mut block = BlockVorbisComment { vendor_string: "Project Anni".to_string(), comments: vec![] };
-                let comment = flac.comments_mut().unwrap_or(&mut block);
+                let comment = flac.comments_mut();
                 comment.clear();
                 comment.comments.append(&mut tags);
                 flac.save(Some(path))?;

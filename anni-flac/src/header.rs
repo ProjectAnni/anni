@@ -76,11 +76,20 @@ impl FlacHeader {
         })
     }
 
-    pub fn comments_mut(&mut self) -> Option<&mut BlockVorbisComment> {
+    /// Get a mutable comments blocks for edit
+    ///
+    /// If VorbisComment block does not exist, a new block would be appended to header
+    /// `is_last` would not be updated, please call `save` after header modify.
+    pub fn comments_mut(&mut self) -> &mut BlockVorbisComment {
+        let is_none = self.block_of_mut(4).is_none();
+        if is_none {
+            let comment = BlockVorbisComment { vendor_string: format!("anni-flac v{}", env!("CARGO_PKG_VERSION")), comments: vec![] };
+            self.blocks.push(MetadataBlock::new(MetadataBlockData::Comment(comment)));
+        }
         self.block_of_mut(4).map(|b| match &mut b.data {
             MetadataBlockData::Comment(c) => c,
             _ => unreachable!(),
-        })
+        }).unwrap()
     }
 
     fn frame_offset_now(&self) -> usize {
@@ -236,6 +245,7 @@ impl FlacHeader {
 }
 
 pub struct MetadataBlock {
+    // TODO: remove is_last flag, it's useless in a sequenced vector
     pub is_last: bool,
     pub length: usize,
     pub data: MetadataBlockData,
