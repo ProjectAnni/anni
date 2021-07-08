@@ -15,4 +15,6 @@ pub enum FlacError {
     InvalidString(#[from] FromUtf8Error),
     #[error(transparent)]
     IO(#[from] std::io::Error),
+    #[error(transparent)]
+    ImageError(#[from] image::ImageError),
 }

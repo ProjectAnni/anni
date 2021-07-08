@@ -1,7 +1,5 @@
 use anni_flac::blocks::{UserComment, UserCommentExt, BlockSeekTable, SeekPoint, BlockPicture, PictureType};
 use anni_flac::{MetadataBlock, MetadataBlockData};
-use std::fs::File;
-use std::io::Read;
 
 mod common;
 
@@ -18,7 +16,7 @@ fn test_save() {
     })));
 
     // Write new metadata
-    let comments = header.comments_mut().unwrap();
+    let comments = header.comments_mut();
     comments.vendor_string = "Lavf58.45.100".to_string();
     comments.clear();
     comments.push(UserComment::title("TRACK ONE"));
@@ -30,18 +28,13 @@ fn test_save() {
     comments.push(UserComment::disc_number(1));
     comments.push(UserComment::disc_total(1));
 
-    let mut cover_buf = Vec::new();
-    File::open("../assets/1s-cover.png").unwrap().read_to_end(&mut cover_buf).unwrap();
-    header.blocks.push(MetadataBlock::new(MetadataBlockData::Picture(BlockPicture {
-        picture_type: PictureType::CoverFront,
-        mime_type: "image/png".to_string(),
-        description: "".to_string(),
-        width: 640,
-        height: 480,
-        depth: 24,
-        colors: 0,
-        data: cover_buf,
-    })));
+    header.blocks.push(MetadataBlock::new(MetadataBlockData::Picture(
+        BlockPicture::new(
+            "../assets/1s-cover.png",
+            PictureType::CoverFront,
+            "".to_string(),
+        ).unwrap()
+    )));
 
     let file = tempfile::NamedTempFile::new().unwrap().into_temp_path();
     header.save(Some(file)).unwrap();
