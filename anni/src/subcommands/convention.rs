@@ -2,8 +2,7 @@ use clap::{ArgMatches, App, Arg};
 use crate::subcommands::Subcommand;
 use crate::subcommands::flac::parse_input_iter;
 use crate::i18n::ClapI18n;
-use std::path::Path;
-use shell_escape::escape;
+use std::path::{Path, PathBuf};
 use std::collections::{HashSet, HashMap};
 use anni_common::validator::*;
 use serde::{Deserialize, Deserializer};
@@ -28,6 +27,11 @@ impl Subcommand for ConventionSubcommand {
             .alias("conv")
             .subcommand(App::new("check")
                 .about_ll("convention-check")
+                .arg(Arg::new("apply-fixes")
+                    .about_ll("convention-check-apply-fixed")
+                    .long("apply-fixes")
+                    .short('f')
+                )
                 .arg(Arg::new("Filename")
                     .takes_value(true)
                     .required(true)
@@ -47,11 +51,12 @@ impl Subcommand for ConventionSubcommand {
 
         if let Some(matches) = matches.subcommand_matches("check") {
             info!(target: "anni", "Convention validation started...");
+            let fix = matches.is_present("apply-fixes");
             for input in matches.values_of_os("Filename").unwrap() {
-                for (file, header) in parse_input_iter(input) {
-                    match header {
-                        Ok(header) => {
-                            rules.validate(file, &header);
+                for (file, flac) in parse_input_iter(input) {
+                    match flac {
+                        Ok(mut flac) => {
+                            rules.validate(file, &mut flac, fix);
                         }
                         Err(e) => error!(target: &format!("convention|{}", file.to_string_lossy()), "Failed to parse header: {:?}", e),
                     }
@@ -73,8 +78,9 @@ struct ConventionRules {
 }
 
 impl ConventionRules {
-    pub(crate) fn validate<P>(&self, filename: P, flac: &FlacHeader)
+    pub(crate) fn validate<P>(&self, filename: P, flac: &mut FlacHeader, fix: bool)
         where P: AsRef<Path> {
+        let mut fixed = false;
 
         // validate stream info
         self.validate_stream_info(filename.as_ref(), flac.stream_info());
@@ -93,14 +99,21 @@ impl ConventionRules {
         }
 
         // validate comments
-        let fixes = flac.comments()
-            .map_or_else(|| {
-                error!(target: &format!("convention|{}", filename.as_ref().to_string_lossy()), "No VorbisComment block found!");
-                Vec::new()
-            }, |c| self.validate_tags(filename.as_ref(), c));
+        match flac.comments() {
+            None => error!(target: &format!("convention|{}", filename.as_ref().to_string_lossy()), "No VorbisComment block found!"),
+            Some(_) => {
+                let c = flac.comments_mut();
+                let (comment_fixed, new_path) = self.validate_tags(filename.as_ref(), c, fix);
+                fixed |= comment_fixed;
 
-        for fix in fixes {
-            println!("{}", fix);
+                // apply fixes
+                if fixed {
+                    flac.save::<String>(None).expect("Failed to save flac file");
+                }
+                if let Some(new_path) = new_path {
+                    std::fs::rename(filename, new_path).unwrap();
+                }
+            }
         }
     }
 
@@ -124,14 +137,16 @@ impl ConventionRules {
         });
     }
 
-    fn validate_tags<P>(&self, filename: P, comment: &BlockVorbisComment) -> Vec<String>
+    fn validate_tags<P>(&self, filename: P, comment: &mut BlockVorbisComment, fix: bool) -> (bool, Option<PathBuf>)
         where P: AsRef<Path> {
+        let mut fixed = false;
+        let mut new_path = None;
+
         let filename_str = filename.as_ref().to_string_lossy();
 
-        let mut fixes = Vec::default();
         let mut required: HashSet<&str> = self.required.keys().map(|s| s.as_str()).collect();
         let (mut track_number, mut title) = (None, None);
-        for comment in comment.comments.iter() {
+        for comment in comment.comments.iter_mut() {
             let (key, key_raw, value) = (comment.key(), comment.key_raw(), comment.value());
             if value.is_empty() {
                 warn!(target: &format!("convention|{}", filename_str), "Empty value for tag: {}", key_raw);
@@ -164,7 +179,10 @@ impl ConventionRules {
             } else {
                 // No tag rule found
                 warn!(target: &format!("convention|{}", filename_str), "Unnecessary tag: {}", key_raw);
-                fixes.push(format!("metaflac --remove-tag={} {}", escape(key_raw.into()), escape(filename.as_ref().to_string_lossy())));
+                if fix {
+                    comment.clear();
+                    fixed = true;
+                }
                 continue;
             };
 
@@ -205,11 +223,19 @@ impl ConventionRules {
             let filename_raw = filename.as_ref().file_name().unwrap().to_str().expect("Non-UTF8 filenames are currently not supported!");
             if filename_raw != filename_expected {
                 error!(target: &format!("convention|{}", filename_str), "Filename mismatch. Expected {}", filename_expected);
-                let path_expected = filename.as_ref().with_file_name(filename_expected);
-                fixes.push(format!("mv {} {}", escape(filename.as_ref().to_string_lossy()), escape(path_expected.to_string_lossy())));
+                if fix {
+                    // use correct filename
+                    let path_expected = filename.as_ref().with_file_name(filename_expected);
+                    new_path = Some(path_expected);
+                }
             }
         }
-        fixes
+
+        // retain non-empty comments
+        comment.comments.retain(|c| !c.is_empty());
+
+        // return whether comment has been modified
+        (fixed, new_path)
     }
 }
 

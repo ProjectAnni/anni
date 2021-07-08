@@ -19,6 +19,7 @@ split-apply-tags = 将 CUE 中的元数据写入音频文件
 ## convention
 convention = 提供定制化的音频检查约定检测
 convention-check = 检查音频是否符合约定
+convention-check-apply-fixed = 对不符合约定的音频文件进行修复
 
 
 ## repo
