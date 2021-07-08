@@ -1,7 +1,6 @@
 use std::iter::Map;
 use clap::{App, ArgMatches, AppSettings};
 use crate::subcommands::flac::FlacSubcommand;
-use crate::subcommands::cue::CueSubcommand;
 use crate::subcommands::split::SplitSubcommand;
 use crate::subcommands::convention::ConventionSubcommand;
 use crate::subcommands::repo::RepoSubcommand;
@@ -11,7 +10,6 @@ use crate::subcommands::get::GetSubcommand;
 
 mod split;
 mod convention;
-mod cue;
 mod flac;
 mod repo;
 mod get;
@@ -32,7 +30,6 @@ impl Default for Subcommands {
             subcommands: Default::default(),
         };
         result.add_subcommand(FlacSubcommand);
-        result.add_subcommand(CueSubcommand);
         result.add_subcommand(SplitSubcommand);
         result.add_subcommand(ConventionSubcommand);
         result.add_subcommand(RepoSubcommand);
