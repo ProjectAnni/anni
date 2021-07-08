@@ -4,6 +4,9 @@ use byteorder::{ReadBytesExt, BigEndian, WriteBytesExt};
 use crate::utils::{take_string, take};
 use crate::prelude::{Decode, Result, Encode};
 use std::fmt;
+use std::path::Path;
+use image::GenericImageView;
+use std::borrow::Cow;
 
 pub struct BlockPicture {
     /// <32> The picture type according to the ID3v2 APIC frame
@@ -103,6 +106,28 @@ impl fmt::Debug for BlockPicture {
 }
 
 impl BlockPicture {
+    pub fn new<P: AsRef<Path>>(file: P, picture_type: PictureType, description: String) -> Result<Self> {
+        let img = image::open(file.as_ref())?;
+        let mut data = Vec::new();
+        std::fs::File::open(file.as_ref())?.read_to_end(&mut data)?;
+
+        let mut ext = file.as_ref().extension().unwrap().to_string_lossy();
+        if ext == "jpg" {
+            ext = Cow::Borrowed("jpeg");
+        }
+
+        Ok(Self {
+            picture_type,
+            mime_type: format!("image/{}", ext),
+            description,
+            width: img.width(),
+            height: img.height(),
+            depth: img.color().bits_per_pixel() as u32,
+            colors: 0, // TODO: support format with indexed-color support
+            data,
+        })
+    }
+
     pub fn color_indexed(&self) -> bool {
         self.colors != 0
     }
