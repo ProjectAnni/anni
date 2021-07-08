@@ -24,6 +24,11 @@ impl FlacHeader {
         }
 
         let stream_info = MetadataBlock::from_reader(reader)?;
+        match stream_info.data {
+            MetadataBlockData::StreamInfo(_) => {}
+            _ => return Err(FlacError::InvalidFirstBlock)
+        }
+
         let mut is_last = stream_info.is_last;
         let mut blocks = vec![stream_info];
         let mut frame_offset = 4 + 4 + 34;
@@ -78,8 +83,7 @@ impl FlacHeader {
 
     /// Get a mutable comments blocks for edit
     ///
-    /// If VorbisComment block does not exist, a new block would be appended to header
-    /// `is_last` would not be updated, please call `save` after header modify.
+    /// If VorbisComment block does not exist, a new block would be appended to header.
     pub fn comments_mut(&mut self) -> &mut BlockVorbisComment {
         let is_none = self.block_of_mut(4).is_none();
         if is_none {
@@ -142,7 +146,6 @@ impl FlacHeader {
                 } else if space_to_add >= 4 {
                     // padding block does not exist, add a new padding block
                     let space_to_add = space_to_add - 4;
-                    last.is_last = false;
                     self.blocks.push(MetadataBlock {
                         is_last: true,
                         length: space_to_add,
@@ -236,18 +239,26 @@ impl FlacHeader {
             }
         }
 
-        // fix is_last identifier
-        for block in self.blocks.iter_mut() {
-            block.is_last = false;
+        self.fix_is_last()
+    }
+
+    fn fix_is_last(&mut self) {
+        let last = self.blocks.len() - 1;
+        for (index, block) in self.blocks.iter_mut().enumerate() {
+            block.is_last = index == last
         }
-        self.blocks.last_mut().unwrap().is_last = true;
     }
 }
 
 pub struct MetadataBlock {
-    // TODO: remove is_last flag, it's useless in a sequenced vector
-    pub is_last: bool,
-    pub length: usize,
+    /// Whether the block is the last block in header.
+    ///
+    /// Must be fixed using `fix_is_last` before writing.
+    is_last: bool,
+    /// length of the block at **read time**
+    ///
+    /// Not trustable if any changes has been made
+    length: usize,
     pub data: MetadataBlockData,
 }
 
@@ -304,8 +315,8 @@ impl MetadataBlock {
         let data = &self.data;
         println!("METADATA block #{}", i);
         println!("  type: {} ({})", u8::from(data), data.as_str());
-        println!("  is last: {}", &self.is_last);
-        println!("  length: {}", &self.length);
+        println!("  is last: {}", self.is_last);
+        println!("  length: {}", self.length);
         println!("{:2?}", data);
     }
 }
