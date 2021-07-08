@@ -5,6 +5,8 @@ use std::string::FromUtf8Error;
 pub enum FlacError {
     #[error("invalid magic number")]
     InvalidMagicNumber,
+    #[error("invalid first block, must be StreamInfo")]
+    InvalidFirstBlock,
     #[error("invalid block type 0xff")]
     InvalidBlockType,
     #[error("invalid seek table size")]
