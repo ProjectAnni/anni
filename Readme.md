@@ -24,4 +24,3 @@
 - Print FLAC tags to stdout directly.
 - Perform FLAC tag content check.
 - Split `WAVE` or `FLAC` files.
-- Read `cue` file and output commands to update FLAC file tags.
