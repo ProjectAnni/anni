@@ -168,6 +168,15 @@ impl UserComment {
     pub fn entry(&self) -> String {
         self.comment.clone()
     }
+
+    pub fn is_empty(&self) -> bool {
+        self.comment.is_empty()
+    }
+
+    pub fn clear(&mut self) {
+        self.comment.clear();
+        self.value_offset = None;
+    }
 }
 
 impl Decode for UserComment {

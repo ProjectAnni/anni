@@ -20,6 +20,7 @@ split-apply-tags = Write tags extracted from CUE files to audio file.
 ## FIXME
 convention = Provided audio convention utilities.
 convention-check = Check audio.
+convention-check-apply-fixed = Apply fixes to audio files directly.
 
 
 ## repo
