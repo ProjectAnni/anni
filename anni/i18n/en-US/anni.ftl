@@ -14,6 +14,7 @@ split = Provided helper to split audios.
 split-format-input = Extension of input audio file.
 split-format-output = Format of output audio file.
 split-apply-tags = Write tags extracted from CUE files to audio file.
+split-import-cover = Import cover to audio file.
 
 
 ## convention

@@ -12,8 +12,8 @@ use anni_common::encode::{btoken_w, u16_le_w, u32_le_w};
 use crate::i18n::ClapI18n;
 use crate::subcommands::Subcommand;
 use anni_common::traits::{Decode, Encode};
-use anni_flac::FlacHeader;
-use anni_flac::blocks::{UserComment, UserCommentExt};
+use anni_flac::{FlacHeader, MetadataBlock, MetadataBlockData};
+use anni_flac::blocks::{UserComment, UserCommentExt, BlockPicture, PictureType};
 use cue_sheet::tracklist::Tracklist;
 
 pub struct SplitSubcommand;
@@ -45,7 +45,14 @@ impl Subcommand for SplitSubcommand {
             .arg(Arg::new("split.tags.apply")
                 .about_ll("split-apply-tags")
                 .long("apply-tags")
+                .alias("tags")
                 .short('t')
+            )
+            .arg(Arg::new("split.cover.import")
+                .about_ll("split-import-cover")
+                .long("import-cover")
+                .alias("cover")
+                .short('c')
             )
             .arg(Arg::new("Directory")
                 .required(true)
@@ -69,8 +76,18 @@ impl Subcommand for SplitSubcommand {
             let audio = fs::get_ext_file(&path, input_format, false)?
                 .ok_or(anyhow!("Failed to find audio file."))?;
 
+            // whether to write tags
+            let write_tags = matches.is_present("split.tags.apply");
+
+            // try to get cover
+            let import_cover = matches.is_present("split.cover.import");
+            let cover = if import_cover { fs::get_ext_file(&path, "jpg", false)? } else { None };
+            if import_cover && cover.is_none() {
+                eprintln!("[Warn] Cover not found.")
+            }
+
             SplitTask::new(audio, input_format, output_format)?
-                .split(cue, matches.is_present("split.tags.apply"))?;
+                .split(cue, write_tags, cover)?;
         }
         Ok(())
     }
@@ -203,7 +220,7 @@ impl<'a> SplitTask<'a> {
         Ok(Self { output_format, input })
     }
 
-    pub fn split<P: AsRef<Path>>(&mut self, cue_path: P, write_tags: bool) -> anyhow::Result<()> {
+    pub fn split<P: AsRef<Path>>(&mut self, cue_path: P, write_tags: bool, cover: Option<PathBuf>) -> anyhow::Result<()> {
         let mut audio = self.input.get_reader();
         let audio = &mut audio;
 
@@ -259,9 +276,18 @@ impl<'a> SplitTask<'a> {
             eprintln!("Writing tags...");
             for ((_, _, mut tags), path) in tracks.into_iter().zip(files) {
                 let mut flac = FlacHeader::from_file(&path)?;
+
+                // write tags
                 let comment = flac.comments_mut();
                 comment.clear();
                 comment.comments.append(&mut tags);
+
+                // write cover
+                if let Some(cover) = &cover {
+                    let picture = BlockPicture::new(cover, PictureType::CoverFront, String::new())?;
+                    flac.blocks.push(MetadataBlock::new(MetadataBlockData::Picture(picture)));
+                }
+
                 flac.save(Some(path))?;
             }
         }
