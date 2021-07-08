@@ -13,7 +13,8 @@ use crate::i18n::ClapI18n;
 use crate::subcommands::Subcommand;
 use anni_common::traits::{Decode, Encode};
 use anni_flac::FlacHeader;
-use anni_flac::blocks::BlockVorbisComment;
+use anni_flac::blocks::{BlockVorbisComment, UserComment, UserCommentExt};
+use cue_sheet::tracklist::Tracklist;
 
 pub struct SplitSubcommand;
 
@@ -41,10 +42,10 @@ impl Subcommand for SplitSubcommand {
                 .default_value("flac")
                 .possible_values(&["wav", "flac"])
             )
-            .arg(Arg::new("split.tags.skip")
-                .about_ll("split-skip-tags")
-                .long("skip-tags")
-                .short('s')
+            .arg(Arg::new("split.tags.apply")
+                .about_ll("split-apply-tags")
+                .long("apply-tags")
+                .short('t')
             )
             .arg(Arg::new("Directory")
                 .required(true)
@@ -69,7 +70,7 @@ impl Subcommand for SplitSubcommand {
                 .ok_or(anyhow!("Failed to find audio file."))?;
 
             SplitTask::new(audio, input_format, output_format)?
-                .split(cue)?;
+                .split(cue, matches.is_present("split.tags.apply"))?;
         }
         Ok(())
     }
@@ -125,7 +126,7 @@ impl Decode for WaveHeader {
         debug!("  channels = {}", channels);
         debug!("  sample_rate = {}", sample_rate);
         debug!("  byte_rate = {}", byte_rate);
-        debug!("  block_alibn = {}", block_align);
+        debug!("  block_align = {}", block_align);
         debug!("  bit_per_sample = {}", bit_per_sample);
 
         // data sub-chunk
@@ -202,7 +203,7 @@ impl<'a> SplitTask<'a> {
         Ok(Self { output_format, input })
     }
 
-    pub fn split<P: AsRef<Path>>(&mut self, cue_path: P) -> anyhow::Result<()> {
+    pub fn split<P: AsRef<Path>>(&mut self, cue_path: P, write_tags: bool) -> anyhow::Result<()> {
         let mut audio = self.input.get_reader();
         let audio = &mut audio;
 
@@ -210,11 +211,11 @@ impl<'a> SplitTask<'a> {
         let mut header = WaveHeader::from_reader(audio)?;
 
         // extract cue break points
-        let mut tracks: Vec<(String, usize)> = crate::subcommands::cue::extract_breakpoints(cue_path.as_ref())
-            .iter()
-            .map(|i| (format!("{:02}. {}", i.index, i.title), (&header).mmssff(i.mm, i.ss, i.ff)))
+        let mut tracks: Vec<(String, usize, Vec<UserComment>)> = cue_tracks(cue_path.as_ref())
+            .into_iter()
+            .map(|i| (format!("{:02}. {}", i.index, i.title), (&header).mmssff(i.mm, i.ss, i.ff), i.tags))
             .collect();
-        tracks.push((String::new(), header.data_size as usize));
+        tracks.push((String::new(), header.data_size as usize, Vec::new()));
         let mut track_iter = tracks.iter();
         eprintln!("Splitting...");
 
@@ -252,18 +253,18 @@ impl<'a> SplitTask<'a> {
         for mut p in processes {
             p.wait();
         }
-        eprintln!("Finished splitting. Writing tags...");
 
-        // Write tags
-        // TODO: skip-tags argument
-        let mut tracks = crate::subcommands::cue::tracks(cue_path)?;
-        for (mut track, path) in tracks.iter_mut().zip(files) {
-            let mut flac = FlacHeader::from_file(&path)?;
-            let mut block = BlockVorbisComment { vendor_string: "Project Anni".to_string(), comments: vec![] };
-            let comment = flac.comments_mut().unwrap_or(&mut block);
-            comment.clear();
-            comment.comments.append(&mut track);
-            flac.save(Some(path))?;
+        if write_tags {
+            // Write tags
+            eprintln!("Writing tags...");
+            for ((_, _, mut tags), path) in tracks.into_iter().zip(files) {
+                let mut flac = FlacHeader::from_file(&path)?;
+                let mut block = BlockVorbisComment { vendor_string: "Project Anni".to_string(), comments: vec![] };
+                let comment = flac.comments_mut().unwrap_or(&mut block);
+                comment.clear();
+                comment.comments.append(&mut tags);
+                flac.save(Some(path))?;
+            }
         }
         eprintln!("Finished!");
         Ok(())
@@ -309,4 +310,56 @@ fn split_wav<I: Read, O: Write>(header: &mut WaveHeader, input: &mut I, output: 
     header.write_to(output)?;
     std::io::copy(&mut input.take(size as u64), output)?;
     Ok(())
+}
+
+struct CueTrack {
+    pub index: u8,
+    pub title: String,
+    pub mm: usize,
+    pub ss: usize,
+    pub ff: usize,
+    pub tags: Vec<UserComment>,
+}
+
+fn cue_tracks<P: AsRef<Path>>(path: P) -> Vec<CueTrack> {
+    let cue = anni_common::fs::read_to_string(path).unwrap();
+    let cue = Tracklist::parse(&cue).unwrap();
+    let album = cue.info.get("TITLE").map(String::as_str).unwrap_or("");
+    let artist = cue.info.get("ARTIST").map(String::as_str).unwrap_or("");
+    let date = cue.info.get("DATE").map(String::as_str).unwrap_or("");
+    let disc_number = cue.info.get("DISCNUMBER").map(String::as_str).unwrap_or("1");
+    let disc_total = cue.info.get("TOTALDISCS").map(String::as_str).unwrap_or("1");
+
+    let mut track_number = 1;
+    let track_total = cue.files.iter().map(|f| f.tracks.len()).sum();
+
+    let mut result = Vec::with_capacity(track_total);
+    for file in cue.files.iter() {
+        for (i, track) in file.tracks.iter().enumerate() {
+            for (index, time) in track.index.iter() {
+                if *index == 1 {
+                    let title = track.info.get("TITLE").map(String::to_owned).unwrap_or(format!("Track {}", track_number));
+                    result.push(CueTrack {
+                        index: (i + 1) as u8,
+                        title: title.to_owned(),
+                        mm: time.minutes() as usize,
+                        ss: time.seconds() as usize,
+                        ff: time.frames() as usize,
+                        tags: vec![
+                            UserComment::title(title),
+                            UserComment::album(album),
+                            UserComment::artist(track.info.get("ARTIST").map(String::as_str).unwrap_or(artist)),
+                            UserComment::date(date),
+                            UserComment::track_number(track_number),
+                            UserComment::track_total(track_total),
+                            UserComment::disc_number(disc_number),
+                            UserComment::disc_total(disc_total),
+                        ],
+                    });
+                }
+            }
+            track_number += 1;
+        }
+    }
+    result
 }

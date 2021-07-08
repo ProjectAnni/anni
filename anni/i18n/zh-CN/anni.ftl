@@ -9,19 +9,11 @@ flac-export-type = 导出内容类型
 flac-export-to = 导出内容存放的路径
 
 
-## cue
-cue = 提供 CUE 解析、标签修改相关的功能
-cue-source = CUE 来源
-cue-file = 手动指定 CUE 文件的路径，在 <Filename> 中指定 FLAC 文件路径
-cue-dir = 指示 CUE 文件和 FLAC 文件均位于 <Filename> 第一个路径的目录中
-cue-tagsh = 输出给 FLAC 文件加上标签的脚本，功能类似 cuetag.sh，但需要手动执行
-
-
 ## split
 split = 提供音频分割相关的功能
 split-format-input = 待切分音频的文件类型
 split-format-output = 切分后输出音频的文件类型
-split-skip-tags = 不将 CUE 中的元数据写入音频文件
+split-apply-tags = 将 CUE 中的元数据写入音频文件
 
 
 ## convention

@@ -9,19 +9,11 @@ flac-export-type = Type of data to export.
 flac-export-to = Path for exported data.
 
 
-## cue
-cue = Provide CUE related utilieies such as parsing and editing tags.
-cue-source = CUE source
-cue-file = Specify path of CUE file and use <Filename> as paths of FLAC files.
-cue-dir = Use CUE file and FLAC files in <Filename>[0]. It must be a folder.
-cue-tagsh = Output script to add tags to FLAC files. Works like cuetag.sh, but you need to run it manually.
-
-
 ## split
 split = Provided helper to split audios.
 split-format-input = Extension of input audio file.
 split-format-output = Format of output audio file.
-split-skip-tags = Skip writing tags into output audio file.
+split-apply-tags = Write tags extracted from CUE files to audio file.
 
 
 ## convention
