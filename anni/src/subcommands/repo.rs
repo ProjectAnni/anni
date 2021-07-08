@@ -5,11 +5,11 @@ use anni_repo::{Album, RepositoryManager};
 use anni_common::fs;
 use clap::{ArgMatches, App, Arg, crate_version};
 use crate::ball;
-use shell_escape::escape;
 use std::path::{Path, PathBuf};
 use crate::subcommands::Subcommand;
 use std::str::FromStr;
 use crate::i18n::ClapI18n;
+use anni_flac::blocks::{UserComment, UserCommentExt};
 
 pub(crate) struct RepoSubcommand;
 
@@ -207,7 +207,6 @@ fn handle_repo_apply(matches: &ArgMatches, manager: &RepositoryManager) -> anyho
         bail!("discs.len() != disc_count!");
     }
 
-    let mut output = Vec::new();
     for (disc_num, disc) in album.discs().iter().enumerate() {
         let disc_num = disc_num + 1;
         let disc_dir = if discs.len() > 1 {
@@ -239,8 +238,9 @@ fn handle_repo_apply(matches: &ArgMatches, manager: &RepositoryManager) -> anyho
         for (track_num, (file, track)) in files.iter().zip(tracks).enumerate() {
             let track_num = track_num + 1;
 
-            let flac = FlacHeader::from_file(file)?;
+            let mut flac = FlacHeader::from_file(file)?;
             let comments = flac.comments();
+            // TODO: read anni convention config here
             let meta = format!(
                 r#"TITLE={title}
 ALBUM={album}
@@ -262,17 +262,20 @@ DISCTOTAL={disc_total}
             );
             // no comment block exist, or comments is not correct
             if comments.is_none() || comments.unwrap().to_string() != meta {
-                output.push(format!(
-                    "echo {} | metaflac --remove-all-tags --import-tags-from=- {}",
-                    escape(meta.trim().into()),
-                    escape(file.to_str().unwrap().into())
-                ));
+                // TODO: user verify before apply tags
+                let comments = flac.comments_mut();
+                comments.clear();
+                comments.push(UserComment::title(track.title()));
+                comments.push(UserComment::album(disc.title()));
+                comments.push(UserComment::artist(track.artist()));
+                comments.push(UserComment::date(album.release_date()));
+                comments.push(UserComment::track_number(track_num));
+                comments.push(UserComment::track_total(tracks.len()));
+                comments.push(UserComment::disc_number(disc_num));
+                comments.push(UserComment::disc_total(discs.len()));
+                flac.save::<String>(None)?;
             }
         }
-    }
-
-    for meta in output {
-        println!("{}", meta);
     }
     Ok(())
 }
