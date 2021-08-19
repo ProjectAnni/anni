@@ -21,7 +21,7 @@ split-import-cover = Import cover to audio file.
 ## FIXME
 convention = Provided audio convention utilities.
 convention-check = Check audio.
-convention-check-apply-fixed = Apply fixes to audio files directly.
+convention-check-fix = Apply fixes to audio files directly.
 
 
 ## repo

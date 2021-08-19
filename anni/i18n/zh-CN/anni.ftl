@@ -20,7 +20,7 @@ split-import-cover = 从切分目录寻找封面并写入音频文件
 ## convention
 convention = 提供定制化的音频检查约定检测
 convention-check = 检查音频是否符合约定
-convention-check-apply-fixed = 对不符合约定的音频文件进行修复
+convention-check-fix = 对不符合约定的音频文件进行修复
 
 
 ## repo

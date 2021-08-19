@@ -28,7 +28,7 @@ impl Subcommand for ConventionSubcommand {
             .subcommand(App::new("check")
                 .about_ll("convention-check")
                 .arg(Arg::new("fix")
-                    .about_ll("convention-check-apply-fixed")
+                    .about_ll("convention-check-fix")
                     .long("fix")
                     .short('f')
                 )
