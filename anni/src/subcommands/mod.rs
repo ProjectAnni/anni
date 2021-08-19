@@ -1,11 +1,9 @@
-use std::iter::Map;
 use clap::{App, ArgMatches, AppSettings};
 use crate::subcommands::flac::FlacSubcommand;
 use crate::subcommands::split::SplitSubcommand;
 use crate::subcommands::convention::ConventionSubcommand;
 use crate::subcommands::repo::RepoSubcommand;
 use std::collections::HashMap;
-use std::collections::hash_map::Values;
 use crate::subcommands::get::GetSubcommand;
 
 mod split;
@@ -43,9 +41,8 @@ impl Subcommands {
         self.subcommands.insert(cmd.name(), Box::new(cmd));
     }
 
-    pub fn iter(&self) -> Map<Values<'_, &'static str, Box<dyn Subcommand>>, fn(&Box<dyn Subcommand>) -> App<'static>> {
-        self.subcommands.values().map(|r| r.create()
-            .setting(AppSettings::ArgRequiredElseHelp))
+    pub fn iter(&self) -> impl IntoIterator<Item=App<'static>> + '_ {
+        self.subcommands.values().map(|r| r.create().setting(AppSettings::ArgRequiredElseHelp))
     }
 
     pub fn handle(&self, subcommand: &str, matches: &ArgMatches) -> anyhow::Result<()> {
