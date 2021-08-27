@@ -46,4 +46,5 @@ repo-print-catalog = 输出信息的品番。通过后缀 '/{"{disc_id}"}' 指�
 
 ## get
 get = 从外部 API 获取数据
+get-vgmdb = 从 VGMdb API 获取数据
 get-vgmdb-catalog = 通过品番获取数据
