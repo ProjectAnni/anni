@@ -1,7 +1,6 @@
-use clap::{ArgMatches, App, Arg};
-use crate::subcommands::Subcommand;
+use clap::Clap;
+use crate::ll;
 use crate::subcommands::flac::parse_input_iter;
-use crate::i18n::ClapI18n;
 use std::path::{Path, PathBuf};
 use std::collections::{HashSet, HashMap};
 use anni_common::validator::*;
@@ -13,34 +12,18 @@ use serde::de::Error;
 use crate::config::read_config;
 use anni_flac::{FlacHeader, MetadataBlockData};
 use anni_flac::blocks::{BlockVorbisComment, BlockStreamInfo, PictureType};
+use crate::cli::HandleArgs;
 
-pub(crate) struct ConventionSubcommand;
+#[derive(Clap, Debug)]
+#[clap(about = ll ! ("convention"))]
+#[clap(alias = "conv")]
+pub struct ConventionSubcommand {
+    #[clap(subcommand)]
+    action: ConventionAction,
+}
 
-impl Subcommand for ConventionSubcommand {
-    fn name(&self) -> &'static str {
-        "convention"
-    }
-
-    fn create(&self) -> App<'static> {
-        App::new("convention")
-            .about_ll("convention")
-            .alias("conv")
-            .subcommand(App::new("check")
-                .about_ll("convention-check")
-                .arg(Arg::new("fix")
-                    .about_ll("convention-check-fix")
-                    .long("fix")
-                    .short('f')
-                )
-                .arg(Arg::new("Filename")
-                    .takes_value(true)
-                    .required(true)
-                    .min_values(1)
-                )
-            )
-    }
-
-    fn handle(&self, matches: &ArgMatches) -> anyhow::Result<()> {
+impl HandleArgs for ConventionSubcommand {
+    fn handle(&self) -> anyhow::Result<()> {
         // Initialize rules
         let config: ConventionConfig = read_config("convention").map_err(|e| {
             debug!(target: "convention", "Failed to read convention.toml: {}", e);
@@ -49,21 +32,48 @@ impl Subcommand for ConventionSubcommand {
         }).unwrap_or_default();
         let rules = config.into_rules();
 
-        if let Some(matches) = matches.subcommand_matches("check") {
-            info!(target: "anni", "Convention validation started...");
-            let fix = matches.is_present("apply-fixes");
-            for input in matches.values_of_os("Filename").unwrap() {
-                for (file, flac) in parse_input_iter(input) {
-                    match flac {
-                        Ok(mut flac) => {
-                            rules.validate(file, &mut flac, fix);
-                        }
-                        Err(e) => error!(target: "convention/parse", "Failed to parse header of file {}: {:?}", file.to_string_lossy(), e),
+        self.action.handle(&rules)
+    }
+}
+
+#[derive(Clap, Debug)]
+pub enum ConventionAction {
+    #[clap(about = ll ! ("convention-check"))]
+    Check(ConventionCheckAction),
+}
+
+impl ConventionAction {
+    fn handle(&self, rules: &ConventionRules) -> anyhow::Result<()> {
+        match self {
+            ConventionAction::Check(check) => check.handle(rules)
+        }
+    }
+}
+
+#[derive(Clap, Debug)]
+pub struct ConventionCheckAction {
+    #[clap(short, long)]
+    #[clap(about = ll ! ("convention-check-fix"))]
+    fix: bool,
+
+    #[clap(required = true)]
+    filename: Vec<PathBuf>,
+}
+
+impl ConventionCheckAction {
+    fn handle(&self, rules: &ConventionRules) -> anyhow::Result<()> {
+        info!(target: "anni", "Convention validation started...");
+        for input in &self.filename {
+            for (file, flac) in parse_input_iter(input) {
+                match flac {
+                    Ok(mut flac) => {
+                        rules.validate(file, &mut flac, self.fix);
                     }
+                    Err(e) => error!(target: "convention/parse", "Failed to parse header of file {}: {:?}", file.to_string_lossy(), e),
                 }
             }
-            info!(target: "anni", "Convention validation finished.");
         }
+        info!(target: "anni", "Convention validation finished.");
         Ok(())
     }
 }
