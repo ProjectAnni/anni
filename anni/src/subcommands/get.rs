@@ -1,38 +1,48 @@
-use clap::{ArgMatches, App, Arg};
+use clap::{Clap};
 
-use crate::subcommands::Subcommand;
-use crate::i18n::ClapI18n;
+use crate::ll;
 use anni_vgmdb::VGMClient;
 use futures::executor::block_on;
+use crate::cli::HandleArgs;
 
-pub(crate) struct GetSubcommand;
+#[derive(Clap, Debug)]
+#[clap(about = ll ! {"get"})]
+pub struct GetSubcommand {
+    #[clap(subcommand)]
+    subcommand: GetAction,
+}
 
-impl Subcommand for GetSubcommand {
-    fn name(&self) -> &'static str {
-        "get"
+impl HandleArgs for GetSubcommand {
+    fn handle(&self) -> anyhow::Result<()> {
+        self.subcommand.handle()
     }
+}
 
-    fn create(&self) -> App<'static> {
-        App::new("get")
-            .about_ll("get")
-            .subcommand(App::new("vgmdb")
-                .alias("vgm")
-                .about_ll("get-vgmdb")
-                .arg(Arg::new("catalog")
-                    .about_ll("get-vgmdb-catalog")
-                    .long("catalog")
-                    .short('c')
-                    .takes_value(true)
-                )
-            )
-    }
+#[derive(Clap, Debug)]
+pub enum GetAction {
+    #[clap(name = "vgmdb", alias = "vgm")]
+    #[clap(about = ll ! {"get-vgmdb"})]
+    VGMdb(GetVGMdbAction),
+}
 
-    fn handle(&self, matches: &ArgMatches) -> anyhow::Result<()> {
-        if let Some(matches) = matches.subcommand_matches("vgmdb") {
-            let catalog = matches.value_of("catalog").expect("catalog not provided");
-            vgmdb_search(catalog)?;
+impl HandleArgs for GetAction {
+    fn handle(&self) -> anyhow::Result<()> {
+        match self {
+            GetAction::VGMdb(vgmdb) => vgmdb.handle(),
         }
-        Ok(())
+    }
+}
+
+#[derive(Clap, Debug)]
+pub struct GetVGMdbAction {
+    #[clap(short, long)]
+    #[clap(about = ll ! ("get-vgmdb-catalog"))]
+    catalog: String,
+}
+
+impl HandleArgs for GetVGMdbAction {
+    fn handle(&self) -> anyhow::Result<()> {
+        vgmdb_search(self.catalog.as_str())
     }
 }
 
