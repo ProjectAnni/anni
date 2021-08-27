@@ -3,102 +3,95 @@ use std::io::{Read, Write};
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
 
-use clap::{App, Arg, ArgMatches};
+use clap::{Clap, ArgEnum};
 
 use anni_common::fs;
 use anni_common::decode::{DecodeError, u16_le, u32_le, token};
 use anni_common::encode::{btoken_w, u16_le_w, u32_le_w};
 
-use crate::i18n::ClapI18n;
-use crate::subcommands::Subcommand;
 use anni_common::traits::{Decode, Encode};
 use anni_flac::{FlacHeader, MetadataBlock, MetadataBlockData};
 use anni_flac::blocks::{UserComment, UserCommentExt, BlockPicture, PictureType};
 use cue_sheet::tracklist::Tracklist;
+use crate::ll;
+use crate::cli::HandleArgs;
+use std::fmt::{Display, Formatter};
 
-pub struct SplitSubcommand;
+#[derive(Clap, Debug)]
+#[clap(about = ll ! ("split"))]
+pub struct SplitSubcommand {
+    #[clap(arg_enum)]
+    #[clap(short, long, default_value = "wav")]
+    #[clap(about = ll ! {"split-format-input"})]
+    input_format: SplitFormat,
 
-impl Subcommand for SplitSubcommand {
-    fn name(&self) -> &'static str {
-        "split"
+    #[clap(arg_enum)]
+    #[clap(short, long, default_value = "flac")]
+    #[clap(about = ll ! {"split-format-output"})]
+    output_format: SplitFormat,
+
+    #[clap(long = "no-apply-tags", parse(from_flag = std::ops::Not::not))]
+    #[clap(about = ll ! {"split-no-apply-tags"})]
+    apply_tags: bool,
+
+    #[clap(long = "no-import-cover", parse(from_flag = std::ops::Not::not))]
+    #[clap(about = ll ! {"split-no-import-cover"})]
+    import_cover: bool,
+
+    directory: PathBuf,
+}
+
+#[derive(ArgEnum, Debug, PartialEq, Clone, Copy)]
+pub enum SplitFormat {
+    Wav,
+    Flac,
+    Ape,
+}
+
+impl SplitFormat {
+    fn as_str(&self) -> &str {
+        match self {
+            SplitFormat::Wav => "wav",
+            SplitFormat::Flac => "flac",
+            SplitFormat::Ape => "ape",
+        }
     }
+}
 
-    fn create(&self) -> App<'static> {
-        App::new("split")
-            .about_ll("split")
-            .arg(Arg::new("split.format.input")
-                .about_ll("split-format-input")
-                .long("input-format")
-                .short('i')
-                .takes_value(true)
-                .default_value("wav")
-                .possible_values(&["wav", "flac", "ape"])
-            )
-            .arg(Arg::new("split.format.output")
-                .about_ll("split-format-output")
-                .long("output-format")
-                .short('o')
-                .takes_value(true)
-                .default_value("flac")
-                .possible_values(&["wav", "flac"])
-            )
-            .arg(Arg::new("split.tags.apply")
-                .about_ll("split-apply-tags")
-                .long("apply-tags")
-                .alias("tags")
-                .short('t')
-            )
-            .arg(Arg::new("split.cover.import")
-                .about_ll("split-import-cover")
-                .long("import-cover")
-                .alias("cover")
-                .short('c')
-            )
-            .arg(Arg::new("Directory")
-                .required(true)
-                .takes_value(true)
-            )
+impl Display for SplitFormat {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.as_str())
     }
+}
 
-    fn handle(&self, matches: &ArgMatches) -> anyhow::Result<()> {
-        let input_format = matches.value_of("split.format.input").unwrap();
-        encoder_of(input_format)?;
+impl HandleArgs for SplitSubcommand {
+    fn handle(&self) -> anyhow::Result<()> {
+        // Validate encoder/decoder for input&output format exist
+        encoder_of(self.input_format)?;
+        encoder_of(self.output_format)?;
 
-        let output_format = matches.value_of("split.format.output").unwrap();
-        if input_format != output_format {
-            encoder_of(output_format)?;
+        let cue = fs::get_ext_file(self.directory.as_path(), "cue", false)?
+            .ok_or(anyhow!("Failed to find CUE sheet."))?;
+        let audio = fs::get_ext_file(self.directory.as_path(), self.input_format.as_str(), false)?
+            .ok_or(anyhow!("Failed to find audio file."))?;
+
+        // try to get cover
+        let cover = if self.import_cover { fs::get_ext_file(self.directory.as_path(), "jpg", false)? } else { None };
+        if self.import_cover && cover.is_none() {
+            warn!(target: "split", "Cover not found!");
         }
 
-        if let Some(dir) = matches.value_of("Directory") {
-            let path = PathBuf::from(dir);
-            let cue = fs::get_ext_file(&path, "cue", false)?
-                .ok_or(anyhow!("Failed to find CUE sheet."))?;
-            let audio = fs::get_ext_file(&path, input_format, false)?
-                .ok_or(anyhow!("Failed to find audio file."))?;
-
-            // whether to write tags
-            let write_tags = matches.is_present("split.tags.apply");
-
-            // try to get cover
-            let import_cover = matches.is_present("split.cover.import");
-            let cover = if import_cover { fs::get_ext_file(&path, "jpg", false)? } else { None };
-            if import_cover && cover.is_none() {
-                eprintln!("[Warn] Cover not found.")
-            }
-
-            SplitTask::new(audio, input_format, output_format)?
-                .split(cue, write_tags, cover)?;
-        }
+        SplitTask::new(audio, self.input_format, self.output_format)?
+            .split(cue, self.apply_tags, cover)?;
         Ok(())
     }
 }
 
-fn encoder_of(format: &str) -> anyhow::Result<PathBuf> {
+fn encoder_of(format: SplitFormat) -> anyhow::Result<PathBuf> {
     let encoder = match format {
-        "flac" => "flac",
-        "ape" => "mac",
-        "wav" => return Ok(PathBuf::new()),
-        _ => unimplemented!(),
+        SplitFormat::Flac => "flac",
+        SplitFormat::Ape => "mac",
+        SplitFormat::Wav => return Ok(PathBuf::new()),
     };
     let path = which::which(encoder)?;
     Ok(path)
@@ -189,17 +182,17 @@ impl WaveHeader {
     }
 }
 
-struct SplitTask<'a> {
-    output_format: &'a str,
+struct SplitTask {
+    output_format: SplitFormat,
     input: FileProcess,
 }
 
-impl<'a> SplitTask<'a> {
-    pub fn new(audio_path: PathBuf, input_format: &str, output_format: &'a str) -> anyhow::Result<Self> {
+impl SplitTask {
+    pub fn new(audio_path: PathBuf, input_format: SplitFormat, output_format: SplitFormat) -> anyhow::Result<Self> {
         let input = match input_format {
-            "wav" => FileProcess::File(File::open(audio_path)?),
-            "flac" => {
-                let process = Command::new(encoder_of("flac").unwrap())
+            SplitFormat::Wav => FileProcess::File(File::open(audio_path)?),
+            SplitFormat::Flac => {
+                let process = Command::new(encoder_of(input_format).unwrap())
                     .args(&["-c", "-d"])
                     .arg(audio_path.into_os_string())
                     .stdout(Stdio::piped())
@@ -207,15 +200,14 @@ impl<'a> SplitTask<'a> {
                     .spawn()?;
                 FileProcess::Process(process)
             }
-            "ape" => {
-                let process = Command::new(encoder_of("ape").unwrap())
+            SplitFormat::Ape => {
+                let process = Command::new(encoder_of(input_format).unwrap())
                     .arg(audio_path.into_os_string())
                     .args(&["-", "-d"])
                     .stdout(Stdio::piped())
                     .spawn()?;
                 FileProcess::Process(process)
             }
-            _ => unreachable!(),
         };
         Ok(Self { output_format, input })
     }
@@ -234,13 +226,13 @@ impl<'a> SplitTask<'a> {
             .collect();
         tracks.push((String::new(), header.data_size as usize, Vec::new()));
         let mut track_iter = tracks.iter();
-        eprintln!("Splitting...");
+        info!(target: "split", "Splitting...");
 
         let mut prev = track_iter.next().unwrap();
         let mut processes = Vec::with_capacity(tracks.len() - 1);
         let mut files = Vec::new();
         for now in track_iter {
-            eprintln!("{}...", prev.0);
+            info!(target: "split", "{}...", prev.0);
             // split track with filename
             let output = cue_path.as_ref().with_file_name(format!("{}.{}", prev.0, self.output_format).replace("/", "／"));
             // output file exists
@@ -249,9 +241,9 @@ impl<'a> SplitTask<'a> {
             }
             // choose output format
             let mut process = match self.output_format {
-                "wav" => FileProcess::File(File::create(&output)?),
-                "flac" => {
-                    let process = Command::new(encoder_of("flac").unwrap())
+                SplitFormat::Wav => FileProcess::File(File::create(&output)?),
+                SplitFormat::Flac => {
+                    let process = Command::new(encoder_of(self.output_format).unwrap())
                         .args(&["--totally-silent", "-", "-o"])
                         .arg(output.clone().into_os_string())
                         .stdin(Stdio::piped())
@@ -273,7 +265,7 @@ impl<'a> SplitTask<'a> {
 
         if write_tags {
             // Write tags
-            eprintln!("Writing tags...");
+            info!(target: "split", "Writing tags...");
             for ((_, _, mut tags), path) in tracks.into_iter().zip(files) {
                 let mut flac = FlacHeader::from_file(&path)?;
 
@@ -291,7 +283,7 @@ impl<'a> SplitTask<'a> {
                 flac.save(Some(path))?;
             }
         }
-        eprintln!("Finished!");
+        info!(target: "split", "Finished!");
         Ok(())
     }
 }
