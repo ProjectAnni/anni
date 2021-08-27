@@ -12,7 +12,7 @@ use serde::de::Error;
 use crate::config::read_config;
 use anni_flac::{FlacHeader, MetadataBlockData};
 use anni_flac::blocks::{BlockVorbisComment, BlockStreamInfo, PictureType};
-use crate::cli::HandleArgs;
+use crate::cli::{Handle, HandleArgs};
 
 #[derive(Clap, Debug)]
 #[clap(about = ll ! ("convention"))]
@@ -22,7 +22,7 @@ pub struct ConventionSubcommand {
     action: ConventionAction,
 }
 
-impl HandleArgs for ConventionSubcommand {
+impl Handle for ConventionSubcommand {
     fn handle(&self) -> anyhow::Result<()> {
         // Initialize rules
         let config: ConventionConfig = read_config("convention").map_err(|e| {
@@ -42,7 +42,7 @@ pub enum ConventionAction {
     Check(ConventionCheckAction),
 }
 
-impl ConventionAction {
+impl HandleArgs<ConventionRules> for ConventionAction {
     fn handle(&self, rules: &ConventionRules) -> anyhow::Result<()> {
         match self {
             ConventionAction::Check(check) => check.handle(rules)

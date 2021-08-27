@@ -1,6 +1,6 @@
 use log::LevelFilter;
 use clap::Clap;
-use crate::cli::{HandleArgs, AnniArgs};
+use crate::cli::{Handle, AnniArgs};
 
 mod i18n;
 mod subcommands;

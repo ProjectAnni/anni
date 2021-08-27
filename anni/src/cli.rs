@@ -2,8 +2,12 @@ use clap::{Clap, AppSettings};
 use crate::ll;
 use crate::subcommands::*;
 
-pub trait HandleArgs {
+pub trait Handle {
     fn handle(&self) -> anyhow::Result<()>;
+}
+
+pub trait HandleArgs<T = ()> {
+    fn handle(&self, arg: &T) -> anyhow::Result<()>;
 }
 
 #[derive(Clap, Debug)]
@@ -24,13 +28,13 @@ pub enum AnniSubcommand {
     Get(GetSubcommand),
 }
 
-impl HandleArgs for AnniArgs {
+impl Handle for AnniArgs {
     fn handle(&self) -> anyhow::Result<()> {
         self.subcommand.handle()
     }
 }
 
-impl HandleArgs for AnniSubcommand {
+impl Handle for AnniSubcommand {
     fn handle(&self) -> anyhow::Result<()> {
         match self {
             AnniSubcommand::Flac(flac) => flac.handle(),

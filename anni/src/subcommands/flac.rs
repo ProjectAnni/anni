@@ -5,7 +5,7 @@ use anni_flac::{MetadataBlockData, FlacHeader};
 use clap::{Clap, ArgEnum};
 use anni_common::fs;
 use crate::ll;
-use crate::cli::HandleArgs;
+use crate::cli::Handle;
 
 #[derive(Clap, Debug)]
 #[clap(about = ll ! ("flac"))]
@@ -14,7 +14,7 @@ pub struct FlacSubcommand {
     action: FlacAction,
 }
 
-impl HandleArgs for FlacSubcommand {
+impl Handle for FlacSubcommand {
     fn handle(&self) -> anyhow::Result<()> {
         self.action.handle()
     }
@@ -26,7 +26,7 @@ pub enum FlacAction {
     Export(FlacExportAction)
 }
 
-impl HandleArgs for FlacAction {
+impl Handle for FlacAction {
     fn handle(&self) -> anyhow::Result<()> {
         match self {
             FlacAction::Export(a) => a.handle()
@@ -51,11 +51,12 @@ pub struct FlacExportAction {
     #[clap(short, long, default_value = "-")]
     #[clap(about = ll ! {"flac-export-to"})]
     output: crate::args::ActionFile,
+
     #[clap(required = true)]
     filename: Vec<PathBuf>,
 }
 
-impl HandleArgs for FlacExportAction {
+impl Handle for FlacExportAction {
     fn handle(&self) -> anyhow::Result<()> {
         for path in self.filename.iter() {
             for (_, stream) in parse_input_iter(path) {
