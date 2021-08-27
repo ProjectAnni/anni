@@ -4,8 +4,8 @@ pub mod convention;
 pub mod repo;
 pub mod get;
 
-pub trait Subcommand {
-    fn name(&self) -> &'static str;
-    fn create(&self) -> clap::App<'static>;
-    fn handle(&self, matches: &clap::ArgMatches) -> anyhow::Result<()>;
-}
+pub use flac::FlacSubcommand;
+pub use split::SplitSubcommand;
+pub use convention::ConventionSubcommand;
+pub use repo::RepoSubcommand;
+pub use get::GetSubcommand;

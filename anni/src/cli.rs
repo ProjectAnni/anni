@@ -1,5 +1,6 @@
 use clap::{Clap, AppSettings};
 use crate::ll;
+use crate::subcommands::*;
 
 pub trait HandleArgs {
     fn handle(&self) -> anyhow::Result<()>;
@@ -16,10 +17,11 @@ pub struct AnniArgs {
 
 #[derive(Clap, Debug)]
 pub enum AnniSubcommand {
-    Flac(crate::subcommands::flac::FlacSubcommand),
-    Split(crate::subcommands::split::SplitSubcommand),
-    Convention(crate::subcommands::convention::ConventionSubcommand),
-    Get(crate::subcommands::get::GetSubcommand),
+    Flac(FlacSubcommand),
+    Split(SplitSubcommand),
+    Convention(ConventionSubcommand),
+    Repo(RepoSubcommand),
+    Get(GetSubcommand),
 }
 
 impl HandleArgs for AnniArgs {
@@ -34,6 +36,7 @@ impl HandleArgs for AnniSubcommand {
             AnniSubcommand::Flac(flac) => flac.handle(),
             AnniSubcommand::Split(split) => split.handle(),
             AnniSubcommand::Convention(conv) => conv.handle(),
+            AnniSubcommand::Repo(repo) => repo.handle(),
             AnniSubcommand::Get(get) => get.handle(),
         }
     }
