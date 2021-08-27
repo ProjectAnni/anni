@@ -11,6 +11,8 @@ pub enum FlacError {
     InvalidBlockType,
     #[error("invalid seek table size")]
     InvalidSeekTableSize,
+    #[error("invalid picture type")]
+    InvalidPictureType,
     #[error(transparent)]
     InvalidString(#[from] FromUtf8Error),
     #[error(transparent)]
