@@ -13,8 +13,8 @@ flac-export-to = 导出内容存放的路径
 split = 提供音频分割相关的功能
 split-format-input = 待切分音频的文件类型
 split-format-output = 切分后输出音频的文件类型
-split-apply-tags = 将 CUE 中的元数据写入音频文件
-split-import-cover = 从切分目录寻找封面并写入音频文件
+split-no-apply-tags = 不将 CUE 中的元数据写入音频文件
+split-no-import-cover = 不从切分目录寻找封面写入音频文件
 
 
 ## convention

@@ -20,6 +20,7 @@ async fn main() -> anyhow::Result<()> {
     env_logger::builder()
         .filter_level(LevelFilter::Error)
         .filter_module("i18n_embed::requester", LevelFilter::Error)
+        .filter_module("split", LevelFilter::Info)
         .parse_env("ANNI_LOG")
         .format(pretty_env_logger::formatter)
         .init();

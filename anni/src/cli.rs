@@ -17,6 +17,7 @@ pub struct AnniArgs {
 #[derive(Clap, Debug)]
 pub enum AnniSubcommand {
     Flac(crate::subcommands::flac::FlacSubcommand),
+    Split(crate::subcommands::split::SplitSubcommand),
 }
 
 impl HandleArgs for AnniArgs {
@@ -28,7 +29,8 @@ impl HandleArgs for AnniArgs {
 impl HandleArgs for AnniSubcommand {
     fn handle(&self) -> anyhow::Result<()> {
         match self {
-            AnniSubcommand::Flac(flac) => flac.handle()
+            AnniSubcommand::Flac(flac) => flac.handle(),
+            AnniSubcommand::Split(split) => split.handle(),
         }
     }
 }

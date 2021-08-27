@@ -11,10 +11,10 @@ flac-export-to = Path for exported data.
 
 ## split
 split = Provided helper to split audios.
-split-format-input = Extension of input audio file.
+split-format-input = Format of input audio file.
 split-format-output = Format of output audio file.
-split-apply-tags = Write tags extracted from CUE files to audio file.
-split-import-cover = Import cover to audio file.
+split-no-apply-tags = Do not extract tags from CUE files to audio file.
+split-no-import-cover = Do not import cover to audio file.
 
 
 ## convention
