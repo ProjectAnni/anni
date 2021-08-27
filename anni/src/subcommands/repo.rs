@@ -8,7 +8,7 @@ use crate::{ll, ball};
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
 use anni_flac::blocks::{UserComment, UserCommentExt};
-use crate::cli::HandleArgs;
+use crate::cli::{Handle, HandleArgs};
 
 #[derive(Clap, Debug)]
 #[clap(about = ll ! {"repo"})]
@@ -21,7 +21,7 @@ pub struct RepoSubcommand {
     action: RepoAction,
 }
 
-impl HandleArgs for RepoSubcommand {
+impl Handle for RepoSubcommand {
     fn handle(&self) -> anyhow::Result<()> {
         // TODO: read repo root from config
         let manager = RepositoryManager::new(self.root.as_path())?;
@@ -43,7 +43,7 @@ pub enum RepoAction {
     Print(RepoPrintAction),
 }
 
-impl RepoAction {
+impl HandleArgs<RepositoryManager> for RepoAction {
     fn handle(&self, manager: &RepositoryManager) -> anyhow::Result<()> {
         match self {
             RepoAction::Add(add) => add.handle(manager),
@@ -65,7 +65,7 @@ pub struct RepoAddAction {
     directories: Vec<PathBuf>,
 }
 
-impl RepoAddAction {
+impl HandleArgs<RepositoryManager> for RepoAddAction {
     fn handle(&self, manager: &RepositoryManager) -> anyhow::Result<()> {
         for to_add in self.directories.iter() {
             let last = anni_repo::library::file_name(&to_add)?;
@@ -126,7 +126,7 @@ pub struct RepoEditAction {
     directories: Vec<PathBuf>,
 }
 
-impl RepoEditAction {
+impl HandleArgs<RepositoryManager> for RepoEditAction {
     fn handle(&self, manager: &RepositoryManager) -> anyhow::Result<()> {
         // FIXME: handle all inputs
         let last = anni_repo::library::file_name(&self.directories[0])?;
@@ -152,7 +152,7 @@ pub struct RepoApplyAction {
     directories: Vec<PathBuf>,
 }
 
-impl RepoApplyAction {
+impl HandleArgs<RepositoryManager> for RepoApplyAction {
     fn handle(&self, manager: &RepositoryManager) -> anyhow::Result<()> {
         // FIXME: handle all inputs
         let to_apply = Path::new(&self.directories[0]);
@@ -260,7 +260,7 @@ DISCTOTAL={disc_total}
 #[derive(Clap, Debug)]
 pub struct RepoValidateAction;
 
-impl RepoValidateAction {
+impl HandleArgs<RepositoryManager> for RepoValidateAction {
     fn handle(&self, manager: &RepositoryManager) -> anyhow::Result<()> {
         info!(target: "anni", "Repository validation started.");
         for catalog in manager.catalogs()? {
@@ -292,7 +292,7 @@ pub struct RepoPrintAction {
     catalog: String,
 }
 
-impl RepoPrintAction {
+impl HandleArgs<RepositoryManager> for RepoPrintAction {
     fn handle(&self, manager: &RepositoryManager) -> anyhow::Result<()> {
         let split: Vec<_> = self.catalog.split('/').collect();
         let (catalog, disc_id) = if split.len() == 1 {

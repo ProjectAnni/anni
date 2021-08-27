@@ -3,18 +3,18 @@ use clap::{Clap};
 use crate::ll;
 use anni_vgmdb::VGMClient;
 use futures::executor::block_on;
-use crate::cli::HandleArgs;
+use crate::cli::Handle;
 
 #[derive(Clap, Debug)]
 #[clap(about = ll ! {"get"})]
 pub struct GetSubcommand {
     #[clap(subcommand)]
-    subcommand: GetAction,
+    action: GetAction,
 }
 
-impl HandleArgs for GetSubcommand {
+impl Handle for GetSubcommand {
     fn handle(&self) -> anyhow::Result<()> {
-        self.subcommand.handle()
+        self.action.handle()
     }
 }
 
@@ -25,7 +25,7 @@ pub enum GetAction {
     VGMdb(GetVGMdbAction),
 }
 
-impl HandleArgs for GetAction {
+impl Handle for GetAction {
     fn handle(&self) -> anyhow::Result<()> {
         match self {
             GetAction::VGMdb(vgmdb) => vgmdb.handle(),
@@ -40,7 +40,7 @@ pub struct GetVGMdbAction {
     catalog: String,
 }
 
-impl HandleArgs for GetVGMdbAction {
+impl Handle for GetVGMdbAction {
     fn handle(&self) -> anyhow::Result<()> {
         vgmdb_search(self.catalog.as_str())
     }

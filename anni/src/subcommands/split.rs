@@ -14,7 +14,7 @@ use anni_flac::{FlacHeader, MetadataBlock, MetadataBlockData};
 use anni_flac::blocks::{UserComment, UserCommentExt, BlockPicture, PictureType};
 use cue_sheet::tracklist::Tracklist;
 use crate::ll;
-use crate::cli::HandleArgs;
+use crate::cli::Handle;
 use std::fmt::{Display, Formatter};
 
 #[derive(Clap, Debug)]
@@ -64,7 +64,7 @@ impl Display for SplitFormat {
     }
 }
 
-impl HandleArgs for SplitSubcommand {
+impl Handle for SplitSubcommand {
     fn handle(&self) -> anyhow::Result<()> {
         // Validate encoder/decoder for input&output format exist
         encoder_of(self.input_format)?;
