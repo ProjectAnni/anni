@@ -311,13 +311,13 @@ impl MetadataBlock {
         }
     }
 
-    pub fn print(&self, i: usize) {
+    pub fn write(&self, dst: &mut dyn Write, i: usize) -> std::result::Result<(), std::io::Error> {
         let data = &self.data;
-        println!("METADATA block #{}", i);
-        println!("  type: {} ({})", u8::from(data), data.as_str());
-        println!("  is last: {}", self.is_last);
-        println!("  length: {}", self.length);
-        println!("{:2?}", data);
+        writeln!(dst, "METADATA block #{}", i)?;
+        writeln!(dst, "  type: {} ({})", u8::from(data), data.as_str())?;
+        writeln!(dst, "  is last: {}", self.is_last)?;
+        writeln!(dst, "  length: {}", self.length)?;
+        writeln!(dst, "{:2?}", data)
     }
 }
 

@@ -21,7 +21,7 @@ lazy_static::lazy_static! {
 }
 
 #[macro_export]
-macro_rules! ll {
+macro_rules! fl {
     ($message_id: literal) => {
         i18n_embed_fl::fl!(crate::i18n::LOCALIZATION_LOADER, $message_id)
     };
@@ -31,15 +31,21 @@ macro_rules! ll {
     };
 }
 
+#[macro_export]
+macro_rules! ll {
+    ($message_id: literal) => {
+        Box::leak(crate::fl!($message_id).into_boxed_str()) as &'static str
+    };
+}
 
 #[macro_export]
 macro_rules! ball {
     ($message_id: literal) => {
-        bail!(crate::ll!($message_id))
+        bail!(crate::fl!($message_id))
     };
 
     ($message_id: literal, $($args: expr),*) => {
-        bail!(crate::ll!($message_id, $($args), *))
+        bail!(crate::fl!($message_id, $($args), *))
     };
 }
 

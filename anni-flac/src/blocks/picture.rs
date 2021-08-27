@@ -7,6 +7,8 @@ use std::fmt;
 use std::path::Path;
 use image::GenericImageView;
 use std::borrow::Cow;
+use std::str::FromStr;
+use crate::error::FlacError;
 
 pub struct BlockPicture {
     /// <32> The picture type according to the ID3v2 APIC frame
@@ -136,7 +138,7 @@ impl BlockPicture {
 /// The picture type according to the ID3v2 APIC frame:
 /// Others are reserved and should not be used. There may only be one each of picture type 1 and 2 in a file.
 #[repr(u32)]
-#[derive(Copy, Clone, Debug, FromPrimitive)]
+#[derive(Copy, Clone, Debug, FromPrimitive, PartialEq)]
 pub enum PictureType {
     /// 0 - Other
     Other,
@@ -209,6 +211,44 @@ impl PictureType {
             PictureType::BandArtistLogotype => "Band/artist logotype",
             PictureType::PublisherStudioLogotype => "Publisher/Studio logotype",
             PictureType::Unknown => "Unknown",
+        }
+    }
+}
+
+impl FromStr for PictureType {
+    type Err = FlacError;
+
+    fn from_str(s: &str) -> core::result::Result<Self, Self::Err> {
+        if let Ok(n) = u32::from_str(s) {
+            if n <= 20 {
+                // n is valid, should not fail
+                return Ok(FromPrimitive::from_u32(n).unwrap());
+            }
+        }
+
+        match s.to_ascii_lowercase().as_str() {
+            "other" => Ok(PictureType::Other),
+            "file_icon" => Ok(PictureType::FileIcon),
+            "other_file_icon" => Ok(PictureType::OtherFileIcon),
+            "cover" | "front_cover" => Ok(PictureType::CoverFront),
+            "back_cover" => Ok(PictureType::CoverBack),
+            "leaflet" => Ok(PictureType::LeafletPage),
+            "media" => Ok(PictureType::Media),
+            "lead_artist" => Ok(PictureType::LeadArtist),
+            "artist" => Ok(PictureType::Artist),
+            "conductor" => Ok(PictureType::Conductor),
+            "band" => Ok(PictureType::Band),
+            "composer" => Ok(PictureType::Composer),
+            "lyricist" => Ok(PictureType::Lyricist),
+            "recording_location" => Ok(PictureType::RecordingLocation),
+            "during_recording" => Ok(PictureType::DuringRecording),
+            "during_performance" => Ok(PictureType::DuringPerformance),
+            "screen_capture" => Ok(PictureType::MovieVideoScreenCapture),
+            "bright_colored_fish" => Ok(PictureType::BrightColoredFish),
+            "illustration" => Ok(PictureType::Illustration),
+            "band_logo" | "artist_logo" => Ok(PictureType::BandArtistLogotype),
+            "publisher_logo" | "studio_logo" => Ok(PictureType::PublisherStudioLogotype),
+            &_ => Err(Self::Err::InvalidPictureType),
         }
     }
 }
