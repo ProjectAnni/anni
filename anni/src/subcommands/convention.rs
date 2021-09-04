@@ -1,6 +1,5 @@
 use clap::Clap;
 use crate::ll;
-use crate::subcommands::flac::parse_input_iter;
 use std::path::{Path, PathBuf};
 use std::collections::{HashSet, HashMap};
 use anni_common::validator::*;
@@ -13,6 +12,7 @@ use crate::config::read_config;
 use anni_flac::{FlacHeader, MetadataBlockData};
 use anni_flac::blocks::{BlockVorbisComment, BlockStreamInfo, PictureType};
 use crate::cli::{Handle, HandleArgs};
+use crate::args::{InputPath, FlacInputPath};
 
 #[derive(Clap, Debug)]
 #[clap(about = ll ! ("convention"))]
@@ -57,14 +57,15 @@ pub struct ConventionCheckAction {
     fix: bool,
 
     #[clap(required = true)]
-    filename: Vec<PathBuf>,
+    filename: Vec<InputPath<FlacInputPath>>,
 }
 
 impl ConventionCheckAction {
     fn handle(&self, rules: &ConventionRules) -> anyhow::Result<()> {
         info!(target: "anni", "Convention validation started...");
         for input in &self.filename {
-            for (file, flac) in parse_input_iter(input) {
+            for file in input.iter() {
+                let flac = FlacHeader::from_file(file.as_path());
                 match flac {
                     Ok(mut flac) => {
                         rules.validate(file, &mut flac, self.fix);
@@ -295,7 +296,7 @@ impl Default for ConventionConfig {
             stream_info: Default::default(),
             types: HashMap::from_iter(vec![
                 ("string".to_string(), vec![Validator::from_str("trim").unwrap(), Validator::from_str("dot").unwrap()]),
-                ("number".to_string(), vec![Validator::from_str("number").unwrap()])
+                ("number".to_string(), vec![Validator::from_str("number").unwrap()]),
             ].into_iter()),
             tags: ConventionTagConfig {
                 required: vec![
@@ -354,7 +355,7 @@ impl Default for ConventionConfig {
                         alias: Default::default(),
                         value_type: ValueType::String,
                         validators: Default::default(),
-                    }
+                    },
                 ],
             },
         }
