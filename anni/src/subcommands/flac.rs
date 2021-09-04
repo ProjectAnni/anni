@@ -1,11 +1,10 @@
 use std::io::Write;
-use std::path::{PathBuf, Path};
 use anni_flac::blocks::PictureType;
 use anni_flac::{MetadataBlockData, FlacHeader};
 use clap::{Clap, ArgEnum};
-use anni_common::fs;
 use crate::ll;
 use crate::cli::Handle;
+use crate::args::{InputPath, FlacInputFile};
 
 #[derive(Clap, Debug)]
 #[clap(about = ll ! ("flac"))]
@@ -53,14 +52,14 @@ pub struct FlacExportAction {
     output: crate::args::ActionFile,
 
     #[clap(required = true)]
-    filename: Vec<PathBuf>,
+    filename: Vec<InputPath<FlacInputFile>>,
 }
 
 impl Handle for FlacExportAction {
     fn handle(&self) -> anyhow::Result<()> {
         for path in self.filename.iter() {
-            for (_, stream) in parse_input_iter(path) {
-                let stream = stream?;
+            for file in path.iter() {
+                let stream = FlacHeader::from_file(file)?;
                 self.export(&stream)?;
             }
         }
@@ -139,21 +138,4 @@ pub enum FlacExportType {
     /// List All
     #[clap(alias = "all")]
     List,
-}
-
-/// Parse <path> and get all flac files within <path>
-pub(crate) fn parse_input_iter<P: AsRef<Path>>(input: P) -> impl Iterator<Item=(PathBuf, anni_flac::prelude::Result<FlacHeader>)> {
-    fs::PathWalker::new(input, true).filter_map(|file| {
-        match file.extension() {
-            None => return None,
-            Some(ext) => {
-                if ext != "flac" {
-                    return None;
-                }
-            }
-        };
-
-        let header = FlacHeader::from_file(&file);
-        Some((file, header))
-    })
 }
