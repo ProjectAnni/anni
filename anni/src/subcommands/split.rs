@@ -280,12 +280,12 @@ impl SplitTask {
             // wait for process to exit
             process.wait();
 
-            if write_tags || cover.is_some() {
+            if write_tags || cover.is_some() /* TODO: is flac */ {
                 // info!(target: "split", "Writing tags...");
                 let mut flac = FlacHeader::from_file(&path)?;
 
                 // write tags
-                if write_tags /* TODO: && is flac */ {
+                if write_tags {
                     let comment = flac.comments_mut();
                     comment.clear();
                     comment.comments.append(&mut track.tags);
