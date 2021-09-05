@@ -1,12 +1,12 @@
 ## anni
 anni-about = 为自建音乐站点构建的一整套工具
+export-to = 导出内容存放的路径
 
 
 ## flac
 flac = 提供 FLAC 处理相关的功能
 flac-export = 导出内容
 flac-export-type = 导出内容类型
-flac-export-to = 导出内容存放的路径
 
 
 ## split
@@ -15,6 +15,7 @@ split-format-input = 待切分音频的文件类型
 split-format-output = 切分后输出音频的文件类型
 split-no-apply-tags = 不将 CUE 中的元数据写入音频文件
 split-no-import-cover = 不从切分目录寻找封面写入音频文件
+split-output-file-exist = 输出路径下已存在文件 {$filename}，请删除文件后重试
 
 
 ## convention

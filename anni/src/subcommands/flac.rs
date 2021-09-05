@@ -35,7 +35,7 @@ pub struct FlacExportAction {
     picture_type: PictureType,
 
     #[clap(short, long, default_value = "-")]
-    #[clap(about = ll ! {"flac-export-to"})]
+    #[clap(about = ll ! {"export-to"})]
     output: crate::args::ActionFile,
 
     #[clap(required = true)]

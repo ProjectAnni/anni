@@ -14,7 +14,7 @@ use anni_derive::ClapHandler;
 use anni_flac::{FlacHeader, MetadataBlock, MetadataBlockData};
 use anni_flac::blocks::{UserComment, UserCommentExt, BlockPicture, PictureType};
 use cue_sheet::tracklist::Tracklist;
-use crate::ll;
+use crate::{ll, ball};
 use std::fmt::{Display, Formatter};
 
 #[derive(Clap, ClapHandler, Debug)]
@@ -212,6 +212,10 @@ impl SplitTask {
     }
 
     pub fn split<P: AsRef<Path>>(&mut self, cue_path: P, write_tags: bool, cover: Option<PathBuf>) -> anyhow::Result<()> {
+        info!(target: "split", "Splitting...");
+
+        let output_format = self.output_format;
+
         let mut audio = self.input.get_reader();
         let audio = &mut audio;
 
@@ -219,59 +223,73 @@ impl SplitTask {
         let mut header = WaveHeader::from_reader(audio)?;
 
         // extract cue break points
-        let mut tracks: Vec<(String, usize, Vec<UserComment>)> = cue_tracks(cue_path.as_ref())
-            .into_iter()
-            .map(|i| (format!("{:02}. {}", i.index, i.title), (&header).mmssff(i.mm, i.ss, i.ff), i.tags))
-            .collect();
-        tracks.push((String::new(), header.data_size as usize, Vec::new()));
-        let mut track_iter = tracks.iter();
-        info!(target: "split", "Splitting...");
+        let tracks = cue_tracks(cue_path.as_ref());
+        struct TrackInfo {
+            begin: usize,
+            end: usize,
+            name: String,
+            tags: Vec<UserComment>,
+        }
 
-        let mut prev = track_iter.next().unwrap();
-        let mut processes = Vec::with_capacity(tracks.len() - 1);
-        let mut files = Vec::new();
-        for now in track_iter {
-            info!(target: "split", "{}...", prev.0);
-            // split track with filename
-            let output = cue_path.as_ref().with_file_name(format!("{}.{}", prev.0, self.output_format).replace("/", "／"));
-            // output file exists
-            if output.exists() {
-                bail!("Output file exists! Please remove the file and try again!");
+        // generate time points
+        let mut time_points: Vec<_> = tracks.iter().map(|i| (&header).mmssff(i.mm, i.ss, i.ff)).collect();
+        time_points.push(header.data_size as usize);
+
+        // generate track info
+        let tracks: Vec<_> = tracks.into_iter().enumerate().map(|(i, track)| TrackInfo {
+            begin: time_points[i],
+            end: time_points[i + 1],
+            name: format!("{:02}. {}", track.index, track.title).replace("/", "／"),
+            tags: track.tags,
+        }).collect();
+
+        // generate file names & check whether file exists before split
+        let files = tracks.iter().map(|track| {
+            let filename = format!("{}.{}", track.name, &output_format);
+            let output = cue_path.as_ref().with_file_name(&filename);
+            // check if file exists
+            if output.exists() /* TODO: && !override_file */ {
+                ball!("split-output-file-exist", filename = filename);
+            } else {
+                // save file path
+                Ok(output)
             }
+        }).collect::<anyhow::Result<Vec<_>>>()?;
+
+        // do split & write tags
+        tracks.into_iter().zip(files).try_for_each(|(mut track, path)| -> anyhow::Result<()>{
+            info!(target: "split", "{}...", track.name);
+
             // choose output format
-            let mut process = match self.output_format {
-                SplitFormat::Wav => FileProcess::File(File::create(&output)?),
+            let mut process = match &output_format {
+                SplitFormat::Wav => FileProcess::File(File::create(&path)?),
                 SplitFormat::Flac => {
-                    let process = Command::new(encoder_of(self.output_format).unwrap())
+                    let process = Command::new(encoder_of(output_format).unwrap())
                         .args(&["--totally-silent", "-", "-o"])
-                        .arg(output.clone().into_os_string())
+                        .arg(path.clone().into_os_string())
                         .stdin(Stdio::piped())
                         .spawn()?;
                     FileProcess::Process(process)
                 }
                 _ => unimplemented!(),
             };
-            // split wav from start to end
-            split_wav(&mut header, audio, &mut process.get_writer(), prev.1, now.1)?;
-            processes.push(process);
-            files.push(output);
-            prev = now;
-        }
-        // wait for all processes
-        for mut p in processes {
-            p.wait();
-        }
 
-        if write_tags {
-            // Write tags
-            info!(target: "split", "Writing tags...");
-            for ((_, _, mut tags), path) in tracks.into_iter().zip(files) {
+            // split wav from start to end
+            split_wav(&mut header, audio, &mut process.get_writer(), track.begin, track.end)?;
+
+            // wait for process to exit
+            process.wait();
+
+            if write_tags || cover.is_some() {
+                // info!(target: "split", "Writing tags...");
                 let mut flac = FlacHeader::from_file(&path)?;
 
                 // write tags
-                let comment = flac.comments_mut();
-                comment.clear();
-                comment.comments.append(&mut tags);
+                if write_tags /* TODO: && is flac */ {
+                    let comment = flac.comments_mut();
+                    comment.clear();
+                    comment.comments.append(&mut track.tags);
+                }
 
                 // write cover
                 if let Some(cover) = &cover {
@@ -279,9 +297,12 @@ impl SplitTask {
                     flac.blocks.push(MetadataBlock::new(MetadataBlockData::Picture(picture)));
                 }
 
+                // save flac file
                 flac.save(Some(path))?;
             }
-        }
+            Ok(())
+        })?;
+
         info!(target: "split", "Finished!");
         Ok(())
     }

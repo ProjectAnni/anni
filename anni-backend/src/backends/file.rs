@@ -160,7 +160,5 @@ impl Backend for FileBackend {
 async fn test_scan() {
     let mut f = FileBackend::new(PathBuf::from("/data/Music/"), false);
     let d = f.albums().await.unwrap();
-    println!("{:#?}", d);
-
     let _audio = f.get_audio("LACM-14986", 2).await.unwrap();
 }

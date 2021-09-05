@@ -1,12 +1,12 @@
 ## anni
 anni-about = A set of tools for self-hosting music sites.
+export-to = Path for exported data.
 
 
 ## flac
 flac = Provide FLAC-related utilities.
 flac-export = Export data.
 flac-export-type = Type of data to export.
-flac-export-to = Path for exported data.
 
 
 ## split
@@ -15,6 +15,7 @@ split-format-input = Format of input audio file.
 split-format-output = Format of output audio file.
 split-no-apply-tags = Do not extract tags from CUE files to audio file.
 split-no-import-cover = Do not import cover to audio file.
+split-output-file-exist = Output file {$filename} exists. Please remove the file and try again.
 
 
 ## convention
