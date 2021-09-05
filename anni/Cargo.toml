@@ -20,6 +20,7 @@ directories-next = "2.0.0"
 anni-common = { path = "../anni-common" }
 anni-flac = { path = "../anni-flac" }
 anni-repo = { path = "../anni-repo" }
+anni-derive = { path = "../anni-derive" }
 
 i18n-embed = { version = "0.12.1", features = ["fluent-system", "desktop-requester", "filesystem-assets"] }
 i18n-embed-fl = "0.5.0"
