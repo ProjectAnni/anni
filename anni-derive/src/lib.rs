@@ -51,7 +51,7 @@ pub fn derive_clap_handler(item: TokenStream) -> TokenStream {
                     match argument_type {
                         Some(argument_type) => {
                             quote! {
-                                impl HandleArgs<#argument_type> for #name {
+                                impl anni_common::traits::HandleArgs<#argument_type> for #name {
                                     #[inline(always)]
                                     fn handle(&self, arg: &#argument_type) -> anyhow::Result<()> {
                                         self.#subcommand_field.handle(arg)
@@ -61,7 +61,7 @@ pub fn derive_clap_handler(item: TokenStream) -> TokenStream {
                         }
                         None => {
                             quote! {
-                                impl Handle for #name {
+                                impl anni_common::traits::Handle for #name {
                                     #[inline(always)]
                                     fn handle_subcommand(&self) -> anyhow::Result<()> {
                                         self.#subcommand_field.handle()
@@ -83,7 +83,7 @@ pub fn derive_clap_handler(item: TokenStream) -> TokenStream {
             match argument_type {
                 Some(argument_type) => {
                     quote! {
-                       impl HandleArgs<#argument_type> for #name {
+                       impl anni_common::traits::HandleArgs<#argument_type> for #name {
                             #[inline(always)]
                             fn handle(&self, arg: &#argument_type) -> anyhow::Result<()> {
                                 match self {
@@ -95,7 +95,7 @@ pub fn derive_clap_handler(item: TokenStream) -> TokenStream {
                 }
                 None => {
                     quote! {
-                        impl Handle for #name {
+                        impl anni_common::traits::Handle for #name {
                             #[inline(always)]
                             fn handle_subcommand(&self) -> anyhow::Result<()> {
                                 match self {

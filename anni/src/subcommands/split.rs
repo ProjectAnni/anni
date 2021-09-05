@@ -9,12 +9,11 @@ use anni_common::fs;
 use anni_common::decode::{DecodeError, u16_le, u32_le, token};
 use anni_common::encode::{btoken_w, u16_le_w, u32_le_w};
 
-use anni_common::traits::{Decode, Encode};
+use anni_common::traits::{Decode, Encode, Handle};
 use anni_flac::{FlacHeader, MetadataBlock, MetadataBlockData};
 use anni_flac::blocks::{UserComment, UserCommentExt, BlockPicture, PictureType};
 use cue_sheet::tracklist::Tracklist;
 use crate::ll;
-use crate::cli::Handle;
 use std::fmt::{Display, Formatter};
 
 #[derive(Clap, Debug)]
