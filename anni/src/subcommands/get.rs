@@ -4,7 +4,6 @@ use crate::ll;
 use anni_vgmdb::VGMClient;
 use futures::executor::block_on;
 use anni_derive::ClapHandler;
-use anni_common::traits::Handle;
 
 #[derive(Clap, ClapHandler, Debug)]
 #[clap(about = ll ! {"get"})]
@@ -20,17 +19,16 @@ pub enum GetAction {
     VGMdb(GetVGMdbAction),
 }
 
-#[derive(Clap, Debug)]
+#[derive(Clap, ClapHandler, Debug)]
+#[clap_handler(get_vgmdb)]
 pub struct GetVGMdbAction {
     #[clap(short, long)]
     #[clap(about = ll ! ("get-vgmdb-catalog"))]
     catalog: String,
 }
 
-impl Handle for GetVGMdbAction {
-    fn handle(&self) -> anyhow::Result<()> {
-        vgmdb_search(self.catalog.as_str())
-    }
+fn get_vgmdb(me: &GetVGMdbAction) -> anyhow::Result<()> {
+    vgmdb_search(me.catalog.as_str())
 }
 
 fn vgmdb_search(catalog: &str) -> anyhow::Result<()> {
