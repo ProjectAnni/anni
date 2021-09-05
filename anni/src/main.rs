@@ -1,18 +1,37 @@
 use log::LevelFilter;
-use clap::Clap;
-use crate::cli::{Handle, AnniArgs};
+use clap::{Clap, AppSettings};
+use anni_derive::ClapHandler;
+use anni_common::traits::Handle;
+use crate::subcommands::*;
 
 mod i18n;
 mod subcommands;
 mod config;
 mod args;
-mod cli;
 
 #[macro_use]
 extern crate anyhow;
 
 #[macro_use]
 extern crate log;
+
+#[derive(Clap, ClapHandler, Debug)]
+#[clap(name = "Project Anni", version, author)]
+#[clap(about = ll ! {"anni-about"})]
+#[clap(setting = AppSettings::ColoredHelp)]
+pub struct AnniArguments {
+    #[clap(subcommand)]
+    subcommand: AnniSubcommand,
+}
+
+#[derive(Clap, ClapHandler, Debug)]
+pub enum AnniSubcommand {
+    Flac(FlacSubcommand),
+    Split(SplitSubcommand),
+    Convention(ConventionSubcommand),
+    Repo(RepoSubcommand),
+    Get(GetSubcommand),
+}
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
@@ -26,7 +45,7 @@ async fn main() -> anyhow::Result<()> {
         .init();
 
     // parse arguments
-    let args: AnniArgs = AnniArgs::parse();
+    let args = AnniArguments::parse();
     log::debug!("{:#?}", args);
     args.handle()
 }

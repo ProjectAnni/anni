@@ -3,9 +3,9 @@ use anni_flac::blocks::PictureType;
 use anni_flac::{MetadataBlockData, FlacHeader};
 use clap::{Clap, ArgEnum};
 use crate::ll;
-use crate::cli::Handle;
 use crate::args::{InputPath, FlacInputFile};
 use anni_derive::ClapHandler;
+use anni_common::traits::Handle;
 
 #[derive(Clap, ClapHandler, Debug)]
 #[clap(about = ll ! ("flac"))]

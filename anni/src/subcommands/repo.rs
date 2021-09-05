@@ -3,12 +3,12 @@ use anni_repo::album::{Disc, Track};
 use anni_repo::library::{album_info, disc_info, file_name};
 use anni_repo::{Album, RepositoryManager};
 use anni_common::fs;
+use anni_common::traits::{Handle, HandleArgs};
 use clap::{Clap, ArgEnum, crate_version};
 use crate::{ll, ball};
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
 use anni_flac::blocks::{UserComment, UserCommentExt};
-use crate::cli::{Handle, HandleArgs};
 use anni_derive::ClapHandler;
 
 #[derive(Clap, Debug)]

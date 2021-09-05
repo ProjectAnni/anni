@@ -3,6 +3,7 @@ use crate::ll;
 use std::path::{Path, PathBuf};
 use std::collections::{HashSet, HashMap};
 use anni_common::validator::*;
+use anni_common::traits::{Handle, HandleArgs};
 use serde::{Deserialize, Deserializer};
 use std::rc::Rc;
 use std::iter::FromIterator;
@@ -11,7 +12,6 @@ use serde::de::Error;
 use crate::config::read_config;
 use anni_flac::{FlacHeader, MetadataBlockData};
 use anni_flac::blocks::{BlockVorbisComment, BlockStreamInfo, PictureType};
-use crate::cli::{Handle, HandleArgs};
 use crate::args::{InputPath, FlacInputPath};
 use anni_derive::ClapHandler;
 

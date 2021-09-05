@@ -1,6 +1,6 @@
 [package]
 name = "anni-common"
-version = "0.1.0"
+version = "0.1.1"
 authors = ["Yesterday17 <mmf@mmf.moe>"]
 edition = "2018"
 

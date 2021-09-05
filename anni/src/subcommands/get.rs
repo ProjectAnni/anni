@@ -3,8 +3,8 @@ use clap::Clap;
 use crate::ll;
 use anni_vgmdb::VGMClient;
 use futures::executor::block_on;
-use crate::cli::Handle;
 use anni_derive::ClapHandler;
+use anni_common::traits::Handle;
 
 #[derive(Clap, ClapHandler, Debug)]
 #[clap(about = ll ! {"get"})]
