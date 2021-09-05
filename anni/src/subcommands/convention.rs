@@ -13,6 +13,7 @@ use anni_flac::{FlacHeader, MetadataBlockData};
 use anni_flac::blocks::{BlockVorbisComment, BlockStreamInfo, PictureType};
 use crate::cli::{Handle, HandleArgs};
 use crate::args::{InputPath, FlacInputPath};
+use anni_derive::ClapHandler;
 
 #[derive(Clap, Debug)]
 #[clap(about = ll ! ("convention"))]
@@ -36,18 +37,11 @@ impl Handle for ConventionSubcommand {
     }
 }
 
-#[derive(Clap, Debug)]
+#[derive(Clap, ClapHandler, Debug)]
+#[clap_handler(ConventionRules)]
 pub enum ConventionAction {
     #[clap(about = ll ! ("convention-check"))]
     Check(ConventionCheckAction),
-}
-
-impl HandleArgs<ConventionRules> for ConventionAction {
-    fn handle(&self, rules: &ConventionRules) -> anyhow::Result<()> {
-        match self {
-            ConventionAction::Check(check) => check.handle(rules)
-        }
-    }
 }
 
 #[derive(Clap, Debug)]
@@ -60,7 +54,7 @@ pub struct ConventionCheckAction {
     filename: Vec<InputPath<FlacInputPath>>,
 }
 
-impl ConventionCheckAction {
+impl HandleArgs<ConventionRules> for ConventionCheckAction {
     fn handle(&self, rules: &ConventionRules) -> anyhow::Result<()> {
         info!(target: "anni", "Convention validation started...");
         for input in &self.filename {

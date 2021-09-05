@@ -4,7 +4,15 @@ use crate::subcommands::*;
 use anni_derive::ClapHandler;
 
 pub trait Handle {
-    fn handle(&self) -> anyhow::Result<()>;
+    #[inline(always)]
+    fn handle(&self) -> anyhow::Result<()> {
+        self.handle_subcommand()
+    }
+
+    #[inline(always)]
+    fn handle_subcommand(&self) -> anyhow::Result<()> {
+        Ok(())
+    }
 }
 
 pub trait HandleArgs<T = ()> {

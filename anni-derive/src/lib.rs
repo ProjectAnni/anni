@@ -17,10 +17,20 @@ pub fn derive_from_file(input: TokenStream) -> TokenStream {
     gen.into()
 }
 
-#[proc_macro_derive(ClapHandler)]
+#[proc_macro_derive(ClapHandler, attributes(clap_handler))]
 pub fn derive_clap_handler(item: TokenStream) -> TokenStream {
     let input = parse_macro_input!(item as DeriveInput);
     let name = &input.ident;
+
+    let attrs = &input.attrs;
+    let argument_type = attrs.iter().find_map(|attr| {
+        if attr.path.is_ident("clap_handler") {
+            let attr: syn::Ident = attrs[0].parse_args().expect("Failed to get argument type");
+            Some(attr)
+        } else {
+            None
+        }
+    });
 
     let expanded = match input.data {
         Data::Struct(DataStruct { ref fields, .. }) => {
@@ -38,10 +48,25 @@ pub fn derive_clap_handler(item: TokenStream) -> TokenStream {
                         }
                         None
                     }).expect("No subcommand found!");
-                    quote! {
-                        impl Handle for #name {
-                            fn handle(&self) -> anyhow::Result<()> {
-                                self.#subcommand_field.handle()
+                    match argument_type {
+                        Some(argument_type) => {
+                            quote! {
+                                impl HandleArgs<#argument_type> for #name {
+                                    #[inline(always)]
+                                    fn handle(&self, arg: &#argument_type) -> anyhow::Result<()> {
+                                        self.#subcommand_field.handle(arg)
+                                    }
+                                }
+                            }
+                        }
+                        None => {
+                            quote! {
+                                impl Handle for #name {
+                                    #[inline(always)]
+                                    fn handle_subcommand(&self) -> anyhow::Result<()> {
+                                        self.#subcommand_field.handle()
+                                    }
+                                }
                             }
                         }
                     }
@@ -55,11 +80,28 @@ pub fn derive_clap_handler(item: TokenStream) -> TokenStream {
                 let ident = &v.ident;
                 quote! { #name::#ident }
             }).collect();
-            quote! {
-                impl Handle for #name {
-                    fn handle(&self) -> anyhow::Result<()> {
-                        match self {
-                            #(#subcommands(s) => s.handle(),)*
+            match argument_type {
+                Some(argument_type) => {
+                    quote! {
+                       impl HandleArgs<#argument_type> for #name {
+                            #[inline(always)]
+                            fn handle(&self, arg: &#argument_type) -> anyhow::Result<()> {
+                                match self {
+                                    #(#subcommands(s) => s.handle(arg),)*
+                                }
+                            }
+                        }
+                    }
+                }
+                None => {
+                    quote! {
+                        impl Handle for #name {
+                            #[inline(always)]
+                            fn handle_subcommand(&self) -> anyhow::Result<()> {
+                                match self {
+                                    #(#subcommands(s) => s.handle(),)*
+                                }
+                            }
                         }
                     }
                 }

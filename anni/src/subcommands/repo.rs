@@ -9,6 +9,7 @@ use std::path::{Path, PathBuf};
 use std::str::FromStr;
 use anni_flac::blocks::{UserComment, UserCommentExt};
 use crate::cli::{Handle, HandleArgs};
+use anni_derive::ClapHandler;
 
 #[derive(Clap, Debug)]
 #[clap(about = ll ! {"repo"})]
@@ -29,7 +30,8 @@ impl Handle for RepoSubcommand {
     }
 }
 
-#[derive(Clap, Debug)]
+#[derive(Clap, ClapHandler, Debug)]
+#[clap_handler(RepositoryManager)]
 pub enum RepoAction {
     #[clap(about = ll ! {"repo-add"})]
     Add(RepoAddAction),
@@ -41,18 +43,6 @@ pub enum RepoAction {
     Validate(RepoValidateAction),
     #[clap(about = ll ! {"repo-print"})]
     Print(RepoPrintAction),
-}
-
-impl HandleArgs<RepositoryManager> for RepoAction {
-    fn handle(&self, manager: &RepositoryManager) -> anyhow::Result<()> {
-        match self {
-            RepoAction::Add(add) => add.handle(manager),
-            RepoAction::Edit(edit) => edit.handle(manager),
-            RepoAction::Apply(apply) => apply.handle(manager),
-            RepoAction::Validate(validate) => validate.handle(manager),
-            RepoAction::Print(print) => print.handle(manager),
-        }
-    }
 }
 
 #[derive(Clap, Debug)]
