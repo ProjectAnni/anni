@@ -5,32 +5,19 @@ use clap::{Clap, ArgEnum};
 use crate::ll;
 use crate::cli::Handle;
 use crate::args::{InputPath, FlacInputFile};
+use anni_derive::ClapHandler;
 
-#[derive(Clap, Debug)]
+#[derive(Clap, ClapHandler, Debug)]
 #[clap(about = ll ! ("flac"))]
 pub struct FlacSubcommand {
     #[clap(subcommand)]
     action: FlacAction,
 }
 
-impl Handle for FlacSubcommand {
-    fn handle(&self) -> anyhow::Result<()> {
-        self.action.handle()
-    }
-}
-
-#[derive(Clap, Debug)]
+#[derive(Clap, ClapHandler, Debug)]
 pub enum FlacAction {
     #[clap(about = ll ! ("flac-export"))]
     Export(FlacExportAction)
-}
-
-impl Handle for FlacAction {
-    fn handle(&self) -> anyhow::Result<()> {
-        match self {
-            FlacAction::Export(a) => a.handle()
-        }
-    }
 }
 
 #[derive(Clap, Debug)]

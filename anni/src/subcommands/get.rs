@@ -1,36 +1,23 @@
-use clap::{Clap};
+use clap::Clap;
 
 use crate::ll;
 use anni_vgmdb::VGMClient;
 use futures::executor::block_on;
 use crate::cli::Handle;
+use anni_derive::ClapHandler;
 
-#[derive(Clap, Debug)]
+#[derive(Clap, ClapHandler, Debug)]
 #[clap(about = ll ! {"get"})]
 pub struct GetSubcommand {
     #[clap(subcommand)]
     action: GetAction,
 }
 
-impl Handle for GetSubcommand {
-    fn handle(&self) -> anyhow::Result<()> {
-        self.action.handle()
-    }
-}
-
-#[derive(Clap, Debug)]
+#[derive(Clap, ClapHandler, Debug)]
 pub enum GetAction {
     #[clap(name = "vgmdb", alias = "vgm")]
     #[clap(about = ll ! {"get-vgmdb"})]
     VGMdb(GetVGMdbAction),
-}
-
-impl Handle for GetAction {
-    fn handle(&self) -> anyhow::Result<()> {
-        match self {
-            GetAction::VGMdb(vgmdb) => vgmdb.handle(),
-        }
-    }
 }
 
 #[derive(Clap, Debug)]
