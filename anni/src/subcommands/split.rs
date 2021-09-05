@@ -339,6 +339,11 @@ struct CueTrack {
 
 fn cue_tracks<P: AsRef<Path>>(path: P) -> Vec<CueTrack> {
     let cue = anni_common::fs::read_to_string(path).unwrap();
+
+    // remove REM COMMENT
+    let rem_comment = regex::Regex::new(r#"(?m)^\s*REM COMMENT .+$"#).unwrap();
+    let cue = rem_comment.replace_all(&cue, "");
+
     let cue = Tracklist::parse(&cue).unwrap();
     let album = cue.info.get("TITLE").map(String::as_str).unwrap_or("");
     let artist = cue.info.get("ARTIST").map(String::as_str).unwrap_or("");
