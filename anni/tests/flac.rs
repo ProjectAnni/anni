@@ -13,8 +13,8 @@ DISCNUMBER=1
 DISCTOTAL=1
 "#;
 
-const FLAC_PATH: &str = "../assets/test.flac";
-const COVER_PATH: &str = "../assets/test.png";
+const FLAC_PATH: &str = "../assets/1s-full.flac";
+const COVER_PATH: &str = "../assets/1s-cover.png";
 
 #[test]
 fn flac_export_default() {
@@ -33,7 +33,7 @@ fn flac_export_tags() {
 
 #[test]
 fn flac_export_cover() {
-    let cmd = common::run(&["flac", "export", "-t=cover", FLAC_PATH]).output().unwrap();
+    let cmd = common::run(&["flac", "export", "-t=picture", FLAC_PATH]).output().unwrap();
 
     let mut file = File::open(COVER_PATH).expect("Failed to open cover.");
     let mut data = Vec::new();

@@ -158,7 +158,7 @@ impl Backend for FileBackend {
 
 #[tokio::test]
 async fn test_scan() {
-    let mut f = FileBackend::new(PathBuf::from("/home/yesterday17/音乐/"), false);
+    let mut f = FileBackend::new(PathBuf::from("/data/Music/"), false);
     let d = f.albums().await.unwrap();
     println!("{:#?}", d);
 
