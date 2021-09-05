@@ -5,7 +5,6 @@ use clap::{Clap, ArgEnum};
 use crate::ll;
 use crate::args::{InputPath, FlacInputFile};
 use anni_derive::ClapHandler;
-use anni_common::traits::Handle;
 
 #[derive(Clap, ClapHandler, Debug)]
 #[clap(about = ll ! ("flac"))]
@@ -20,7 +19,8 @@ pub enum FlacAction {
     Export(FlacExportAction)
 }
 
-#[derive(Clap, Debug)]
+#[derive(Clap, ClapHandler, Debug)]
+#[clap_handler(flac_export)]
 pub struct FlacExportAction {
     #[clap(arg_enum)]
     #[clap(short = 't', long = "type", default_value = "tag")]
@@ -42,16 +42,14 @@ pub struct FlacExportAction {
     filename: Vec<InputPath<FlacInputFile>>,
 }
 
-impl Handle for FlacExportAction {
-    fn handle(&self) -> anyhow::Result<()> {
-        for path in self.filename.iter() {
-            for file in path.iter() {
-                let stream = FlacHeader::from_file(file)?;
-                self.export(&stream)?;
-            }
+fn flac_export(me: &FlacExportAction) -> anyhow::Result<()> {
+    for path in me.filename.iter() {
+        for file in path.iter() {
+            let stream = FlacHeader::from_file(file)?;
+            me.export(&stream)?;
         }
-        Ok(())
     }
+    Ok(())
 }
 
 impl FlacExportAction {

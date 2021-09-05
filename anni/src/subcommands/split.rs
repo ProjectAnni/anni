@@ -9,15 +9,17 @@ use anni_common::fs;
 use anni_common::decode::{DecodeError, u16_le, u32_le, token};
 use anni_common::encode::{btoken_w, u16_le_w, u32_le_w};
 
-use anni_common::traits::{Decode, Encode, Handle};
+use anni_common::traits::{Decode, Encode};
+use anni_derive::ClapHandler;
 use anni_flac::{FlacHeader, MetadataBlock, MetadataBlockData};
 use anni_flac::blocks::{UserComment, UserCommentExt, BlockPicture, PictureType};
 use cue_sheet::tracklist::Tracklist;
 use crate::ll;
 use std::fmt::{Display, Formatter};
 
-#[derive(Clap, Debug)]
+#[derive(Clap, ClapHandler, Debug)]
 #[clap(about = ll ! ("split"))]
+#[clap_handler(handle_split)]
 pub struct SplitSubcommand {
     #[clap(arg_enum)]
     #[clap(short, long, default_value = "wav")]
@@ -63,27 +65,25 @@ impl Display for SplitFormat {
     }
 }
 
-impl Handle for SplitSubcommand {
-    fn handle(&self) -> anyhow::Result<()> {
-        // Validate encoder/decoder for input&output format exist
-        encoder_of(self.input_format)?;
-        encoder_of(self.output_format)?;
+fn handle_split(me: &SplitSubcommand) -> anyhow::Result<()> {
+    // Validate encoder/decoder for input&output format exist
+    encoder_of(me.input_format)?;
+    encoder_of(me.output_format)?;
 
-        let cue = fs::get_ext_file(self.directory.as_path(), "cue", false)?
-            .ok_or(anyhow!("Failed to find CUE sheet."))?;
-        let audio = fs::get_ext_file(self.directory.as_path(), self.input_format.as_str(), false)?
-            .ok_or(anyhow!("Failed to find audio file."))?;
+    let cue = fs::get_ext_file(me.directory.as_path(), "cue", false)?
+        .ok_or(anyhow!("Failed to find CUE sheet."))?;
+    let audio = fs::get_ext_file(me.directory.as_path(), me.input_format.as_str(), false)?
+        .ok_or(anyhow!("Failed to find audio file."))?;
 
-        // try to get cover
-        let cover = if self.import_cover { fs::get_ext_file(self.directory.as_path(), "jpg", false)? } else { None };
-        if self.import_cover && cover.is_none() {
-            warn!(target: "split", "Cover not found!");
-        }
-
-        SplitTask::new(audio, self.input_format, self.output_format)?
-            .split(cue, self.apply_tags, cover)?;
-        Ok(())
+    // try to get cover
+    let cover = if me.import_cover { fs::get_ext_file(me.directory.as_path(), "jpg", false)? } else { None };
+    if me.import_cover && cover.is_none() {
+        warn!(target: "split", "Cover not found!");
     }
+
+    SplitTask::new(audio, me.input_format, me.output_format)?
+        .split(cue, me.apply_tags, cover)?;
+    Ok(())
 }
 
 fn encoder_of(format: SplitFormat) -> anyhow::Result<PathBuf> {

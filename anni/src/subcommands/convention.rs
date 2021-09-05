@@ -3,7 +3,6 @@ use crate::ll;
 use std::path::{Path, PathBuf};
 use std::collections::{HashSet, HashMap};
 use anni_common::validator::*;
-use anni_common::traits::{Handle, HandleArgs};
 use serde::{Deserialize, Deserializer};
 use std::rc::Rc;
 use std::iter::FromIterator;
@@ -15,36 +14,36 @@ use anni_flac::blocks::{BlockVorbisComment, BlockStreamInfo, PictureType};
 use crate::args::{InputPath, FlacInputPath};
 use anni_derive::ClapHandler;
 
-#[derive(Clap, Debug)]
+#[derive(Clap, ClapHandler, Debug)]
 #[clap(about = ll ! ("convention"))]
 #[clap(alias = "conv")]
+#[clap_handler(handle_convention)]
+#[clap_handler_arg(ConventionRules)]
 pub struct ConventionSubcommand {
     #[clap(subcommand)]
     action: ConventionAction,
 }
 
-impl Handle for ConventionSubcommand {
-    fn handle(&self) -> anyhow::Result<()> {
-        // Initialize rules
-        let config: ConventionConfig = read_config("convention").map_err(|e| {
-            debug!(target: "convention", "Failed to read convention.toml: {}", e);
-            debug!(target: "convention", "Using default anni convention");
-            e
-        }).unwrap_or_default();
-        let rules = config.into_rules();
-
-        self.action.handle(&rules)
-    }
+fn handle_convention(_: &ConventionSubcommand) -> anyhow::Result<ConventionRules> {
+    // Initialize rules
+    let config: ConventionConfig = read_config("convention").map_err(|e| {
+        debug!(target: "convention", "Failed to read convention.toml: {}", e);
+        debug!(target: "convention", "Using default anni convention");
+        e
+    }).unwrap_or_default();
+    Ok(config.into_rules())
 }
 
 #[derive(Clap, ClapHandler, Debug)]
-#[clap_handler(ConventionRules)]
+#[clap_handler_arg(ConventionRules)]
 pub enum ConventionAction {
     #[clap(about = ll ! ("convention-check"))]
     Check(ConventionCheckAction),
 }
 
-#[derive(Clap, Debug)]
+#[derive(Clap, ClapHandler, Debug)]
+#[clap_handler(convention_check)]
+#[clap_handler_arg(ConventionRules)]
 pub struct ConventionCheckAction {
     #[clap(short, long)]
     #[clap(about = ll ! ("convention-check-fix"))]
@@ -54,23 +53,21 @@ pub struct ConventionCheckAction {
     filename: Vec<InputPath<FlacInputPath>>,
 }
 
-impl HandleArgs<ConventionRules> for ConventionCheckAction {
-    fn handle(&self, rules: &ConventionRules) -> anyhow::Result<()> {
-        info!(target: "anni", "Convention validation started...");
-        for input in &self.filename {
-            for file in input.iter() {
-                let flac = FlacHeader::from_file(file.as_path());
-                match flac {
-                    Ok(mut flac) => {
-                        rules.validate(file, &mut flac, self.fix);
-                    }
-                    Err(e) => error!(target: "convention/parse", "Failed to parse header of file {}: {:?}", file.to_string_lossy(), e),
+fn convention_check(me: &ConventionCheckAction, rules: &ConventionRules) -> anyhow::Result<()> {
+    info!(target: "anni", "Convention validation started...");
+    for input in &me.filename {
+        for file in input.iter() {
+            let flac = FlacHeader::from_file(file.as_path());
+            match flac {
+                Ok(mut flac) => {
+                    rules.validate(file, &mut flac, me.fix);
                 }
+                Err(e) => error!(target: "convention/parse", "Failed to parse header of file {}: {:?}", file.to_string_lossy(), e),
             }
         }
-        info!(target: "anni", "Convention validation finished.");
-        Ok(())
     }
+    info!(target: "anni", "Convention validation finished.");
+    Ok(())
 }
 
 struct ConventionRules {
