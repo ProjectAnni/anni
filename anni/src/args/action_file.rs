@@ -42,7 +42,7 @@ impl ActionFile {
     }
 }
 
-///
+/// FileReader to read data from custom file types
 pub enum FileReader {
     Stdin(Stdin),
     File(File),
@@ -57,6 +57,7 @@ impl FileReader {
     }
 }
 
+/// FileWriter to write data to custom file types
 pub enum FileWriter {
     Stdout(Stdout),
     File(File),
