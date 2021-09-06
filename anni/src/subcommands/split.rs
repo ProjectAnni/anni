@@ -47,6 +47,7 @@ pub enum SplitFormat {
     Wav,
     Flac,
     Ape,
+    Tak,
 }
 
 impl SplitFormat {
@@ -55,6 +56,7 @@ impl SplitFormat {
             SplitFormat::Wav => "wav",
             SplitFormat::Flac => "flac",
             SplitFormat::Ape => "ape",
+            SplitFormat::Tak => "tak",
         }
     }
 }
@@ -90,6 +92,7 @@ fn encoder_of(format: SplitFormat) -> anyhow::Result<PathBuf> {
     let encoder = match format {
         SplitFormat::Flac => "flac",
         SplitFormat::Ape => "mac",
+        SplitFormat::Tak => "takc",
         SplitFormat::Wav => return Ok(PathBuf::new()),
     };
     let path = which::which(encoder)?;
@@ -182,18 +185,20 @@ impl WaveHeader {
 }
 
 struct SplitTask {
+    input_format: SplitFormat,
     output_format: SplitFormat,
     input: FileProcess,
+    input_path: PathBuf,
 }
 
 impl SplitTask {
-    pub fn new(audio_path: PathBuf, input_format: SplitFormat, output_format: SplitFormat) -> anyhow::Result<Self> {
+    pub fn new(mut audio_path: PathBuf, input_format: SplitFormat, output_format: SplitFormat) -> anyhow::Result<Self> {
         let input = match input_format {
-            SplitFormat::Wav => FileProcess::File(File::open(audio_path)?),
+            SplitFormat::Wav => FileProcess::File(File::open(audio_path.as_path())?),
             SplitFormat::Flac => {
                 let process = Command::new(encoder_of(input_format).unwrap())
                     .args(&["-c", "-d"])
-                    .arg(audio_path.into_os_string())
+                    .arg(audio_path.as_os_str())
                     .stdout(Stdio::piped())
                     .stderr(Stdio::null()) // ignore flac log output
                     .spawn()?;
@@ -201,14 +206,31 @@ impl SplitTask {
             }
             SplitFormat::Ape => {
                 let process = Command::new(encoder_of(input_format).unwrap())
-                    .arg(audio_path.into_os_string())
+                    .arg(audio_path.as_os_str())
                     .args(&["-", "-d"])
                     .stdout(Stdio::piped())
                     .spawn()?;
                 FileProcess::Process(process)
             }
+            SplitFormat::Tak => {
+                // rename audio first so that takc can identify the filename
+                let new_audio_path = audio_path.with_file_name("anni-decode-tmp.tak");
+                if audio_path != new_audio_path && !new_audio_path.exists() {
+                    debug!(target: "split", "Renaming tak file to anni-decode-tmp.tak for decoding...");
+                    fs::rename(audio_path, &new_audio_path)?;
+                    audio_path = new_audio_path
+                }
+
+                let process = Command::new(encoder_of(input_format).unwrap())
+                    .arg("-d")
+                    .arg(audio_path.as_os_str())
+                    .arg("-")
+                    .stdout(Stdio::piped())
+                    .spawn()?;
+                FileProcess::Process(process)
+            }
         };
-        Ok(Self { output_format, input })
+        Ok(Self { input_format, output_format, input, input_path: audio_path })
     }
 
     pub fn split<P: AsRef<Path>>(&mut self, cue_path: P, write_tags: bool, cover: Option<PathBuf>) -> anyhow::Result<()> {
@@ -302,6 +324,8 @@ impl SplitTask {
             }
             Ok(())
         })?;
+
+        // TODO: remove input file
 
         info!(target: "split", "Finished!");
         Ok(())
