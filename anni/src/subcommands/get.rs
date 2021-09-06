@@ -22,18 +22,18 @@ pub enum GetAction {
 #[derive(Clap, ClapHandler, Debug)]
 #[clap_handler(get_vgmdb)]
 pub struct GetVGMdbAction {
+    #[clap(short = 'H', long = "host", default_value = "https://vgmdb.info/")]
+    #[clap(about = ll ! {"vgmdb-api-host"})]
+    api_host: String,
+
     #[clap(short, long)]
-    #[clap(about = ll ! ("get-vgmdb-catalog"))]
+    #[clap(about = ll ! {"get-vgmdb-catalog"})]
     catalog: String,
 }
 
 fn get_vgmdb(me: &GetVGMdbAction) -> anyhow::Result<()> {
-    vgmdb_search(me.catalog.as_str())
-}
-
-fn vgmdb_search(catalog: &str) -> anyhow::Result<()> {
-    let client = VGMClient::new();
-    let album = block_on(client.album(catalog))?;
+    let client = VGMClient::new(me.api_host.clone());
+    let album = block_on(client.album(&me.catalog))?;
     println!("[album]");
     println!(r#"title = "{}""#, album.name());
     println!(r#"artist = """#);
