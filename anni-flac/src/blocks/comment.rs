@@ -41,8 +41,14 @@ impl BlockVorbisComment {
         self.comments.push(comment);
     }
 
+    #[inline]
     pub fn len(&self) -> usize {
         self.comments.len()
+    }
+
+    #[inline]
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
     }
 
     pub fn clear(&mut self) {
@@ -53,7 +59,7 @@ impl BlockVorbisComment {
         let mut map: HashMap<_, _> = Default::default();
         for comment in self.comments.iter() {
             // NOT override only when key exists AND comment.value is EMPTY.
-            if !(map.contains_key(&comment.key()) && comment.value().len() == 0) {
+            if !(map.contains_key(&comment.key()) && comment.value().is_empty()) {
                 map.insert(comment.key(), comment);
             }
         }

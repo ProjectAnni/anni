@@ -29,7 +29,7 @@ impl AnniArtist {
     }
 
     pub fn to_artist_list(&self) -> ArtistList {
-        let (list, _) = ArtistList::from_str(&self.inner);
+        let (list, _) = ArtistList::from_artist_str(&self.inner);
         list
     }
 }
@@ -53,13 +53,13 @@ pub struct Artist<'a> {
 
 // TODO: replace with TryFrom/TryInto
 impl<'a> Artist<'a> {
-    pub fn from_str(input: &'a str) -> (Self, &str) {
+    pub fn from_artist_str(input: &'a str) -> (Self, &str) {
         for (offset, ch) in input.char_indices() {
             match Symbol::from(ch) {
                 Symbol::Normal => {}
                 Symbol::LBracket => {
                     // look for ArtistList
-                    let (alias, remaining) = ArtistList::from_str(&input[(offset + '（'.len_utf8())..]);
+                    let (alias, remaining) = ArtistList::from_artist_str(&input[(offset + '（'.len_utf8())..]);
                     let (name, _) = input.split_at(offset);
                     return (Self { name, alias: Some(alias) }, remaining);
                 }
@@ -98,17 +98,13 @@ pub struct ArtistList<'a> {
 impl<'a> ArtistList<'a> {
     /// Parse input to ArtistList
     /// Return the list and the remaining &str
-    pub fn from_str(mut input: &'a str) -> (Self, &str) {
+    pub fn from_artist_str(mut input: &'a str) -> (Self, &str) {
         let mut artists = Vec::new();
         let mut chars = input.char_indices();
-        loop {
-            let (offset, ch) = match chars.next() {
-                Some(r) => r,
-                None => break,
-            };
+        while let Some((offset, ch)) = chars.next() {
             match Symbol::from(ch) {
                 Symbol::Normal => {
-                    let (artist, remaining) = Artist::from_str(&input[offset..]);
+                    let (artist, remaining) = Artist::from_artist_str(&input[offset..]);
                     artists.push(artist);
                     input = remaining;
                     chars = remaining.char_indices();
@@ -130,8 +126,8 @@ impl<'a> ArtistList<'a> {
 
 impl Display for ArtistList<'_> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        assert!(self.artists.len() > 0);
-        let mut iter = (&self).artists.iter();
+        assert!(!self.artists.is_empty());
+        let mut iter = self.artists.iter();
         iter.next().unwrap().fmt(f)?;
         for a in iter {
             f.write_str("、")?;
@@ -268,27 +264,27 @@ mod tests {
 
     #[test]
     fn valid_artist_list() {
-        assert_eq!(true, ArtistList::is_valid("水瀬いのり"));
-        assert_eq!(true, ArtistList::is_valid("ArtistA（MemberB、MemberC）"));
-        assert_eq!(true, ArtistList::is_valid("ArtistA（MemberB、MemberC、SubArtistD（MemberE、MemberF））"));
-        assert_eq!(true, ArtistList::is_valid("ArtistA（MemberB、MemberC、SubArtistD（MemberE、MemberF））、ArtistG"));
+        assert!(ArtistList::is_valid("水瀬いのり"));
+        assert!(ArtistList::is_valid("ArtistA（MemberB、MemberC）"));
+        assert!(ArtistList::is_valid("ArtistA（MemberB、MemberC、SubArtistD（MemberE、MemberF））"));
+        assert!(ArtistList::is_valid("ArtistA（MemberB、MemberC、SubArtistD（MemberE、MemberF））、ArtistG"));
     }
 
     #[test]
     fn invalid_artist_list() {
-        assert_eq!(false, ArtistList::is_valid("水瀬いのり、"));
-        assert_eq!(false, ArtistList::is_valid("、水瀬いのり"));
-        assert_eq!(false, ArtistList::is_valid("水瀬いのり（"));
-        assert_eq!(false, ArtistList::is_valid("水瀬いのり）"));
-        assert_eq!(false, ArtistList::is_valid("水瀬いのり））"));
-        assert_eq!(false, ArtistList::is_valid("（水瀬いのり"));
-        assert_eq!(false, ArtistList::is_valid("水瀬いのり（）"));
-        assert_eq!(false, ArtistList::is_valid("ArtistA（MemberB、MemberC、）"));
-        assert_eq!(false, ArtistList::is_valid("ArtistA（MemberB、MemberC）ArtistB"));
-        assert_eq!(false, ArtistList::is_valid("ArtistA（MemberB、MemberC"));
-        assert_eq!(false, ArtistList::is_valid("ArtistA（MemberB、MemberC））"));
-        assert_eq!(false, ArtistList::is_valid("ArtistA（SubArtistD（MemberE、MemberF）"));
-        assert_eq!(false, ArtistList::is_valid("ArtistA（SubArtistD（MemberE、MemberF）））"));
+        assert!(!ArtistList::is_valid("水瀬いのり、"));
+        assert!(!ArtistList::is_valid("、水瀬いのり"));
+        assert!(!ArtistList::is_valid("水瀬いのり（"));
+        assert!(!ArtistList::is_valid("水瀬いのり）"));
+        assert!(!ArtistList::is_valid("水瀬いのり））"));
+        assert!(!ArtistList::is_valid("（水瀬いのり"));
+        assert!(!ArtistList::is_valid("水瀬いのり（）"));
+        assert!(!ArtistList::is_valid("ArtistA（MemberB、MemberC、）"));
+        assert!(!ArtistList::is_valid("ArtistA（MemberB、MemberC）ArtistB"));
+        assert!(!ArtistList::is_valid("ArtistA（MemberB、MemberC"));
+        assert!(!ArtistList::is_valid("ArtistA（MemberB、MemberC））"));
+        assert!(!ArtistList::is_valid("ArtistA（SubArtistD（MemberE、MemberF）"));
+        assert!(!ArtistList::is_valid("ArtistA（SubArtistD（MemberE、MemberF）））"));
     }
 
     #[test]

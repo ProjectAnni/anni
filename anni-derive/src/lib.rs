@@ -218,7 +218,7 @@ pub fn derive_clap_handler(item: TokenStream) -> TokenStream {
         }
         Data::Enum(DataEnum { variants, .. }) => {
             // panic if handler_func exists
-            if let Some(_) = handler_func {
+            if handler_func.is_some() {
                 panic!("clap_handler is not available on enums");
             }
 

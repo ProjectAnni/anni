@@ -9,7 +9,7 @@ lazy_static::lazy_static! {
 
 fn init_config() -> PathBuf {
     let config = std::env::var("ANNI_ROOT")
-        .map(|cfg| PathBuf::from(cfg))
+        .map(PathBuf::from)
         .unwrap_or({
             let dir = ProjectDirs::from("moe", "mmf", "anni").expect("Failed to get project dirs.");
             dir.config_dir().to_path_buf()

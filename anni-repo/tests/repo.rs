@@ -34,7 +34,7 @@ fn deserialize_repo_toml() {
 
     match repo.cover() {
         Some(cover) => {
-            assert_eq!(cover.enable, true);
+            assert!(cover.enable);
             assert_eq!(cover.root(), Some("//example-cover-root/"));
         }
         None => unreachable!(),
@@ -42,7 +42,7 @@ fn deserialize_repo_toml() {
 
     match repo.lyric() {
         Some(lyric) => {
-            assert_eq!(lyric.enable, true);
+            assert!(lyric.enable);
             assert_eq!(lyric.root(), Some("//example-lyric-root/"));
         }
         None => unreachable!(),

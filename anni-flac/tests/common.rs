@@ -106,17 +106,14 @@ fn test_audio_tags() {
                 assert_eq!(i, 3);
                 // assert_eq!(block.is_last, false);
                 // assert_eq!(block.length, 2006);
-                assert_eq!(match picture.picture_type {
-                    PictureType::CoverFront => true,
-                    _ => false,
-                }, true);
+                assert!(matches!(picture.picture_type, PictureType::CoverFront));
                 assert_eq!(picture.mime_type, "image/png");
                 assert_eq!(picture.description, "");
                 assert_eq!(picture.width, 640);
                 assert_eq!(picture.height, 480);
                 assert_eq!(picture.depth, 24);
                 assert_eq!(picture.colors, 0);
-                assert_eq!(picture.color_indexed(), false);
+                assert!(!picture.color_indexed());
                 assert_eq!(picture.data.len(), 1965);
 
                 let mut file = File::open("../assets/1s-cover.png").expect("Failed to open cover file.");

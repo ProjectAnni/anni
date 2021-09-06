@@ -63,7 +63,7 @@ pub struct DriveBackendSettings {
 
 pub struct DriveBackend {
     /// Google Drive API Hub
-    hub: DriveHub,
+    hub: Box<DriveHub>,
     /// HashMap mapping Catalog and folder_id
     folders: HashMap<String, String>,
     /// Settings
@@ -79,7 +79,7 @@ impl DriveBackend {
         ]).await?;
         let hub = DriveHub::new(hyper::Client::builder().build(hyper_rustls::HttpsConnector::with_native_roots()), auth);
         Ok(Self {
-            hub,
+            hub: Box::new(hub),
             folders: Default::default(),
             settings,
         })
@@ -130,11 +130,8 @@ impl Backend for DriveBackend {
                         }
                     }
                     Err(_) => {
-                        match disc_info(&name) {
-                            Ok((catalog, ..)) => {
-                                self.folders.insert(catalog, file.id.unwrap());
-                            }
-                            Err(_) => {}
+                        if let Ok((catalog, ..)) = disc_info(&name) {
+                            self.folders.insert(catalog, file.id.unwrap());
                         }
                     }
                 };
@@ -206,6 +203,7 @@ mod test {
 
     #[tokio::test]
     async fn test_oauth() {
+        panic!("oauth test can not run properly!");
         let mut drive = DriveBackend::new(Default::default(), DriveBackendSettings {
             corpora: "drive".to_string(),
             drive_id: Some("0AJIJiIDxF1yBUk9PVA".to_string()),

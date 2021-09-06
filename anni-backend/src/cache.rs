@@ -191,8 +191,9 @@ impl Drop for CacheItem {
         // a. file not fully cached and program reaches program termination
         // b. manually set cached to false
         if !self.cached() {
-            // TODO: handle error here?
-            std::fs::remove_file(&self.path);
+            if let Err(e) = std::fs::remove_file(&self.path) {
+                log::error!("Failed to drop CacheItem: {}", e);
+            }
         }
     }
 }
@@ -272,6 +273,8 @@ mod test {
 
     #[tokio::test]
     async fn test_cache() {
+        panic!("cache test can not run properly!");
+
         let mut cache = Cache::new(
             Box::new(DriveBackend::new(Default::default(), DriveBackendSettings {
                 corpora: "drive".to_string(),

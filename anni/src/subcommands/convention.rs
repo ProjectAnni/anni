@@ -5,7 +5,6 @@ use std::collections::{HashSet, HashMap};
 use anni_common::validator::*;
 use serde::{Deserialize, Deserializer};
 use std::rc::Rc;
-use std::iter::FromIterator;
 use std::str::FromStr;
 use serde::de::Error;
 use crate::config::read_config;
@@ -124,18 +123,18 @@ impl ConventionRules {
     fn validate_stream_info<P>(&self, filename: P, info: &BlockStreamInfo)
         where P: AsRef<Path> {
         let filename = filename.as_ref().to_string_lossy();
-        self.stream_info.sample_rate.map(|expected| {
-            if info.sample_rate != expected {
+        self.stream_info.sample_rate.iter().for_each(|expected| {
+            if info.sample_rate != *expected {
                 error!(target: "convention/sample-rate", "Stream sample-rate mismatch in file {}: expected {}, got {}", filename, expected, info.sample_rate);
             }
         });
-        self.stream_info.bit_per_sample.map(|expected| {
-            if info.bits_per_sample != expected {
+        self.stream_info.bit_per_sample.iter().for_each(|expected| {
+            if info.bits_per_sample != *expected {
                 error!(target: "convention/bit-per-sample", "Stream bit-per-sample mismatch in file {}: expected {}, got {}", filename, expected, info.bits_per_sample);
             }
         });
-        self.stream_info.channels.map(|expected| {
-            if info.channels != expected {
+        self.stream_info.channels.iter().for_each(|expected| {
+            if info.channels != *expected {
                 error!(target: "convention/channel-num", "Stream channel num mismatch in file {}: expected {}, got {}", filename, expected, info.channels);
             }
         });
@@ -285,10 +284,10 @@ impl Default for ConventionConfig {
     fn default() -> Self {
         Self {
             stream_info: Default::default(),
-            types: HashMap::from_iter(vec![
+            types: vec![
                 ("string".to_string(), vec![Validator::from_str("trim").unwrap(), Validator::from_str("dot").unwrap()]),
                 ("number".to_string(), vec![Validator::from_str("number").unwrap()]),
-            ].into_iter()),
+            ].into_iter().collect(),
             tags: ConventionTagConfig {
                 required: vec![
                     ConventionTag {
@@ -323,7 +322,7 @@ impl Default for ConventionConfig {
                     },
                     ConventionTag {
                         name: "TRACKTOTAL".to_string(),
-                        alias: HashSet::from_iter(vec!["TOTALTRACKS".to_string()].into_iter()),
+                        alias: vec!["TOTALTRACKS".to_string()].into_iter().collect(),
                         value_type: ValueType::Number,
                         validators: Default::default(),
                     },
@@ -337,7 +336,7 @@ impl Default for ConventionConfig {
                     },
                     ConventionTag {
                         name: "DISCTOTAL".to_string(),
-                        alias: HashSet::from_iter(vec!["TOTALDISCS".to_string()].into_iter()),
+                        alias: vec!["TOTALDISCS".to_string()].into_iter().collect(),
                         value_type: ValueType::Number,
                         validators: Default::default(),
                     },

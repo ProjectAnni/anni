@@ -55,12 +55,12 @@ fn flac_export(me: &FlacExportAction) -> anyhow::Result<()> {
 impl FlacExportAction {
     fn export(&self, stream: &FlacHeader) -> anyhow::Result<()> {
         match self.export_type {
-            FlacExportType::Info => self.export_inner(&stream, "STREAMINFO"),
-            FlacExportType::Application => self.export_inner(&stream, "APPLICATION"),
-            FlacExportType::Seektable => self.export_inner(&stream, "SEEKTABLE"),
-            FlacExportType::Cue => self.export_inner(&stream, "CUESHEET"),
-            FlacExportType::Comment => self.export_inner(&stream, "VORBIS_COMMENT"),
-            FlacExportType::Picture => self.export_inner(&stream, "PICTURE"),
+            FlacExportType::Info => self.export_inner(stream, "STREAMINFO"),
+            FlacExportType::Application => self.export_inner(stream, "APPLICATION"),
+            FlacExportType::Seektable => self.export_inner(stream, "SEEKTABLE"),
+            FlacExportType::Cue => self.export_inner(stream, "CUESHEET"),
+            FlacExportType::Comment => self.export_inner(stream, "VORBIS_COMMENT"),
+            FlacExportType::Picture => self.export_inner(stream, "PICTURE"),
             FlacExportType::List => {
                 for (i, block) in stream.blocks.iter().enumerate() {
                     let mut out = self.output.to_writer()?;

@@ -24,10 +24,6 @@ impl<T> InheritableValue<T> {
         InheritableValue::Inherited(Some(value))
     }
 
-    pub fn new() -> Self {
-        InheritableValue::Inherited(None)
-    }
-
     pub fn get(&self) -> Rc<T> {
         match self {
             InheritableValue::Owned(me) => me.clone(),
@@ -45,10 +41,15 @@ impl<T> InheritableValue<T> {
     }
 
     pub fn reset(&mut self) {
-        match self {
-            InheritableValue::Inherited(Some(_)) => *self = InheritableValue::new(),
-            _ => {}
+        if let InheritableValue::Inherited(Some(_)) = self {
+            *self = Default::default();
         }
+    }
+}
+
+impl<T> Default for InheritableValue<T> {
+    fn default() -> Self {
+        InheritableValue::Inherited(None)
     }
 }
 
@@ -143,7 +144,7 @@ impl<T> From<Option<T>> for InheritableValue<T> {
     fn from(v: Option<T>) -> Self {
         match v {
             Some(v) => InheritableValue::own(v),
-            None => InheritableValue::new(),
+            None => Default::default(),
         }
     }
 }

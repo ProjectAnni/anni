@@ -32,20 +32,18 @@ impl Iterator for PathWalker {
 
 impl PathWalker {
     fn extract_path(&mut self) {
-        if self.recursive {
-            for path in self.path.iter() {
-                let mut dir: Vec<_> = read_dir(path).unwrap().map(|r| r.unwrap()).collect();
-                dir.sort_by_key(|e| e.path());
-                for entry in dir.iter() {
-                    if is_dir(entry.path()).unwrap() {
-                        self.path.push(entry.path());
-                    } else {
-                        self.files.push(entry.path());
-                    }
+        if self.recursive && !self.path.is_empty() {
+            let path = self.path.get(0).unwrap();
+            let mut dir: Vec<_> = read_dir(path).unwrap().map(|r| r.unwrap()).collect();
+            dir.sort_by_key(|e| e.path());
+            for entry in dir.iter() {
+                if is_dir(entry.path()).unwrap() {
+                    self.path.push(entry.path());
+                } else {
+                    self.files.push(entry.path());
                 }
-                self.path.remove(0);
-                break;
             }
+            self.path.remove(0);
         }
     }
 
@@ -110,7 +108,7 @@ pub fn get_ext_files<P: AsRef<Path>, T: AsRef<str>>(dir: P, ext: T, recursive: b
     let mut result = Vec::new();
     if is_dir(dir.as_ref())? {
         for file in PathWalker::new(dir.as_ref(), recursive) {
-            let file_ext = file.extension().unwrap_or("".as_ref()).to_str().unwrap_or("");
+            let file_ext = file.extension().unwrap_or_default().to_str().unwrap_or_default();
             if file_ext == ext.as_ref() {
                 result.push(file);
             }
@@ -126,7 +124,7 @@ pub fn get_ext_files<P: AsRef<Path>, T: AsRef<str>>(dir: P, ext: T, recursive: b
 pub fn get_ext_file<P: AsRef<Path>, T: AsRef<str>>(dir: P, ext: T, recursive: bool) -> io::Result<Option<PathBuf>> {
     if is_dir(dir.as_ref())? {
         for file in PathWalker::new(dir.as_ref(), recursive) {
-            let file_ext = file.extension().unwrap_or("".as_ref()).to_str().unwrap_or("");
+            let file_ext = file.extension().unwrap_or_default().to_str().unwrap_or_default();
             if file_ext == ext.as_ref() {
                 return Ok(Some(file));
             }

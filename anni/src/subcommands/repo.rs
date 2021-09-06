@@ -72,7 +72,7 @@ fn repo_add(me: &RepoAddAction, manager: &RepositoryManager) -> anyhow::Result<(
         let directories = fs::get_subdirectories(to_add)?;
         let mut directories: Vec<_> = directories.iter().map(|r| r.as_path()).collect();
         if discs == 1 {
-            directories.push(&to_add);
+            directories.push(to_add);
         }
         if discs != directories.len() {
             bail!("Subdirectory count != disc number!")

@@ -57,38 +57,26 @@ fn auth_share(jwt: &str, key: &HS256Key) -> Option<JWTClaims<SharePayload>> {
 }
 
 fn auth_header(req: &HttpRequest) -> Option<&str> {
-    let header = req.headers()
+    let header: &str = req.headers()
         .get("Authorization")?
         .to_str().ok()?;
-    if header.starts_with("Bearer ") {
-        Some(&header[7..])
-    } else {
-        Some(header)
-    }
+    Some(header.strip_prefix("Bearer ").unwrap_or(header))
 }
 
 pub(crate) async fn auth_user_or_share(req: &HttpRequest, key: &HS256Key) -> Option<AnnilClaims> {
     let header = auth_header(req)?;
     if let Some(user) = auth_user(header, key) {
-        if user.issued_at.is_none() {
-            return None;
-        }
-        return Some(AnnilClaims::User(user.custom));
+        return user.issued_at.map(|_| AnnilClaims::User(user.custom));
     }
+
     let share = auth_share(header, key)?;
-    if share.issued_at.is_none() {
-        return None;
-    }
-    Some(AnnilClaims::Share(share.custom))
+    share.issued_at.map(|_| AnnilClaims::Share(share.custom))
 }
 
 pub(crate) async fn auth_user_can_share(req: &HttpRequest, key: &HS256Key) -> Option<UserClaim> {
     let header = auth_header(req)?;
     let user = auth_user(header, key)?;
-    if user.issued_at.is_none() {
-        return None;
-    }
-    Some(user.custom)
+    user.issued_at.map(|_| user.custom)
 }
 
 #[test]

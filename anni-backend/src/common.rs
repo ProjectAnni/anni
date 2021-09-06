@@ -46,19 +46,19 @@ impl AnniBackend {
         }
     }
 
-    pub fn as_backend(&self) -> Box<&dyn Backend> {
+    pub fn as_backend(&self) -> &dyn Backend {
         match self {
-            AnniBackend::File(b) => Box::new(b),
-            AnniBackend::Drive(b) => Box::new(b),
-            AnniBackend::Cache(b) => Box::new(b),
+            AnniBackend::File(b) => b,
+            AnniBackend::Drive(b) => b,
+            AnniBackend::Cache(b) => b,
         }
     }
 
-    pub fn as_backend_mut(&mut self) -> Box<&mut dyn Backend> {
+    pub fn as_backend_mut(&mut self) -> &mut dyn Backend {
         match self {
-            AnniBackend::File(b) => Box::new(b),
-            AnniBackend::Drive(b) => Box::new(b),
-            AnniBackend::Cache(b) => Box::new(b),
+            AnniBackend::File(b) => b,
+            AnniBackend::Drive(b) => b,
+            AnniBackend::Cache(b) => b,
         }
     }
 }

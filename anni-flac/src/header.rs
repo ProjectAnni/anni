@@ -49,7 +49,7 @@ impl FlacHeader {
     }
 
     pub fn stream_info(&self) -> &BlockStreamInfo {
-        let block = self.blocks.iter().nth(0).unwrap();
+        let block = self.blocks.get(0).unwrap();
         match &block.data {
             MetadataBlockData::StreamInfo(i) => i,
             _ => panic!("First block is not stream info!"),
@@ -361,6 +361,7 @@ impl MetadataBlockData {
         }
     }
 
+    #[allow(clippy::len_without_is_empty)]
     pub fn len(&self) -> usize {
         match self {
             MetadataBlockData::StreamInfo(_) => 34,

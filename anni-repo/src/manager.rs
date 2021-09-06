@@ -15,7 +15,7 @@ impl RepositoryManager {
         let repo = root.as_ref().join("repo.toml");
         Ok(Self {
             root: root.as_ref().to_owned(),
-            repo: Repository::from_file(repo).map_err(|e| crate::Error::RepoInitError(e))?,
+            repo: Repository::from_file(repo).map_err(crate::Error::RepoInitError)?,
         })
     }
 
@@ -39,13 +39,13 @@ impl RepositoryManager {
     }
 
     pub fn add_album(&self, catalog: &str, album: Album) -> Result<()> {
-        let file = self.with_album(&catalog);
+        let file = self.with_album(catalog);
         fs::write(&file, album.to_string())?;
         Ok(())
     }
 
     pub fn edit_album(&self, catalog: &str) -> Result<()> {
-        let file = self.with_album(&catalog);
+        let file = self.with_album(catalog);
         edit::edit_file(&file)?;
         Ok(())
     }

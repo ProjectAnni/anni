@@ -139,7 +139,7 @@ impl Backend for FileBackend {
             {
                 let path = entry.path();
                 return Ok(BackendReaderExt {
-                    extension: path.extension().map(|s| s.to_string_lossy().to_string()).unwrap_or(String::new()),
+                    extension: path.extension().map(|s| s.to_string_lossy().to_string()).unwrap_or_default(),
                     size: entry.metadata().await?.len() as usize,
                     reader: Box::pin(File::open(&path).await?),
                 });
@@ -159,6 +159,6 @@ impl Backend for FileBackend {
 #[tokio::test]
 async fn test_scan() {
     let mut f = FileBackend::new(PathBuf::from("/data/Music/"), false);
-    let d = f.albums().await.unwrap();
+    let _ = f.albums().await.unwrap();
     let _audio = f.get_audio("LACM-14986", 2).await.unwrap();
 }

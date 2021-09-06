@@ -82,7 +82,7 @@ pub fn date_validator(str: &str) -> bool {
         }
         mode += 1;
     }
-    return mode == 10;
+    mode == 10
 }
 
 pub fn artist_validator(str: &str) -> bool {
@@ -108,48 +108,48 @@ mod tests {
 
     #[test]
     fn trim_exist() {
-        assert_eq!(false, trim_validator("  1234"));
-        assert_eq!(false, trim_validator("1234   "));
-        assert_eq!(false, trim_validator("\n1234"));
+        assert!(!trim_validator("  1234"));
+        assert!(!trim_validator("1234   "));
+        assert!(!trim_validator("\n1234"));
     }
 
     #[test]
     fn trim_not_exist() {
-        assert_eq!(true, trim_validator("1234"));
+        assert!(trim_validator("1234"));
     }
 
     #[test]
     fn date_valid() {
-        assert_eq!(true, date_validator("2021-01-01"));
+        assert!(date_validator("2021-01-01"));
     }
 
     #[test]
     fn date_invalid() {
-        assert_eq!(false, date_validator("2020-01-012"));
-        assert_eq!(false, date_validator("2020~01-01"));
-        assert_eq!(false, date_validator("2020"));
-        assert_eq!(false, date_validator("?"));
+        assert!(!date_validator("2020-01-012"));
+        assert!(!date_validator("2020~01-01"));
+        assert!(!date_validator("2020"));
+        assert!(!date_validator("?"));
     }
 
     #[test]
     fn middle_dot_detect() {
-        assert_eq!(true, middle_dot_validator("123"));
+        assert!(middle_dot_validator("123"));
 
-        assert_eq!(false, middle_dot_validator("\u{0087}"));
-        assert_eq!(false, middle_dot_validator("\u{0087}"));
-        assert_eq!(false, middle_dot_validator("\u{0387}"));
-        assert_eq!(false, middle_dot_validator("\u{16eb}"));
-        assert_eq!(false, middle_dot_validator("\u{2022}"));
-        assert_eq!(false, middle_dot_validator("\u{2027}"));
-        assert_eq!(false, middle_dot_validator("\u{2218}"));
-        assert_eq!(false, middle_dot_validator("\u{2219}"));
-        assert_eq!(false, middle_dot_validator("\u{22c5}"));
-        assert_eq!(false, middle_dot_validator("\u{25e6}"));
-        assert_eq!(false, middle_dot_validator("\u{2981}"));
-        assert_eq!(false, middle_dot_validator("\u{2e30}"));
-        assert_eq!(false, middle_dot_validator("\u{2e31}"));
-        assert_eq!(false, middle_dot_validator("\u{ff65}"));
-        assert_eq!(false, middle_dot_validator("\u{10101}"));
+        assert!(!middle_dot_validator("\u{0087}"));
+        assert!(!middle_dot_validator("\u{0087}"));
+        assert!(!middle_dot_validator("\u{0387}"));
+        assert!(!middle_dot_validator("\u{16eb}"));
+        assert!(!middle_dot_validator("\u{2022}"));
+        assert!(!middle_dot_validator("\u{2027}"));
+        assert!(!middle_dot_validator("\u{2218}"));
+        assert!(!middle_dot_validator("\u{2219}"));
+        assert!(!middle_dot_validator("\u{22c5}"));
+        assert!(!middle_dot_validator("\u{25e6}"));
+        assert!(!middle_dot_validator("\u{2981}"));
+        assert!(!middle_dot_validator("\u{2e30}"));
+        assert!(!middle_dot_validator("\u{2e31}"));
+        assert!(!middle_dot_validator("\u{ff65}"));
+        assert!(!middle_dot_validator("\u{10101}"));
     }
 
     #[test]

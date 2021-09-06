@@ -7,8 +7,8 @@ use anni_common::decode::{DecodeError, raw_to_string};
 fn take_token() {
     let arr = b"fLaC|2333|114515";
     let mut cursor = Cursor::new(arr);
-    assert_eq!(decode::token(&mut cursor, b"fLaC").unwrap(), ());
-    assert_eq!(decode::token(&mut cursor, b"|2333|").unwrap(), ());
+    assert!(decode::token(&mut cursor, b"fLaC").is_ok());
+    assert!(decode::token(&mut cursor, b"|2333|").is_ok());
     assert_eq!(decode::token(&mut cursor, b"114514").map_err(
         |e| match e {
             DecodeError::InvalidTokenError { expected, got } => {

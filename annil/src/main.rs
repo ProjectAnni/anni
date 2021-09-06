@@ -128,7 +128,7 @@ async fn init_state(config: &Config) -> anyhow::Result<web::Data<AppState>> {
 #[actix_web::main]
 async fn main() -> anyhow::Result<()> {
     env_logger::init();
-    let config = Config::from_file(std::env::args().nth(1).unwrap_or("config.toml".to_owned()))?;
+    let config = Config::from_file(std::env::args().nth(1).unwrap_or_else(|| "config.toml".to_owned()))?;
     let state = init_state(&config).await?;
 
     HttpServer::new(move || {

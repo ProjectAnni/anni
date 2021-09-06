@@ -62,7 +62,7 @@ impl Encode for BlockCueSheet {
         writer.write_all(&vec![0u8; padding])?;
         writer.write_u64::<BigEndian>(self.leadin_samples)?;
         writer.write_u8(if self.is_cd { 0b10000000 } else { 0 })?;
-        writer.write_all(&vec![0u8; 258])?;
+        writer.write_all(&[0; 258])?;
 
         writer.write_u8(self.track_number)?;
         for track in self.tracks.iter() {
@@ -163,7 +163,7 @@ impl Encode for CueSheetTrack {
 
         let b = if self.is_audio { 0b10000000 } else { 0 } + if self.is_pre_emphasis { 0b01000000 } else { 0 };
         writer.write_u8(b)?;
-        writer.write_all(&vec![0; 13])?;
+        writer.write_all(&[0; 13])?;
 
         writer.write_u8(self.index_point_number)?;
         for index in self.track_index.iter() {
@@ -200,7 +200,7 @@ impl Encode for CueSheetTrackIndex {
     fn write_to<W: Write>(&self, writer: &mut W) -> Result<()> {
         writer.write_u64::<BigEndian>(self.sample_offset)?;
         writer.write_u8(self.index_point)?;
-        writer.write_all(&vec![0; 3])?;
+        writer.write_all(&[0; 3])?;
         Ok(())
     }
 }

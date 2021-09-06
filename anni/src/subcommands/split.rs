@@ -71,9 +71,9 @@ fn handle_split(me: &SplitSubcommand) -> anyhow::Result<()> {
     encoder_of(me.output_format)?;
 
     let cue = fs::get_ext_file(me.directory.as_path(), "cue", false)?
-        .ok_or(anyhow!("Failed to find CUE sheet."))?;
+        .ok_or_else(|| anyhow!("Failed to find CUE sheet."))?;
     let audio = fs::get_ext_file(me.directory.as_path(), me.input_format.as_str(), false)?
-        .ok_or(anyhow!("Failed to find audio file."))?;
+        .ok_or_else(|| anyhow!("Failed to find audio file."))?;
 
     // try to get cover
     let cover = if me.import_cover { fs::get_ext_file(me.directory.as_path(), "jpg", false)? } else { None };
@@ -314,30 +314,27 @@ enum FileProcess {
 }
 
 impl FileProcess {
-    fn get_reader(&mut self) -> Box<&mut dyn Read> {
+    fn get_reader(&mut self) -> &mut dyn Read {
         match self {
-            FileProcess::File(f) => Box::new(f),
-            FileProcess::Process(p) => Box::new(p.stdout.as_mut().unwrap()),
+            FileProcess::File(f) => f,
+            FileProcess::Process(p) => p.stdout.as_mut().unwrap(),
         }
     }
 
-    fn get_writer(&mut self) -> Box<&mut dyn Write> {
+    fn get_writer(&mut self) -> &mut dyn Write {
         match self {
-            FileProcess::File(f) => Box::new(f),
-            FileProcess::Process(p) => Box::new(p.stdin.as_mut().unwrap()),
+            FileProcess::File(f) => f,
+            FileProcess::Process(p) => p.stdin.as_mut().unwrap(),
         }
     }
 
     fn wait(&mut self) {
-        match self {
-            FileProcess::Process(p) => {
-                let ret = p.wait().unwrap();
-                if !ret.success() {
-                    error!("Encoding process returned {}", ret.code().unwrap())
-                }
+        if let FileProcess::Process(p) = self {
+            let ret = p.wait().unwrap();
+            if !ret.success() {
+                error!("Encoding process returned {}", ret.code().unwrap())
             }
-            _ => {}
-        };
+        }
     }
 }
 

@@ -13,12 +13,12 @@ pub fn file_name<P: AsRef<Path>>(path: P) -> std::io::Result<String> {
     };
     Ok(path
         .file_name()
-        .ok_or(std::io::Error::new(
+        .ok_or_else(|| std::io::Error::new(
             std::io::ErrorKind::InvalidInput,
             "No filename found",
         ))?
         .to_str()
-        .ok_or(std::io::Error::new(
+        .ok_or_else(|| std::io::Error::new(
             std::io::ErrorKind::InvalidData,
             "Invalid UTF-8 path",
         ))?
@@ -41,7 +41,7 @@ pub fn parts_to_date(y: &str, m: &str, d: &str) -> Result<Datetime, DatetimePars
     date += m;
     date += "-";
     date += d;
-    Ok(Datetime::from_str(&date)?)
+    Datetime::from_str(&date)
 }
 
 #[derive(Error, Debug)]
