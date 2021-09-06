@@ -192,7 +192,7 @@ struct SplitTask {
 }
 
 impl SplitTask {
-    pub fn new(mut audio_path: PathBuf, input_format: SplitFormat, output_format: SplitFormat) -> anyhow::Result<Self> {
+    pub fn new(audio_path: PathBuf, input_format: SplitFormat, output_format: SplitFormat) -> anyhow::Result<Self> {
         let input = match input_format {
             SplitFormat::Wav => FileProcess::File(File::open(audio_path.as_path())?),
             SplitFormat::Flac => {
@@ -213,14 +213,6 @@ impl SplitTask {
                 FileProcess::Process(process)
             }
             SplitFormat::Tak => {
-                // rename audio first so that takc can identify the filename
-                let new_audio_path = audio_path.with_file_name("anni-decode-tmp.tak");
-                if audio_path != new_audio_path && !new_audio_path.exists() {
-                    debug!(target: "split", "Renaming tak file to anni-decode-tmp.tak for decoding...");
-                    fs::rename(audio_path, &new_audio_path)?;
-                    audio_path = new_audio_path
-                }
-
                 let process = Command::new(encoder_of(input_format).unwrap())
                     .arg("-d")
                     .arg(audio_path.as_os_str())
