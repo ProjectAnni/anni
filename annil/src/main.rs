@@ -17,6 +17,7 @@ use anni_backend::AnniBackend;
 use std::collections::{HashSet, HashMap};
 use anni_backend::cache::{CachePool, Cache};
 use anni_backend::backends::drive::DriveBackendSettings;
+use actix_cors::Cors;
 
 struct AppState {
     backends: Vec<AnnilBackend>,
@@ -127,13 +128,20 @@ async fn init_state(config: &Config) -> anyhow::Result<web::Data<AppState>> {
 
 #[actix_web::main]
 async fn main() -> anyhow::Result<()> {
-    env_logger::init();
+    env_logger::builder()
+        .filter_level(log::LevelFilter::Info)
+        .init();
     let config = Config::from_file(std::env::args().nth(1).unwrap_or_else(|| "config.toml".to_owned()))?;
     let state = init_state(&config).await?;
 
     HttpServer::new(move || {
         App::new()
             .app_data(state.clone())
+            .wrap(Cors::default()
+                .allow_any_origin()
+                .allowed_methods(vec!["GET", "OPTIONS"])
+                .allowed_header(actix_web::http::header::AUTHORIZATION)
+            )
             .wrap(Logger::default())
             .service(cover)
             .service(audio)
