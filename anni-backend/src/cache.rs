@@ -49,7 +49,7 @@ impl Backend for Cache {
 pub struct CachePool {
     /// Root of cache folder
     root: PathBuf,
-    /// Maximium space used by cache
+    /// Maximum space used by cache
     /// 0 means unlimited
     max_size: usize,
     cache: RwLock<HashMap<String, Arc<CacheItem>>>,

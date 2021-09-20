@@ -1,82 +1,126 @@
-use actix_web::HttpRequest;
+use actix_web::{HttpRequest, HttpMessage, FromRequest};
 use jwt_simple::prelude::*;
 use serde::{Serialize, Deserialize};
-use serde::de::DeserializeOwned;
-use crate::share::SharePayload;
 
-pub(crate) trait CanFetch {
-    fn can_fetch(&self, catalog: &str, track_id: Option<u8>) -> bool;
-}
+use std::task::{Context, Poll};
 
-#[derive(Serialize, Deserialize)]
+use actix_web::{dev::ServiceRequest, dev::ServiceResponse, Error};
+use actix_utils::future::{ok, Ready};
+use actix_web::web::Query;
+use actix_web::dev::{Transform, Service, Payload};
+use futures::future::Either;
+use crate::error::AnnilError;
+use crate::AppState;
+use std::collections::HashMap;
+
+#[derive(Serialize, Deserialize, Clone)]
 pub(crate) struct UserClaim {
-    #[serde(rename = "type")]
-    claim_type: String,
     pub(crate) username: String,
     #[serde(rename = "allowShare")]
     pub(crate) allow_share: bool,
 }
 
-impl CanFetch for UserClaim {
-    fn can_fetch(&self, _: &str, _: Option<u8>) -> bool {
-        true
-    }
+#[derive(Serialize, Deserialize, Clone)]
+pub(crate) struct ShareClaim {
+    pub(crate) username: String,
+    pub(crate) audios: HashMap<String, Vec<u8>>,
 }
 
+#[derive(Serialize, Deserialize, Clone)]
+#[serde(tag = "type")]
 pub(crate) enum AnnilClaims {
     User(UserClaim),
-    Share(SharePayload),
+    Share(ShareClaim),
 }
 
-impl CanFetch for AnnilClaims {
-    fn can_fetch(&self, catalog: &str, track_id: Option<u8>) -> bool {
-        match &self {
-            AnnilClaims::User(u) => u.can_fetch(catalog, track_id),
-            AnnilClaims::Share(s) => s.can_fetch(catalog, track_id),
+impl FromRequest for AnnilClaims {
+    type Config = ();
+    type Error = Error;
+    type Future = Ready<Result<Self, Self::Error>>;
+
+    fn from_request(req: &HttpRequest, _: &mut Payload) -> Self::Future {
+        match req.extensions().get::<AnnilClaims>() {
+            Some(claim) => ok(claim.clone()),
+            None => unreachable!(),
         }
     }
 }
 
-fn auth_impl<T: Serialize + DeserializeOwned>(jwt: &str, key: &HS256Key) -> Result<JWTClaims<T>, ()> {
-    let claims = key.verify_token::<T>(jwt, None).map_err(|_| ())?;
-    Ok(claims)
-}
-
-fn auth_user(jwt: &str, key: &HS256Key) -> Option<JWTClaims<UserClaim>> {
-    match auth_impl::<UserClaim>(jwt, key) {
-        Ok(c) => if c.custom.claim_type == "user" { Some(c) } else { None },
-        Err(_) => None,
+impl AnnilClaims {
+    pub(crate) fn can_fetch(&self, catalog: &str, track_id: Option<u8>) -> bool {
+        match &self {
+            AnnilClaims::User(_) => true,
+            AnnilClaims::Share(s) => s.audios.contains_key(catalog) && track_id.map(|i| s.audios[catalog].contains(&i)).unwrap_or(true),
+        }
     }
 }
 
-fn auth_share(jwt: &str, key: &HS256Key) -> Option<JWTClaims<SharePayload>> {
-    match auth_impl::<SharePayload>(jwt, key) {
-        Ok(c) => if c.custom.claim_type == "share" { Some(c) } else { None },
-        Err(_) => None,
+pub struct AnnilAuth;
+
+impl<S> Transform<S, ServiceRequest> for AnnilAuth
+    where
+        S: Service<ServiceRequest, Response=ServiceResponse, Error=Error>,
+        S::Future: 'static,
+{
+    type Response = ServiceResponse;
+    type Error = Error;
+    type Transform = AnnilAuthMiddleware<S>;
+    type InitError = ();
+    type Future = Ready<Result<Self::Transform, Self::InitError>>;
+
+    fn new_transform(&self, service: S) -> Self::Future {
+        ok(AnnilAuthMiddleware { service })
     }
 }
 
-fn auth_header(req: &HttpRequest) -> Option<&str> {
-    let header: &str = req.headers()
-        .get("Authorization")?
-        .to_str().ok()?;
-    Some(header.strip_prefix("Bearer ").unwrap_or(header))
+pub struct AnnilAuthMiddleware<S> {
+    service: S,
 }
 
-pub(crate) async fn auth_user_or_share(req: &HttpRequest, key: &HS256Key) -> Option<AnnilClaims> {
-    let header = auth_header(req)?;
-    if let Some(user) = auth_user(header, key) {
-        return user.issued_at.map(|_| AnnilClaims::User(user.custom));
+impl<S> Service<ServiceRequest> for AnnilAuthMiddleware<S>
+    where
+        S: Service<ServiceRequest, Response=ServiceResponse, Error=Error>,
+        S::Future: 'static,
+{
+    type Response = ServiceResponse;
+    type Error = Error;
+    type Future = Either<S::Future, Ready<Result<Self::Response, Self::Error>>>;
+
+    fn poll_ready(&self, ctx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
+        self.service.poll_ready(ctx)
     }
 
-    let share = auth_share(header, key)?;
-    share.issued_at.map(|_| AnnilClaims::Share(share.custom))
-}
+    fn call(&self, req: ServiceRequest) -> Self::Future {
+        #[derive(Deserialize)]
+        struct AuthQuery {
+            auth: String,
+        }
 
-pub(crate) async fn auth_user_can_share(req: &HttpRequest, key: &HS256Key) -> Option<UserClaim> {
-    let header = auth_header(req)?;
-    let user = auth_user(header, key)?;
-    user.issued_at.map(|_| user.custom)
+        // get Authorization from header / query
+        let auth = req.headers()
+            .get("Authorization")
+            .map_or(
+                Query::<AuthQuery>::from_query(req.query_string())
+                    .ok()
+                    .map(|q| q.into_inner().auth),
+                |header| header.to_str().ok().map(|r| r.to_string()),
+            );
+        match auth {
+            Some(auth) => {
+                let data = req.app_data::<AppState>().unwrap();
+                match data.key.verify_token::<AnnilClaims>(&auth, None) {
+                    Ok(token) => {
+                        req.extensions_mut().insert(token.custom);
+                        Either::Left(self.service.call(req))
+                    }
+                    Err(_) => {
+                        Either::Right(ok(req.error_response(AnnilError::Unauthorized)))
+                    }
+                }
+            }
+            None => Either::Right(ok(req.error_response(AnnilError::Unauthorized)))
+        }
+    }
 }
 
 #[test]

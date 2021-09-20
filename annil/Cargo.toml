@@ -5,12 +5,16 @@ authors = ["Yesterday17 <mmf@mmf.moe>"]
 edition = "2018"
 
 [dependencies]
-actix-web = { version = "4.0.0-beta.8", features = ["rustls"] }
+actix-web = { version = "4.0.0-beta.9", features = ["rustls"] }
 actix-cors = "0.6.0-beta.2"
 anni-backend = { path = "../anni-backend" }
+actix-utils = "3.0.0"
+
 tokio = { version = "1", features = ["full"] }
 tokio-util = { version = "0.6.3", features = ["io"] }
+futures = "0.3"
 anyhow = "1.0"
+thiserror = "1.0"
 async-trait = "0.1.45"
 
 serde = { version = "1.0", features = ["derive"] }

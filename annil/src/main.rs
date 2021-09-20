@@ -2,8 +2,9 @@ mod backend;
 mod config;
 mod auth;
 mod share;
+mod error;
 
-use actix_web::{HttpServer, App, web, Responder, get, HttpResponse, HttpRequest};
+use actix_web::{HttpServer, App, web, Responder, get, HttpResponse, ResponseError};
 use std::sync::Arc;
 use anni_backend::backends::{FileBackend, DriveBackend};
 use std::path::PathBuf;
@@ -12,12 +13,13 @@ use tokio_util::io::ReaderStream;
 use crate::config::{Config, BackendItem};
 use actix_web::middleware::Logger;
 use jwt_simple::prelude::HS256Key;
-use crate::auth::CanFetch;
+use crate::auth::{AnnilAuth, AnnilClaims};
 use anni_backend::AnniBackend;
 use std::collections::{HashSet, HashMap};
 use anni_backend::cache::{CachePool, Cache};
 use anni_backend::backends::drive::DriveBackendSettings;
 use actix_cors::Cors;
+use crate::error::AnnilError;
 
 struct AppState {
     backends: Vec<AnnilBackend>,
@@ -26,25 +28,31 @@ struct AppState {
 
 /// Get available albums of current annil server
 #[get("/albums")]
-async fn albums(data: web::Data<AppState>) -> impl Responder {
-    let mut result: HashSet<&str> = HashSet::new();
-    for backend in data.backends.iter() {
-        let albums = backend.albums();
-        result.extend(albums.iter());
+async fn albums(claims: AnnilClaims, data: web::Data<AppState>) -> impl Responder {
+    match claims {
+        AnnilClaims::User(_) => {
+            let mut result: HashSet<&str> = HashSet::new();
+
+            // users can get real album list
+            for backend in data.backends.iter() {
+                let albums = backend.albums();
+                result.extend(albums.iter());
+            }
+            HttpResponse::Ok().json(result)
+        }
+        AnnilClaims::Share(share) => {
+            // guests can only get album list defined in jwt
+            HttpResponse::Ok().json(share.audios.keys().collect::<Vec<_>>())
+        }
     }
-    HttpResponse::Ok().json(result)
 }
 
 /// Get audio in an album with {catalog} and {track_id}
 #[get("/{catalog}/{track_id}")]
-async fn audio(req: HttpRequest, path: web::Path<(String, u8)>, data: web::Data<AppState>) -> impl Responder {
-    let validator = match auth::auth_user_or_share(&req, &data.key).await {
-        Some(r) => r,
-        None => return HttpResponse::Unauthorized().finish(),
-    };
+async fn audio(claim: AnnilClaims, path: web::Path<(String, u8)>, data: web::Data<AppState>) -> impl Responder {
     let (catalog, track_id) = path.into_inner();
-    if !validator.can_fetch(&catalog, Some(track_id)) {
-        return HttpResponse::Forbidden().finish();
+    if !claim.can_fetch(&catalog, Some(track_id)) {
+        return AnnilError::Unauthorized.error_response();
     }
 
     for backend in data.backends.iter() {
@@ -62,13 +70,9 @@ async fn audio(req: HttpRequest, path: web::Path<(String, u8)>, data: web::Data<
 
 /// Get audio cover of an album with {catalog}
 #[get("/{catalog}/cover")]
-async fn cover(req: HttpRequest, path: web::Path<String>, data: web::Data<AppState>) -> impl Responder {
-    let validator = match auth::auth_user_or_share(&req, &data.key).await {
-        Some(r) => r,
-        None => return HttpResponse::Unauthorized().finish(),
-    };
+async fn cover(claims: AnnilClaims, path: web::Path<String>, data: web::Data<AppState>) -> impl Responder {
     let catalog = path.into_inner();
-    if !validator.can_fetch(&catalog, None) {
+    if !claims.can_fetch(&catalog, None) {
         return HttpResponse::Forbidden().finish();
     }
 
@@ -142,6 +146,7 @@ async fn main() -> anyhow::Result<()> {
                 .allowed_methods(vec!["GET", "OPTIONS"])
                 .allowed_header(actix_web::http::header::AUTHORIZATION)
             )
+            .wrap(AnnilAuth)
             .wrap(Logger::default())
             .service(cover)
             .service(audio)
