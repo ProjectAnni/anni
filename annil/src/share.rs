@@ -2,7 +2,7 @@ use actix_web::{web, Responder, HttpResponse, post, ResponseError};
 use crate::AppState;
 use actix_web::http::header::ContentType;
 use std::collections::HashMap;
-use serde::{Serialize, Deserialize};
+use serde::Deserialize;
 use jwt_simple::algorithms::MACLike;
 use jwt_simple::prelude::{Duration, Clock, JWTClaims};
 use crate::auth::{AnnilClaims, ShareClaim};

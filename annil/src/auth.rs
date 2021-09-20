@@ -1,4 +1,4 @@
-use actix_web::{HttpRequest, HttpMessage, FromRequest};
+use actix_web::{HttpRequest, HttpMessage, FromRequest, web};
 use jwt_simple::prelude::*;
 use serde::{Serialize, Deserialize};
 
@@ -27,7 +27,7 @@ pub(crate) struct ShareClaim {
 }
 
 #[derive(Serialize, Deserialize, Clone)]
-#[serde(tag = "type")]
+#[serde(tag = "type", rename_all = "lowercase")]
 pub(crate) enum AnnilClaims {
     User(UserClaim),
     Share(ShareClaim),
@@ -107,13 +107,14 @@ impl<S> Service<ServiceRequest> for AnnilAuthMiddleware<S>
             );
         match auth {
             Some(auth) => {
-                let data = req.app_data::<AppState>().unwrap();
+                let data = req.app_data::<web::Data<AppState>>().unwrap();
                 match data.key.verify_token::<AnnilClaims>(&auth, None) {
                     Ok(token) => {
                         req.extensions_mut().insert(token.custom);
                         Either::Left(self.service.call(req))
                     }
-                    Err(_) => {
+                    Err(e) => {
+                        println!("{:?}", e);
                         Either::Right(ok(req.error_response(AnnilError::Unauthorized)))
                     }
                 }
@@ -137,7 +138,6 @@ fn test_sign() {
             jwt_id: None,
             nonce: None,
             custom: UserClaim {
-                claim_type: "user".to_string(),
                 username: "test".to_string(),
                 allow_share: true,
             },
