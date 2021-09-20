@@ -20,6 +20,9 @@ use anni_backend::cache::{CachePool, Cache};
 use anni_backend::backends::drive::DriveBackendSettings;
 use actix_cors::Cors;
 use crate::error::AnnilError;
+use actix_web::web::Query;
+use serde::Deserialize;
+use std::process::Stdio;
 
 struct AppState {
     backends: Vec<AnnilBackend>,
@@ -47,9 +50,14 @@ async fn albums(claims: AnnilClaims, data: web::Data<AppState>) -> impl Responde
     }
 }
 
+#[derive(Deserialize)]
+struct AudioQuery {
+    prefer_bitrate: Option<String>,
+}
+
 /// Get audio in an album with {catalog} and {track_id}
 #[get("/{catalog}/{track_id}")]
-async fn audio(claim: AnnilClaims, path: web::Path<(String, u8)>, data: web::Data<AppState>) -> impl Responder {
+async fn audio(claim: AnnilClaims, path: web::Path<(String, u8)>, data: web::Data<AppState>, query: Query<AudioQuery>) -> impl Responder {
     let (catalog, track_id) = path.into_inner();
     if !claim.can_fetch(&catalog, Some(track_id)) {
         return AnnilError::Unauthorized.error_response();
@@ -57,12 +65,44 @@ async fn audio(claim: AnnilClaims, path: web::Path<(String, u8)>, data: web::Dat
 
     for backend in data.backends.iter() {
         if backend.enabled() && backend.has_album(&catalog) {
-            let audio = backend.get_audio(&catalog, track_id).await.unwrap();
-            return HttpResponse::Ok()
-                .append_header(("X-Origin-Type", format!("audio/{}", audio.extension)))
+            let mut audio = backend.get_audio(&catalog, track_id).await.unwrap();
+            let prefer_bitrate = query.prefer_bitrate.as_deref().unwrap_or("medium");
+            let bitrate = match prefer_bitrate {
+                "low" => Some("128k"),
+                "medium" => Some("192k"),
+                "high" => Some("320k"),
+                "loseless" => None,
+                _ => Some("128k"),
+            };
+
+            let mut resp = HttpResponse::Ok();
+            resp.append_header(("X-Origin-Type", format!("audio/{}", audio.extension)))
                 .append_header(("X-Origin-Size", audio.size))
-                .content_type(format!("audio/{}", audio.extension))
-                .streaming(ReaderStream::new(audio.reader));
+                .content_type(match bitrate {
+                    Some(_) => "audio/aac".to_string(),
+                    None => format!("audio/{}", audio.extension)
+                });
+
+            return match bitrate {
+                Some(bitrate) => {
+                    let mut process = tokio::process::Command::new("ffmpeg")
+                        .args(&["-i", "pipe:0", "-map", "0:0", "-b:a", bitrate, "-f", "adts", "-"])
+                        .stdin(Stdio::piped())
+                        .stdout(Stdio::piped())
+                        .stderr(Stdio::null())
+                        .spawn()
+                        .unwrap();
+                    let stdout = process.stdout.take().unwrap();
+                    tokio::spawn(async move {
+                        let mut stdin = process.stdin.as_mut().unwrap();
+                        let _ = tokio::io::copy(&mut audio.reader, &mut stdin).await;
+                    });
+                    resp.streaming(ReaderStream::new(stdout))
+                }
+                None => {
+                    resp.streaming(ReaderStream::new(audio.reader))
+                }
+            };
         }
     }
     HttpResponse::NotFound().finish()
