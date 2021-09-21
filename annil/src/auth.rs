@@ -12,6 +12,7 @@ use futures::future::Either;
 use crate::error::AnnilError;
 use crate::AppState;
 use std::collections::HashMap;
+use actix_web::http::Method;
 
 #[derive(Serialize, Deserialize, Clone)]
 pub(crate) struct UserClaim {
@@ -91,6 +92,10 @@ impl<S> Service<ServiceRequest> for AnnilAuthMiddleware<S>
     }
 
     fn call(&self, req: ServiceRequest) -> Self::Future {
+        if matches!(req.method(), &Method::OPTIONS) {
+            return Either::Left(self.service.call(req));
+        }
+
         #[derive(Deserialize)]
         struct AuthQuery {
             auth: String,
