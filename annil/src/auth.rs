@@ -54,6 +54,16 @@ impl AnnilClaims {
             AnnilClaims::Share(s) => s.audios.contains_key(catalog) && track_id.map(|i| s.audios[catalog].contains(&i)).unwrap_or(true),
         }
     }
+
+    #[inline]
+    pub(crate) fn is_user(&self) -> bool {
+        matches!(self, AnnilClaims::User(_))
+    }
+
+    #[inline]
+    pub(crate) fn is_guest(&self) -> bool {
+        matches!(self, AnnilClaims::Share(_))
+    }
 }
 
 pub struct AnnilAuth;
