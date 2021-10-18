@@ -5,6 +5,8 @@ use anni_common::traits::FromFile;
 use anni_derive::FromFile;
 use anni_common::inherit::InheritableValue;
 use crate::date::AnniDate;
+use crate::tag::AnniTag;
+use std::borrow::Cow;
 
 #[derive(Serialize, Deserialize, FromFile)]
 pub struct Album {
@@ -14,14 +16,16 @@ pub struct Album {
 }
 
 impl Album {
-    pub fn new(title: String, artist: String, release_date: AnniDate, catalog: String) -> Self {
+    pub fn new(title: String, edition: Option<String>, artist: String, release_date: AnniDate, catalog: String, tags: Vec<AnniTag>) -> Self {
         Album {
             info: AlbumInfo {
                 title: InheritableValue::own(title),
+                edition,
+                catalog,
                 artist: InheritableValue::own(artist),
                 release_date,
+                tags,
                 album_type: TrackType::Normal, // TODO: custom album type
-                catalog,
             },
             discs: Vec::new(),
         }
@@ -50,8 +54,12 @@ impl ToString for Album {
 }
 
 impl Album {
-    pub fn title(&self) -> &str {
-        self.info.title.as_ref()
+    pub fn title(&self) -> Cow<str> {
+        if let Some(edition) = &self.info.edition {
+            Cow::Owned(format!("{}【{}】", self.info.title.as_ref(), edition))
+        } else {
+            Cow::Borrowed(self.info.title.as_ref())
+        }
     }
 
     pub fn artist(&self) -> &str {
@@ -101,33 +109,54 @@ impl Album {
 
 #[derive(Serialize, Deserialize)]
 struct AlbumInfo {
+    /// Album title
     title: InheritableValue<String>,
+    /// Album edition
+    ///
+    /// If this field is not None and is not empty, the full title of Album should be {title}【{edition}】
+    #[serde(with = "serde_with::rust::string_empty_as_none")]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    edition: Option<String>,
+    /// Album catalog
+    catalog: String,
+    /// Album artist
     artist: InheritableValue<String>,
+    /// Album release date
     #[serde(rename = "date")]
     release_date: AnniDate,
+    /// Album tags
+    tags: Vec<AnniTag>,
+    /// Album track type
     #[serde(rename = "type")]
     album_type: TrackType,
-    catalog: String,
 }
 
 #[derive(Serialize, Deserialize, Clone)]
 pub struct Disc {
-    catalog: String,
+    /// Disc title
     title: InheritableValue<String>,
+    /// Disc artist
     artist: InheritableValue<String>,
+    /// Disc catalog
+    catalog: String,
+    /// Disc tags
+    tags: Vec<AnniTag>,
+    /// Disc type
     #[serde(rename = "type")]
     disc_type: InheritableValue<TrackType>,
+    /// Disc tracks
     tracks: Vec<Track>,
 }
 
 impl Disc {
-    pub fn new<I, T>(catalog: String, title: I, artist: I, disc_type: T) -> Self
+    pub fn new<I, T>(catalog: String, title: I, artist: I, disc_type: T, tags: Vec<AnniTag>) -> Self
         where
             I: Into<InheritableValue<String>>, T: Into<InheritableValue<TrackType>> {
         Disc {
-            catalog,
             title: title.into(),
             artist: artist.into(),
+            catalog,
+            tags,
             disc_type: disc_type.into(),
             tracks: Vec::new(),
         }
@@ -167,7 +196,14 @@ impl Disc {
     }
 
     pub fn into_album(mut self, title: String, release_date: AnniDate) -> Album {
-        let mut album = Album::new(title, self.artist.as_ref().to_string(), release_date, self.catalog.to_string());
+        let mut album = Album::new(
+            title,
+            None,
+            self.artist.as_ref().to_string(),
+            release_date,
+            self.catalog.to_string(),
+            Default::default(),
+        );
         self.title.reset();
         self.artist.reset();
         self.disc_type.reset();
@@ -178,25 +214,31 @@ impl Disc {
 
 #[derive(Serialize, Deserialize, Clone)]
 pub struct Track {
+    /// Track title
     title: String,
+    /// Track artist
     artist: InheritableValue<String>,
+    /// Track type
     #[serde(rename = "type")]
     track_type: InheritableValue<TrackType>,
+    /// Track tags
+    tags: Vec<AnniTag>,
 }
 
 impl Track {
-    pub fn new<I, T>(title: String, artist: I, track_type: T) -> Self
+    pub fn new<I, T>(title: String, artist: I, track_type: T, tags: Vec<AnniTag>) -> Self
         where
             I: Into<InheritableValue<String>>, T: Into<InheritableValue<TrackType>> {
         Track {
             title,
             artist: artist.into(),
             track_type: track_type.into(),
+            tags,
         }
     }
 
     pub fn empty() -> Self {
-        Track::new(String::new(), None, None)
+        Track::new(String::new(), None, None, Default::default())
     }
 
     pub fn title(&self) -> &str {

@@ -67,7 +67,7 @@ fn repo_add(me: &RepoAddAction, manager: &RepositoryManager) -> anyhow::Result<(
             ball!("repo-album-exists", catalog = catalog);
         }
 
-        let mut album = Album::new(album_title.clone(), "[Unknown Artist]".to_string(), release_date, catalog.clone());
+        let mut album = Album::new(album_title.clone(), None, "[Unknown Artist]".to_string(), release_date, catalog.clone(), Default::default());
 
         let directories = fs::get_subdirectories(to_add)?;
         let mut directories: Vec<_> = directories.iter().map(|r| r.as_path()).collect();
@@ -87,9 +87,10 @@ fn repo_add(me: &RepoAddAction, manager: &RepositoryManager) -> anyhow::Result<(
                     if album_title != disc_title { Some(disc_title) } else { None },
                     None,
                     None,
+                    Default::default(),
                 )
             } else {
-                Disc::new(catalog.clone(), None, None, None)
+                Disc::new(catalog.clone(), None, None, None, Default::default())
             };
             for path in files.iter() {
                 let header = FlacHeader::from_file(path)?;
@@ -361,6 +362,7 @@ pub(crate) fn stream_to_track(stream: &FlacHeader) -> Track {
                 map.get("TITLE").map(|v| v.value()).unwrap_or("").to_string(),
                 map.get("ARTIST").map(|v| v.value().to_string()),
                 None,
+                Default::default(),
             )
         }
         None => Track::empty()

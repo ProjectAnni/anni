@@ -5,6 +5,7 @@ mod manager;
 pub mod repo;
 pub mod category;
 pub mod date;
+pub mod tag;
 
 pub use album::Album;
 pub use error::Error;
