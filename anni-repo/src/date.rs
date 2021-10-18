@@ -89,17 +89,16 @@ impl AnniDate {
     pub fn from_parts(y: &str, m: &str, d: &str) -> Self {
         use std::str::FromStr;
 
-        // yyyy-mm-dd
-        let mut date = String::with_capacity(10);
-        // for yymmdd
-        if y.len() == 2 {
-            date += if u8::from_str(y).unwrap() > 50 {
-                "19"
+        let year_offset = if y.len() == 2 {
+            if u8::from_str(y).unwrap() > 50 {
+                1900
             } else {
-                "20"
+                2000
             }
-        }
-        Self::new(u32::from_str(y).unwrap(), u8::from_str(m).unwrap(), u8::from_str(d).unwrap())
+        } else {
+            0
+        };
+        Self::new(year_offset + u32::from_str(y).unwrap(), u8::from_str(m).unwrap(), u8::from_str(d).unwrap())
     }
 }
 
