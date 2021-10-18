@@ -90,7 +90,10 @@ impl AnniDate {
         use std::str::FromStr;
 
         let year_offset = if y.len() == 2 {
-            if u8::from_str(y).unwrap() > 50 {
+            // In August 1982, the first compact disc was manufactured.
+            // It was then released in October 1982 and branded as Digital Audio Compact Disc.
+            // So [82, ) implies 19xx, others imply 20xx
+            if u8::from_str(y).unwrap() >= 82 {
                 1900
             } else {
                 2000
