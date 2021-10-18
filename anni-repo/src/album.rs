@@ -1,10 +1,10 @@
 use serde::{Serialize, Deserialize, Deserializer, Serializer};
 use std::str::FromStr;
 use std::path::Path;
-use crate::Datetime;
 use anni_common::traits::FromFile;
 use anni_derive::FromFile;
 use anni_common::inherit::InheritableValue;
+use crate::date::AnniDate;
 
 #[derive(Serialize, Deserialize, FromFile)]
 pub struct Album {
@@ -14,7 +14,7 @@ pub struct Album {
 }
 
 impl Album {
-    pub fn new(title: String, artist: String, release_date: Datetime, catalog: String) -> Self {
+    pub fn new(title: String, artist: String, release_date: AnniDate, catalog: String) -> Self {
         Album {
             info: AlbumInfo {
                 title: InheritableValue::own(title),
@@ -58,7 +58,7 @@ impl Album {
         self.info.artist.as_ref()
     }
 
-    pub fn release_date(&self) -> &Datetime {
+    pub fn release_date(&self) -> &AnniDate {
         &self.info.release_date
     }
 
@@ -104,7 +104,7 @@ struct AlbumInfo {
     title: InheritableValue<String>,
     artist: InheritableValue<String>,
     #[serde(rename = "date")]
-    release_date: Datetime,
+    release_date: AnniDate,
     #[serde(rename = "type")]
     album_type: TrackType,
     catalog: String,
@@ -166,7 +166,7 @@ impl Disc {
         self.tracks.push(track);
     }
 
-    pub fn into_album(mut self, title: String, release_date: Datetime) -> Album {
+    pub fn into_album(mut self, title: String, release_date: AnniDate) -> Album {
         let mut album = Album::new(title, self.artist.as_ref().to_string(), release_date, self.catalog.to_string());
         self.title.reset();
         self.artist.reset();

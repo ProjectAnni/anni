@@ -1,9 +1,9 @@
-use crate::Datetime;
 use regex::Regex;
 use std::path::Path;
 use std::str::FromStr;
 use thiserror::Error;
 use toml::value::DatetimeParseError;
+use crate::date::AnniDate;
 
 pub fn file_name<P: AsRef<Path>>(path: P) -> std::io::Result<String> {
     let path = if path.as_ref().is_absolute() {
@@ -23,25 +23,6 @@ pub fn file_name<P: AsRef<Path>>(path: P) -> std::io::Result<String> {
             "Invalid UTF-8 path",
         ))?
         .to_owned())
-}
-
-pub fn parts_to_date(y: &str, m: &str, d: &str) -> Result<Datetime, DatetimeParseError> {
-    // yyyy-mm-dd
-    let mut date = String::with_capacity(10);
-    // for yymmdd
-    if y.len() == 2 {
-        date += if u8::from_str(y).unwrap() > 30 {
-            "19"
-        } else {
-            "20"
-        }
-    }
-    date += y;
-    date += "-";
-    date += m;
-    date += "-";
-    date += d;
-    Datetime::from_str(&date)
 }
 
 #[derive(Error, Debug)]
@@ -70,7 +51,7 @@ pub fn disc_info(path: &str) -> Result<(String, String, usize), InfoParseError> 
 }
 
 // Date, catalog, title, disc_count
-pub fn album_info(path: &str) -> Result<(Datetime, String, String, usize), InfoParseError> {
+pub fn album_info(path: &str) -> Result<(AnniDate, String, String, usize), InfoParseError> {
     let r = Regex::new(r"^\[(\d{2}|\d{4})-?(\d{2})-?(\d{2})]\[([^]]+)] (.+?)(?: \[(\d+) Discs])?$").unwrap();
     let r = r.captures(path).ok_or(InfoParseError::NotMatch)?;
     if r.len() == 0 {
@@ -78,11 +59,11 @@ pub fn album_info(path: &str) -> Result<(Datetime, String, String, usize), InfoP
     }
 
     Ok((
-        parts_to_date(
+        AnniDate::from_parts(
             r.get(1).unwrap().as_str(),
             r.get(2).unwrap().as_str(),
             r.get(3).unwrap().as_str(),
-        )?,
+        ),
         r.get(4).unwrap().as_str().to_owned(),
         r.get(5).unwrap().as_str().to_owned(),
         usize::from_str(r.get(6).map(|r| r.as_str()).unwrap_or("1")).unwrap(),
