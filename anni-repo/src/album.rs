@@ -125,6 +125,7 @@ struct AlbumInfo {
     #[serde(rename = "date")]
     release_date: AnniDate,
     /// Album tags
+    #[serde(default)]
     tags: Vec<AnniTag>,
     /// Album track type
     #[serde(rename = "type")]
@@ -140,6 +141,7 @@ pub struct Disc {
     /// Disc catalog
     catalog: String,
     /// Disc tags
+    #[serde(default)]
     tags: Vec<AnniTag>,
     /// Disc type
     #[serde(rename = "type")]
@@ -222,6 +224,7 @@ pub struct Track {
     #[serde(rename = "type")]
     track_type: InheritableValue<TrackType>,
     /// Track tags
+    #[serde(default)]
     tags: Vec<AnniTag>,
 }
 

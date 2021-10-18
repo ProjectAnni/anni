@@ -5,10 +5,12 @@ fn album_from_str() -> Album {
     Album::from_str(r#"
 [album]
 title = "夏凪ぎ/宝物になった日"
+edition = "Test"
 artist = "やなぎなぎ"
 date = 2020-12-16
 type = "normal"
 catalog = "KSLA-0178"
+tags = ["tag1", "tag2:e1", "tag3:special:e2", { "name" = "tag3", "edition" = "e2" }]
 
 [[discs]]
 catalog = "KSLA-0178"
@@ -41,12 +43,13 @@ type = "instrumental"
 #[test]
 fn deserialize_album_toml() {
     let album = album_from_str();
-    assert_eq!(album.title(), "夏凪ぎ/宝物になった日");
+    assert_eq!(album.title(), "夏凪ぎ/宝物になった日【Test】");
     assert_eq!(album.artist(), "やなぎなぎ");
     assert_eq!(album.release_date().to_string(), "2020-12-16");
     assert_eq!(album.track_type().as_ref(), "normal");
     assert_eq!(album.catalog(), "KSLA-0178");
 
+    // TODO: assert for tags
     for disc in album.discs() {
         assert_eq!(disc.catalog(), "KSLA-0178");
         for (i, track) in disc.tracks().iter().enumerate() {
