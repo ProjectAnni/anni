@@ -1,6 +1,6 @@
 use serde::{Serialize, Deserialize, Deserializer, Serializer};
-use toml::Value;
 use std::fmt::{Display, Formatter};
+use toml::Value;
 
 #[derive(PartialEq, Debug)]
 pub struct AnniDate {
@@ -15,17 +15,17 @@ impl Serialize for AnniDate {
         if self.month > 0 && self.day > 0 {
             use std::str::FromStr;
             let date = toml::value::Datetime::from_str(&self.to_string()).unwrap();
-            toml::Value::serialize(&toml::Value::Datetime(date), serializer)
+            Value::serialize(&Value::Datetime(date), serializer)
         } else {
             let mut table = toml::value::Table::new();
-            table.insert("year".to_string(), toml::Value::Integer(self.year as i64));
+            table.insert("year".to_string(), Value::Integer(self.year as i64));
             if self.month > 0 {
-                table.insert("month".to_string(), toml::Value::Integer(self.month as i64));
+                table.insert("month".to_string(), Value::Integer(self.month as i64));
                 if self.day > 0 {
-                    table.insert("day".to_string(), toml::Value::Integer(self.day as i64));
+                    table.insert("day".to_string(), Value::Integer(self.day as i64));
                 }
             }
-            toml::Value::serialize(&toml::Value::Table(table), serializer)
+            Value::serialize(&Value::Table(table), serializer)
         }
     }
 }
@@ -35,7 +35,7 @@ impl<'de> Deserialize<'de> for AnniDate {
         where D: Deserializer<'de> {
         use serde::de;
 
-        let value = toml::value::Value::deserialize(deserializer)?;
+        let value = Value::deserialize(deserializer)?;
         let result = match value {
             Value::Datetime(datetime) => {
                 let date = datetime.to_string();
