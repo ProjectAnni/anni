@@ -2,12 +2,12 @@ use serde::{Serialize, Deserialize, Serializer, Deserializer};
 use toml::Value;
 
 #[derive(Clone, Debug)]
-pub struct AnniTag {
+pub struct TagRef {
     name: String,
     edition: Option<String>,
 }
 
-impl Serialize for AnniTag {
+impl Serialize for TagRef {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
         where S: Serializer {
         let value = if let Some(edition) = &self.edition {
@@ -27,7 +27,7 @@ impl Serialize for AnniTag {
     }
 }
 
-impl<'de> Deserialize<'de> for AnniTag {
+impl<'de> Deserialize<'de> for TagRef {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
         where D: Deserializer<'de> {
         use serde::de;
@@ -70,4 +70,19 @@ impl<'de> Deserialize<'de> for AnniTag {
     }
 }
 
-
+#[derive(Serialize, Deserialize)]
+pub struct Tag {
+    /// Tag name
+    name: String,
+    /// Tag edition
+    edition: Option<String>,
+    /// Tag alias
+    #[serde(default)]
+    alias: Vec<String>,
+    /// Tag parents
+    #[serde(default)]
+    included_by: Vec<String>,
+    /// Tag children
+    #[serde(default)]
+    includes: Vec<String>,
+}

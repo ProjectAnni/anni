@@ -1,25 +1,25 @@
 use std::io::Write;
 use anni_flac::blocks::PictureType;
 use anni_flac::{MetadataBlockData, FlacHeader};
-use clap::{Clap, ArgEnum};
+use clap::{Parser, ArgEnum};
 use crate::ll;
 use crate::args::{InputPath, FlacInputFile};
 use anni_derive::ClapHandler;
 
-#[derive(Clap, ClapHandler, Debug)]
+#[derive(Parser, ClapHandler, Debug)]
 #[clap(about = ll ! ("flac"))]
 pub struct FlacSubcommand {
     #[clap(subcommand)]
     action: FlacAction,
 }
 
-#[derive(Clap, ClapHandler, Debug)]
+#[derive(Parser, ClapHandler, Debug)]
 pub enum FlacAction {
     #[clap(about = ll ! ("flac-export"))]
     Export(FlacExportAction)
 }
 
-#[derive(Clap, ClapHandler, Debug)]
+#[derive(Parser, ClapHandler, Debug)]
 #[clap_handler(flac_export)]
 pub struct FlacExportAction {
     #[clap(arg_enum)]
@@ -105,7 +105,7 @@ impl FlacExportAction {
     }
 }
 
-#[derive(ArgEnum, Debug, PartialEq)]
+#[derive(ArgEnum, Debug, PartialEq, Clone)]
 pub enum FlacExportType {
     /// Block Info
     Info,

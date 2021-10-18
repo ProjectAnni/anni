@@ -3,7 +3,7 @@ use std::io::{Read, Write};
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
 
-use clap::{Clap, ArgEnum};
+use clap::{Parser, ArgEnum};
 
 use anni_common::fs;
 use anni_common::decode::{DecodeError, u16_le, u32_le, token};
@@ -17,7 +17,7 @@ use cue_sheet::tracklist::Tracklist;
 use crate::{ll, ball};
 use std::fmt::{Display, Formatter};
 
-#[derive(Clap, ClapHandler, Debug)]
+#[derive(Parser, ClapHandler, Debug)]
 #[clap(about = ll ! ("split"))]
 #[clap_handler(handle_split)]
 pub struct SplitSubcommand {
@@ -131,7 +131,7 @@ impl SplitSubcommand {
     }
 }
 
-#[derive(ArgEnum, Debug)]
+#[derive(ArgEnum, Debug, Clone)]
 pub enum SplitFormat {
     Wav,
     Flac,
@@ -193,7 +193,7 @@ impl Display for SplitFormat {
     }
 }
 
-#[derive(ArgEnum, Debug)]
+#[derive(ArgEnum, Debug, Clone)]
 enum SplitOutputFormat {
     Flac,
     Wav,

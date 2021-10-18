@@ -3,14 +3,14 @@ use anni_repo::album::{Disc, Track};
 use anni_repo::library::{album_info, disc_info, file_name};
 use anni_repo::{Album, RepositoryManager};
 use anni_common::fs;
-use clap::{Clap, ArgEnum, crate_version};
+use clap::{Parser, ArgEnum, crate_version};
 use crate::{ll, ball};
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
 use anni_flac::blocks::{UserComment, UserCommentExt};
 use anni_derive::ClapHandler;
 
-#[derive(Clap, ClapHandler, Debug)]
+#[derive(Parser, ClapHandler, Debug)]
 #[clap(about = ll ! {"repo"})]
 #[clap_handler(handle_repo)]
 #[clap_handler_arg(RepositoryManager)]
@@ -28,7 +28,7 @@ fn handle_repo(repo: &RepoSubcommand) -> anyhow::Result<RepositoryManager> {
     Ok(RepositoryManager::new(repo.root.as_path())?)
 }
 
-#[derive(Clap, ClapHandler, Debug)]
+#[derive(Parser, ClapHandler, Debug)]
 #[clap_handler_arg(RepositoryManager)]
 pub enum RepoAction {
     #[clap(about = ll ! {"repo-add"})]
@@ -43,7 +43,7 @@ pub enum RepoAction {
     Print(RepoPrintAction),
 }
 
-#[derive(Clap, ClapHandler, Debug)]
+#[derive(Parser, ClapHandler, Debug)]
 #[clap_handler(repo_add)]
 #[clap_handler_arg(RepositoryManager)]
 pub struct RepoAddAction {
@@ -109,7 +109,7 @@ fn repo_add(me: &RepoAddAction, manager: &RepositoryManager) -> anyhow::Result<(
     Ok(())
 }
 
-#[derive(Clap, ClapHandler, Debug)]
+#[derive(Parser, ClapHandler, Debug)]
 #[clap_handler(repo_edit)]
 #[clap_handler_arg(RepositoryManager)]
 pub struct RepoEditAction {
@@ -135,7 +135,7 @@ fn repo_edit(me: &RepoEditAction, manager: &RepositoryManager) -> anyhow::Result
     Ok(())
 }
 
-#[derive(Clap, ClapHandler, Debug)]
+#[derive(Parser, ClapHandler, Debug)]
 #[clap_handler(repo_apply)]
 #[clap_handler_arg(RepositoryManager)]
 pub struct RepoApplyAction {
@@ -246,7 +246,7 @@ DISCTOTAL={disc_total}
     Ok(())
 }
 
-#[derive(Clap, ClapHandler, Debug)]
+#[derive(Parser, ClapHandler, Debug)]
 #[clap_handler(repo_validate)]
 #[clap_handler_arg(RepositoryManager)]
 pub struct RepoValidateAction {}
@@ -266,7 +266,7 @@ fn repo_validate(_: &RepoValidateAction, manager: &RepositoryManager) -> anyhow:
     Ok(())
 }
 
-#[derive(Clap, ClapHandler, Debug)]
+#[derive(Parser, ClapHandler, Debug)]
 #[clap_handler(repo_print)]
 #[clap_handler_arg(RepositoryManager)]
 pub struct RepoPrintAction {
@@ -345,7 +345,7 @@ FILE "{filename}" WAVE
     Ok(())
 }
 
-#[derive(ArgEnum, Debug, PartialEq)]
+#[derive(ArgEnum, Debug, PartialEq, Clone)]
 pub enum RepoPrintType {
     Title,
     Artist,

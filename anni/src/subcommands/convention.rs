@@ -1,4 +1,4 @@
-use clap::Clap;
+use clap::Parser;
 use crate::ll;
 use std::path::{Path, PathBuf};
 use std::collections::{HashSet, HashMap};
@@ -13,7 +13,7 @@ use anni_flac::blocks::{BlockVorbisComment, BlockStreamInfo, PictureType};
 use crate::args::{InputPath, FlacInputPath};
 use anni_derive::ClapHandler;
 
-#[derive(Clap, ClapHandler, Debug)]
+#[derive(Parser, ClapHandler, Debug)]
 #[clap(about = ll ! ("convention"))]
 #[clap(alias = "conv")]
 #[clap_handler(handle_convention)]
@@ -33,14 +33,14 @@ fn handle_convention(_: &ConventionSubcommand) -> anyhow::Result<ConventionRules
     Ok(config.into_rules())
 }
 
-#[derive(Clap, ClapHandler, Debug)]
+#[derive(Parser, ClapHandler, Debug)]
 #[clap_handler_arg(ConventionRules)]
 pub enum ConventionAction {
     #[clap(about = ll ! ("convention-check"))]
     Check(ConventionCheckAction),
 }
 
-#[derive(Clap, ClapHandler, Debug)]
+#[derive(Parser, ClapHandler, Debug)]
 #[clap_handler(convention_check)]
 #[clap_handler_arg(ConventionRules)]
 pub struct ConventionCheckAction {

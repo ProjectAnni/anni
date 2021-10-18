@@ -4,6 +4,8 @@ use crate::category::Category;
 use anni_common::traits::FromFile;
 use std::fs;
 use std::path::{PathBuf, Path};
+use std::collections::HashMap;
+use crate::tag::Tag;
 
 pub struct RepositoryManager {
     root: PathBuf,
@@ -83,5 +85,9 @@ impl RepositoryManager {
                     path.file_stem().map(|f| f.to_string_lossy().to_string())
                 } else { None }
             }))
+    }
+
+    pub fn tags(&self) -> Result<HashMap<String, Tag>> {
+        todo!()
     }
 }

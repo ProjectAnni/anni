@@ -5,7 +5,7 @@ use anni_common::traits::FromFile;
 use anni_derive::FromFile;
 use anni_common::inherit::InheritableValue;
 use crate::date::AnniDate;
-use crate::tag::AnniTag;
+use crate::tag::TagRef;
 use std::borrow::Cow;
 
 #[derive(Serialize, Deserialize, FromFile)]
@@ -16,7 +16,7 @@ pub struct Album {
 }
 
 impl Album {
-    pub fn new(title: String, edition: Option<String>, artist: String, release_date: AnniDate, catalog: String, tags: Vec<AnniTag>) -> Self {
+    pub fn new(title: String, edition: Option<String>, artist: String, release_date: AnniDate, catalog: String, tags: Vec<TagRef>) -> Self {
         Album {
             info: AlbumInfo {
                 title: InheritableValue::own(title),
@@ -126,7 +126,7 @@ struct AlbumInfo {
     release_date: AnniDate,
     /// Album tags
     #[serde(default)]
-    tags: Vec<AnniTag>,
+    tags: Vec<TagRef>,
     /// Album track type
     #[serde(rename = "type")]
     album_type: TrackType,
@@ -142,7 +142,7 @@ pub struct Disc {
     catalog: String,
     /// Disc tags
     #[serde(default)]
-    tags: Vec<AnniTag>,
+    tags: Vec<TagRef>,
     /// Disc type
     #[serde(rename = "type")]
     disc_type: InheritableValue<TrackType>,
@@ -151,7 +151,7 @@ pub struct Disc {
 }
 
 impl Disc {
-    pub fn new<I, T>(catalog: String, title: I, artist: I, disc_type: T, tags: Vec<AnniTag>) -> Self
+    pub fn new<I, T>(catalog: String, title: I, artist: I, disc_type: T, tags: Vec<TagRef>) -> Self
         where
             I: Into<InheritableValue<String>>, T: Into<InheritableValue<TrackType>> {
         Disc {
@@ -225,11 +225,11 @@ pub struct Track {
     track_type: InheritableValue<TrackType>,
     /// Track tags
     #[serde(default)]
-    tags: Vec<AnniTag>,
+    tags: Vec<TagRef>,
 }
 
 impl Track {
-    pub fn new<I, T>(title: String, artist: I, track_type: T, tags: Vec<AnniTag>) -> Self
+    pub fn new<I, T>(title: String, artist: I, track_type: T, tags: Vec<TagRef>) -> Self
         where
             I: Into<InheritableValue<String>>, T: Into<InheritableValue<TrackType>> {
         Track {
