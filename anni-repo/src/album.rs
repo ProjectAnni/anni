@@ -118,19 +118,19 @@ struct AlbumInfo {
     #[serde(skip_serializing_if = "Option::is_none")]
     #[serde(with = "serde_with::rust::string_empty_as_none")]
     edition: Option<String>,
-    /// Album catalog
-    catalog: String,
     /// Album artist
     artist: InheritableValue<String>,
     /// Album release date
     #[serde(rename = "date")]
     release_date: AnniDate,
-    /// Album tags
-    #[serde(default)]
-    tags: Vec<TagRef>,
     /// Album track type
     #[serde(rename = "type")]
     album_type: TrackType,
+    /// Album catalog
+    catalog: String,
+    /// Album tags
+    #[serde(default)]
+    tags: Vec<TagRef>,
 }
 
 #[derive(Serialize, Deserialize, Clone)]
@@ -141,12 +141,13 @@ pub struct Disc {
     artist: InheritableValue<String>,
     /// Disc catalog
     catalog: String,
-    /// Disc tags
-    #[serde(default)]
-    tags: Vec<TagRef>,
     /// Disc type
     #[serde(rename = "type")]
     disc_type: InheritableValue<TrackType>,
+    /// Disc tags
+    #[serde(default)]
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    tags: Vec<TagRef>,
     /// Disc tracks
     tracks: Vec<Track>,
 }
@@ -226,6 +227,7 @@ pub struct Track {
     track_type: InheritableValue<TrackType>,
     /// Track tags
     #[serde(default)]
+    #[serde(skip_serializing_if = "Vec::is_empty")]
     tags: Vec<TagRef>,
 }
 
