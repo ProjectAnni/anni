@@ -114,8 +114,9 @@ struct AlbumInfo {
     /// Album edition
     ///
     /// If this field is not None and is not empty, the full title of Album should be {title}【{edition}】
-    #[serde(with = "serde_with::rust::string_empty_as_none")]
+    #[serde(default)]
     #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(with = "serde_with::rust::string_empty_as_none")]
     edition: Option<String>,
     /// Album catalog
     catalog: String,

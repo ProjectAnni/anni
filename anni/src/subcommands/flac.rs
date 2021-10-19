@@ -4,22 +4,22 @@ use anni_flac::{MetadataBlockData, FlacHeader};
 use clap::{Parser, ArgEnum};
 use crate::ll;
 use crate::args::{InputPath, FlacInputFile};
-use anni_derive::ClapHandler;
+use anni_derive::Handler;
 
-#[derive(Parser, ClapHandler, Debug)]
+#[derive(Parser, Handler, Debug)]
 #[clap(about = ll ! ("flac"))]
 pub struct FlacSubcommand {
     #[clap(subcommand)]
     action: FlacAction,
 }
 
-#[derive(Parser, ClapHandler, Debug)]
+#[derive(Parser, Handler, Debug)]
 pub enum FlacAction {
     #[clap(about = ll ! ("flac-export"))]
     Export(FlacExportAction)
 }
 
-#[derive(Parser, ClapHandler, Debug)]
+#[derive(Parser, Handler, Debug)]
 #[clap_handler(flac_export)]
 pub struct FlacExportAction {
     #[clap(arg_enum)]

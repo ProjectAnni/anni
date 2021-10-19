@@ -8,9 +8,9 @@ use crate::{ll, ball};
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
 use anni_flac::blocks::{UserComment, UserCommentExt};
-use anni_derive::ClapHandler;
+use anni_derive::Handler;
 
-#[derive(Parser, ClapHandler, Debug)]
+#[derive(Parser, Handler, Debug)]
 #[clap(about = ll ! {"repo"})]
 #[clap_handler(handle_repo)]
 #[clap_handler_arg(RepositoryManager)]
@@ -28,7 +28,7 @@ fn handle_repo(repo: &RepoSubcommand) -> anyhow::Result<RepositoryManager> {
     Ok(RepositoryManager::new(repo.root.as_path())?)
 }
 
-#[derive(Parser, ClapHandler, Debug)]
+#[derive(Parser, Handler, Debug)]
 #[clap_handler_arg(RepositoryManager)]
 pub enum RepoAction {
     #[clap(about = ll ! {"repo-add"})]
@@ -43,7 +43,7 @@ pub enum RepoAction {
     Print(RepoPrintAction),
 }
 
-#[derive(Parser, ClapHandler, Debug)]
+#[derive(Parser, Handler, Debug)]
 #[clap_handler(repo_add)]
 #[clap_handler_arg(RepositoryManager)]
 pub struct RepoAddAction {
@@ -109,7 +109,7 @@ fn repo_add(me: &RepoAddAction, manager: &RepositoryManager) -> anyhow::Result<(
     Ok(())
 }
 
-#[derive(Parser, ClapHandler, Debug)]
+#[derive(Parser, Handler, Debug)]
 #[clap_handler(repo_edit)]
 #[clap_handler_arg(RepositoryManager)]
 pub struct RepoEditAction {
@@ -135,7 +135,7 @@ fn repo_edit(me: &RepoEditAction, manager: &RepositoryManager) -> anyhow::Result
     Ok(())
 }
 
-#[derive(Parser, ClapHandler, Debug)]
+#[derive(Parser, Handler, Debug)]
 #[clap_handler(repo_apply)]
 #[clap_handler_arg(RepositoryManager)]
 pub struct RepoApplyAction {
@@ -246,7 +246,7 @@ DISCTOTAL={disc_total}
     Ok(())
 }
 
-#[derive(Parser, ClapHandler, Debug)]
+#[derive(Parser, Handler, Debug)]
 #[clap_handler(repo_validate)]
 #[clap_handler_arg(RepositoryManager)]
 pub struct RepoValidateAction {}
@@ -266,7 +266,7 @@ fn repo_validate(_: &RepoValidateAction, manager: &RepositoryManager) -> anyhow:
     Ok(())
 }
 
-#[derive(Parser, ClapHandler, Debug)]
+#[derive(Parser, Handler, Debug)]
 #[clap_handler(repo_print)]
 #[clap_handler_arg(RepositoryManager)]
 pub struct RepoPrintAction {

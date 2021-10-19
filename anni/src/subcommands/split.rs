@@ -10,14 +10,14 @@ use anni_common::decode::{DecodeError, u16_le, u32_le, token};
 use anni_common::encode::{btoken_w, u16_le_w, u32_le_w};
 
 use anni_common::traits::{Decode, Encode};
-use anni_derive::ClapHandler;
+use anni_derive::Handler;
 use anni_flac::{FlacHeader, MetadataBlock, MetadataBlockData};
 use anni_flac::blocks::{UserComment, UserCommentExt, BlockPicture, PictureType};
 use cue_sheet::tracklist::Tracklist;
 use crate::{ll, ball};
 use std::fmt::{Display, Formatter};
 
-#[derive(Parser, ClapHandler, Debug)]
+#[derive(Parser, Handler, Debug)]
 #[clap(about = ll ! ("split"))]
 #[clap_handler(handle_split)]
 pub struct SplitSubcommand {

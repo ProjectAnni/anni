@@ -17,7 +17,7 @@ pub fn derive_from_file(input: TokenStream) -> TokenStream {
     gen.into()
 }
 
-#[proc_macro_derive(ClapHandler, attributes(clap_handler, clap_handler_arg))]
+#[proc_macro_derive(Handler, attributes(clap_handler, clap_handler_arg))]
 pub fn derive_clap_handler(item: TokenStream) -> TokenStream {
     let input = parse_macro_input!(item as DeriveInput);
     let name = &input.ident;
@@ -213,7 +213,7 @@ pub fn derive_clap_handler(item: TokenStream) -> TokenStream {
                         }
                     }
                 }
-                _ => panic!("ClapHandler is not implemented for unnamed or None struct"),
+                _ => panic!("Handler is not implemented for unnamed or None struct"),
             }
         }
         Data::Enum(DataEnum { variants, .. }) => {
@@ -254,7 +254,7 @@ pub fn derive_clap_handler(item: TokenStream) -> TokenStream {
                 }
             }
         }
-        _ => panic!("ClapHandler is not implemented for union type"),
+        _ => panic!("Handler is not implemented for union type"),
     };
     expanded.into()
 }
