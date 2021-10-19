@@ -7,7 +7,7 @@ use std::fs::File;
 ///
 /// ActionFile can be used to create `FileReader` with `to_reader`
 /// method or to `FileWriter` with `to_writer` method.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct ActionFile(String);
 
 impl FromStr for ActionFile {

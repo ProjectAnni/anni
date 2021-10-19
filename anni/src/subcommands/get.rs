@@ -3,24 +3,23 @@ use clap::Parser;
 use crate::ll;
 use anni_vgmdb::VGMClient;
 use futures::executor::block_on;
-use anni_derive::Handler;
+use anni_clap_handler::{Handler, handler};
 
-#[derive(Parser, Handler, Debug)]
+#[derive(Parser, Handler, Debug, Clone)]
 #[clap(about = ll ! {"get"})]
 pub struct GetSubcommand {
     #[clap(subcommand)]
     action: GetAction,
 }
 
-#[derive(Parser, Handler, Debug)]
+#[derive(Parser, Handler, Debug, Clone)]
 pub enum GetAction {
     #[clap(name = "vgmdb", alias = "vgm")]
     #[clap(about = ll ! {"get-vgmdb"})]
     VGMdb(GetVGMdbAction),
 }
 
-#[derive(Parser, Handler, Debug)]
-#[clap_handler(get_vgmdb)]
+#[derive(Parser, Debug, Clone)]
 pub struct GetVGMdbAction {
     #[clap(short = 'H', long = "host", default_value = "https://vgmdb.info/")]
     #[clap(about = ll ! {"vgmdb-api-host"})]
@@ -31,6 +30,7 @@ pub struct GetVGMdbAction {
     catalog: String,
 }
 
+#[handler(GetVGMdbAction)]
 fn get_vgmdb(me: &GetVGMdbAction) -> anyhow::Result<()> {
     let client = VGMClient::new(me.api_host.clone());
     let album = block_on(client.album(&me.catalog))?;

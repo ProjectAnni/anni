@@ -1,7 +1,6 @@
 use log::LevelFilter;
 use clap::Parser;
-use anni_derive::Handler;
-use anni_common::traits::Handle;
+use anni_clap_handler::Handler;
 use crate::subcommands::*;
 
 mod i18n;
@@ -15,7 +14,7 @@ extern crate anyhow;
 #[macro_use]
 extern crate log;
 
-#[derive(Parser, Handler, Debug)]
+#[derive(Parser, Handler, Debug, Clone)]
 #[clap(name = "Project Anni", version, author)]
 #[clap(about = ll ! {"anni-about"})]
 pub struct AnniArguments {
@@ -23,7 +22,7 @@ pub struct AnniArguments {
     subcommand: AnniSubcommand,
 }
 
-#[derive(Parser, Handler, Debug)]
+#[derive(Parser, Handler, Debug, Clone)]
 pub enum AnniSubcommand {
     Flac(FlacSubcommand),
     Split(SplitSubcommand),
@@ -45,5 +44,5 @@ async fn main() -> anyhow::Result<()> {
     // parse arguments
     let args = AnniArguments::parse();
     log::debug!("{:#?}", args);
-    args.handle()
+    args.run()
 }

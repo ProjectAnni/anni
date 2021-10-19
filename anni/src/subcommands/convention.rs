@@ -11,38 +11,41 @@ use crate::config::read_config;
 use anni_flac::{FlacHeader, MetadataBlockData};
 use anni_flac::blocks::{BlockVorbisComment, BlockStreamInfo, PictureType};
 use crate::args::{InputPath, FlacInputPath};
-use anni_derive::Handler;
+use anni_clap_handler::{Context, Handler, handler};
 
-#[derive(Parser, Handler, Debug)]
+#[derive(Parser, Debug, Clone)]
 #[clap(about = ll ! ("convention"))]
 #[clap(alias = "conv")]
-#[clap_handler(handle_convention)]
-#[clap_handler_arg(ConventionRules)]
 pub struct ConventionSubcommand {
     #[clap(subcommand)]
     action: ConventionAction,
 }
 
-fn handle_convention(_: &ConventionSubcommand) -> anyhow::Result<ConventionRules> {
-    // Initialize rules
-    let config: ConventionConfig = read_config("convention").map_err(|e| {
-        debug!(target: "convention", "Failed to read convention.toml: {}", e);
-        debug!(target: "convention", "Using default anni convention");
-        e
-    }).unwrap_or_default();
-    Ok(config.into_rules())
+impl Handler for ConventionSubcommand {
+    fn handle_command(&mut self, ctx: &mut Context) -> anyhow::Result<()> {
+        // Initialize rules
+        let config: ConventionConfig = read_config("convention").map_err(|e| {
+            debug!(target: "convention", "Failed to read convention.toml: {}", e);
+            debug!(target: "convention", "Using default anni convention");
+            e
+        }).unwrap_or_default();
+        let rules = config.into_rules();
+        ctx.insert(rules);
+        Ok(())
+    }
+
+    fn handle_subcommand(&mut self, ctx: Context) -> anyhow::Result<()> {
+        self.action.execute(ctx)
+    }
 }
 
-#[derive(Parser, Handler, Debug)]
-#[clap_handler_arg(ConventionRules)]
+#[derive(Parser, Handler, Debug, Clone)]
 pub enum ConventionAction {
     #[clap(about = ll ! ("convention-check"))]
     Check(ConventionCheckAction),
 }
 
-#[derive(Parser, Handler, Debug)]
-#[clap_handler(convention_check)]
-#[clap_handler_arg(ConventionRules)]
+#[derive(Parser, Debug, Clone)]
 pub struct ConventionCheckAction {
     #[clap(short, long)]
     #[clap(about = ll ! ("convention-check-fix"))]
@@ -52,6 +55,7 @@ pub struct ConventionCheckAction {
     filename: Vec<InputPath<FlacInputPath>>,
 }
 
+#[handler(ConventionCheckAction)]
 fn convention_check(me: &ConventionCheckAction, rules: &ConventionRules) -> anyhow::Result<()> {
     info!(target: "anni", "Convention validation started...");
     for input in &me.filename {

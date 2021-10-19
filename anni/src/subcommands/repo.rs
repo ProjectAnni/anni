@@ -8,12 +8,10 @@ use crate::{ll, ball};
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
 use anni_flac::blocks::{UserComment, UserCommentExt};
-use anni_derive::Handler;
+use anni_clap_handler::{Context, Handler, handler};
 
-#[derive(Parser, Handler, Debug)]
+#[derive(Parser, Debug, Clone)]
 #[clap(about = ll ! {"repo"})]
-#[clap_handler(handle_repo)]
-#[clap_handler_arg(RepositoryManager)]
 pub struct RepoSubcommand {
     #[clap(long, env = "ANNI_REPO")]
     #[clap(about = ll ! {"repo-root"})]
@@ -23,13 +21,19 @@ pub struct RepoSubcommand {
     action: RepoAction,
 }
 
-fn handle_repo(repo: &RepoSubcommand) -> anyhow::Result<RepositoryManager> {
-    // TODO: read repo root from config
-    Ok(RepositoryManager::new(repo.root.as_path())?)
+impl Handler for RepoSubcommand {
+    fn handle_command(&mut self, ctx: &mut Context) -> anyhow::Result<()> {
+        let manager = RepositoryManager::new(self.root.as_path())?;
+        ctx.insert(manager);
+        Ok(())
+    }
+
+    fn handle_subcommand(&mut self, ctx: Context) -> anyhow::Result<()> {
+        self.action.execute(ctx)
+    }
 }
 
-#[derive(Parser, Handler, Debug)]
-#[clap_handler_arg(RepositoryManager)]
+#[derive(Parser, Handler, Debug, Clone)]
 pub enum RepoAction {
     #[clap(about = ll ! {"repo-add"})]
     Add(RepoAddAction),
@@ -43,9 +47,7 @@ pub enum RepoAction {
     Print(RepoPrintAction),
 }
 
-#[derive(Parser, Handler, Debug)]
-#[clap_handler(repo_add)]
-#[clap_handler_arg(RepositoryManager)]
+#[derive(Parser, Debug, Clone)]
 pub struct RepoAddAction {
     #[clap(short = 'e', long)]
     #[clap(about = ll ! ("repo-add-edit"))]
@@ -55,6 +57,7 @@ pub struct RepoAddAction {
     directories: Vec<PathBuf>,
 }
 
+#[handler(RepoAddAction)]
 fn repo_add(me: &RepoAddAction, manager: &RepositoryManager) -> anyhow::Result<()> {
     for to_add in me.directories.iter() {
         let last = anni_repo::library::file_name(&to_add)?;
@@ -109,14 +112,13 @@ fn repo_add(me: &RepoAddAction, manager: &RepositoryManager) -> anyhow::Result<(
     Ok(())
 }
 
-#[derive(Parser, Handler, Debug)]
-#[clap_handler(repo_edit)]
-#[clap_handler_arg(RepositoryManager)]
+#[derive(Parser, Debug, Clone)]
 pub struct RepoEditAction {
     #[clap(required = true)]
     directories: Vec<PathBuf>,
 }
 
+#[handler(RepoEditAction)]
 fn repo_edit(me: &RepoEditAction, manager: &RepositoryManager) -> anyhow::Result<()> {
     // FIXME: handle all inputs
     let last = anni_repo::library::file_name(&me.directories[0])?;
@@ -135,14 +137,13 @@ fn repo_edit(me: &RepoEditAction, manager: &RepositoryManager) -> anyhow::Result
     Ok(())
 }
 
-#[derive(Parser, Handler, Debug)]
-#[clap_handler(repo_apply)]
-#[clap_handler_arg(RepositoryManager)]
+#[derive(Parser, Debug, Clone)]
 pub struct RepoApplyAction {
     #[clap(required = true)]
     directories: Vec<PathBuf>,
 }
 
+#[handler(RepoApplyAction)]
 fn repo_apply(me: &RepoApplyAction, manager: &RepositoryManager) -> anyhow::Result<()> {
     // FIXME: handle all inputs
     let to_apply = Path::new(&me.directories[0]);
@@ -246,11 +247,10 @@ DISCTOTAL={disc_total}
     Ok(())
 }
 
-#[derive(Parser, Handler, Debug)]
-#[clap_handler(repo_validate)]
-#[clap_handler_arg(RepositoryManager)]
+#[derive(Parser, Debug, Clone)]
 pub struct RepoValidateAction {}
 
+#[handler(RepoValidateAction)]
 fn repo_validate(_: &RepoValidateAction, manager: &RepositoryManager) -> anyhow::Result<()> {
     info!(target: "anni", "Repository validation started.");
     for catalog in manager.catalogs()? {
@@ -266,9 +266,7 @@ fn repo_validate(_: &RepoValidateAction, manager: &RepositoryManager) -> anyhow:
     Ok(())
 }
 
-#[derive(Parser, Handler, Debug)]
-#[clap_handler(repo_print)]
-#[clap_handler_arg(RepositoryManager)]
+#[derive(Parser, Debug, Clone)]
 pub struct RepoPrintAction {
     #[clap(arg_enum)]
     #[clap(short = 't', long = "type", default_value = "title")]
@@ -287,6 +285,7 @@ pub struct RepoPrintAction {
     output: crate::args::ActionFile,
 }
 
+#[handler(RepoPrintAction)]
 fn repo_print(me: &RepoPrintAction, manager: &RepositoryManager) -> anyhow::Result<()> {
     let split: Vec<_> = me.catalog.split('/').collect();
     let (catalog, disc_id) = if split.len() == 1 {

@@ -28,7 +28,7 @@ pub trait InputPathOptions {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct InputPath<T: InputPathOptions> {
     marker: PhantomData<T>,
     inner: PathBuf,
@@ -77,7 +77,7 @@ impl<T: InputPathOptions> InputPath<T> {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct FlacInputPath;
 
 impl InputPathOptions for FlacInputPath {
@@ -86,7 +86,7 @@ impl InputPathOptions for FlacInputPath {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct FlacInputFile;
 
 impl InputPathOptions for FlacInputFile {

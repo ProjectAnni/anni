@@ -10,16 +10,15 @@ use anni_common::decode::{DecodeError, u16_le, u32_le, token};
 use anni_common::encode::{btoken_w, u16_le_w, u32_le_w};
 
 use anni_common::traits::{Decode, Encode};
-use anni_derive::Handler;
+use anni_clap_handler::handler;
 use anni_flac::{FlacHeader, MetadataBlock, MetadataBlockData};
 use anni_flac::blocks::{UserComment, UserCommentExt, BlockPicture, PictureType};
 use cue_sheet::tracklist::Tracklist;
 use crate::{ll, ball};
 use std::fmt::{Display, Formatter};
 
-#[derive(Parser, Handler, Debug)]
+#[derive(Parser, Debug, Clone)]
 #[clap(about = ll ! ("split"))]
-#[clap_handler(handle_split)]
 pub struct SplitSubcommand {
     #[clap(arg_enum)]
     #[clap(short, long, default_value = "wav")]
@@ -233,6 +232,7 @@ impl Display for SplitOutputFormat {
     }
 }
 
+#[handler(SplitSubcommand)]
 fn handle_split(me: &SplitSubcommand) -> anyhow::Result<()> {
     let cue = fs::get_ext_file(me.directory.as_path(), "cue", false)?
         .ok_or_else(|| anyhow!("Failed to find CUE sheet."))?;

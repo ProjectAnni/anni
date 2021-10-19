@@ -275,6 +275,7 @@ dependencies = [
 name = "anni"
 version = "0.1.0"
 dependencies = [
+ "anni-clap-handler",
  "anni-common",
  "anni-derive",
  "anni-flac",
@@ -320,6 +321,24 @@ dependencies = [
  "tokio",
  "tokio-util",
  "yup-oauth2",
+]
+
+[[package]]
+name = "anni-clap-handler"
+version = "0.1.0"
+dependencies = [
+ "anni-clap-handler-derive",
+ "anyhow",
+]
+
+[[package]]
+name = "anni-clap-handler-derive"
+version = "0.1.0"
+dependencies = [
+ "proc-macro-error",
+ "proc-macro2",
+ "quote",
+ "syn",
 ]
 
 [[package]]

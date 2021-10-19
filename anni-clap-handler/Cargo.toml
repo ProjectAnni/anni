@@ -1,0 +1,9 @@
+[package]
+name = "anni-clap-handler"
+version = "0.1.0"
+edition = "2018"
+
+[dependencies]
+anni-clap-handler-derive = { path = "../anni-clap-handler-derive" }
+anyhow = "1.0"
+

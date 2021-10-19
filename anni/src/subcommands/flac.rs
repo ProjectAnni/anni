@@ -4,23 +4,22 @@ use anni_flac::{MetadataBlockData, FlacHeader};
 use clap::{Parser, ArgEnum};
 use crate::ll;
 use crate::args::{InputPath, FlacInputFile};
-use anni_derive::Handler;
+use anni_clap_handler::{Handler, handler};
 
-#[derive(Parser, Handler, Debug)]
+#[derive(Parser, Handler, Debug, Clone)]
 #[clap(about = ll ! ("flac"))]
 pub struct FlacSubcommand {
     #[clap(subcommand)]
     action: FlacAction,
 }
 
-#[derive(Parser, Handler, Debug)]
+#[derive(Parser, Handler, Debug, Clone)]
 pub enum FlacAction {
     #[clap(about = ll ! ("flac-export"))]
     Export(FlacExportAction)
 }
 
-#[derive(Parser, Handler, Debug)]
-#[clap_handler(flac_export)]
+#[derive(Parser, Debug, Clone)]
 pub struct FlacExportAction {
     #[clap(arg_enum)]
     #[clap(short = 't', long = "type", default_value = "tag")]
@@ -42,6 +41,7 @@ pub struct FlacExportAction {
     filename: Vec<InputPath<FlacInputFile>>,
 }
 
+#[handler(FlacExportAction)]
 fn flac_export(me: &FlacExportAction) -> anyhow::Result<()> {
     for path in me.filename.iter() {
         for file in path.iter() {
