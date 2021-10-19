@@ -28,7 +28,6 @@ pub enum AnniSubcommand {
     Split(SplitSubcommand),
     Convention(ConventionSubcommand),
     Repo(RepoSubcommand),
-    Get(GetSubcommand),
 }
 
 #[tokio::main]

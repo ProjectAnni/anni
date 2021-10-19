@@ -7,8 +7,11 @@ use clap::{Parser, ArgEnum, crate_version};
 use crate::{ll, ball};
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
+use anni_vgmdb::VGMClient;
+use futures::executor::block_on;
 use anni_flac::blocks::{UserComment, UserCommentExt};
 use anni_clap_handler::{Context, Handler, handler};
+use anni_repo::date::AnniDate;
 
 #[derive(Parser, Debug, Clone)]
 #[clap(about = ll ! {"repo"})]
@@ -37,6 +40,8 @@ impl Handler for RepoSubcommand {
 pub enum RepoAction {
     #[clap(about = ll ! {"repo-add"})]
     Add(RepoAddAction),
+    #[clap(about = ll ! {"repo-get"})]
+    Get(RepoGetAction),
     #[clap(about = ll ! {"repo-edit"})]
     Edit(RepoEditAction),
     #[clap(about = ll ! {"repo-apply"})]
@@ -110,6 +115,81 @@ fn repo_add(me: &RepoAddAction, manager: &RepositoryManager) -> anyhow::Result<(
         }
     }
     Ok(())
+}
+
+#[derive(Parser, Handler, Debug, Clone)]
+pub struct RepoGetAction {
+    #[clap(subcommand)]
+    subcommand: RepoGetSubcommand,
+}
+
+#[derive(Parser, Handler, Debug, Clone)]
+pub enum RepoGetSubcommand {
+    #[clap(name = "vgmdb")]
+    VGMdb(RepoGetVGMdb),
+}
+
+#[derive(Parser, Debug, Clone)]
+pub struct RepoGetVGMdb {
+    #[clap(short = 'H', long, default_value = "https://vgmdb.info/")]
+    #[clap(about = ll ! {"vgmdb-api-host"})]
+    host: String,
+
+    #[clap(short = 'c',
+    long)]
+    catalog: String,
+
+    #[clap(short = 'k', long)]
+    keyword: Option<String>,
+}
+
+#[handler(RepoGetVGMdb)]
+fn repo_get_vgmdb(options: &RepoGetVGMdb, manager: &RepositoryManager) -> anyhow::Result<()> {
+    if manager.album_exists(&options.catalog) {
+        ball!("repo-album-exists", catalog = catalog);
+    }
+
+    let client = VGMClient::new(options.host.clone());
+    let album_got = block_on(client.album(&options.keyword.as_deref().unwrap_or(&options.catalog)))?;
+
+    let date = match &album_got.release_date {
+        Some(date) => {
+            let split = date.split('-').collect::<Vec<_>>();
+            AnniDate::from_parts(split[0], split[1], split[2])
+        }
+        None => AnniDate::new(2021, 0, 0),
+    };
+
+    let mut album = Album::new(
+        album_got.name().to_string(),
+        None,
+        Default::default(),
+        date,
+        album_got.catalog().to_string(),
+        Default::default(),
+    );
+
+    for disc_got in album_got.discs() {
+        let mut disc = Disc::new(
+            album_got.catalog().to_string(),
+            Some(disc_got.name().to_string()),
+            None,
+            None,
+            Default::default(),
+        );
+
+        for track_got in disc_got.tracks() {
+            disc.push_track(Track::new(
+                track_got.name().to_string(),
+                None,
+                None,
+                Default::default(),
+            ));
+        }
+        album.push_disc(disc);
+    }
+
+    Ok(manager.add_album(&options.catalog, album)?)
 }
 
 #[derive(Parser, Debug, Clone)]
