@@ -145,17 +145,18 @@ pub struct RepoGetVGMdb {
 
 #[handler(RepoGetVGMdb)]
 fn repo_get_vgmdb(options: &RepoGetVGMdb, manager: &RepositoryManager) -> anyhow::Result<()> {
-    if manager.album_exists(&options.catalog) {
-        ball!("repo-album-exists", catalog = catalog);
+    let catalog = &options.catalog;
+    if manager.album_exists(catalog) {
+        ball!("repo-album-exists", catalog = catalog.clone());
     }
 
     let client = VGMClient::new(options.host.clone());
-    let album_got = block_on(client.album(&options.keyword.as_deref().unwrap_or(&options.catalog)))?;
+    let album_got = block_on(client.album(&options.keyword.as_deref().unwrap_or(catalog)))?;
 
     let date = match &album_got.release_date {
         Some(date) => {
             let split = date.split('-').collect::<Vec<_>>();
-            AnniDate::from_parts(split[0], split.get(1).unwrap_or("0"), split.get(2).unwrap_or("0"))
+            AnniDate::from_parts(split[0], split.get(1).unwrap_or(&"0"), split.get(2).unwrap_or(&"0"))
         }
         None => AnniDate::new(2021, 0, 0),
     };
