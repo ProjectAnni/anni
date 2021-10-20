@@ -107,6 +107,14 @@ impl AnniDate {
 
 impl Display for AnniDate {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{:04}-{:02}-{:02}", self.year, self.month, self.day)
+        if self.day == 0 {
+            if self.month == 0 {
+                write!(f, "{:04}", self.year)
+            } else {
+                write!(f, "{:04}-{:02}", self.year, self.month)
+            }
+        } else {
+            write!(f, "{:04}-{:02}-{:02}", self.year, self.month, self.day)
+        }
     }
 }
