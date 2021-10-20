@@ -155,7 +155,7 @@ fn repo_get_vgmdb(options: &RepoGetVGMdb, manager: &RepositoryManager) -> anyhow
     let date = match &album_got.release_date {
         Some(date) => {
             let split = date.split('-').collect::<Vec<_>>();
-            AnniDate::from_parts(split[0], split[1], split[2])
+            AnniDate::from_parts(split[0], split.get(1).unwrap_or("0"), split.get(2).unwrap_or("0"))
         }
         None => AnniDate::new(2021, 0, 0),
     };

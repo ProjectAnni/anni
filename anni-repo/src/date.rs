@@ -101,7 +101,7 @@ impl AnniDate {
         } else {
             0
         };
-        Self::new(year_offset + u32::from_str(y).unwrap(), u8::from_str(m).unwrap(), u8::from_str(d).unwrap())
+        Self::new(year_offset + u32::from_str(y).unwrap(), u8::from_str(m).unwrap_or(0), u8::from_str(d).unwrap_or(0))
     }
 }
 
