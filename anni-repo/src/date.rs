@@ -17,15 +17,14 @@ impl Serialize for AnniDate {
             let date = toml::value::Datetime::from_str(&self.to_string()).unwrap();
             Value::serialize(&Value::Datetime(date), serializer)
         } else {
-            let mut table = toml::value::Table::new();
-            table.insert("year".to_string(), Value::Integer(self.year as i64));
+            let mut result = format!("{:04}", self.year);
             if self.month > 0 {
-                table.insert("month".to_string(), Value::Integer(self.month as i64));
+                result += &format!("{:02}", self.month);
                 if self.day > 0 {
-                    table.insert("day".to_string(), Value::Integer(self.day as i64));
+                    result += &format!("{:02}", self.day);
                 }
             }
-            Value::serialize(&Value::Table(table), serializer)
+            Value::serialize(&Value::String(result), serializer)
         }
     }
 }
@@ -68,6 +67,17 @@ impl<'de> Deserialize<'de> for AnniDate {
                 }
 
                 Self::new(year, month, day)
+            }
+            Value::String(date) => {
+                // yyyy-mm-dd
+                let parts = date.split('-').collect::<Vec<_>>();
+                if parts.len() == 1 {
+                    Self::from_parts(parts[0], "0", "0")
+                } else if parts.len() == 2 {
+                    Self::from_parts(parts[0], parts[1], "0")
+                } else {
+                    Self::from_parts(parts[0], parts[1], parts[2])
+                }
             }
             _ => {
                 return Err(de::Error::custom("Invalid date format"));

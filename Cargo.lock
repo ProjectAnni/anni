@@ -393,8 +393,8 @@ dependencies = [
 
 [[package]]
 name = "anni-vgmdb"
-version = "0.1.1"
-source = "git+https://github.com/project-anni/anni-vgmdb#fe2651608d07426615ab87b8d70ee68d5bff7762"
+version = "0.1.2"
+source = "git+https://github.com/project-anni/anni-vgmdb#e5ebd507d4552014171734ef2845ec5357365036"
 dependencies = [
  "reqwest",
  "serde",
