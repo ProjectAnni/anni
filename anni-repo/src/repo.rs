@@ -1,18 +1,15 @@
 use serde::{Serialize, Deserialize};
 use std::str::FromStr;
-use std::path::Path;
-use anni_common::traits::FromFile;
 use anni_derive::FromFile;
 
 #[derive(Serialize, Deserialize, FromFile)]
 pub struct Repository {
-    repo: RepositoryInner
+    repo: RepositoryInner,
 }
 
 #[derive(Serialize, Deserialize)]
 struct RepositoryInner {
     name: String,
-    maintainers: Vec<String>,
     edition: String,
 
     cover: Option<AssetSetting>,
@@ -32,6 +29,7 @@ impl FromStr for Repository {
         let val: Repository = toml::from_str(s)
             .map_err(|e| crate::Error::TomlParseError {
                 target: "Repository",
+                input: s.to_string(),
                 err: e,
             })?;
         Ok(val)
@@ -47,11 +45,6 @@ impl ToString for Repository {
 impl Repository {
     pub fn name(&self) -> &str {
         self.repo.name.as_ref()
-    }
-
-    // https://users.rust-lang.org/t/vec-string-to-str/12619/2
-    pub fn maintainers(&self) -> Vec<&str> {
-        self.repo.maintainers.iter().map(|x| &**x).collect()
     }
 
     pub fn edition(&self) -> &str {

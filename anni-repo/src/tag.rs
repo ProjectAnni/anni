@@ -1,7 +1,8 @@
+use std::fmt::{Display, Formatter};
 use serde::{Serialize, Deserialize, Serializer, Deserializer};
 use toml::Value;
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct TagRef {
     name: String,
     edition: Option<String>,
@@ -70,6 +71,16 @@ impl<'de> Deserialize<'de> for TagRef {
     }
 }
 
+impl Display for TagRef {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.name)?;
+        if let Some(edition) = &self.edition {
+            write!(f, ":{}", edition)?;
+        }
+        Ok(())
+    }
+}
+
 #[derive(Serialize, Deserialize)]
 pub struct Tag {
     /// Tag name
@@ -81,8 +92,44 @@ pub struct Tag {
     alias: Vec<String>,
     /// Tag parents
     #[serde(default)]
-    included_by: Vec<String>,
+    included_by: Vec<TagRef>,
     /// Tag children
     #[serde(default)]
-    includes: Vec<String>,
+    includes: Vec<TagRef>,
+}
+
+impl Tag {
+    pub fn name(&self) -> &str {
+        &self.name
+    }
+
+    pub fn edition(&self) -> Option<&str> {
+        self.edition.as_ref().map(|r| r.as_str())
+    }
+
+    pub fn included_by(&self) -> &[TagRef] {
+        &self.included_by
+    }
+
+    pub fn includes(&self) -> &[TagRef] {
+        &self.includes
+    }
+
+    pub fn get_ref(&self) -> TagRef {
+        TagRef {
+            name: self.name.clone(),
+            edition: self.edition.clone(),
+        }
+    }
+}
+
+#[derive(Serialize, Deserialize)]
+pub struct Tags {
+    tag: Vec<Tag>,
+}
+
+impl Tags {
+    pub fn into_inner(self) -> Vec<Tag> {
+        self.tag
+    }
 }

@@ -1,7 +1,5 @@
 use serde::{Serialize, Deserialize, Deserializer, Serializer};
 use std::str::FromStr;
-use std::path::Path;
-use anni_common::traits::FromFile;
 use anni_derive::FromFile;
 use anni_common::inherit::InheritableValue;
 use crate::date::AnniDate;
@@ -39,6 +37,7 @@ impl FromStr for Album {
         let mut album: Album = toml::from_str(toml_str)
             .map_err(|e| crate::Error::TomlParseError {
                 target: "Album",
+                input: toml_str.to_string(),
                 err: e,
             })?;
 
