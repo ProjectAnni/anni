@@ -8,7 +8,7 @@
 > 束ねては　贈る　ひとひら  
 > Anniversary
 
-[中文使用手册](https://anni.mmf.moe/)
+[中文使用手册](https://book.anni.rs/)
 
 ## Child Projects
 
