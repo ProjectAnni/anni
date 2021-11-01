@@ -13,7 +13,7 @@ pub struct RepositoryManager {
     /// All available tags.
     tags: HashSet<RepoTag>,
     /// Path -> Tags map.
-    tags_by_file: HashMap<PathBuf, HashSet<TagRef>>,
+    tags_by_file: HashMap<String, HashSet<TagRef>>,
     /// Top level tags with no parent.
     tags_top: HashSet<TagRef>,
 }
@@ -99,6 +99,7 @@ impl RepositoryManager {
 
         // iterate over tag files
         for tag_file in tags_path {
+            let filename = tag_file.file_name().unwrap().to_string_lossy().to_string();
             let text = anni_common::fs::read_to_string(&tag_file)?;
             let tags = toml::from_str::<Tags>(&text).map_err(|e| crate::error::Error::TomlParseError {
                 target: "Tags",
@@ -129,7 +130,7 @@ impl RepositoryManager {
                     }
                 }
                 self.tags.extend(tags);
-                self.tags_by_file.insert(tag_file, refs);
+                self.tags_by_file.insert(filename, refs);
             }
         }
 
