@@ -19,7 +19,7 @@ pub enum Error {
     RepoTagLoadError { file: std::path::PathBuf, err: anyhow::Error },
 
     #[error("duplicated tag {0}")]
-    RepoTagDuplicate(crate::tag::TagRef),
+    RepoTagDuplicate(std::path::PathBuf),
 
     #[error(transparent)]
     IOError(#[from] std::io::Error),

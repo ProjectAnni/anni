@@ -1,11 +1,86 @@
 use std::fmt::{Display, Formatter};
+use std::hash::{Hash, Hasher};
 use serde::{Serialize, Deserialize, Serializer, Deserializer};
 use toml::Value;
 
-#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+/// RepoTag is a wrapper type for the actual tag used in anni metadata repository.
+/// All part of code other than serialize/deserialize part should use this type
+/// instead of the underlying tag types.
+#[derive(Debug, Eq)]
+pub enum RepoTag {
+    Ref(TagRef),
+    Full(Tag),
+}
+
+/// Hash implementation fo RepoTag depends on the underlying tag type.
+impl Hash for RepoTag {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        match self {
+            RepoTag::Ref(ref tag) => tag.hash(state),
+            RepoTag::Full(ref tag) => tag.hash(state),
+        }
+    }
+}
+
+/// Two RepoTags equal iff their name and edition are the same.
+impl PartialEq for RepoTag {
+    fn eq(&self, other: &Self) -> bool {
+        let (name_a, edition_a) = match self {
+            RepoTag::Ref(r) => (r.name.as_str(), r.edition.as_deref()),
+            RepoTag::Full(f) => (f.name.as_str(), f.edition.as_deref()),
+        };
+        let (name_b, edition_b) = match other {
+            RepoTag::Ref(r) => (r.name.as_str(), r.edition.as_deref()),
+            RepoTag::Full(f) => (f.name.as_str(), f.edition.as_deref()),
+        };
+        name_a.eq(name_b) && edition_a.eq(&edition_b)
+    }
+}
+
+/// Clone a TagRef for corresponding RepoTag.
+impl Clone for RepoTag {
+    fn clone(&self) -> Self {
+        RepoTag::Ref(self.get_ref())
+    }
+}
+
+impl Display for RepoTag {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        match self {
+            RepoTag::Ref(r) => write!(f, "{}", r),
+            RepoTag::Full(t) => write!(f, "{}", t),
+        }
+    }
+}
+
+impl RepoTag {
+    /// Get an owned TagRef of the RepoTag.
+    pub fn get_ref(&self) -> TagRef {
+        match self {
+            RepoTag::Ref(r) => r.clone(),
+            RepoTag::Full(t) => t.get_ref(),
+        }
+    }
+}
+
+/// Simple reference to a tag with owned name and edition.
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct TagRef {
     name: String,
     edition: Option<String>,
+}
+
+impl TagRef {
+    /// Extend a simple TagRef to a full tag with name, edition and parents.
+    pub fn extend_simple(self, parents: Vec<TagRef>) -> Tag {
+        Tag {
+            name: self.name,
+            edition: self.edition,
+            alias: vec![],
+            parents,
+            children: vec![],
+        }
+    }
 }
 
 impl Serialize for TagRef {
@@ -81,7 +156,17 @@ impl Display for TagRef {
     }
 }
 
-#[derive(Serialize, Deserialize)]
+impl Hash for TagRef {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        state.write(self.name.as_bytes());
+        if let Some(edition) = &self.edition {
+            state.write(b":");
+            state.write(edition.as_bytes());
+        }
+    }
+}
+
+#[derive(Serialize, Deserialize, Debug, PartialEq, Eq)]
 pub struct Tag {
     /// Tag name
     name: String,
@@ -92,10 +177,28 @@ pub struct Tag {
     alias: Vec<String>,
     /// Tag parents
     #[serde(default)]
-    included_by: Vec<TagRef>,
+    #[serde(rename = "included_by")]
+    parents: Vec<TagRef>,
     /// Tag children
     #[serde(default)]
-    includes: Vec<TagRef>,
+    #[serde(rename = "includes")]
+    children: Vec<TagRef>,
+}
+
+impl Hash for Tag {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        state.write(self.name.as_bytes());
+        if let Some(edition) = &self.edition {
+            state.write(b":");
+            state.write(edition.as_bytes());
+        }
+    }
+}
+
+impl Display for Tag {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.get_ref())
+    }
 }
 
 impl Tag {
@@ -107,12 +210,13 @@ impl Tag {
         self.edition.as_ref().map(|r| r.as_str())
     }
 
-    pub fn included_by(&self) -> &[TagRef] {
-        &self.included_by
+    pub fn parents(&self) -> &[TagRef] {
+        &self.parents
     }
 
-    pub fn includes(&self) -> &[TagRef] {
-        &self.includes
+    #[doc(hidden)]
+    pub fn children_raw(&self) -> &[TagRef] {
+        &self.children
     }
 
     pub fn get_ref(&self) -> TagRef {

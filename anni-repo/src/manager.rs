@@ -4,16 +4,18 @@ use anni_common::traits::FromFile;
 use std::fs;
 use std::path::{PathBuf, Path};
 use std::collections::{HashMap, HashSet};
-use crate::tag::{Tag, TagRef, Tags};
+use crate::tag::{RepoTag, TagRef, Tags};
 
 pub struct RepositoryManager {
     root: PathBuf,
     pub repo: Repository,
 
     /// All available tags.
-    tags: HashMap<TagRef, Tag>,
+    tags: HashSet<RepoTag>,
     /// Path -> Tags map.
     tags_by_file: HashMap<PathBuf, HashSet<TagRef>>,
+    /// Top level tags with no parent.
+    tags_top: HashSet<TagRef>,
 }
 
 impl RepositoryManager {
@@ -24,6 +26,7 @@ impl RepositoryManager {
             repo: Repository::from_file(repo).map_err(crate::Error::RepoInitError)?,
             tags: Default::default(),
             tags_by_file: Default::default(),
+            tags_top: Default::default(),
         };
         repo.load_tags()?;
         Ok(repo)
@@ -102,18 +105,35 @@ impl RepositoryManager {
                 input: text,
                 err: e,
             })?.into_inner();
-            let refs = tags.iter().map(|t| t.get_ref()).collect::<HashSet<_>>();
+            let tags_count = tags.len();
 
-            // iterate tags in the file
-            for tag in tags {
-                let tag_ref = tag.get_ref();
-                if self.tags.contains_key(&tag_ref) {
-                    return Err(crate::error::Error::RepoTagDuplicate(tag_ref));
+            let refs = tags.iter().map(|t| t.get_ref()).collect::<HashSet<_>>();
+            let tags = tags.into_iter().map(|t| RepoTag::Full(t)).collect::<HashSet<_>>();
+
+            if tags_count != tags.len() || !self.tags.is_disjoint(&tags) {
+                return Err(crate::Error::RepoTagDuplicate(tag_file));
+            } else {
+                for tag in tags.iter() {
+                    if let RepoTag::Full(tag) = tag {
+                        // if parents is empty, add to top level tags set
+                        if tag.parents().is_empty() {
+                            self.tags_top.insert(tag.get_ref());
+                        }
+
+                        // add children to set
+                        for child in tag.children_raw() {
+                            self.tags.insert(RepoTag::Full(child.clone().extend_simple(vec![tag.get_ref()])));
+                        }
+                    } else {
+                        unreachable!()
+                    }
                 }
-                self.tags.insert(tag_ref, tag);
+                self.tags.extend(tags);
+                self.tags_by_file.insert(tag_file, refs);
             }
-            self.tags_by_file.insert(tag_file, refs);
         }
+
+        // TODO: check parent exists
 
         Ok(())
     }
