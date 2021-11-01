@@ -1,4 +1,5 @@
 use thiserror::Error;
+use crate::tag::TagRef;
 
 #[derive(Error, Debug)]
 pub enum Error {
@@ -20,6 +21,9 @@ pub enum Error {
 
     #[error("duplicated tag {0}")]
     RepoTagDuplicate(std::path::PathBuf),
+
+    #[error("TODO")]
+    RepoTagParentNotFound { tag: TagRef, parent: TagRef },
 
     #[error(transparent)]
     IOError(#[from] std::io::Error),

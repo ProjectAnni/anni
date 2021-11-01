@@ -133,7 +133,21 @@ impl RepositoryManager {
             }
         }
 
-        // TODO: check parent exists
+        // check parent exists
+        for tag in self.tags.iter() {
+            if let RepoTag::Full(tag) = tag {
+                for parent in tag.parents() {
+                    if !self.tags.contains(&RepoTag::Ref(parent.clone())) {
+                        return Err(crate::Error::RepoTagParentNotFound {
+                            tag: tag.get_ref(),
+                            parent: parent.clone(),
+                        });
+                    }
+                }
+            } else {
+                unreachable!()
+            }
+        }
 
         Ok(())
     }
