@@ -16,6 +16,10 @@ pub struct RepositoryManager {
     tags_by_file: HashMap<PathBuf, HashSet<TagRef>>,
     /// Top level tags with no parent.
     tags_top: HashSet<TagRef>,
+
+    /// Albums with no tag
+    album_without_tag: Vec<String>,
+    album_tags: HashMap<TagRef, Vec<String>>,
 }
 
 impl RepositoryManager {
@@ -27,8 +31,11 @@ impl RepositoryManager {
             tags: Default::default(),
             tags_by_file: Default::default(),
             tags_top: Default::default(),
+            album_tags: Default::default(),
+            album_without_tag: Default::default(),
         };
         repo.load_tags()?;
+        repo.load_album_tags()?;
         Ok(repo)
     }
 
@@ -38,7 +45,7 @@ impl RepositoryManager {
     }
 
     /// Return path of the album with given catalog.
-    pub fn album_path(&self, catalog: &str) -> PathBuf {
+    fn album_path(&self, catalog: &str) -> PathBuf {
         self.album_root().join(format!("{}.toml", catalog))
     }
 
@@ -89,6 +96,7 @@ impl RepositoryManager {
         // clear tags
         self.tags.clear();
         self.tags_by_file.clear();
+        self.tags_top.clear();
 
         // iterate over tag files
         for tag_file in tags_path {
@@ -146,8 +154,27 @@ impl RepositoryManager {
         Ok(())
     }
 
-    /// Load albums into self.albums.
-    fn load_albums(&mut self) -> Result<()> {
+    /// Load albums tags.
+    fn load_album_tags(&mut self) -> Result<()> {
+        self.album_tags.clear();
+        self.album_without_tag.clear();
+
+        for catalog in self.catalogs()? {
+            let album = self.load_album(&catalog)?;
+            let tags = album.tags();
+            if tags.is_empty() {
+                // this album has no tag
+                self.album_without_tag.push(catalog);
+            } else {
+                for tag in tags {
+                    if !self.album_tags.contains_key(tag) {
+                        self.album_tags.insert(tag.clone(), vec![]);
+                    }
+                    self.album_tags.get_mut(tag).unwrap().push(catalog.clone());
+                }
+            }
+        }
+
         Ok(())
     }
 }

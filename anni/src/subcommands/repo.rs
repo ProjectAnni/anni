@@ -213,8 +213,7 @@ fn repo_edit(me: &RepoEditAction, manager: &RepositoryManager) -> anyhow::Result
     if !manager.album_exists(&catalog) {
         ball!("repo-album-not-found", catalog = catalog);
     }
-    let file = manager.album_path(&catalog);
-    edit::edit_file(&file)?;
+    manager.edit_album(&catalog)?;
     Ok(())
 }
 

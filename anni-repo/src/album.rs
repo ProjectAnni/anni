@@ -77,6 +77,10 @@ impl Album {
         self.info.catalog.as_ref()
     }
 
+    pub fn tags(&self) -> &[TagRef] {
+        &self.info.tags
+    }
+
     pub fn discs(&self) -> &Vec<Disc> {
         &self.discs
     }
