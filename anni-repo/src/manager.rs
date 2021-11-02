@@ -1,7 +1,7 @@
 use crate::Result;
 use crate::{Album, Repository};
 use anni_common::traits::FromFile;
-use std::fs;
+use anni_common::fs;
 use std::path::{PathBuf, Path};
 use std::collections::{HashMap, HashSet};
 use crate::tag::{RepoTag, TagRef, Tags};
@@ -83,15 +83,8 @@ impl RepositoryManager {
     /// Load tags into self.tags.
     fn load_tags(&mut self) -> Result<()> {
         // filter out toml files
-        let tags_path = fs::read_dir(self.root.join("tag"))?
-            .filter_map(|p| {
-                let path = p.ok()?.path();
-                if let Some("toml") = path.extension()?.to_str() {
-                    Some(path)
-                } else {
-                    None
-                }
-            });
+        let tags_path = fs::PathWalker::new(self.root.join("tag"), true)
+            .filter(|p| p.extension().map(|e| e == "toml").unwrap_or(false));
 
         // clear tags
         self.tags.clear();
@@ -99,7 +92,7 @@ impl RepositoryManager {
 
         // iterate over tag files
         for tag_file in tags_path {
-            let text = anni_common::fs::read_to_string(&tag_file)?;
+            let text = fs::read_to_string(&tag_file)?;
             let tags = toml::from_str::<Tags>(&text).map_err(|e| crate::error::Error::TomlParseError {
                 target: "Tags",
                 input: text,

@@ -1,5 +1,4 @@
 use std::path::{PathBuf, Path};
-use std::fs::{read_dir};
 use std::io;
 pub use std::fs::*;
 use crate::decode::raw_to_string;
