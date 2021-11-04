@@ -18,7 +18,8 @@ pub struct RepositoryManager {
     tags_top: HashSet<TagRef>,
 
     /// Albums with no tag
-    album_without_tag: Vec<String>,
+    // TODO: make this field non-public
+    pub album_without_tag: Vec<String>,
     album_tags: HashMap<TagRef, Vec<String>>,
 }
 

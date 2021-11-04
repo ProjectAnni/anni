@@ -342,6 +342,9 @@ fn repo_validate(_: &RepoValidateAction, manager: &RepositoryManager) -> anyhow:
             error!(target: &format!("repo|{}", catalog), "Invalid artist '{artist}'", artist = album.artist());
         }
     }
+    if !manager.album_without_tag.is_empty() {
+        warn!(target: "repo", "Remaining albums without tags count: {:?}", manager.album_without_tag.len());
+    }
     info!(target: "anni", "Repository validation finished.");
     Ok(())
 }
