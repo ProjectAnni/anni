@@ -2,7 +2,7 @@ use serde::{Serialize, Deserialize, Deserializer, Serializer};
 use std::fmt::{Display, Formatter};
 use toml::Value;
 
-#[derive(PartialEq, Debug)]
+#[derive(PartialEq, Debug, Clone)]
 pub struct AnniDate {
     year: u32,
     month: u8,
