@@ -1,5 +1,5 @@
 use anni_flac::FlacHeader;
-use anni_repo::album::{Disc, Track};
+use anni_repo::album::{Disc, Track, TrackType};
 use anni_repo::library::{album_info, disc_info, file_name};
 use anni_repo::{Album, RepositoryManager};
 use anni_common::fs;
@@ -356,6 +356,23 @@ fn repo_validate(_: &RepoValidateAction, manager: &RepositoryManager) -> anyhow:
         }
         if album.artist() == "[Unknown Artist]" {
             error!(target: &format!("repo|{}", catalog), "{}", fl!("repo-invalid-artist", artist = album.artist()));
+        }
+        if let TrackType::Other(o) = album.track_type() {
+            warn!(target: &format!("repo|{}", catalog), "Unknown track type: {}", o);
+        }
+
+        for (disc_id, disc) in album.discs().iter().enumerate() {
+            let disc_id = disc_id + 1;
+            if let TrackType::Other(o) = disc.track_type() {
+                warn!(target: &format!("repo|{}", catalog), "Unknown track type in disc {}: {}", disc_id, o);
+            }
+
+            for (track_id, track) in disc.tracks().iter().enumerate() {
+                let track_id = track_id + 1;
+                if let TrackType::Other(o) = track.track_type() {
+                    warn!(target: &format!("repo|{}", catalog), "Unknown track type in disc {} track {}: {}", disc_id, track_id, o);
+                }
+            }
         }
     }
     if !manager.album_without_tag.is_empty() {

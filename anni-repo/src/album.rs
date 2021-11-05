@@ -181,6 +181,10 @@ impl Disc {
         self.catalog.as_ref()
     }
 
+    pub fn track_type(&self) -> &TrackType {
+        self.disc_type.as_ref()
+    }
+
     pub fn tracks(&self) -> &Vec<Track> {
         self.tracks.as_ref()
     }
