@@ -30,7 +30,7 @@ repo-root = 需要管理的 Anni 元数据仓库根路径
 
 repo-add = 向元数据仓库中导入专辑
 repo-add-edit = 在导入完成后打开文件编辑器
-repo-add-invalid-album = 专辑目录格式错误
+repo-invalid-album = 专辑目录格式错误：{$name}
 repo-album-exists = 专辑 {$catalog} 已存在
 repo-album-not-found = 不存在品番为 {$catalog} 的专辑
 repo-album-info-mismatch = 专辑信息与专辑目录不一致

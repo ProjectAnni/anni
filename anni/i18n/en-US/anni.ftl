@@ -31,7 +31,7 @@ repo-root = Root path of Anni metadata repository to manage.
 
 repo-add = Add new album to repository.
 repo-add-edit = Open text editor after album metadata file is crated.
-repo-add-invalid-album = Invalid album folder name format.
+repo-invalid-album = Invalid album folder name format: {$name}
 repo-album-exists = Album with catalog {$catalog} already exists in repo.
 repo-album-not-found = Album with catalog {$catalog} was not found in repo.
 repo-album-info-mismatch = Album info mismatch with folder.
