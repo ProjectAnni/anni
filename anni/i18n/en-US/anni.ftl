@@ -36,6 +36,12 @@ repo-album-exists = Album with catalog {$catalog} already exists in repo.
 repo-album-not-found = Album with catalog {$catalog} was not found in repo.
 repo-album-info-mismatch = Album info mismatch with folder.
 
+repo-validate-start = Start validating repository.
+repo-validate-end = End validating repository.
+repo-catalog-filename-mismatch = Album catalog '{$album_catalog}' does not match filename.
+repo-invalid-artist = Invalid artist: {$artist}
+repo-remaining-untagged = Remaining untagged albums: {$count}
+
 repo-get = Get album metadata from remote data source and add to repo.
 vgmdb-api-host = VGMdb API host.
 

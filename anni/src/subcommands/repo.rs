@@ -4,7 +4,7 @@ use anni_repo::library::{album_info, disc_info, file_name};
 use anni_repo::{Album, RepositoryManager};
 use anni_common::fs;
 use clap::{Parser, ArgEnum, crate_version};
-use crate::{ll, ball};
+use crate::{fl, ll, ball};
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
 use anni_vgmdb::VGMClient;
@@ -332,20 +332,20 @@ pub struct RepoValidateAction {}
 
 #[handler(RepoValidateAction)]
 fn repo_validate(_: &RepoValidateAction, manager: &RepositoryManager) -> anyhow::Result<()> {
-    info!(target: "anni", "Repository validation started.");
+    info!(target: "anni", "{}", fl!("repo-validate-start"));
     for catalog in manager.catalogs()? {
         let album = manager.load_album(&catalog)?;
         if album.catalog() != catalog {
-            error!(target: &format!("repo|{}", catalog), "Album catalog '{album_catalog}' does not match filename", album_catalog = album.catalog());
+            error!(target: &format!("repo|{}", catalog), "{}", fl!("repo-catalog-filename-mismatch", album_catalog = album.catalog()));
         }
         if album.artist() == "[Unknown Artist]" {
-            error!(target: &format!("repo|{}", catalog), "Invalid artist '{artist}'", artist = album.artist());
+            error!(target: &format!("repo|{}", catalog), "{}", fl!("repo-invalid-artist", artist = album.artist()));
         }
     }
     if !manager.album_without_tag.is_empty() {
-        warn!(target: "repo", "Remaining albums without tags count: {:?}", manager.album_without_tag.len());
+        warn!(target: "repo", "{}", fl!("repo-remaining-untagged", count = manager.album_without_tag.len()));
     }
-    info!(target: "anni", "Repository validation finished.");
+    info!(target: "anni", "{}", fl!("repo-validate-end"));
     Ok(())
 }
 
