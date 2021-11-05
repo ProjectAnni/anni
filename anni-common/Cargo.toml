@@ -12,8 +12,9 @@ arc = []
 anyhow = "1.0"
 byteorder = "1"
 thiserror = "1.0"
-chardetng = "0.1.15"
+chardetng = "0.1.12"
 log = "0.4.0"
+encoding_rs = "=0.8.28"
 
 regex = "1"
 lazy_static = "1.4.0"

@@ -348,6 +348,7 @@ dependencies = [
  "anyhow",
  "byteorder",
  "chardetng",
+ "encoding_rs",
  "lazy_static",
  "log 0.4.14",
  "regex",
@@ -590,9 +591,9 @@ checksum = "baf1de4339761588bc0619e3cbc0120ee582ebb74b53b4efbf79117bd2da40fd"
 
 [[package]]
 name = "chardetng"
-version = "0.1.15"
+version = "0.1.14"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "83ee29c16b81c32fbc882ecc568305793338a8353952573db837f4f4a6cd5c2e"
+checksum = "36a5a2ca47925d19fb6835f53b3e70dec0d25659211c8ee5cc784f1fd6838f9c"
 dependencies = [
  "cfg-if",
  "encoding_rs",
@@ -988,9 +989,9 @@ checksum = "a357d28ed41a50f9c765dbfe56cbc04a64e53e5fc58ba79fbc34c10ef3df831f"
 
 [[package]]
 name = "encoding_rs"
-version = "0.8.29"
+version = "0.8.28"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a74ea89a0a1b98f6332de42c95baff457ada66d1cb4030f9ff151b2041a1c746"
+checksum = "80df024fbc5ac80f87dfef0d9f5209a252f2a497f7f42944cff24d8253cac065"
 dependencies = [
  "cfg-if",
 ]
