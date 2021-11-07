@@ -104,7 +104,10 @@ impl CachePool {
             // cache
             let item_spawn = item.clone();
             tokio::spawn(async move {
-                tokio::io::copy(&mut reader, &mut file).await.unwrap();
+                let actual_size = tokio::io::copy(&mut reader, &mut file).await.unwrap() as usize;
+                if item_spawn.size() != actual_size {
+                    item_spawn.set_size(actual_size);
+                }
                 item_spawn.set_cached(true);
             });
             item
@@ -122,7 +125,7 @@ impl CachePool {
     }
 
     fn space_used(&self) -> usize {
-        self.cache.read().values().map(|a| a.size).reduce(|a, b| a + b).unwrap_or(0)
+        self.cache.read().values().map(|a| a.size()).reduce(|a, b| a + b).unwrap_or(0)
     }
 }
 
@@ -137,7 +140,7 @@ fn do_hash(key: String) -> String {
 struct CacheItem {
     ext: String,
     path: PathBuf,
-    size: usize,
+    size: RwLock<usize>,
     cached: RwLock<bool>,
 }
 
@@ -146,9 +149,17 @@ impl CacheItem {
         CacheItem {
             path,
             ext,
-            size,
+            size: RwLock::new(size),
             cached: RwLock::new(cached),
         }
+    }
+
+    fn size(&self) -> usize {
+        *self.size.read()
+    }
+
+    fn set_size(&self, size: usize) {
+        *self.size.write() = size;
     }
 
     fn cached(&self) -> bool {
@@ -179,7 +190,7 @@ impl CacheReader for Arc<CacheItem> {
     fn to_backend_reader_ext(&self, file: File) -> BackendReaderExt {
         BackendReaderExt {
             extension: self.ext.clone(),
-            size: self.size,
+            size: self.size(),
             reader: Box::pin(self.to_reader(file)),
         }
     }
@@ -234,7 +245,7 @@ impl AsyncRead for CacheItemReader {
                             self.filled += now - before;
                             Poll::Ready(Ok(()))
                         } else if self.item.cached() {
-                            if self.filled != self.item.size {
+                            if self.filled != self.item.size() {
                                 // caching finished just now
                                 // wake immediately to finish the last part
                                 cx.waker().wake_by_ref();
