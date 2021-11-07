@@ -38,7 +38,10 @@ impl Backend for ProxyBackend {
 
     async fn get_audio(&self, catalog: &str, track_id: u8) -> Result<BackendReaderExt, BackendError> {
         let resp = self.get(&format!("/{}/{}?prefer_bitrate=loseless", catalog, track_id)).await.map_err(|e| BackendError::RequestError(e))?;
-        let original_size = resp.headers().get("X-Origin-Size").unwrap().to_str().unwrap_or("0").to_string();
+        let original_size = match resp.headers().get("x-origin-size") {
+            Some(s) => s.to_str().unwrap_or("0"),
+            None => "0",
+        }.to_string();
         let body = resp
             .bytes_stream()
             .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e.to_string()))
