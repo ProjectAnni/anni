@@ -24,6 +24,10 @@ impl Cache {
             pool,
         }
     }
+
+    pub async fn invalidate(&self, catalog: &str, track_id: u8) {
+        self.pool.remove(&do_hash(format!("{}/{:02}", catalog, track_id)));
+    }
 }
 
 #[async_trait]
@@ -118,6 +122,11 @@ impl CachePool {
         };
 
         Ok(item.to_backend_reader_ext(tokio::fs::File::open(&item.path).await?))
+    }
+
+    fn remove(&self, key: &str) {
+        self.cache.write().remove(key).map(|r| r.set_cached(false));
+        self.last_used.write().remove(key);
     }
 
     fn has_cache(&self, key: &str) -> bool {
