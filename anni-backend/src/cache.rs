@@ -25,7 +25,7 @@ impl Cache {
         }
     }
 
-    pub async fn invalidate(&self, catalog: &str, track_id: u8) {
+    pub fn invalidate(&self, catalog: &str, track_id: u8) {
         self.pool.remove(&do_hash(format!("{}/{:02}", catalog, track_id)));
     }
 }
