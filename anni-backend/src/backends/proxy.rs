@@ -1,4 +1,5 @@
 use std::collections::HashSet;
+use std::str::FromStr;
 use crate::{Backend, BackendError, BackendReader, BackendReaderExt};
 use async_trait::async_trait;
 use futures::TryStreamExt;
@@ -37,6 +38,7 @@ impl Backend for ProxyBackend {
 
     async fn get_audio(&self, catalog: &str, track_id: u8) -> Result<BackendReaderExt, BackendError> {
         let resp = self.get(&format!("/{}/{}?prefer_bitrate=loseless", catalog, track_id)).await.map_err(|e| BackendError::RequestError(e))?;
+        let original_size = resp.headers().get("X-Origin-Size").unwrap().to_str().unwrap_or("0").to_string();
         let body = resp
             .bytes_stream()
             .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e.to_string()))
@@ -46,7 +48,7 @@ impl Backend for ProxyBackend {
             // FIXME: the correct extension might not be `flac`
             extension: "flac".to_string(),
             // TODO: Try to get correct size from response
-            size: 0,
+            size: usize::from_str(original_size.as_str()).unwrap(),
             reader: Box::pin(body),
         })
     }
