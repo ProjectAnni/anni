@@ -82,4 +82,7 @@ pub enum BackendError {
 
     #[error(transparent)]
     DriveError(#[from] google_drive3::Error),
+
+    #[error(transparent)]
+    RequestError(#[from] reqwest::Error),
 }
