@@ -128,8 +128,8 @@ impl ConventionRules {
         where P: AsRef<Path> {
         let filename = filename.as_ref().to_string_lossy();
         self.stream_info.sample_rate.iter().for_each(|expected| {
-            if info.sample_rate != *expected {
-                error!(target: "convention/sample-rate", "Stream sample-rate mismatch in file {}: expected {}, got {}", filename, expected, info.sample_rate);
+            if !expected.contains(&info.sample_rate) {
+                error!(target: "convention/sample-rate", "Stream sample-rate mismatch in file {}: expected `{:?}`, got {}", filename, expected, info.sample_rate);
             }
         });
         self.stream_info.bit_per_sample.iter().for_each(|expected| {
@@ -359,7 +359,7 @@ impl Default for ConventionConfig {
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "kebab-case")]
 struct ConventionStreamInfo {
-    sample_rate: Option<u32>,
+    sample_rate: Option<Vec<u32>>,
     channels: Option<u8>,
     bit_per_sample: Option<u8>,
 }
@@ -367,7 +367,7 @@ struct ConventionStreamInfo {
 impl Default for ConventionStreamInfo {
     fn default() -> Self {
         Self {
-            sample_rate: Some(44100),
+            sample_rate: Some(vec![44100, 48000]),
             channels: Some(2),
             bit_per_sample: Some(16),
         }
