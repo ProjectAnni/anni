@@ -119,6 +119,9 @@ fn repo_add(me: &RepoAddAction, manager: &RepositoryManager) -> anyhow::Result<(
 
 #[derive(Parser, Handler, Debug, Clone)]
 pub struct RepoGetAction {
+    // TODO: i18n
+    #[clap(long = "no-add", parse(from_flag = std::ops::Not::not))]
+    add: bool,
     #[clap(subcommand)]
     subcommand: RepoGetSubcommand,
 }
@@ -144,9 +147,9 @@ pub struct RepoGetVGMdb {
 }
 
 #[handler(RepoGetVGMdb)]
-fn repo_get_vgmdb(options: &RepoGetVGMdb, manager: &RepositoryManager) -> anyhow::Result<()> {
+fn repo_get_vgmdb(options: &RepoGetVGMdb, manager: &RepositoryManager, get: &RepoGetAction) -> anyhow::Result<()> {
     let catalog = &options.catalog;
-    if manager.album_exists(catalog) {
+    if get.add && manager.album_exists(catalog) {
         ball!("repo-album-exists", catalog = catalog.clone());
     }
 
@@ -191,7 +194,12 @@ fn repo_get_vgmdb(options: &RepoGetVGMdb, manager: &RepositoryManager) -> anyhow
         album.push_disc(disc);
     }
 
-    Ok(manager.add_album(&options.catalog, album)?)
+    if get.add {
+        Ok(manager.add_album(&options.catalog, album)?)
+    } else {
+        println!("{}", album.to_string());
+        Ok(())
+    }
 }
 
 #[derive(Parser, Debug, Clone)]
