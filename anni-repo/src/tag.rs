@@ -177,7 +177,7 @@ pub struct Tag {
     alias: Vec<String>,
     /// Tag parents
     #[serde(default)]
-    #[serde(rename = "included_by")]
+    #[serde(rename = "included-by")]
     parents: Vec<TagRef>,
     /// Tag children
     #[serde(default)]

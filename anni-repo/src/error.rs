@@ -22,7 +22,7 @@ pub enum Error {
     #[error("duplicated tag {0}")]
     RepoTagDuplicate(std::path::PathBuf),
 
-    #[error("TODO")]
+    #[error("parent tag for tag {tag} not found: {parent}")]
     RepoTagParentNotFound { tag: TagRef, parent: TagRef },
 
     #[error(transparent)]
