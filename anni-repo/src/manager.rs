@@ -122,6 +122,13 @@ impl RepositoryManager {
                             self.tags_top.insert(tag.get_ref());
                         }
 
+                        // if tag itself is [global]
+                        if tag.is_empty() {
+                            for child in tag.children_raw() {
+                                self.tags_top.insert(child.clone());
+                            }
+                        }
+
                         // add children to set
                         for child in tag.children_raw() {
                             self.tags.insert(RepoTag::Full(child.clone().extend_simple(vec![tag.get_ref()])));

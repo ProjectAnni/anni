@@ -115,7 +115,7 @@ impl<'de> Deserialize<'de> for TagRef {
                     Some((name, edition)) => {
                         Self {
                             name: name.to_string(),
-                            edition: Some(edition.to_string()),
+                            edition: if edition.is_empty() { None } else { Some(edition.to_string()) },
                         }
                     }
                     None => Self {
@@ -212,6 +212,11 @@ impl Tag {
 
     pub fn parents(&self) -> &[TagRef] {
         &self.parents
+    }
+
+    #[doc(hidden)]
+    pub fn is_empty(&self) -> bool {
+        self.name.is_empty() && self.edition.is_none()
     }
 
     #[doc(hidden)]
