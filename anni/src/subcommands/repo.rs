@@ -292,10 +292,10 @@ fn repo_apply(me: &RepoApplyAction, manager: &RepositoryManager) -> anyhow::Resu
             let tracks = disc.tracks();
             if files.len() != tracks.len() {
                 bail!(
-                "Track number mismatch in Disc {} of {}. Aborted.",
-                disc_num,
-                catalog
-            );
+                    "Track number mismatch in Disc {} of {}. Aborted.",
+                    disc_num,
+                    catalog
+                );
             }
 
             for (track_num, (file, track)) in files.iter().zip(tracks).enumerate() {

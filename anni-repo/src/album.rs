@@ -53,6 +53,7 @@ impl ToString for Album {
 }
 
 impl Album {
+    /// Only album title uses edition parameter.
     pub fn title(&self) -> Cow<str> {
         if let Some(edition) = &self.info.edition {
             Cow::Owned(format!("{}【{}】", self.info.title.as_ref(), edition))

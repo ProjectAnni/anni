@@ -399,7 +399,12 @@ fn cue_tracks<P: AsRef<Path>>(path: P) -> Vec<CueTrack> {
     let rem_comment = regex::Regex::new(r#"(?m)^\s*REM COMMENT .+$"#).unwrap();
     let cue = rem_comment.replace_all(&cue, "");
 
+    // remove FLAGS xxx
+    let flags = regex::Regex::new(r#"(?m)^\s*FLAGS .+$"#).unwrap();
+    let cue = flags.replace_all(&cue, "");
+
     let cue = Tracklist::parse(&cue).unwrap();
+    debug!("{:#?}", cue);
     let album = cue.info.get("TITLE").map(String::as_str).unwrap_or("");
     let artist = cue.info.get("ARTIST").map(String::as_str).unwrap_or("");
     let date = cue.info.get("DATE").map(String::as_str).unwrap_or("");
