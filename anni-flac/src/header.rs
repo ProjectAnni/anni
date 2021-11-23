@@ -1,8 +1,8 @@
 use std::io::{Read, Write, Seek, SeekFrom};
 use byteorder::{BigEndian, ReadBytesExt, WriteBytesExt};
-use crate::prelude::{Decode, Result, Encode};
+use crate::prelude::*;
 use crate::blocks::*;
-use crate::utils::skip;
+use crate::utils::*;
 use crate::error::FlacError;
 use std::fmt;
 use std::path::{Path, PathBuf};
@@ -34,6 +34,34 @@ impl FlacHeader {
         let mut frame_offset = 4 + 4 + 34;
         while !is_last {
             let block = MetadataBlock::from_reader(reader)?;
+            frame_offset += 4 + block.length;
+            is_last = block.is_last;
+            blocks.push(block);
+        }
+        Ok(FlacHeader { blocks, input_file: None, frame_offset })
+    }
+
+    pub async fn parse_async<R>(reader: &mut R) -> Result<FlacHeader>
+        where R: AsyncRead + Unpin + Send
+    {
+        if reader.read_u8().await? != b'f' ||
+            reader.read_u8().await? != b'L' ||
+            reader.read_u8().await? != b'a' ||
+            reader.read_u8().await? != b'C' {
+            return Err(FlacError::InvalidMagicNumber);
+        }
+
+        let stream_info = MetadataBlock::from_async_reader(reader).await?;
+        match stream_info.data {
+            MetadataBlockData::StreamInfo(_) => {}
+            _ => return Err(FlacError::InvalidFirstBlock)
+        }
+
+        let mut is_last = stream_info.is_last;
+        let mut blocks = vec![stream_info];
+        let mut frame_offset = 4 + 4 + 34;
+        while !is_last {
+            let block = MetadataBlock::from_async_reader(reader).await?;
             frame_offset += 4 + block.length;
             is_last = block.is_last;
             blocks.push(block);
@@ -278,7 +306,33 @@ impl Decode for MetadataBlock {
                 4 => MetadataBlockData::Comment(BlockVorbisComment::from_reader(&mut reader.take(length as u64))?),
                 5 => MetadataBlockData::CueSheet(BlockCueSheet::from_reader(&mut reader.take(length as u64))?),
                 6 => MetadataBlockData::Picture(BlockPicture::from_reader(&mut reader.take(length as u64))?),
-                _ => MetadataBlockData::Reserved((block_type, crate::utils::take(reader, length)?)),
+                _ => MetadataBlockData::Reserved((block_type, take(reader, length)?)),
+            },
+        })
+    }
+}
+
+#[cfg(feature = "async")]
+#[async_trait::async_trait]
+impl AsyncDecode for MetadataBlock {
+    async fn from_async_reader<R>(reader: &mut R) -> Result<Self>
+        where R: AsyncRead + Unpin + Send
+    {
+        let first_byte = reader.read_u8().await?;
+        let block_type = first_byte & 0b01111111;
+        let length = read_u24_async(reader).await? as usize;
+        Ok(MetadataBlock {
+            is_last: first_byte & 0b10000000 > 0,
+            length,
+            data: match block_type {
+                0 => MetadataBlockData::StreamInfo(BlockStreamInfo::from_async_reader(&mut reader.take(length as u64)).await?),
+                1 => MetadataBlockData::Padding(skip_async(reader, length).await? as usize),
+                2 => MetadataBlockData::Application(BlockApplication::from_async_reader(&mut reader.take(length as u64)).await?),
+                3 => MetadataBlockData::SeekTable(BlockSeekTable::from_async_reader(&mut reader.take(length as u64)).await?),
+                4 => MetadataBlockData::Comment(BlockVorbisComment::from_async_reader(&mut reader.take(length as u64)).await?),
+                5 => MetadataBlockData::CueSheet(BlockCueSheet::from_async_reader(&mut reader.take(length as u64)).await?),
+                6 => MetadataBlockData::Picture(BlockPicture::from_async_reader(&mut reader.take(length as u64)).await?),
+                _ => MetadataBlockData::Reserved((block_type, take_async(reader, length).await?)),
             },
         })
     }

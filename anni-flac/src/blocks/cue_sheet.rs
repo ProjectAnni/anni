@@ -1,7 +1,7 @@
 use std::io::{Read, Write};
 use byteorder::{ReadBytesExt, BigEndian, WriteBytesExt};
-use crate::utils::{take_string, skip};
-use crate::prelude::{Decode, Result, Encode};
+use crate::utils::*;
+use crate::prelude::*;
 use std::fmt;
 
 pub struct BlockCueSheet {
@@ -44,6 +44,31 @@ impl Decode for BlockCueSheet {
         let mut tracks = Vec::with_capacity(track_number as usize);
         for _ in 0..track_number {
             tracks.push(CueSheetTrack::from_reader(reader)?);
+        }
+        Ok(BlockCueSheet {
+            catalog: catalog_number,
+            leadin_samples,
+            is_cd,
+            track_number,
+            tracks,
+        })
+    }
+}
+
+#[cfg(feature = "async")]
+#[async_trait::async_trait]
+impl AsyncDecode for BlockCueSheet {
+    async fn from_async_reader<R>(reader: &mut R) -> Result<Self>
+        where R: AsyncRead + Unpin + Send
+    {
+        let catalog_number = take_string_async(reader, 128).await?;
+        let leadin_samples = reader.read_u64().await?;
+        let is_cd = reader.read_u8().await? > 0;
+        skip_async(reader, 258).await?;
+        let track_number = reader.read_u8().await?;
+        let mut tracks = Vec::with_capacity(track_number as usize);
+        for _ in 0..track_number {
+            tracks.push(CueSheetTrack::from_async_reader(reader).await?);
         }
         Ok(BlockCueSheet {
             catalog: catalog_number,
@@ -155,6 +180,40 @@ impl Decode for CueSheetTrack {
     }
 }
 
+#[cfg(feature = "async")]
+#[async_trait::async_trait]
+impl AsyncDecode for CueSheetTrack {
+    async fn from_async_reader<R>(reader: &mut R) -> Result<Self>
+        where R: AsyncRead + Unpin + Send
+    {
+        let track_offset = reader.read_u64().await?;
+        let track_number = reader.read_u8().await?;
+        let mut isrc = [0u8; 12];
+        reader.read_exact(&mut isrc).await?;
+
+        let b = reader.read_u8().await?;
+        let is_audio = (b & 0b10000000) > 0;
+        let is_pre_emphasis = (b & 0b01000000) > 0;
+        skip_async(reader, 13).await?;
+
+        let index_point_number = reader.read_u8().await?;
+        let mut track_index = Vec::with_capacity(index_point_number as usize);
+        for _ in 0..index_point_number {
+            track_index.push(CueSheetTrackIndex::from_async_reader(reader).await?);
+        }
+
+        Ok(CueSheetTrack {
+            track_offset,
+            track_number,
+            isrc,
+            is_audio,
+            is_pre_emphasis,
+            index_point_number,
+            track_index,
+        })
+    }
+}
+
 impl Encode for CueSheetTrack {
     fn write_to<W: Write>(&self, writer: &mut W) -> Result<()> {
         writer.write_u64::<BigEndian>(self.track_offset)?;
@@ -192,6 +251,19 @@ impl Decode for CueSheetTrackIndex {
         let sample_offset = reader.read_u64::<BigEndian>()?;
         let index_point = reader.read_u8()?;
         skip(reader, 3)?;
+        Ok(CueSheetTrackIndex { sample_offset, index_point })
+    }
+}
+
+#[cfg(feature = "async")]
+#[async_trait::async_trait]
+impl AsyncDecode for CueSheetTrackIndex {
+    async fn from_async_reader<R>(reader: &mut R) -> Result<Self>
+        where R: AsyncRead + Unpin + Send
+    {
+        let sample_offset = reader.read_u64().await?;
+        let index_point = reader.read_u8().await?;
+        skip_async(reader, 3).await?;
         Ok(CueSheetTrackIndex { sample_offset, index_point })
     }
 }
