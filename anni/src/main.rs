@@ -30,8 +30,7 @@ pub enum AnniSubcommand {
     Repo(RepoSubcommand),
 }
 
-#[tokio::main]
-async fn main() -> anyhow::Result<()> {
+fn main() -> anyhow::Result<()> {
     // initialize env_logger
     env_logger::builder()
         .filter_level(LevelFilter::Info)

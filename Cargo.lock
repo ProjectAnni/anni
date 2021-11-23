@@ -298,7 +298,6 @@ dependencies = [
  "reqwest",
  "rust-embed",
  "serde",
- "tokio",
  "toml",
  "which 4.1.0",
 ]
