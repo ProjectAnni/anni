@@ -1,8 +1,8 @@
 use std::io::{Read, Write};
 use num_traits::FromPrimitive;
 use byteorder::{ReadBytesExt, BigEndian, WriteBytesExt};
-use crate::utils::{take_string, take};
-use crate::prelude::{Decode, Result, Encode};
+use crate::utils::*;
+use crate::prelude::*;
 use std::fmt;
 use std::path::Path;
 use image::GenericImageView;
@@ -51,6 +51,39 @@ impl Decode for BlockPicture {
 
         let picture_length = reader.read_u32::<BigEndian>()?;
         let data = take(reader, picture_length as usize)?;
+        Ok(BlockPicture {
+            picture_type,
+            mime_type,
+            description,
+            width,
+            height,
+            depth,
+            colors,
+            data,
+        })
+    }
+}
+
+#[cfg(feature = "async")]
+#[async_trait::async_trait]
+impl AsyncDecode for BlockPicture {
+    async fn from_async_reader<R>(reader: &mut R) -> Result<Self>
+        where R: AsyncRead + Unpin + Send
+    {
+        let picture_type: PictureType = FromPrimitive::from_u32(reader.read_u32().await?).unwrap_or(PictureType::Unknown);
+        let mime_type_length = reader.read_u32().await?;
+        let mime_type = take_string_async(reader, mime_type_length as usize).await?;
+        let description_length = reader.read_u32().await?;
+        let description = take_string_async(reader, description_length as usize).await?;
+
+        let width = reader.read_u32().await?;
+        let height = reader.read_u32().await?;
+
+        let depth = reader.read_u32().await?;
+        let colors = reader.read_u32().await?;
+
+        let picture_length = reader.read_u32().await?;
+        let data = take_async(reader, picture_length as usize).await?;
         Ok(BlockPicture {
             picture_type,
             mime_type,

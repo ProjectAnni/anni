@@ -1,7 +1,7 @@
 use std::io::{Read, Write};
 use byteorder::{ReadBytesExt, LittleEndian, WriteBytesExt};
-use crate::utils::take_string;
-use crate::prelude::{Decode, Result, Encode};
+use crate::utils::*;
+use crate::prelude::*;
 use std::collections::HashMap;
 use std::fmt;
 use std::fmt::Display;
@@ -76,6 +76,28 @@ impl Decode for BlockVorbisComment {
 
         for _ in 0..comment_number {
             comments.push(UserComment::from_reader(reader)?);
+        }
+
+        Ok(BlockVorbisComment {
+            vendor_string,
+            comments,
+        })
+    }
+}
+
+#[cfg(feature = "async")]
+#[async_trait::async_trait]
+impl AsyncDecode for BlockVorbisComment {
+    async fn from_async_reader<R>(reader: &mut R) -> Result<Self>
+        where R: AsyncRead + Unpin + Send
+    {
+        let vendor_length = reader.read_u32_le().await?;
+        let vendor_string = take_string_async(reader, vendor_length as usize).await?;
+        let comment_number = reader.read_u32_le().await?;
+        let mut comments = Vec::with_capacity(comment_number as usize);
+
+        for _ in 0..comment_number {
+            comments.push(UserComment::from_async_reader(reader).await?);
         }
 
         Ok(BlockVorbisComment {
@@ -189,6 +211,18 @@ impl Decode for UserComment {
     fn from_reader<R: Read>(reader: &mut R) -> Result<Self> {
         let length = reader.read_u32::<LittleEndian>()?;
         let comment = take_string(reader, length as usize)?;
+        Ok(UserComment::new(comment))
+    }
+}
+
+#[cfg(feature = "async")]
+#[async_trait::async_trait]
+impl AsyncDecode for UserComment {
+    async fn from_async_reader<R>(reader: &mut R) -> Result<Self>
+        where R: AsyncRead + Unpin + Send
+    {
+        let length = reader.read_u32_le().await?;
+        let comment = take_string_async(reader, length as usize).await?;
         Ok(UserComment::new(comment))
     }
 }

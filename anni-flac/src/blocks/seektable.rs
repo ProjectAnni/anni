@@ -1,8 +1,8 @@
 use std::io::{Read, Write};
 use byteorder::{ReadBytesExt, BigEndian, WriteBytesExt};
 use crate::error::FlacError;
-use crate::prelude::{Decode, Result, Encode};
-use crate::utils::take_to_end;
+use crate::prelude::*;
+use crate::utils::*;
 use std::fmt;
 
 pub struct BlockSeekTable {
@@ -45,9 +45,42 @@ impl Decode for BlockSeekTable {
 
         let mut seek_points = Vec::with_capacity(points);
         for _ in 0..points {
-            let sample_number = reader.read_u64::<BigEndian>()?;
-            let stream_offset = reader.read_u64::<BigEndian>()?;
-            let frame_samples = reader.read_u16::<BigEndian>()?;
+            let sample_number = ReadBytesExt::read_u64::<BigEndian>(&mut reader)?;
+            let stream_offset = ReadBytesExt::read_u64::<BigEndian>(&mut reader)?;
+            let frame_samples = ReadBytesExt::read_u16::<BigEndian>(&mut reader)?;
+            seek_points.push(SeekPoint {
+                sample_number,
+                stream_offset,
+                frame_samples,
+            });
+        }
+
+        Ok(BlockSeekTable { seek_points })
+    }
+}
+
+#[cfg(feature = "async")]
+#[async_trait::async_trait]
+impl AsyncDecode for BlockSeekTable {
+    async fn from_async_reader<R>(reader: &mut R) -> Result<Self>
+        where R: AsyncRead + Unpin + Send
+    {
+        let buf = take_to_end_async(reader).await?;
+        let size = buf.len();
+        let mut reader = std::io::Cursor::new(buf);
+
+        // The number of seek points is implied by the metadata header 'length' field, i.e. equal to length / 18.
+        let points = size / 18;
+        let remaining = size % 18;
+        if remaining != 0 {
+            return Err(FlacError::InvalidSeekTableSize);
+        }
+
+        let mut seek_points = Vec::with_capacity(points);
+        for _ in 0..points {
+            let sample_number = AsyncReadExt::read_u64(&mut reader).await?;
+            let stream_offset =  AsyncReadExt::read_u64(&mut reader).await?;
+            let frame_samples =  AsyncReadExt::read_u16(&mut reader).await?;
             seek_points.push(SeekPoint {
                 sample_number,
                 stream_offset,

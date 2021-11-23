@@ -369,6 +369,7 @@ dependencies = [
 name = "anni-flac"
 version = "0.2.2"
 dependencies = [
+ "async-trait",
  "byteorder",
  "hex",
  "image",
@@ -376,6 +377,7 @@ dependencies = [
  "num-traits",
  "tempfile",
  "thiserror",
+ "tokio",
 ]
 
 [[package]]

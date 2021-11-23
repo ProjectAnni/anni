@@ -1,7 +1,7 @@
 use std::io::{Read, Write};
 use byteorder::{ReadBytesExt, BigEndian, WriteBytesExt};
-use crate::prelude::{Decode, Result, Encode};
-use crate::utils::take_to_end;
+use crate::prelude::*;
+use crate::utils::*;
 use std::fmt;
 
 pub struct BlockApplication {
@@ -17,6 +17,19 @@ impl Decode for BlockApplication {
         Ok(BlockApplication {
             application_id: reader.read_u32::<BigEndian>()?,
             data: take_to_end(reader)?,
+        })
+    }
+}
+
+#[cfg(feature = "async")]
+#[async_trait::async_trait]
+impl AsyncDecode for BlockApplication {
+    async fn from_async_reader<R>(reader: &mut R) -> Result<Self>
+    where R: AsyncRead + Unpin + Send
+    {
+        Ok(BlockApplication {
+            application_id: reader.read_u32().await?,
+            data: take_to_end_async(reader).await?,
         })
     }
 }

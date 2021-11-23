@@ -1,6 +1,7 @@
 use std::io::{Read, Write};
 use byteorder::{ReadBytesExt, BigEndian, WriteBytesExt};
-use crate::prelude::{Decode, Result, Encode};
+use crate::prelude::*;
+use crate::utils::*;
 use std::fmt;
 
 /// Notes:
@@ -67,6 +68,50 @@ impl Decode for BlockStreamInfo {
             + (sample_region[7] as u64);
         let mut md5_signature = [0u8; 16];
         reader.read_exact(&mut md5_signature)?;
+
+        Ok(BlockStreamInfo {
+            min_block_size,
+            max_block_size,
+            min_frame_size,
+            max_frame_size,
+            sample_rate,
+            channels,
+            bits_per_sample,
+            total_samples,
+            md5_signature,
+        })
+    }
+}
+
+#[cfg(feature = "async")]
+#[async_trait::async_trait]
+impl AsyncDecode for BlockStreamInfo {
+    async fn from_async_reader<R>(reader: &mut R) -> Result<Self>
+        where R: AsyncRead + Unpin + Send
+    {
+        let min_block_size = reader.read_u16().await?;
+        let max_block_size = reader.read_u16().await?;
+        let min_frame_size = read_u24_async(reader).await?;
+        let max_frame_size = read_u24_async(reader).await?;
+
+        let mut sample_region = [0u8; 8];
+        reader.read_exact(&mut sample_region).await?;
+        // 20 bits
+        let sample_rate = ((sample_region[0] as u32) << 12)
+            + ((sample_region[1] as u32) << 4)
+            + ((sample_region[2] as u32) >> 4);
+        // 3 bits
+        let channels = ((sample_region[2] >> 1) & 0b00000111) + 1;
+        // 5 bits
+        let bits_per_sample = ((sample_region[2] & 0b00000001) << 4) + (sample_region[3] >> 4) + 1;
+        // 36 bits
+        let total_samples = ((sample_region[3] as u64 & 0b00001111) << 32)
+            + ((sample_region[4] as u64) << 24)
+            + ((sample_region[5] as u64) << 16)
+            + ((sample_region[6] as u64) << 8)
+            + (sample_region[7] as u64);
+        let mut md5_signature = [0u8; 16];
+        reader.read_exact(&mut md5_signature).await?;
 
         Ok(BlockStreamInfo {
             min_block_size,
