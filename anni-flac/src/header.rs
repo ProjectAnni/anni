@@ -41,6 +41,7 @@ impl FlacHeader {
         Ok(FlacHeader { blocks, input_file: None, frame_offset })
     }
 
+    #[cfg(feature = "async")]
     pub async fn parse_async<R>(reader: &mut R) -> Result<FlacHeader>
         where R: AsyncRead + Unpin + Send
     {

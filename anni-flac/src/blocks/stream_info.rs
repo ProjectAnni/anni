@@ -1,7 +1,6 @@
 use std::io::{Read, Write};
 use byteorder::{ReadBytesExt, BigEndian, WriteBytesExt};
 use crate::prelude::*;
-use crate::utils::*;
 use std::fmt;
 
 /// Notes:
@@ -89,6 +88,8 @@ impl AsyncDecode for BlockStreamInfo {
     async fn from_async_reader<R>(reader: &mut R) -> Result<Self>
         where R: AsyncRead + Unpin + Send
     {
+        use crate::utils::*;
+
         let min_block_size = reader.read_u16().await?;
         let max_block_size = reader.read_u16().await?;
         let min_frame_size = read_u24_async(reader).await?;
