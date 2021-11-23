@@ -149,3 +149,11 @@ pub fn read_to_string<P: AsRef<Path>>(input: P) -> io::Result<String> {
     let r = std::fs::read(input)?;
     Ok(raw_to_string(&r))
 }
+
+pub fn remove_file<P: AsRef<Path>>(input: P, trashcan: bool) -> io::Result<()> {
+    if trashcan {
+        trash::delete(input.as_ref()).map_err(|e| io::Error::new(io::ErrorKind::Other, e))
+    } else {
+        std::fs::remove_file(input)
+    }
+}

@@ -38,6 +38,12 @@ pub struct SplitSubcommand {
     #[clap(about = ll ! {"split-no-import-cover"})]
     import_cover: bool,
 
+    #[clap(long = "keep", parse(from_flag = std::ops::Not::not))]
+    remove_after_success: bool,
+
+    #[clap(long = "no-trashcan", parse(from_flag = std::ops::Not::not))]
+    trashcan: bool,
+
     directory: PathBuf,
 }
 
@@ -123,7 +129,13 @@ impl SplitSubcommand {
             Ok(())
         })?;
 
-        // TODO: remove input file
+        // Option to remove full track after successful split
+        if self.remove_after_success {
+            debug!(target: "split", "Removing audio file...");
+            fs::remove_file(audio_path, self.trashcan)?;
+            debug!(target: "split", "Removing cue file...");
+            fs::remove_file(cue_path, self.trashcan)?;
+        }
 
         info!(target: "split", "Finished!");
         Ok(())
