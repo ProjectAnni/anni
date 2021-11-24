@@ -8,7 +8,6 @@ use crate::{fl, ll, ball};
 use std::path::PathBuf;
 use std::str::FromStr;
 use anni_vgmdb::VGMClient;
-use futures::executor::block_on;
 use anni_flac::blocks::{UserComment, UserCommentExt};
 use anni_clap_handler::{Context, Handler, handler};
 use anni_repo::date::AnniDate;
@@ -154,7 +153,7 @@ fn repo_get_vgmdb(options: &RepoGetVGMdb, manager: &RepositoryManager, get: &Rep
     }
 
     let client = VGMClient::new(options.host.clone());
-    let album_got = block_on(client.album(&options.keyword.as_deref().unwrap_or(catalog)))?;
+    let album_got = client.album(&options.keyword.as_deref().unwrap_or(catalog))?;
 
     let date = match &album_got.release_date {
         Some(date) => {
