@@ -4,7 +4,7 @@ use regex::Regex;
 use serde::{Deserialize, Deserializer};
 use serde::de::Error;
 
-pub struct Validator(&'static str, fn(&str) -> bool);
+pub struct Validator(&'static str, fn(&str) -> ValidateResult);
 
 impl Validator {
     #[inline]
@@ -13,7 +13,7 @@ impl Validator {
     }
 
     #[inline]
-    pub fn validate(&self, input: &str) -> bool {
+    pub fn validate(&self, input: &str) -> ValidateResult {
         self.1(input)
     }
 }
@@ -48,11 +48,28 @@ impl std::fmt::Debug for Validator {
     }
 }
 
-pub fn number_validator(str: &str) -> bool {
-    str.chars().all(|c| c.is_numeric())
+pub struct ValidateResult {
+    pub valid: bool,
+    pub warning: bool,
+    pub message: Option<String>,
 }
 
-pub fn trim_validator(str: &str) -> bool {
+impl ValidateResult {
+    fn new(valid: bool, is_warning: bool) -> Self {
+        Self {
+            valid,
+            warning: is_warning,
+            message: None,
+        }
+    }
+}
+
+pub fn number_validator(str: &str) -> ValidateResult {
+    let pass = str.chars().all(|c| c.is_numeric());
+    ValidateResult::new(pass, false)
+}
+
+pub fn trim_validator(str: &str) -> ValidateResult {
     let mut is_start = true;
     let mut is_empty = false;
     for c in str.chars() {
@@ -62,31 +79,51 @@ pub fn trim_validator(str: &str) -> bool {
         }
         is_start = false;
     }
-    !is_empty
+    let pass = !is_empty;
+    ValidateResult::new(pass, false)
 }
 
-pub fn date_validator(str: &str) -> bool {
+pub fn date_validator(str: &str) -> ValidateResult {
     // 2021-01-01
     // 0123456789
     let mut mode = 0;
     for c in str.chars() {
         if mode > 9 || (!c.is_numeric() && c != '-') {
-            return false;
+            return ValidateResult::new(false, false);
         }
         if c == '-' {
             if mode != 4 && mode != 7 {
-                return false;
+                return ValidateResult::new(false, false);
             }
         } else if !c.is_numeric() {
-            return false;
+            return ValidateResult::new(false, false);
         }
         mode += 1;
     }
-    mode == 10
+    let is_year_month_day = mode == 10;
+    let is_year_month = mode == 7;
+    let is_year = mode == 4;
+    if is_year_month_day {
+        ValidateResult::new(true, false)
+    } else if is_year_month {
+        ValidateResult {
+            valid: true,
+            warning: true,
+            message: Some("Empty day field, could it be more accurate?".to_string()),
+        }
+    } else if is_year {
+        ValidateResult {
+            valid: true,
+            warning: true,
+            message: Some("Empty month and day fields, could it be more accurate?".to_string()),
+        }
+    } else {
+        ValidateResult::new(false, false)
+    }
 }
 
-pub fn artist_validator(str: &str) -> bool {
-    ArtistList::is_valid(str)
+pub fn artist_validator(str: &str) -> ValidateResult {
+    ValidateResult::new(ArtistList::is_valid(str), false)
 }
 
 lazy_static::lazy_static! {
@@ -94,8 +131,9 @@ lazy_static::lazy_static! {
 }
 
 /// http://www.0x08.org/posts/middle-dot
-pub fn middle_dot_validator(input: &str) -> bool {
-    !DOTS.is_match(input)
+pub fn middle_dot_validator(input: &str) -> ValidateResult {
+    let pass = !DOTS.is_match(input);
+    ValidateResult::new(pass, false)
 }
 
 pub fn middle_dot_replace(input: &str) -> String {

@@ -195,15 +195,40 @@ impl ConventionRules {
 
             // type validators
             for v in self.types[tag.value_type.as_str()].iter() {
-                if !v.validate(value) {
+                let result = v.validate(value);
+                // if it's a warning, display it with warn!
+                if result.warning {
+                    warn!(target: "convention/tag/type", "Warning for tag {}={} in file: {}", key_raw, value, filename_str);
+                    if let Some(message) = result.message {
+                        warn!(target: "convention/tag/type", "  {}", message);
+                    }
+                } else if !result.valid {
                     error!(target: "convention/tag/type", "Type validator {} not passed: invalid tag value {}={} in file: {}", v.name(), key_raw, value, filename_str);
+                    if let Some(message) = result.message {
+                        error!(target: "convention/tag/type", "  {}", message);
+                    }
                 }
             }
 
             // field validators
-            if let Err(v) = tag.validate(value) {
-                error!(target: "convention/tag/validator", "Validator {} not passed: invalid tag value {}={} in file {}", v, key_raw, value, filename_str);
-            } else if &tag.name == "TITLE" {
+            let tag_problems = tag.validate(value);
+            if !tag_problems.is_empty() {
+                for problem in tag_problems.iter() {
+                    if problem.1.warning {
+                        warn!(target: "convention/tag/validator", "Validator {} warning for tag {}={} in file {}", problem.0, key_raw, value, filename_str);
+                        if let Some(message) = &problem.1.message {
+                            warn!(target: "convention/tag/validator", "  {}", message);
+                        }
+                    } else {
+                        error!(target: "convention/tag/validator", "Validator {} not passed: invalid tag value {}={} in file {}", problem.0, key_raw, value, filename_str);
+                        if let Some(message) = &problem.1.message {
+                            error!(target: "convention/tag/validator", "  {}", message);
+                        }
+                    }
+                }
+            }
+
+            if &tag.name == "TITLE" {
                 // save track title for further use
                 title = Some(value.to_string());
             } else if &tag.name == "TRACKNUMBER" {
@@ -401,13 +426,15 @@ struct ConventionTag {
 }
 
 impl ConventionTag {
-    pub(crate) fn validate(&self, value: &str) -> Result<(), &'static str> {
+    pub(crate) fn validate(&self, value: &str) -> Vec<(&'static str, ValidateResult)> {
+        let mut problems = Vec::new();
         for v in self.validators.iter() {
-            if !v.validate(value) {
-                return Err(v.name());
+            let result = v.validate(value);
+            if result.warning || !result.valid {
+                problems.push((v.name(), result));
             }
         }
-        Ok(())
+        problems
     }
 }
 
