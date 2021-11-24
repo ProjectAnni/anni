@@ -101,7 +101,25 @@ fn repo_add(me: &RepoAddAction, manager: &RepositoryManager) -> anyhow::Result<(
             };
             for path in files.iter() {
                 let header = FlacHeader::from_file(path)?;
-                let track = stream_to_track(&header);
+                let mut track = stream_to_track(&header);
+                // use filename as default track name
+                if track.title().is_empty() {
+                    track.set_title(file_name(path)?.to_string());
+                }
+
+                // auto audio type for instrumental, drama and radio
+                let title_lowercase = track.title().to_lowercase();
+                if title_lowercase.contains("off vocal") ||
+                    title_lowercase.contains("instrumental") ||
+                    title_lowercase.contains("カラオケ") ||
+                    title_lowercase.contains("offvocal") {
+                    track.set_track_type(TrackType::Instrumental);
+                } else if title_lowercase.contains("drama") || title_lowercase.contains("ドラマ") {
+                    track.set_track_type(TrackType::Drama);
+                } else if title_lowercase.contains("radio") || title_lowercase.contains("ラジオ") {
+                    track.set_track_type(TrackType::Radio);
+                }
+
                 disc.push_track(track); // use push_track here to avoid metadata inherit
             }
             album.push_disc(disc); // the same

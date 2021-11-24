@@ -259,12 +259,20 @@ impl Track {
         self.title.as_ref()
     }
 
+    pub fn set_title(&mut self, title: String) {
+        self.title = title;
+    }
+
     pub fn artist(&self) -> &str {
         self.artist.as_ref()
     }
 
     pub fn track_type(&self) -> TrackType {
         self.track_type.get_raw()
+    }
+
+    pub fn set_track_type(&mut self, track_type: TrackType) {
+        self.track_type = InheritableValue::own(track_type);
     }
 }
 
