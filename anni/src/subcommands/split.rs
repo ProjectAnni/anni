@@ -44,13 +44,13 @@ pub struct SplitSubcommand {
     #[clap(long = "no-trashcan", parse(from_flag = std::ops::Not::not))]
     trashcan: bool,
 
-    directory: PathBuf,
+    directories: Vec<PathBuf>,
 }
 
 impl SplitSubcommand {
     fn split<P>(&self, audio_path: P, cue_path: P, cover: Option<P>) -> anyhow::Result<()>
         where P: AsRef<Path> {
-        info!(target: "split", "Splitting...");
+        info!(target: "split", "Splitting {}...", audio_path.as_ref().display());
 
         let mut input = self.input_format.to_process(audio_path.as_ref())?;
         let mut audio = input.get_reader();
@@ -83,6 +83,7 @@ impl SplitSubcommand {
         // generate file names & check whether file exists before split
         let files = tracks.iter().map(|track| {
             let filename = format!("{}.{}", track.name, self.output_format);
+            // file output path is relative to cue path
             let output = cue_path.as_ref().with_file_name(&filename);
             // check if file exists
             if output.exists() /* TODO: && !override_file */ {
@@ -131,13 +132,12 @@ impl SplitSubcommand {
 
         // Option to remove full track after successful split
         if self.remove_after_success {
-            debug!(target: "split", "Removing audio file...");
+            debug!(target: "split", "Removing audio file: {}", audio_path.as_ref().display());
             fs::remove_file(audio_path, self.trashcan)?;
-            debug!(target: "split", "Removing cue file...");
+            debug!(target: "split", "Removing cue file: {}", cue_path.as_ref().display());
             fs::remove_file(cue_path, self.trashcan)?;
         }
 
-        info!(target: "split", "Finished!");
         Ok(())
     }
 }
@@ -246,18 +246,29 @@ impl Display for SplitOutputFormat {
 
 #[handler(SplitSubcommand)]
 fn handle_split(me: &SplitSubcommand) -> anyhow::Result<()> {
-    let cue = fs::get_ext_file(me.directory.as_path(), "cue", false)?
-        .ok_or_else(|| anyhow!("Failed to find CUE sheet."))?;
-    let audio = fs::get_ext_file(me.directory.as_path(), me.input_format.as_str(), false)?
-        .ok_or_else(|| anyhow!("Failed to find audio file."))?;
+    for directory in me.directories.iter() {
+        if !directory.is_dir() {
+            warn!(target: "split", "Ignoring non-dir file {}", directory.display());
+            continue;
+        }
 
-    // try to get cover
-    let cover = if me.import_cover { fs::get_ext_file(me.directory.as_path(), "jpg", false)? } else { None };
-    if me.import_cover && cover.is_none() {
-        warn!(target: "split", "Cover not found!");
+        let cue = fs::get_ext_file(directory.as_path(), "cue", false)?
+            .ok_or_else(|| anyhow!("Failed to find CUE sheet from directory {}", directory.display()))?;
+        let audio = fs::get_ext_file(directory.as_path(), me.input_format.as_str(), false)?
+            .ok_or_else(|| anyhow!("Failed to find audio file from directory {}", directory.display()))?;
+
+        // try to get cover
+        let cover = if me.import_cover { fs::get_ext_file(directory.as_path(), "jpg", false)? } else { None };
+        if me.import_cover && cover.is_none() {
+            warn!(target: "split", "Cover not found in directory {}", directory.display());
+        }
+
+        me.split(audio, cue, cover)?;
     }
 
-    me.split(audio, cue, cover)
+    // log 'Finished' after all tracks were split
+    info!(target: "split", "Finished!");
+    Ok(())
 }
 
 fn encoder_of(format: &str) -> anyhow::Result<PathBuf> {
