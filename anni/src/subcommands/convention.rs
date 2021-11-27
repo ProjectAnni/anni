@@ -237,7 +237,7 @@ impl ConventionRules {
             } else if &tag.name == "ARTIST" {
                 // additional artist name check
                 match value {
-                    "[Unknown Artist]" => error!(target: "convention/tag/artist", "Invalid artist: {} in file: {}", value, filename_str),
+                    "[Unknown Artist]" | "UnknownArtist" => error!(target: "convention/tag/artist", "Invalid artist: {} in file: {}", value, filename_str),
                     "Various Artists" => warn!(target: "convention/tag/artist", "Various Artist is used as track artist in file: {}. Could it be more accurate?", filename_str),
                     _ => {}
                 }

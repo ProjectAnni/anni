@@ -74,7 +74,7 @@ fn repo_add(me: &RepoAddAction, manager: &RepositoryManager) -> anyhow::Result<(
             ball!("repo-album-exists", catalog = catalog);
         }
 
-        let mut album = Album::new(album_title.clone(), None, "[Unknown Artist]".to_string(), release_date, catalog.clone(), Default::default());
+        let mut album = Album::new(album_title.clone(), None, "UnknownArtist".to_string(), release_date, catalog.clone(), Default::default());
 
         let directories = fs::get_subdirectories(to_add)?;
         let mut directories: Vec<_> = directories.iter().map(|r| r.as_path()).collect();
@@ -379,7 +379,7 @@ fn repo_validate(_: &RepoValidateAction, manager: &RepositoryManager) -> anyhow:
         if album.catalog() != catalog {
             error!(target: &format!("repo|{}", catalog), "{}", fl!("repo-catalog-filename-mismatch", album_catalog = album.catalog()));
         }
-        if album.artist() == "[Unknown Artist]" {
+        if album.artist() == "[Unknown Artist]" || album.artist() == "UnknownArtist" {
             error!(target: &format!("repo|{}", catalog), "{}", fl!("repo-invalid-artist", artist = album.artist()));
         }
         if let TrackType::Other(o) = album.track_type() {
