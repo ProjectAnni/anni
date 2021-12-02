@@ -412,6 +412,7 @@ dependencies = [
  "actix-utils",
  "actix-web",
  "anni-backend",
+ "anni-flac",
  "anyhow",
  "async-trait",
  "env_logger 0.8.3",
