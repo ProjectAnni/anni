@@ -2,8 +2,10 @@ use crate::common::{Backend, BackendReaderExt, BackendError};
 use anni_repo::library::{album_info, disc_info};
 use async_trait::async_trait;
 use std::collections::{HashMap, HashSet};
+use std::io::SeekFrom;
 use std::path::{Path, PathBuf};
 use tokio::fs::{read_dir, File};
+use tokio::io::AsyncSeekExt;
 use crate::BackendReader;
 
 pub struct FileBackend {
@@ -138,10 +140,15 @@ impl Backend for FileBackend {
                 .starts_with::<&str>(format!("{:02}.", track_id).as_ref())
             {
                 let path = entry.path();
+                let mut file = File::open(&path).await?;
+                let (_, _, info) = crate::utils::read_header(&mut file).await?;
+                file.seek(SeekFrom::Start(0)).await?;
+
                 return Ok(BackendReaderExt {
                     extension: path.extension().map(|s| s.to_string_lossy().to_string()).unwrap_or_default(),
                     size: entry.metadata().await?.len() as usize,
-                    reader: Box::pin(File::open(&path).await?),
+                    duration: info.total_samples / info.sample_rate as u64,
+                    reader: Box::pin(file),
                 });
             }
         }

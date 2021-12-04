@@ -305,6 +305,7 @@ dependencies = [
 name = "anni-backend"
 version = "0.1.1"
 dependencies = [
+ "anni-flac",
  "anni-repo",
  "async-trait",
  "futures",

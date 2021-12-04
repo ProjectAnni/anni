@@ -169,6 +169,8 @@ impl Backend for DriveBackend {
                 Ok(BackendReaderExt {
                     extension: file.file_extension.as_ref().unwrap().to_string(),
                     size: usize::from_str(file.size.as_ref().unwrap()).unwrap(),
+                    // TODO: calculate duration
+                    duration: 0,
                     reader,
                 })
             }

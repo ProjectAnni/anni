@@ -37,8 +37,12 @@ impl Backend for ProxyBackend {
     }
 
     async fn get_audio(&self, catalog: &str, track_id: u8) -> Result<BackendReaderExt, BackendError> {
-        let resp = self.get(&format!("/{}/{}?prefer_bitrate=loseless", catalog, track_id)).await.map_err(|e| BackendError::RequestError(e))?;
+        let resp = self.get(&format!("/{}/{}?prefer_bitrate=lossless", catalog, track_id)).await.map_err(|e| BackendError::RequestError(e))?;
         let original_size = match resp.headers().get("x-origin-size") {
+            Some(s) => s.to_str().unwrap_or("0"),
+            None => "0",
+        }.to_string();
+        let duration = match resp.headers().get("x-duration-seconds") {
             Some(s) => s.to_str().unwrap_or("0"),
             None => "0",
         }.to_string();
@@ -52,6 +56,7 @@ impl Backend for ProxyBackend {
             extension: "flac".to_string(),
             // TODO: Try to get correct size from response
             size: usize::from_str(original_size.as_str()).unwrap(),
+            duration: u64::from_str(duration.as_str()).unwrap(),
             reader: Box::pin(body),
         })
     }

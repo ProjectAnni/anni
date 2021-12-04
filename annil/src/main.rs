@@ -16,7 +16,6 @@ use jwt_simple::prelude::HS256Key;
 use crate::auth::{AnnilAuth, AnnilClaims};
 use anni_backend::AnniBackend;
 use std::collections::{HashSet, HashMap};
-use std::io::Cursor;
 use anni_backend::cache::{CachePool, Cache};
 use anni_backend::backends::drive::DriveBackendSettings;
 use actix_cors::Cors;
@@ -24,9 +23,6 @@ use crate::error::AnnilError;
 use actix_web::web::Query;
 use serde::Deserialize;
 use std::process::Stdio;
-use tokio::io::{AsyncReadExt, AsyncWriteExt};
-use anni_flac::blocks::BlockStreamInfo;
-use anni_flac::prelude::{AsyncDecode, Encode};
 
 struct AppState {
     backends: Vec<AnnilBackend>,
@@ -75,13 +71,14 @@ async fn audio(claim: AnnilClaims, path: web::Path<(String, u8)>, data: web::Dat
                 "low" => Some("128k"),
                 "medium" => Some("192k"),
                 "high" => Some("320k"),
-                "loseless" => None,
+                "lossless" => None,
                 _ => Some("128k"),
             };
 
             let mut resp = HttpResponse::Ok();
             resp.append_header(("X-Origin-Type", format!("audio/{}", audio.extension)))
                 .append_header(("X-Origin-Size", audio.size))
+                .append_header(("X-Duration-Seconds", audio.duration))
                 .content_type(match bitrate {
                     Some(_) => "audio/mp4".to_string(),
                     None => format!("audio/{}", audio.extension)
@@ -89,12 +86,7 @@ async fn audio(claim: AnnilClaims, path: web::Path<(String, u8)>, data: web::Dat
 
             return match bitrate {
                 Some(bitrate) => {
-                    // skip `fLaC`
-                    let first = audio.reader.read_u32().await.unwrap();
-                    let second = audio.reader.read_u32().await.unwrap();
-                    let info = BlockStreamInfo::from_async_reader(&mut audio.reader).await.unwrap();
-                    let duration = info.total_samples / info.sample_rate as u64;
-
+                    let duration = audio.duration;
                     let mut process = tokio::process::Command::new("ffmpeg")
                         .args(&[
                             "-t", &format!("{}", duration),
@@ -114,15 +106,6 @@ async fn audio(claim: AnnilClaims, path: web::Path<(String, u8)>, data: web::Dat
                     let stdout = process.stdout.take().unwrap();
                     tokio::spawn(async move {
                         let mut stdin = process.stdin.as_mut().unwrap();
-                        let _ = stdin.write_u32(first).await;
-                        let _ = stdin.write_u32(second).await;
-
-                        let info_buf = vec![0u8; 34];
-                        let mut info_buf = Cursor::new(info_buf);
-                        let _ = info.write_to(&mut info_buf);
-                        info_buf.set_position(0);
-                        let _ = stdin.write_buf(&mut info_buf).await;
-
                         let _ = tokio::io::copy(&mut audio.reader, &mut stdin).await;
                     });
                     resp.streaming(ReaderStream::new(stdout))

@@ -13,6 +13,8 @@ pub struct BackendReaderExt {
     pub extension: String,
     /// File size of the file
     pub size: usize,
+    /// Audio duration of the file
+    pub duration: u64,
     /// Async Reader for the file
     pub reader: BackendReader,
 }
@@ -85,4 +87,7 @@ pub enum BackendError {
 
     #[error(transparent)]
     RequestError(#[from] reqwest::Error),
+
+    #[error(transparent)]
+    FlacError(#[from] anni_flac::error::FlacError),
 }

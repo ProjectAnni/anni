@@ -83,8 +83,8 @@ impl CachePool {
             // prepare for new item
             let path = self.root.join(&key);
             let mut file = tokio::fs::File::create(&path).await?;
-            let BackendReaderExt { extension, size, mut reader } = on_miss.await?;
-            let item = Arc::new(CacheItem::new(path, extension, size, false));
+            let BackendReaderExt { extension, size, duration, mut reader } = on_miss.await?;
+            let item = Arc::new(CacheItem::new(path, extension, size, duration, false));
 
             // write to map
             self.cache.write().insert(key.clone(), item.clone());
@@ -150,15 +150,17 @@ struct CacheItem {
     ext: String,
     path: PathBuf,
     size: RwLock<usize>,
+    duration: u64,
     cached: RwLock<bool>,
 }
 
 impl CacheItem {
-    fn new(path: PathBuf, ext: String, size: usize, cached: bool) -> Self {
+    fn new(path: PathBuf, ext: String, size: usize, duration: u64, cached: bool) -> Self {
         CacheItem {
             path,
             ext,
             size: RwLock::new(size),
+            duration,
             cached: RwLock::new(cached),
         }
     }
@@ -200,6 +202,7 @@ impl CacheReader for Arc<CacheItem> {
         BackendReaderExt {
             extension: self.ext.clone(),
             size: self.size(),
+            duration: self.duration,
             reader: Box::pin(self.to_reader(file)),
         }
     }
