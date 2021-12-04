@@ -88,12 +88,11 @@ impl FileBackend {
         )
     }
 
-    fn is_disc(&self, catalog: &str) -> Result<bool, BackendError> {
-        Ok(self.albums
-            .get(catalog)
-            .ok_or(BackendError::UnknownCatalog)?
-            .len() > 1
-        )
+    fn has_multiple_discs(&self, catalog: &str) -> bool {
+        match self.albums.get(catalog) {
+            Some(discs) => discs.len() > 1,
+            None => false,
+        }
     }
 }
 
@@ -116,7 +115,7 @@ impl Backend for FileBackend {
         catalog: &str,
         track_id: u8,
     ) -> Result<BackendReaderExt, BackendError> {
-        if self.is_disc(catalog)? {
+        if self.has_multiple_discs(catalog) {
             return Err(BackendError::FileNotFound);
         }
 

@@ -65,7 +65,12 @@ async fn audio(claim: AnnilClaims, path: web::Path<(String, u8)>, data: web::Dat
 
     for backend in data.backends.iter() {
         if backend.enabled() && backend.has_album(&catalog) {
-            let mut audio = backend.get_audio(&catalog, track_id).await.unwrap();
+            let audio = backend.get_audio(&catalog, track_id).await.map_err(|_| AnnilError::NotFound);
+            if let Err(e) = audio {
+                return e.error_response();
+            }
+
+            let mut audio = audio.unwrap();
             let prefer_bitrate = if claim.is_guest() { "low" } else { query.prefer_bitrate.as_deref().unwrap_or("medium") };
             let bitrate = match prefer_bitrate {
                 "low" => Some("128k"),
@@ -128,7 +133,7 @@ async fn cover(claims: AnnilClaims, path: web::Path<String>, data: web::Data<App
     }
 
     for backend in data.backends.iter() {
-        if backend.enabled() && backend.has_album(&catalog) {
+        if backend.enabled() && backend.has_album_wide(&catalog) {
             return match backend.get_cover(&catalog).await {
                 Ok(cover) => {
                     HttpResponse::Ok()

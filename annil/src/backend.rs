@@ -30,9 +30,16 @@ impl AnnilBackend {
         self.enabled
     }
 
-    #[inline]
     pub fn has_album(&self, catalog: &str) -> bool {
-        self.albums.contains_key(catalog)
+        if self.albums.contains_key(catalog) {
+            self.albums[catalog].len() == 1
+        } else {
+            self.albums().values().any(|albums| albums.contains(catalog))
+        }
+    }
+
+    pub fn has_album_wide(&self, catalog: &str) -> bool {
+        self.albums.contains_key(catalog) || self.albums().values().any(|albums| albums.contains(catalog))
     }
 
     pub fn albums(&self) -> HashMap<&str, HashSet<&str>> {

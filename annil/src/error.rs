@@ -8,6 +8,8 @@ pub enum AnnilError {
     Unauthorized,
     #[error("no permission")]
     NoPermission,
+    #[error("not found")]
+    NotFound,
 }
 
 impl ResponseError for AnnilError {
@@ -15,6 +17,7 @@ impl ResponseError for AnnilError {
         match self {
             AnnilError::Unauthorized => StatusCode::UNAUTHORIZED,
             AnnilError::NoPermission => StatusCode::FORBIDDEN,
+            AnnilError::NotFound => StatusCode::NOT_FOUND,
         }
     }
 }
