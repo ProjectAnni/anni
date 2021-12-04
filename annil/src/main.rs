@@ -85,22 +85,18 @@ async fn audio(claim: AnnilClaims, path: web::Path<(String, u8)>, data: web::Dat
                 .append_header(("X-Origin-Size", audio.size))
                 .append_header(("X-Duration-Seconds", audio.duration))
                 .content_type(match bitrate {
-                    Some(_) => "audio/mp4".to_string(),
+                    Some(_) => "audio/aac".to_string(),
                     None => format!("audio/{}", audio.extension)
                 });
 
             return match bitrate {
                 Some(bitrate) => {
-                    let duration = audio.duration;
                     let mut process = tokio::process::Command::new("ffmpeg")
                         .args(&[
-                            "-t", &format!("{}", duration),
                             "-i", "pipe:0",
                             "-map", "0:0",
                             "-b:a", bitrate,
-                            "-f", "mp4",
-                            "-movflags", "empty_moov+frag_keyframe",
-                            "-frag_duration", &format!("{}", duration),
+                            "-f", "adts",
                             "-",
                         ])
                         .stdin(Stdio::piped())
