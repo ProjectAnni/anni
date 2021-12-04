@@ -9,17 +9,17 @@ use tokio::io::AsyncSeekExt;
 use crate::BackendReader;
 
 pub struct FileBackend {
-    strict: bool,
     root: PathBuf,
     inner: HashMap<String, PathBuf>,
+    albums: HashMap<String, HashSet<String>>,
 }
 
 impl FileBackend {
-    pub fn new(root: PathBuf, strict: bool) -> Self {
+    pub fn new(root: PathBuf) -> Self {
         FileBackend {
             root,
-            strict,
             inner: Default::default(),
+            albums: Default::default(),
         }
     }
 
@@ -40,13 +40,17 @@ impl FileBackend {
                         .ok_or(BackendError::InvalidPath)?,
                 ) {
                     log::debug!("Found album {} at: {:?}", catalog, path);
-                    if disc_count > 1 {
+                    let discs = if disc_count > 1 {
                         // look for inner discs
-                        self.walk_discs(path).await?;
+                        self.walk_discs(&path).await?
                     } else {
                         // no inner discs
-                        self.inner.insert(catalog, path);
-                    }
+                        let mut set = HashSet::new();
+                        set.insert(catalog.clone());
+                        set
+                    };
+                    self.albums.insert(catalog.clone(), discs);
+                    self.inner.insert(catalog, path);
                 } else {
                     to_visit.push(path);
                 }
@@ -55,7 +59,8 @@ impl FileBackend {
         Ok(())
     }
 
-    async fn walk_discs<P: AsRef<Path> + Send>(&mut self, album: P) -> Result<(), BackendError> {
+    async fn walk_discs<P: AsRef<Path> + Send>(&mut self, album: P) -> Result<HashSet<String>, BackendError> {
+        let mut discs = HashSet::new();
         let mut dir = read_dir(album).await?;
         while let Some(entry) = dir.next_entry().await? {
             if entry.metadata().await?.is_dir() {
@@ -67,63 +72,43 @@ impl FileBackend {
                     .ok_or(BackendError::InvalidPath)?;
                 if let Ok((catalog, _, _)) = disc_info(disc_name) {
                     log::debug!("Found disc {} at: {:?}", catalog, path);
+                    discs.insert(catalog.clone());
                     self.inner.insert(catalog, path);
                 }
             }
         }
-        Ok(())
-    }
-
-    async fn update(&self) -> Result<Vec<String>, BackendError> {
-        let mut albums: Vec<String> = Vec::new();
-        let mut dir = read_dir(&self.root).await?;
-        while let Some(entry) = dir.next_entry().await? {
-            if entry.metadata().await?.is_dir() {
-                let path = entry.path();
-                let catalog = path
-                    .file_name()
-                    .ok_or(BackendError::InvalidPath)?
-                    .to_str()
-                    .ok_or(BackendError::InvalidPath)?;
-                albums.push(catalog.to_string());
-            }
-        }
-        Ok(albums)
+        Ok(discs)
     }
 
     fn get_catalog_path(&self, catalog: &str) -> Result<PathBuf, BackendError> {
-        Ok(if self.strict {
-            self.root.join(catalog)
-        } else {
-            self.inner
-                .get(catalog)
-                .ok_or(BackendError::UnknownCatalog)?
-                .to_owned()
-        })
+        Ok(self.inner
+            .get(catalog)
+            .ok_or(BackendError::UnknownCatalog)?
+            .to_owned()
+        )
+    }
+
+    fn is_disc(&self, catalog: &str) -> Result<bool, BackendError> {
+        Ok(self.albums
+            .get(catalog)
+            .ok_or(BackendError::UnknownCatalog)?
+            .len() > 1
+        )
     }
 }
 
 #[async_trait]
 impl Backend for FileBackend {
-    async fn albums(&mut self) -> Result<HashSet<String>, BackendError> {
-        if self.strict {
-            Ok(self.update().await?.into_iter().collect())
-        } else {
-            self.inner.clear();
+    async fn albums(&mut self) -> Result<HashMap<String, HashSet<String>>, BackendError> {
+        self.inner.clear();
 
-            let mut to_visit = Vec::new();
-            self.walk_dir(&self.root.clone(), &mut to_visit).await?;
+        let mut to_visit = Vec::new();
+        self.walk_dir(&self.root.clone(), &mut to_visit).await?;
 
-            while let Some(dir) = to_visit.pop() {
-                self.walk_dir(dir, &mut to_visit).await?;
-            }
-            Ok(self
-                .inner
-                .keys()
-                .into_iter()
-                .map(|a| a.to_owned())
-                .collect())
+        while let Some(dir) = to_visit.pop() {
+            self.walk_dir(dir, &mut to_visit).await?;
         }
+        Ok(self.albums.clone())
     }
 
     async fn get_audio(
@@ -131,6 +116,10 @@ impl Backend for FileBackend {
         catalog: &str,
         track_id: u8,
     ) -> Result<BackendReaderExt, BackendError> {
+        if self.is_disc(catalog)? {
+            return Err(BackendError::FileNotFound);
+        }
+
         let path = self.get_catalog_path(catalog)?;
         let mut dir = read_dir(path).await?;
         while let Some(entry) = dir.next_entry().await? {

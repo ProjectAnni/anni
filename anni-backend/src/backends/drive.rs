@@ -112,7 +112,7 @@ impl DriveBackend {
 
 #[async_trait]
 impl Backend for DriveBackend {
-    async fn albums(&mut self) -> Result<HashSet<String>, BackendError> {
+    async fn albums(&mut self) -> Result<HashMap<String, HashSet<String>>, BackendError> {
         self.folders.clear();
         let mut page_token = String::new();
         loop {
@@ -142,12 +142,13 @@ impl Backend for DriveBackend {
                 page_token = list.next_page_token.unwrap();
             }
         }
-        Ok(self
-            .folders
-            .keys()
-            .into_iter()
-            .map(|a| a.to_owned())
-            .collect())
+        // Ok(self
+        //     .folders
+        //     .keys()
+        //     .into_iter()
+        //     .map(|a| a.to_owned())
+        //     .collect());
+        todo!()
     }
 
     async fn get_audio(&self, catalog: &str, track_id: u8) -> Result<BackendReaderExt, BackendError> {

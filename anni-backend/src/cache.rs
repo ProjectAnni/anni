@@ -32,7 +32,7 @@ impl Cache {
 
 #[async_trait]
 impl Backend for Cache {
-    async fn albums(&mut self) -> Result<HashSet<String>, BackendError> {
+    async fn albums(&mut self) -> Result<HashMap<String, HashSet<String>>, BackendError> {
         // refresh should not be cached
         self.inner.albums().await
     }

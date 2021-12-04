@@ -34,14 +34,14 @@ struct AppState {
 async fn albums(claims: AnnilClaims, data: web::Data<AppState>) -> impl Responder {
     match claims {
         AnnilClaims::User(_) => {
-            let mut result: HashSet<&str> = HashSet::new();
+            let mut albums: HashMap<&str, HashSet<&str>> = HashMap::new();
 
             // users can get real album list
             for backend in data.backends.iter() {
-                let albums = backend.albums();
-                result.extend(albums.iter());
+                let backend_albums = backend.albums();
+                albums.extend(backend_albums.into_iter());
             }
-            HttpResponse::Ok().json(result)
+            HttpResponse::Ok().json(albums)
         }
         AnnilClaims::Share(share) => {
             // guests can only get album list defined in jwt
@@ -152,8 +152,8 @@ async fn init_state(config: &Config) -> anyhow::Result<web::Data<AppState>> {
     for (backend_name, backend_config) in config.backends.iter() {
         log::debug!("Initializing backend: {}", backend_name);
         let mut backend = match &backend_config.item {
-            BackendItem::File { root, strict } =>
-                AnniBackend::File(FileBackend::new(PathBuf::from(root), *strict)),
+            BackendItem::File { root, .. } =>
+                AnniBackend::File(FileBackend::new(PathBuf::from(root))),
             BackendItem::Drive { drive_id, corpora, token_path } =>
                 AnniBackend::Drive(DriveBackend::new(Default::default(), DriveBackendSettings {
                     corpora: corpora.to_string(),

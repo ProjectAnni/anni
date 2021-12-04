@@ -1,6 +1,6 @@
 use crate::backends;
 use async_trait::async_trait;
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::pin::Pin;
 use thiserror::Error;
 use tokio::io::AsyncRead;
@@ -24,12 +24,12 @@ pub struct BackendReaderExt {
 #[async_trait]
 pub trait Backend {
     /// Get album information provided by backend.
-    async fn albums(&mut self) -> Result<HashSet<String>, BackendError>;
+    async fn albums(&mut self) -> Result<HashMap<String, HashSet<String>>, BackendError>;
 
     /// Returns a reader implements AsyncRead for content reading
     async fn get_audio(&self, catalog: &str, track_id: u8) -> Result<BackendReaderExt, BackendError>;
 
-    /// Returns a cover of corrsponding album
+    /// Returns a cover of corresponding album
     async fn get_cover(&self, catalog: &str) -> Result<BackendReader, BackendError>;
 }
 

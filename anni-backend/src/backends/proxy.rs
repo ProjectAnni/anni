@@ -1,4 +1,4 @@
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::str::FromStr;
 use crate::{Backend, BackendError, BackendReader, BackendReaderExt};
 use async_trait::async_trait;
@@ -31,7 +31,7 @@ impl ProxyBackend {
 
 #[async_trait]
 impl Backend for ProxyBackend {
-    async fn albums(&mut self) -> Result<HashSet<String>, BackendError> {
+    async fn albums(&mut self) -> Result<HashMap<String, HashSet<String>>, BackendError> {
         let r = self.get("/albums").await.map_err(|e| BackendError::RequestError(e))?;
         Ok(r.json().await?)
     }

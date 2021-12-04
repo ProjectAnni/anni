@@ -1,12 +1,12 @@
 use anni_backend::{BackendError, AnniBackend, BackendReaderExt};
 use tokio::io::AsyncRead;
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 
 pub struct AnnilBackend {
     name: String,
     enabled: bool,
     inner: AnniBackend,
-    albums: HashSet<String>,
+    albums: HashMap<String, HashSet<String>>,
 }
 
 impl AnnilBackend {
@@ -32,11 +32,15 @@ impl AnnilBackend {
 
     #[inline]
     pub fn has_album(&self, catalog: &str) -> bool {
-        self.albums.contains(catalog)
+        self.albums.contains_key(catalog)
     }
 
-    pub fn albums(&self) -> HashSet<&str> {
-        self.albums.iter().map(|a| a.as_str()).collect()
+    pub fn albums(&self) -> HashMap<&str, HashSet<&str>> {
+        self.albums
+            .iter()
+            .map(|(album, discs)|
+                (album.as_str(), discs.iter().map(|d| d.as_str()).collect())
+            ).collect()
     }
 
     pub async fn update_albums(&mut self) {
