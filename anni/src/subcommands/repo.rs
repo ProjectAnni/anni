@@ -122,8 +122,10 @@ fn repo_add(me: &RepoAddAction, manager: &RepositoryManager) -> anyhow::Result<(
 
                 disc.push_track(track); // use push_track here to avoid metadata inherit
             }
+            disc.fmt(false);
             album.push_disc(disc); // the same
         }
+        album.fmt(false);
         album.inherit();
 
         manager.add_album(&catalog, album)?;

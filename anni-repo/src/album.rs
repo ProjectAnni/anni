@@ -88,6 +88,35 @@ impl Album {
         &self.discs
     }
 
+    // TODO: tests
+    pub fn fmt(&mut self, inherit: bool) {
+        let mut owned_artist = None;
+        for disc in self.discs.iter_mut() {
+            if disc.artist.is_owned() {
+                if let Some(owned_artist) = owned_artist {
+                    if owned_artist != disc.artist.as_ref() {
+                        return;
+                    }
+                } else {
+                    owned_artist = Some(disc.artist.as_ref())
+                }
+            } else {
+                return;
+            }
+        }
+
+        // all owned artists are the same, and self.artist is inherited
+        if self.info.artist.as_ref() == "UnknownArtist" {
+            self.info.artist = InheritableValue::own(owned_artist.unwrap().to_string());
+            for disc in self.discs.iter_mut() {
+                disc.artist = InheritableValue::Inherited(None);
+                if inherit {
+                    disc.artist.inherit_from(&self.info.artist);
+                }
+            }
+        }
+    }
+
     pub fn inherit(&mut self) {
         for disc in self.discs.iter_mut() {
             disc.title.inherit_from(&self.info.title);
@@ -225,6 +254,34 @@ impl Disc {
         self.disc_type.reset();
         album.add_disc(self);
         album
+    }
+
+    pub fn fmt(&mut self, inherit: bool) {
+        let mut owned_artist = None;
+        for track in self.tracks.iter_mut() {
+            if track.artist.is_owned() {
+                if let Some(owned_artist) = owned_artist {
+                    if owned_artist != track.artist.as_ref() {
+                        return;
+                    }
+                } else {
+                    owned_artist = Some(track.artist.as_ref())
+                }
+            } else {
+                return;
+            }
+        }
+
+        // all owned artists are the same, and self.artist is inherited
+        if self.artist.is_inherited() {
+            self.artist = InheritableValue::own(owned_artist.unwrap().to_string());
+            for track in self.tracks.iter_mut() {
+                track.artist = InheritableValue::Inherited(None);
+                if inherit {
+                    track.artist.inherit_from(&self.artist);
+                }
+            }
+        }
     }
 }
 

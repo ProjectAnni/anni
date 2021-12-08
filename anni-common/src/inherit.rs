@@ -45,6 +45,14 @@ impl<T> InheritableValue<T> {
             *self = Default::default();
         }
     }
+
+    pub fn is_owned(&self) -> bool {
+        matches!(self, InheritableValue::Owned(_))
+    }
+
+    pub fn is_inherited(&self) -> bool {
+        matches!(self, InheritableValue::Inherited(_))
+    }
 }
 
 impl<T> Default for InheritableValue<T> {
