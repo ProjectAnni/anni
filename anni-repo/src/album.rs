@@ -5,6 +5,7 @@ use anni_common::inherit::InheritableValue;
 use crate::date::AnniDate;
 use crate::tag::TagRef;
 use std::borrow::Cow;
+use uuid::Uuid;
 
 #[derive(Serialize, Deserialize, FromFile)]
 pub struct Album {
@@ -17,6 +18,7 @@ impl Album {
     pub fn new(title: String, edition: Option<String>, artist: String, release_date: AnniDate, catalog: String, tags: Vec<TagRef>) -> Self {
         Album {
             info: AlbumInfo {
+                album_id: Uuid::new_v4(),
                 title: InheritableValue::own(title),
                 edition,
                 catalog,
@@ -113,6 +115,8 @@ impl Album {
 
 #[derive(Serialize, Deserialize)]
 struct AlbumInfo {
+    /// Album ID(uuid)
+    album_id: Uuid,
     /// Album title
     title: InheritableValue<String>,
     /// Album edition
