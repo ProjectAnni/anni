@@ -32,15 +32,15 @@ impl Cache {
 
 #[async_trait]
 impl Backend for Cache {
-    async fn albums(&mut self) -> Result<HashMap<String, HashSet<String>>, BackendError> {
+    async fn albums(&mut self) -> Result<HashSet<String>, BackendError> {
         // refresh should not be cached
         self.inner.albums().await
     }
 
-    async fn get_audio(&self, catalog: &str, track_id: u8) -> Result<BackendReaderExt, BackendError> {
+    async fn get_audio(&self, album_id: &str, disc_id: u8, track_id: u8) -> Result<BackendReaderExt, BackendError> {
         self.pool.fetch(
-            do_hash(format!("{}/{:02}", catalog, track_id)),
-            self.inner.get_audio(catalog, track_id),
+            do_hash(format!("{}/{:02}/{:02}", album_id, disc_id, track_id)),
+            self.inner.get_audio(album_id, disc_id, track_id),
         ).await
     }
 

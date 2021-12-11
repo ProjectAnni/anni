@@ -1,4 +1,4 @@
-use std::collections::{HashMap, HashSet};
+use std::collections::HashSet;
 use std::str::FromStr;
 use crate::{Backend, BackendError, BackendReader, BackendReaderExt};
 use async_trait::async_trait;
@@ -31,13 +31,13 @@ impl ProxyBackend {
 
 #[async_trait]
 impl Backend for ProxyBackend {
-    async fn albums(&mut self) -> Result<HashMap<String, HashSet<String>>, BackendError> {
+    async fn albums(&mut self) -> Result<HashSet<String>, BackendError> {
         let r = self.get("/albums").await.map_err(|e| BackendError::RequestError(e))?;
         Ok(r.json().await?)
     }
 
-    async fn get_audio(&self, catalog: &str, track_id: u8) -> Result<BackendReaderExt, BackendError> {
-        let resp = self.get(&format!("/{}/{}?prefer_bitrate=lossless", catalog, track_id)).await.map_err(|e| BackendError::RequestError(e))?;
+    async fn get_audio(&self, album_id: &str, disc_id: u8, track_id: u8) -> Result<BackendReaderExt, BackendError> {
+        let resp = self.get(&format!("/{}/{}/{}?prefer_bitrate=lossless", album_id, disc_id, track_id)).await.map_err(|e| BackendError::RequestError(e))?;
         let original_size = match resp.headers().get("x-origin-size") {
             Some(s) => s.to_str().unwrap_or("0"),
             None => "0",
