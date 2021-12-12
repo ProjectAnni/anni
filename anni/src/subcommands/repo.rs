@@ -25,6 +25,11 @@ pub struct RepoSubcommand {
 
 impl Handler for RepoSubcommand {
     fn handle_command(&mut self, ctx: &mut Context) -> anyhow::Result<()> {
+        // Skip manager initialization for migrate subcommands
+        if matches!(self.action, RepoAction::Migrate(..)) {
+            return Ok(());
+        }
+
         let manager = RepositoryManager::new(self.root.as_path())?;
         ctx.insert(manager);
         Ok(())
@@ -49,6 +54,8 @@ pub enum RepoAction {
     Validate(RepoValidateAction),
     #[clap(about = ll ! {"repo-print"})]
     Print(RepoPrintAction),
+    #[clap(about = ll ! {"repo-migrate"})]
+    Migrate(RepoMigrateAction),
 }
 
 #[derive(Parser, Debug, Clone)]
@@ -515,4 +522,49 @@ fn is_album_folder(input: &str) -> bool {
     let bytes = input.as_bytes();
     let second_last_byte = bytes[bytes.len() - 2];
     !(bytes[bytes.len() - 1] == b']' && second_last_byte > b'0' && second_last_byte < b'9')
+}
+
+////////////////////////////////////////////////////////////////////////
+// Repo migration
+#[derive(Parser, Handler, Debug, Clone)]
+pub struct RepoMigrateAction {
+    #[clap(subcommand)]
+    subcommand: RepoMigrateSubcommand,
+}
+
+#[derive(Parser, Handler, Debug, Clone)]
+pub enum RepoMigrateSubcommand {
+    #[clap(about = ll ! ("repo-migrate-album-id"))]
+    #[clap(name = "album_id")]
+    AlbumId(RepoMigrateAlbumIdAction),
+}
+
+#[derive(Parser, Debug, Clone)]
+pub struct RepoMigrateAlbumIdAction;
+
+#[handler(RepoMigrateAlbumIdAction)]
+fn repo_migrate_album_id(repo: &RepoSubcommand) -> anyhow::Result<()> {
+    let album_root = repo.root.join("album");
+
+    use toml_edit::{Document, Item, Key, Table, value};
+    for toml_path in fs::PathWalker::new(album_root, false)
+        .filter(|p| p.is_file() && p.extension().unwrap_or_default() == "toml") {
+        let mut doc = fs::read_to_string(&toml_path)
+            .expect("Failed to read toml to string")
+            .parse::<Document>()
+            .expect("Invalid toml document");
+        if !doc["album"].as_table().unwrap().contains_key("album_id") {
+            let mut album = Table::new();
+            album.set_position(0);
+            album["album_id"] = value(uuid::Uuid::new_v4().to_string());
+            for (k, v) in doc["album"].as_table().unwrap().clone().into_iter() {
+                album.insert_formatted(&Key::new(k), v);
+            }
+            doc["album"] = Item::Table(album);
+            // remove prefix \n, append \n
+            let result = format!("{}\n", doc.to_string().trim());
+            fs::write(toml_path, result).expect("Failed to write toml");
+        }
+    }
+    Ok(())
 }
