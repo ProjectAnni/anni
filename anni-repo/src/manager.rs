@@ -1,10 +1,8 @@
-use crate::Result;
-use crate::{Album, Repository};
+use crate::prelude::*;
 use anni_common::traits::FromFile;
 use anni_common::fs;
 use std::path::{PathBuf, Path};
 use std::collections::{HashMap, HashSet};
-use crate::tag::{RepoTag, TagRef, Tags};
 
 pub struct RepositoryManager {
     root: PathBuf,
@@ -24,11 +22,11 @@ pub struct RepositoryManager {
 }
 
 impl RepositoryManager {
-    pub fn new<P: AsRef<Path>>(root: P) -> Result<Self> {
+    pub fn new<P: AsRef<Path>>(root: P) -> RepoResult<Self> {
         let repo = root.as_ref().join("repo.toml");
         let mut repo = Self {
             root: root.as_ref().to_owned(),
-            repo: Repository::from_file(repo).map_err(crate::Error::RepoInitError)?,
+            repo: Repository::from_file(repo).map_err(Error::RepoInitError)?,
             tags: Default::default(),
             tags_by_file: Default::default(),
             tags_top: Default::default(),
@@ -56,29 +54,29 @@ impl RepositoryManager {
     }
 
     /// Load album with given catalog.
-    pub fn load_album(&self, catalog: &str) -> Result<Album> {
-        Album::from_file(self.album_path(catalog)).map_err(|e| crate::Error::RepoAlbumLoadError {
+    pub fn load_album(&self, catalog: &str) -> RepoResult<Album> {
+        Album::from_file(self.album_path(catalog)).map_err(|e| Error::RepoAlbumLoadError {
             album: catalog.to_owned(),
             err: e,
         })
     }
 
     /// Add new album to the repository.
-    pub fn add_album(&self, catalog: &str, album: Album) -> Result<()> {
+    pub fn add_album(&self, catalog: &str, album: Album) -> RepoResult<()> {
         let file = self.album_path(catalog);
         fs::write(&file, album.to_string())?;
         Ok(())
     }
 
     /// Open editor for album with given catalog.
-    pub fn edit_album(&self, catalog: &str) -> Result<()> {
+    pub fn edit_album(&self, catalog: &str) -> RepoResult<()> {
         let file = self.album_path(catalog);
         edit::edit_file(&file)?;
         Ok(())
     }
 
     /// Get an iterator of available album catalogs in the repository.
-    pub fn catalogs(&self) -> Result<impl Iterator<Item=String>> {
+    pub fn catalogs(&self) -> RepoResult<impl Iterator<Item=String>> {
         Ok(fs::read_dir(self.album_root())?
             .filter_map(|p| {
                 let p = p.ok()?;
@@ -89,7 +87,7 @@ impl RepositoryManager {
     }
 
     /// Load tags into self.tags.
-    fn load_tags(&mut self) -> Result<()> {
+    fn load_tags(&mut self) -> RepoResult<()> {
         // filter out toml files
         let tags_path = fs::PathWalker::new(self.root.join("tag"), true)
             .filter(|p| p.extension().map(|e| e == "toml").unwrap_or(false));
@@ -113,7 +111,7 @@ impl RepositoryManager {
             let tags = tags.into_iter().map(|t| RepoTag::Full(t)).collect::<HashSet<_>>();
 
             if tags_count != tags.len() || !self.tags.is_disjoint(&tags) {
-                return Err(crate::Error::RepoTagDuplicate(tag_file));
+                return Err(Error::RepoTagDuplicate(tag_file));
             } else {
                 for tag in tags.iter() {
                     if let RepoTag::Full(tag) = tag {
@@ -148,7 +146,7 @@ impl RepositoryManager {
             if let RepoTag::Full(tag) = tag {
                 for parent in tag.parents() {
                     if !self.tags.contains(&RepoTag::Ref(parent.clone())) {
-                        return Err(crate::Error::RepoTagParentNotFound {
+                        return Err(Error::RepoTagParentNotFound {
                             tag: tag.get_ref(),
                             parent: parent.clone(),
                         });
@@ -163,7 +161,7 @@ impl RepositoryManager {
     }
 
     /// Load albums tags.
-    fn load_album_tags(&mut self) -> Result<()> {
+    fn load_album_tags(&mut self) -> RepoResult<()> {
         self.album_tags.clear();
         self.album_without_tag.clear();
 

@@ -1,5 +1,5 @@
 use thiserror::Error;
-use crate::tag::TagRef;
+use crate::prelude::TagRef;
 
 #[derive(Error, Debug)]
 pub enum Error {
