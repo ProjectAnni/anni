@@ -54,6 +54,10 @@ impl ToString for Album {
 }
 
 impl Album {
+    pub fn album_id(&self) -> Uuid {
+        self.info.album_id
+    }
+
     /// Only album title uses edition parameter.
     pub fn title(&self) -> Cow<str> {
         if let Some(edition) = &self.info.edition {
@@ -61,6 +65,14 @@ impl Album {
         } else {
             Cow::Borrowed(self.info.title.as_ref())
         }
+    }
+
+    pub fn title_raw(&self) -> &str {
+        self.info.title.as_ref()
+    }
+
+    pub fn edition_raw(&self) -> Option<&str> {
+        self.info.edition.as_deref()
     }
 
     pub fn artist(&self) -> &str {
@@ -218,6 +230,10 @@ impl Disc {
         self.disc_type.as_ref()
     }
 
+    pub fn tags(&self) -> &[TagRef] {
+        self.tags.as_ref()
+    }
+
     pub fn tracks(&self) -> &Vec<Track> {
         self.tracks.as_ref()
     }
@@ -333,6 +349,10 @@ impl Track {
 
     pub fn set_track_type(&mut self, track_type: TrackType) {
         self.track_type = InheritableValue::own(track_type);
+    }
+
+    pub fn tags(&self) -> &[TagRef] {
+        self.tags.as_ref()
     }
 }
 

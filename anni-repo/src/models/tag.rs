@@ -71,6 +71,14 @@ pub struct TagRef {
 }
 
 impl TagRef {
+    pub fn name(&self) -> &str {
+        self.name.as_str()
+    }
+
+    pub fn edition(&self) -> Option<&str> {
+        self.edition.as_deref()
+    }
+
     /// Extend a simple TagRef to a full tag with name, edition and parents.
     pub fn extend_simple(self, parents: Vec<TagRef>) -> Tag {
         Tag {

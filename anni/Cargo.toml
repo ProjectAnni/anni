@@ -17,7 +17,7 @@ directories-next = "2.0.0"
 
 anni-common = { path = "../anni-common" }
 anni-flac = { path = "../anni-flac" }
-anni-repo = { path = "../anni-repo" }
+anni-repo = { path = "../anni-repo", features = ["db"] }
 anni-derive = { path = "../anni-derive" }
 anni-clap-handler = { path = "../anni-clap-handler" }
 
