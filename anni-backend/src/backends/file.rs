@@ -10,16 +10,16 @@ use crate::BackendReader;
 
 pub struct FileBackend {
     root: PathBuf,
-    inner: HashMap<String, PathBuf>,
-    albums: HashMap<String, HashSet<String>>,
+    album_path: HashMap<String, PathBuf>,
+    album_discs: HashMap<String, Vec<PathBuf>>,
 }
 
 impl FileBackend {
     pub fn new(root: PathBuf) -> Self {
         FileBackend {
             root,
-            inner: Default::default(),
-            albums: Default::default(),
+            album_path: Default::default(),
+            album_discs: Default::default(),
         }
     }
 
@@ -33,24 +33,22 @@ impl FileBackend {
         while let Some(entry) = dir.next_entry().await? {
             if entry.metadata().await?.is_dir() {
                 let path = entry.path();
-                if let Ok((_, catalog, _, disc_count)) = album_info(
+                if let Ok((release_date, catalog, _, disc_count)) = album_info(
                     path.file_name()
                         .ok_or(BackendError::InvalidPath)?
                         .to_str()
                         .ok_or(BackendError::InvalidPath)?,
                 ) {
                     log::debug!("Found album {} at: {:?}", catalog, path);
-                    let discs = if disc_count > 1 {
+                    // TODO: match album_id
+                    let album_id = catalog;
+
+                    if disc_count > 1 {
                         // look for inner discs
-                        self.walk_discs(&path).await?
-                    } else {
-                        // no inner discs
-                        let mut set = HashSet::new();
-                        set.insert(catalog.clone());
-                        set
-                    };
-                    self.albums.insert(catalog.clone(), discs);
-                    self.inner.insert(catalog, path);
+                        let discs = self.walk_discs(&path, disc_count).await?;
+                        self.album_discs.insert(album_id.clone(), discs);
+                    }
+                    self.album_path.insert(album_id, path);
                 } else {
                     to_visit.push(path);
                 }
@@ -59,8 +57,8 @@ impl FileBackend {
         Ok(())
     }
 
-    async fn walk_discs<P: AsRef<Path> + Send>(&mut self, album: P) -> Result<HashSet<String>, BackendError> {
-        let mut discs = HashSet::new();
+    async fn walk_discs<P: AsRef<Path> + Send>(&mut self, album: P, size: usize) -> Result<Vec<PathBuf>, BackendError> {
+        let mut discs = Vec::with_capacity(size);
         let mut dir = read_dir(album).await?;
         while let Some(entry) = dir.next_entry().await? {
             if entry.metadata().await?.is_dir() {
@@ -70,36 +68,41 @@ impl FileBackend {
                     .ok_or(BackendError::InvalidPath)?
                     .to_str()
                     .ok_or(BackendError::InvalidPath)?;
-                if let Ok((catalog, _, _)) = disc_info(disc_name) {
+                if let Ok((catalog, _, disc_id)) = disc_info(disc_name) {
                     log::debug!("Found disc {} at: {:?}", catalog, path);
-                    discs.insert(catalog.clone());
-                    self.inner.insert(catalog, path);
+                    discs[disc_id - 1] = path;
                 }
             }
         }
         Ok(discs)
     }
 
-    fn get_catalog_path(&self, catalog: &str) -> Result<PathBuf, BackendError> {
-        Ok(self.inner
-            .get(catalog)
-            .ok_or(BackendError::UnknownCatalog)?
-            .to_owned()
-        )
+    fn get_disc(&self, album_id: &str, disc_id: u8) -> Result<&PathBuf, BackendError> {
+        if self.album_discs.contains_key(album_id) {
+            // has multiple discs
+            Ok(&self.album_discs[album_id][(disc_id - 1) as usize])
+        } else if self.album_path.contains_key(album_id) {
+            // has only one disc
+            Ok(&self.album_path[album_id])
+        } else {
+            Err(BackendError::FileNotFound)
+        }
     }
 
-    fn has_multiple_discs(&self, catalog: &str) -> bool {
-        match self.albums.get(catalog) {
-            Some(discs) => discs.len() > 1,
-            None => false,
-        }
+    fn get_album_path(&self, album_id: &str) -> Result<PathBuf, BackendError> {
+        Ok(self.album_path
+            .get(album_id)
+            .ok_or(BackendError::FileNotFound)?
+            .to_owned()
+        )
     }
 }
 
 #[async_trait]
 impl Backend for FileBackend {
-    async fn albums(&mut self) -> Result<HashMap<String, HashSet<String>>, BackendError> {
-        self.inner.clear();
+    async fn albums(&mut self) -> Result<HashSet<String>, BackendError> {
+        self.album_discs.clear();
+        self.album_path.clear();
 
         let mut to_visit = Vec::new();
         self.walk_dir(&self.root.clone(), &mut to_visit).await?;
@@ -107,19 +110,16 @@ impl Backend for FileBackend {
         while let Some(dir) = to_visit.pop() {
             self.walk_dir(dir, &mut to_visit).await?;
         }
-        Ok(self.albums.clone())
+        Ok(self.album_path.keys().cloned().collect())
     }
 
     async fn get_audio(
         &self,
-        catalog: &str,
+        album_id: &str,
+        disc_id: u8,
         track_id: u8,
     ) -> Result<BackendReaderExt, BackendError> {
-        if self.has_multiple_discs(catalog) {
-            return Err(BackendError::FileNotFound);
-        }
-
-        let path = self.get_catalog_path(catalog)?;
+        let path = self.get_disc(album_id, disc_id)?;
         let mut dir = read_dir(path).await?;
         while let Some(entry) = dir.next_entry().await? {
             let filename = entry.file_name();
@@ -143,8 +143,8 @@ impl Backend for FileBackend {
         Err(BackendError::FileNotFound)
     }
 
-    async fn get_cover(&self, catalog: &str) -> Result<BackendReader, BackendError> {
-        let path = self.get_catalog_path(catalog)?;
+    async fn get_cover(&self, album_id: &str) -> Result<BackendReader, BackendError> {
+        let path = self.get_album_path(album_id)?;
         let path = path.join("cover.jpg");
         let file = File::open(path).await?;
         Ok(Box::pin(file))

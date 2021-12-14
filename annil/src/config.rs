@@ -1,5 +1,5 @@
 use serde::{Serialize, Deserialize};
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::fs;
 use std::collections::HashMap;
 
@@ -42,6 +42,7 @@ impl ServerConfig {
 #[derive(Serialize, Deserialize)]
 pub struct BackendConfig {
     pub enable: bool,
+    pub db: PathBuf,
     #[serde(flatten)]
     pub item: BackendItem,
     cache: Option<CacheConfig>,

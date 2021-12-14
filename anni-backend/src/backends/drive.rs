@@ -5,6 +5,7 @@ use google_drive3::DriveHub;
 use hyper_rustls::HttpsConnector;
 use hyper::client::HttpConnector;
 
+// FIXME: drive is not available now, fix it later
 extern crate yup_oauth2 as oauth2;
 
 use self::oauth2::authenticator::Authenticator;
@@ -112,7 +113,7 @@ impl DriveBackend {
 
 #[async_trait]
 impl Backend for DriveBackend {
-    async fn albums(&mut self) -> Result<HashMap<String, HashSet<String>>, BackendError> {
+    async fn albums(&mut self) -> Result<HashSet<String>, BackendError> {
         self.folders.clear();
         let mut page_token = String::new();
         loop {
@@ -151,14 +152,14 @@ impl Backend for DriveBackend {
         todo!()
     }
 
-    async fn get_audio(&self, catalog: &str, track_id: u8) -> Result<BackendReaderExt, BackendError> {
+    async fn get_audio(&self, album_id: &str, disc_id: u8, track_id: u8) -> Result<BackendReaderExt, BackendError> {
         // catalog not found
-        if !self.folders.contains_key(catalog) {
+        if !self.folders.contains_key(album_id) {
             return Err(BackendError::UnknownCatalog);
         }
         // get audio file id
         let (_, list) = self.prepare_list()
-            .q(&format!("trashed = false and name contains '{:02}.' and '{}' in parents", track_id, self.folders[catalog]))
+            .q(&format!("trashed = false and name contains '{:02}.' and '{}' in parents", track_id, self.folders[album_id]))
             .param("fields", "nextPageToken, files(id,name,fileExtension,size)")
             .doit().await?;
         let files = list.files.unwrap();

@@ -34,12 +34,11 @@ struct AppState {
 async fn albums(claims: AnnilClaims, data: web::Data<AppState>) -> impl Responder {
     match claims {
         AnnilClaims::User(_) => {
-            let mut albums: HashMap<&str, HashSet<&str>> = HashMap::new();
+            let mut albums: HashSet<&str> = HashSet::new();
 
             // users can get real album list
             for backend in data.backends.iter() {
-                let backend_albums = backend.albums();
-                albums.extend(backend_albums.into_iter());
+                albums.extend(backend.albums().into_iter());
             }
             HttpResponse::Ok().json(albums)
         }
@@ -56,16 +55,16 @@ struct AudioQuery {
 }
 
 /// Get audio in an album with {catalog} and {track_id}
-#[get("/{catalog}/{track_id}")]
-async fn audio(claim: AnnilClaims, path: web::Path<(String, u8)>, data: web::Data<AppState>, query: Query<AudioQuery>) -> impl Responder {
-    let (catalog, track_id) = path.into_inner();
-    if !claim.can_fetch(&catalog, Some(track_id)) {
+#[get("/{catalog}/{album_id}/{track_id}")]
+async fn audio(claim: AnnilClaims, path: web::Path<(String, u8, u8)>, data: web::Data<AppState>, query: Query<AudioQuery>) -> impl Responder {
+    let (album_id, disc_id, track_id) = path.into_inner();
+    if !claim.can_fetch(&album_id, Some(track_id)) {
         return AnnilError::Unauthorized.error_response();
     }
 
     for backend in data.backends.iter() {
-        if backend.enabled() && backend.has_album(&catalog) {
-            let audio = backend.get_audio(&catalog, track_id).await.map_err(|_| AnnilError::NotFound);
+        if backend.enabled() && backend.has_album(&album_id) {
+            let audio = backend.get_audio(&album_id, disc_id, track_id).await.map_err(|_| AnnilError::NotFound);
             if let Err(e) = audio {
                 return e.error_response();
             }
@@ -129,7 +128,7 @@ async fn cover(claims: AnnilClaims, path: web::Path<String>, data: web::Data<App
     }
 
     for backend in data.backends.iter() {
-        if backend.enabled() && backend.has_album_wide(&catalog) {
+        if backend.enabled() && backend.has_album(&catalog) {
             return match backend.get_cover(&catalog).await {
                 Ok(cover) => {
                     HttpResponse::Ok()
