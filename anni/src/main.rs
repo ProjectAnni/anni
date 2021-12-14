@@ -30,11 +30,13 @@ pub enum AnniSubcommand {
     Repo(RepoSubcommand),
 }
 
-fn main() -> anyhow::Result<()> {
+#[tokio::main]
+async fn main() -> anyhow::Result<()> {
     // initialize env_logger
     env_logger::builder()
         .filter_level(LevelFilter::Info)
         .filter_module("i18n_embed::requester", LevelFilter::Error)
+        .filter_module("sqlx::query", LevelFilter::Warn)
         .parse_env("ANNI_LOG")
         .format(pretty_env_logger::formatter)
         .init();

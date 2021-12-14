@@ -8,8 +8,10 @@ use crate::{fl, ll, ball};
 use std::path::PathBuf;
 use std::str::FromStr;
 use anni_vgmdb::VGMClient;
+use futures::executor::block_on;
 use anni_flac::blocks::{UserComment, UserCommentExt};
 use anni_clap_handler::{Context, Handler, handler};
+use anni_repo::db::RepoDatabase;
 
 #[derive(Parser, Debug, Clone)]
 #[clap(about = ll ! {"repo"})]
@@ -53,6 +55,9 @@ pub enum RepoAction {
     Validate(RepoValidateAction),
     #[clap(about = ll ! {"repo-print"})]
     Print(RepoPrintAction),
+    #[clap(name = "db")]
+    // TODO: repo-database help message
+    Database(RepoDatabaseAction),
     #[clap(about = ll ! {"repo-migrate"})]
     Migrate(RepoMigrateAction),
 }
@@ -521,6 +526,25 @@ fn is_album_folder(input: &str) -> bool {
     let bytes = input.as_bytes();
     let second_last_byte = bytes[bytes.len() - 2];
     !(bytes[bytes.len() - 1] == b']' && second_last_byte > b'0' && second_last_byte < b'9')
+}
+
+////////////////////////////////////////////////////////////////////////
+// Repo database
+#[derive(Parser, Debug, Clone)]
+pub struct RepoDatabaseAction {
+    #[clap(default_value = "-")]
+    #[clap(about = ll ! {"export-to"})]
+    output: PathBuf,
+}
+
+#[handler(RepoDatabaseAction)]
+fn repo_database_action(me: &RepoDatabaseAction, manager: &RepositoryManager) -> anyhow::Result<()> {
+    let mut db = block_on(RepoDatabase::create(me.output.to_string_lossy().as_ref()))?;
+    for album in manager.albums() {
+        block_on(db.add_album(album))?;
+    }
+    block_on(db.create_index())?;
+    Ok(())
 }
 
 ////////////////////////////////////////////////////////////////////////

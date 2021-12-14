@@ -15,7 +15,7 @@ anni-common = { path = "../anni-common" }
 anni-derive = { path = "../anni-derive" }
 edit = "0.1.2"
 uuid = { version = "0.8", features = ["v4", "serde"] }
-sqlx = { version = "0.5", features = ["runtime-tokio-rustls", "sqlite"], optional = true }
+sqlx = { version = "0.5", features = ["runtime-tokio-rustls", "sqlite", "uuid"], optional = true }
 
 [features]
 default = []

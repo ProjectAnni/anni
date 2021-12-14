@@ -5,6 +5,8 @@ authors = ["Yesterday17 <mmf@mmf.moe>"]
 edition = "2018"
 
 [dependencies]
+tokio = { version = "1", features = ["full"] }
+futures = "0.3.18"
 clap = "3.0.0-beta.5"
 regex = "1"
 lazy_static = "1.4.0"
@@ -17,7 +19,7 @@ directories-next = "2.0.0"
 
 anni-common = { path = "../anni-common" }
 anni-flac = { path = "../anni-flac" }
-anni-repo = { path = "../anni-repo", features = ["db"] }
+anni-repo = { path = "../anni-repo", features = ["db", "arc"] }
 anni-derive = { path = "../anni-derive" }
 anni-clap-handler = { path = "../anni-clap-handler" }
 

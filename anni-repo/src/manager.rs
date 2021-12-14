@@ -19,6 +19,8 @@ pub struct RepositoryManager {
     // TODO: make this field non-public
     pub album_without_tag: Vec<String>,
     album_tags: HashMap<TagRef, Vec<String>>,
+
+    albums: HashMap<String, Album>,
 }
 
 impl RepositoryManager {
@@ -32,6 +34,7 @@ impl RepositoryManager {
             tags_top: Default::default(),
             album_tags: Default::default(),
             album_without_tag: Default::default(),
+            albums: Default::default(),
         };
         repo.load_tags()?;
         repo.load_album_tags()?;
@@ -84,6 +87,10 @@ impl RepositoryManager {
                     p.path().file_stem().map(|f| f.to_string_lossy().to_string())
                 } else { None }
             }))
+    }
+
+    pub fn albums(&self) -> impl Iterator<Item=&Album> {
+        self.albums.values()
     }
 
     /// Load tags into self.tags.
@@ -179,6 +186,7 @@ impl RepositoryManager {
                     self.album_tags.get_mut(tag).unwrap().push(catalog.clone());
                 }
             }
+            self.albums.insert(album.album_id().to_string(), album);
         }
 
         Ok(())

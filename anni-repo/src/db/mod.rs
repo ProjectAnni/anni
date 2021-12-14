@@ -1,5 +1,6 @@
 use sqlx::ConnectOptions;
-use sqlx::sqlite::SqliteConnectOptions;
+use sqlx::sqlite::{SqliteConnectOptions, SqliteJournalMode};
+use uuid::Uuid;
 
 mod rows;
 
@@ -12,6 +13,7 @@ impl RepoDatabase {
         let conn = SqliteConnectOptions::new()
             .filename(path)
             .create_if_missing(true)
+            .journal_mode(SqliteJournalMode::Off)
             .connect()
             .await?;
         let mut me = Self { conn };
@@ -31,7 +33,7 @@ impl RepoDatabase {
     async fn create_tables(&mut self) -> Result<(), sqlx::Error> {
         sqlx::query(r#"
 CREATE TABLE IF NOT EXISTS "repo_album" (
-  "album_id"       TEXT NOT NULL UNIQUE,
+  "album_id"       BLOB NOT NULL UNIQUE,
   "title"          TEXT NOT NULL,
   "edition"        TEXT,
   "catalog"        TEXT NOT NULL,
@@ -45,7 +47,7 @@ CREATE TABLE IF NOT EXISTS "repo_album" (
 
         sqlx::query(r#"
 CREATE TABLE IF NOT EXISTS "repo_disc" (
-  "album_id"    TEXT NOT NULL,
+  "album_id"    BLOB NOT NULL,
   "disc_id"     INTEGER NOT NULL,
   "title"       TEXT NOT NULL,
   "artist"      TEXT NOT NULL,
@@ -60,7 +62,7 @@ CREATE TABLE IF NOT EXISTS "repo_disc" (
 
         sqlx::query(r#"
 CREATE TABLE IF NOT EXISTS "repo_track" (
-  "album_id"     TEXT NOT NULL,
+  "album_id"     BLOB NOT NULL,
   "disc_id"      INTEGER NOT NULL,
   "track_id"     TEXT NOT NULL,
   "title"        TEXT NOT NULL,
@@ -75,7 +77,7 @@ CREATE TABLE IF NOT EXISTS "repo_track" (
 
         sqlx::query(r#"
 CREATE TABLE IF NOT EXISTS "repo_tag" (
-  "album_id"    TEXT NOT NULL,
+  "album_id"    BLOB NOT NULL,
   "disc_id"     INTEGER,
   "track_id"    INTEGER,
   "name"        TEXT NOT NULL,
@@ -94,6 +96,10 @@ CREATE TABLE IF NOT EXISTS "repo_info" (
             .execute(&mut self.conn)
             .await?;
 
+        Ok(())
+    }
+
+    pub async fn create_index(&mut self) -> Result<(), sqlx::Error> {
         sqlx::query(r#"
 CREATE UNIQUE INDEX "repo_album_index" ON "repo_album" (
   "album_id"
@@ -133,14 +139,14 @@ CREATE INDEX IF NOT EXISTS "repo_tag_index" ON "repo_tag" (
         Ok(())
     }
 
-    pub async fn album(&mut self, album_id: &str) -> Result<Option<rows::AlbumRow>, sqlx::Error> {
+    pub async fn album(&mut self, album_id: Uuid) -> Result<Option<rows::AlbumRow>, sqlx::Error> {
         sqlx::query_as("SELECT * FROM repo_album WHERE album_id = ?")
             .bind(album_id)
             .fetch_optional(&mut self.conn)
             .await
     }
 
-    pub async fn disc(&mut self, album_id: &str, disc_id: u8) -> Result<Option<rows::DiscRow>, sqlx::Error> {
+    pub async fn disc(&mut self, album_id: Uuid, disc_id: u8) -> Result<Option<rows::DiscRow>, sqlx::Error> {
         sqlx::query_as("SELECT * FROM repo_disc WHERE album_id = ? AND disc_id = ?")
             .bind(album_id)
             .bind(disc_id)
@@ -148,7 +154,7 @@ CREATE INDEX IF NOT EXISTS "repo_tag_index" ON "repo_tag" (
             .await
     }
 
-    pub async fn track(&mut self, album_id: &str, disc_id: u8, track_id: u8) -> Result<Option<rows::TrackRow>, sqlx::Error> {
+    pub async fn track(&mut self, album_id: Uuid, disc_id: u8, track_id: u8) -> Result<Option<rows::TrackRow>, sqlx::Error> {
         sqlx::query_as("SELECT * FROM repo_track WHERE album_id = ? AND disc_id = ? AND track_id = ?")
             .bind(album_id)
             .bind(disc_id)
@@ -158,7 +164,7 @@ CREATE INDEX IF NOT EXISTS "repo_tag_index" ON "repo_tag" (
     }
 
     pub async fn add_album(&mut self, album: &crate::models::Album) -> Result<(), sqlx::Error> {
-        let album_id = album.album_id().to_string();
+        let album_id = album.album_id();
 
         // add album info
         sqlx::query("INSERT INTO repo_album (album_id, title, edition, catalog, artist, release_date, album_type) VALUES (?, ?, ?, ?, ?, ?, ?)")
