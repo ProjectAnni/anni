@@ -10,3 +10,6 @@ members = [
     "anni-flac",
     "anni-repo",
 ]
+
+[profile.release]
+debug = true

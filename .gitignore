@@ -3,3 +3,6 @@
 *.db
 *.glade~
 *.token
+
+*.svg
+perf.data

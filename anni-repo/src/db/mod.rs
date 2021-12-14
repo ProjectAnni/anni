@@ -1,5 +1,5 @@
 use sqlx::ConnectOptions;
-use sqlx::sqlite::{SqliteConnectOptions, SqliteJournalMode};
+use sqlx::sqlite::{SqliteConnectOptions, SqliteJournalMode, SqliteSynchronous};
 use uuid::Uuid;
 
 mod rows;
@@ -14,6 +14,7 @@ impl RepoDatabase {
             .filename(path)
             .create_if_missing(true)
             .journal_mode(SqliteJournalMode::Off)
+            .synchronous(SqliteSynchronous::Off)
             .connect()
             .await?;
         let mut me = Self { conn };
