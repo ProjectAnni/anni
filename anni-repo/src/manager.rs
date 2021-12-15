@@ -191,4 +191,8 @@ impl RepositoryManager {
 
         Ok(())
     }
+
+    pub fn tags(&self) -> &HashSet<RepoTag> {
+        &self.tags
+    }
 }

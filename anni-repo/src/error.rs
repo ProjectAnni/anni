@@ -27,4 +27,8 @@ pub enum Error {
 
     #[error(transparent)]
     IOError(#[from] std::io::Error),
+
+    #[cfg(feature = "db")]
+    #[error(transparent)]
+    SqliteError(#[from] sqlx::Error),
 }

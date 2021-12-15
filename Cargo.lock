@@ -392,6 +392,7 @@ dependencies = [
  "anni-derive",
  "anyhow",
  "edit",
+ "log 0.4.14",
  "regex",
  "serde",
  "serde_with",

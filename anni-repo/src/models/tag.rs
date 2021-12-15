@@ -89,6 +89,10 @@ impl TagRef {
             children: vec![],
         }
     }
+
+    pub fn is_empty(&self) -> bool {
+        self.name.is_empty() && self.edition.is_none()
+    }
 }
 
 impl Serialize for TagRef {
@@ -218,11 +222,14 @@ impl Tag {
         self.edition.as_ref().map(|r| r.as_str())
     }
 
+    pub fn alias(&self) -> &[String] {
+        &self.alias
+    }
+
     pub fn parents(&self) -> &[TagRef] {
         &self.parents
     }
 
-    #[doc(hidden)]
     pub fn is_empty(&self) -> bool {
         self.name.is_empty() && self.edition.is_none()
     }

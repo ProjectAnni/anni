@@ -1,15 +1,84 @@
+use std::collections::HashMap;
 use sqlx::ConnectOptions;
 use sqlx::sqlite::{SqliteConnectOptions, SqliteJournalMode, SqliteSynchronous};
 use uuid::Uuid;
+use crate::prelude::RepoResult;
 
 mod rows;
 
-pub struct RepoDatabase {
+pub struct RepoDatabaseRead {
+    pool: sqlx::SqlitePool,
+}
+
+impl RepoDatabaseRead {
+    pub async fn new(path: &str) -> RepoResult<Self> {
+        Ok(Self {
+            pool: sqlx::SqlitePool::connect(path).await?,
+        })
+    }
+
+    pub async fn match_album(&mut self, catalog: &str, release_date: &crate::models::AnniDate, total_discs: u8, album_title: &str) -> RepoResult<Option<Uuid>> {
+        let albums: Vec<(Uuid, String)> = sqlx::query_as("
+SELECT album_id, title FROM repo_album
+  WHERE catalog = ? AND release_date = ? AND disc_count = ?;
+")
+            .bind(catalog)
+            .bind(release_date.to_string())
+            .bind(total_discs)
+            .fetch_all(&self.pool)
+            .await?;
+        if albums.is_empty() {
+            Ok(None)
+        } else if albums.len() == 1 {
+            Ok(Some(albums[0].0))
+        } else {
+            let filtered: Vec<_> = albums
+                .iter()
+                .filter(|(_, title)| title == album_title)
+                .collect();
+            if filtered.is_empty() {
+                Ok(None)
+            } else if filtered.len() == 1 {
+                Ok(Some(filtered[0].0))
+            } else {
+                log::warn!("Found multiple albums with the same catalog, release date, disc count and title: {:?}", filtered);
+                log::warn!("Returning the first one");
+                Ok(Some(filtered[0].0))
+            }
+        }
+    }
+
+    pub async fn album(&mut self, album_id: Uuid) -> RepoResult<Option<rows::AlbumRow>> {
+        Ok(sqlx::query_as("SELECT * FROM repo_album WHERE album_id = ?")
+            .bind(album_id)
+            .fetch_optional(&self.pool)
+            .await?)
+    }
+
+    pub async fn disc(&mut self, album_id: Uuid, disc_id: u8) -> RepoResult<Option<rows::DiscRow>> {
+        Ok(sqlx::query_as("SELECT * FROM repo_disc WHERE album_id = ? AND disc_id = ?")
+            .bind(album_id)
+            .bind(disc_id)
+            .fetch_optional(&self.pool)
+            .await?)
+    }
+
+    pub async fn track(&mut self, album_id: Uuid, disc_id: u8, track_id: u8) -> RepoResult<Option<rows::TrackRow>> {
+        Ok(sqlx::query_as("SELECT * FROM repo_track WHERE album_id = ? AND disc_id = ? AND track_id = ?")
+            .bind(album_id)
+            .bind(disc_id)
+            .bind(track_id)
+            .fetch_optional(&self.pool)
+            .await?)
+    }
+}
+
+pub struct RepoDatabaseWrite {
     conn: sqlx::SqliteConnection,
 }
 
-impl RepoDatabase {
-    pub async fn create(path: &str) -> Result<Self, sqlx::Error> {
+impl RepoDatabaseWrite {
+    pub async fn create(path: &str) -> RepoResult<Self> {
         let conn = SqliteConnectOptions::new()
             .filename(path)
             .create_if_missing(true)
@@ -22,16 +91,7 @@ impl RepoDatabase {
         Ok(me)
     }
 
-    pub async fn load(path: &str) -> Result<Self, sqlx::Error> {
-        let conn = SqliteConnectOptions::new()
-            .filename(path)
-            .read_only(true)
-            .connect()
-            .await?;
-        Ok(Self { conn })
-    }
-
-    async fn create_tables(&mut self) -> Result<(), sqlx::Error> {
+    async fn create_tables(&mut self) -> RepoResult<()> {
         sqlx::query(r#"
 CREATE TABLE IF NOT EXISTS "repo_album" (
   "album_id"       BLOB NOT NULL UNIQUE,
@@ -40,6 +100,7 @@ CREATE TABLE IF NOT EXISTS "repo_album" (
   "catalog"        TEXT NOT NULL,
   "artist"         TEXT NOT NULL,
   "release_date"   TEXT NOT NULL,
+  "disc_count"     INTEGER NOT NULL,
   "album_type"     TEXT NOT NULL DEFAULT 'normal' CHECK("album_type" IN ('normal', 'instrumental', 'absolute', 'drama', 'radio', 'vocal'))
 );
 "#)
@@ -53,6 +114,7 @@ CREATE TABLE IF NOT EXISTS "repo_disc" (
   "title"       TEXT NOT NULL,
   "artist"      TEXT NOT NULL,
   "catalog"     TEXT NOT NULL,
+  "track_count" INTEGER NOT NULL,
   "disc_type"   TEXT NOT NULL DEFAULT 'normal' CHECK("disc_type" IN ('normal', 'instrumental', 'absolute', 'drama', 'radio', 'vocal')),
   UNIQUE("album_id","disc_id"),
   FOREIGN KEY("album_id") REFERENCES "repo_album"("album_id")
@@ -78,11 +140,44 @@ CREATE TABLE IF NOT EXISTS "repo_track" (
 
         sqlx::query(r#"
 CREATE TABLE IF NOT EXISTS "repo_tag" (
+  "tag_id"      INTEGER NOT NULL UNIQUE,
+  "name"        TEXT NOT NULL,
+  "edition"     TEXT,
+  PRIMARY KEY("tag_id" AUTOINCREMENT),
+  UNIQUE("name", "edition")
+);
+"#)
+            .execute(&mut self.conn)
+            .await?;
+
+        sqlx::query(r#"
+CREATE TABLE IF NOT EXISTS "repo_tag_detail" (
+  "tag_id"      INTEGER NOT NULL,
   "album_id"    BLOB NOT NULL,
   "disc_id"     INTEGER,
   "track_id"    INTEGER,
-  "name"        TEXT NOT NULL,
-  "edition"     TEXT
+  FOREIGN KEY("tag_id") REFERENCES "repo_tag"("tag_id")
+);
+"#)
+            .execute(&mut self.conn)
+            .await?;
+
+        sqlx::query(r#"
+CREATE TABLE IF NOT EXISTS "repo_tag_alias" (
+  "tag_id"    INTEGER NOT NULL,
+  "alias"     TEXT NOT NULL,
+  FOREIGN KEY("tag_id") REFERENCES "repo_tag"("tag_id")
+);
+"#)
+            .execute(&mut self.conn)
+            .await?;
+
+        sqlx::query(r#"
+CREATE TABLE IF NOT EXISTS "repo_tag_relation" (
+  "tag_id"      INTEGER NOT NULL,
+  "parent_id"   INTEGER NOT NULL,
+  FOREIGN KEY("tag_id") REFERENCES "repo_tag"("tag_id"),
+  FOREIGN KEY("parent_id") REFERENCES "repo_tag"("tag_id")
 );
 "#)
             .execute(&mut self.conn)
@@ -100,7 +195,7 @@ CREATE TABLE IF NOT EXISTS "repo_info" (
         Ok(())
     }
 
-    pub async fn create_index(&mut self) -> Result<(), sqlx::Error> {
+    pub async fn create_index(&mut self) -> RepoResult<()> {
         sqlx::query(r#"
 CREATE UNIQUE INDEX "repo_album_index" ON "repo_album" (
   "album_id"
@@ -129,7 +224,7 @@ CREATE UNIQUE INDEX IF NOT EXISTS "repo_track_index" ON "repo_track" (
             .await?;
 
         sqlx::query(r#"
-CREATE INDEX IF NOT EXISTS "repo_tag_index" ON "repo_tag" (
+CREATE INDEX IF NOT EXISTS "repo_tag_detail_index" ON "repo_tag_detail" (
   "album_id",
   "disc_id",
   "track_id"
@@ -140,48 +235,25 @@ CREATE INDEX IF NOT EXISTS "repo_tag_index" ON "repo_tag" (
         Ok(())
     }
 
-    pub async fn album(&mut self, album_id: Uuid) -> Result<Option<rows::AlbumRow>, sqlx::Error> {
-        sqlx::query_as("SELECT * FROM repo_album WHERE album_id = ?")
-            .bind(album_id)
-            .fetch_optional(&mut self.conn)
-            .await
-    }
-
-    pub async fn disc(&mut self, album_id: Uuid, disc_id: u8) -> Result<Option<rows::DiscRow>, sqlx::Error> {
-        sqlx::query_as("SELECT * FROM repo_disc WHERE album_id = ? AND disc_id = ?")
-            .bind(album_id)
-            .bind(disc_id)
-            .fetch_optional(&mut self.conn)
-            .await
-    }
-
-    pub async fn track(&mut self, album_id: Uuid, disc_id: u8, track_id: u8) -> Result<Option<rows::TrackRow>, sqlx::Error> {
-        sqlx::query_as("SELECT * FROM repo_track WHERE album_id = ? AND disc_id = ? AND track_id = ?")
-            .bind(album_id)
-            .bind(disc_id)
-            .bind(track_id)
-            .fetch_optional(&mut self.conn)
-            .await
-    }
-
-    pub async fn add_album(&mut self, album: &crate::models::Album) -> Result<(), sqlx::Error> {
+    pub async fn add_album(&mut self, album: &crate::models::Album) -> RepoResult<()> {
         let album_id = album.album_id();
 
         // add album info
-        sqlx::query("INSERT INTO repo_album (album_id, title, edition, catalog, artist, release_date, album_type) VALUES (?, ?, ?, ?, ?, ?, ?)")
+        sqlx::query("INSERT INTO repo_album (album_id, title, edition, catalog, artist, release_date, disc_count, album_type) VALUES (?, ?, ?, ?, ?, ?, ?, ?)")
             .bind(&album_id)
             .bind(album.title_raw())
             .bind(album.edition_raw())
             .bind(album.catalog())
             .bind(album.artist())
             .bind(album.release_date().to_string())
+            .bind(album.discs().len() as i32)
             .bind(album.track_type().as_ref())
             .execute(&mut self.conn)
             .await?;
 
         // add album tags
         for tag in album.tags() {
-            sqlx::query("INSERT INTO repo_tag (album_id, name, edition) VALUES (?, ?, ?)")
+            sqlx::query("INSERT INTO repo_tag_detail (album_id, tag_id) SELECT ?, tag_id FROM repo_tag WHERE name = ? AND edition = ?")
                 .bind(&album_id)
                 .bind(tag.name())
                 .bind(tag.edition())
@@ -193,19 +265,20 @@ CREATE INDEX IF NOT EXISTS "repo_tag_index" ON "repo_tag" (
             let disc_id = disc_id + 1;
 
             // add disc info
-            sqlx::query("INSERT INTO repo_disc (album_id, disc_id, title, artist, catalog, disc_type) VALUES (?, ?, ?, ?, ?, ?)")
+            sqlx::query("INSERT INTO repo_disc (album_id, disc_id, title, artist, catalog, track_count, disc_type) VALUES (?, ?, ?, ?, ?, ?, ?)")
                 .bind(&album_id)
                 .bind(disc_id as u8)
                 .bind(disc.title())
                 .bind(disc.artist())
                 .bind(disc.catalog())
+                .bind(disc.tracks().len() as i32)
                 .bind(disc.track_type().as_ref())
                 .execute(&mut self.conn)
                 .await?;
 
             // add disc tags
             for tag in disc.tags() {
-                sqlx::query("INSERT INTO repo_tag (album_id, disc_id, name, edition) VALUES (?, ?, ?, ?)")
+                sqlx::query("INSERT INTO repo_tag_detail (album_id, disc_id, tag_id) SELECT ?, ?, tag_id FROM repo_tag WHERE name = ? AND edition = ?")
                     .bind(&album_id)
                     .bind(disc_id as u8)
                     .bind(tag.name())
@@ -230,7 +303,7 @@ CREATE INDEX IF NOT EXISTS "repo_tag_index" ON "repo_tag" (
 
                 // add track tags
                 for tag in track.tags() {
-                    sqlx::query("INSERT INTO repo_tag (album_id, disc_id, track_id, name, edition) VALUES (?, ?, ?, ?, ?)")
+                    sqlx::query("INSERT INTO repo_tag_detail (album_id, disc_id, track_id, tag_id) SELECT ?, ?, ?, tag_id FROM repo_tag WHERE name = ? AND edition = ?")
                         .bind(&album_id)
                         .bind(disc_id as u8)
                         .bind(track_id as u8)
@@ -238,6 +311,78 @@ CREATE INDEX IF NOT EXISTS "repo_tag_index" ON "repo_tag" (
                         .bind(tag.edition())
                         .execute(&mut self.conn)
                         .await?;
+                }
+            }
+        }
+        Ok(())
+    }
+
+    async fn add_tag(&mut self, name: &str, edition: Option<&str>) -> RepoResult<i32> {
+        let tag_result = sqlx::query("INSERT INTO repo_tag (name, edition) VALUES (?, ?)")
+            .bind(name)
+            .bind(edition)
+            .execute(&mut self.conn)
+            .await?;
+        // this is a hack to get the id of the tag we just inserted
+        let (id, ..) = sqlx::query_as::<_, (i32, i32)>("SELECT tag_id, 1 FROM repo_tag WHERE rowid = ?")
+            .bind(tag_result.last_insert_rowid())
+            .fetch_one(&mut self.conn)
+            .await?;
+        Ok(id)
+    }
+
+    async fn add_alias(&mut self, tag_id: i32, alias: &str) -> RepoResult<()> {
+        sqlx::query("INSERT INTO repo_tag_alias (tag_id, alias) VALUES (?, ?)")
+            .bind(tag_id)
+            .bind(alias)
+            .execute(&mut self.conn)
+            .await?;
+        Ok(())
+    }
+
+    async fn add_parent(&mut self, tag_id: i32, parent_id: i32) -> RepoResult<()> {
+        sqlx::query("INSERT INTO repo_tag_relation (tag_id, parent_id) VALUES (?, ?)")
+            .bind(tag_id)
+            .bind(parent_id)
+            .execute(&mut self.conn)
+            .await?;
+        Ok(())
+    }
+
+    pub async fn add_tags(&mut self, tags: impl Iterator<Item=&crate::models::Tag>) -> RepoResult<()> {
+        let mut tag_id = HashMap::new();
+        let mut relation_deferred = HashMap::new();
+
+        for tag in tags {
+            if tag.is_empty() {
+                continue;
+            }
+
+            let id = self.add_tag(tag.name(), tag.edition()).await?;
+            tag_id.insert(tag.get_ref(), id);
+
+            // add alias
+            for alias in tag.alias() {
+                self.add_alias(id, alias).await?;
+            }
+
+            // children are listed in tags now
+            // add children
+            // for child in tag.children_raw() {
+            //     log::warn!("{}", child);
+            //     let child_id = self.add_tag(child.name(), child.edition()).await?;
+            //     tag_id.insert(child.clone(), child_id);
+            //     self.add_parent(child_id, id).await?;
+            // }
+
+            // add parents to wait list
+            relation_deferred.insert(id, tag.parents().iter());
+        }
+
+        for (child_id, parents) in relation_deferred {
+            for parent in parents {
+                if !parent.is_empty() {
+                    self.add_parent(child_id, tag_id[parent]).await?;
                 }
             }
         }

@@ -11,7 +11,7 @@ use anni_vgmdb::VGMClient;
 use futures::executor::block_on;
 use anni_flac::blocks::{UserComment, UserCommentExt};
 use anni_clap_handler::{Context, Handler, handler};
-use anni_repo::db::RepoDatabase;
+use anni_repo::db::RepoDatabaseWrite;
 
 #[derive(Parser, Debug, Clone)]
 #[clap(about = ll ! {"repo"})]
@@ -539,7 +539,14 @@ pub struct RepoDatabaseAction {
 
 #[handler(RepoDatabaseAction)]
 fn repo_database_action(me: &RepoDatabaseAction, manager: &RepositoryManager) -> anyhow::Result<()> {
-    let mut db = block_on(RepoDatabase::create(me.output.to_string_lossy().as_ref()))?;
+    let mut db = block_on(RepoDatabaseWrite::create(me.output.to_string_lossy().as_ref()))?;
+
+    let tags = manager.tags().iter().filter_map(|t| match t {
+        RepoTag::Full(tag) => Some(tag),
+        _ => None,
+    });
+    block_on(db.add_tags(tags))?;
+
     for album in manager.albums() {
         block_on(db.add_album(album))?;
     }
