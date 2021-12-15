@@ -540,16 +540,22 @@ pub struct RepoDatabaseAction {
 #[handler(RepoDatabaseAction)]
 fn repo_database_action(me: &RepoDatabaseAction, manager: &RepositoryManager) -> anyhow::Result<()> {
     let mut db = block_on(RepoDatabaseWrite::create(me.output.to_string_lossy().as_ref()))?;
+    // TODO: get url / ref from repo
+    block_on(db.write_info(manager.repo.name(), manager.repo.edition(), "", ""))?;
 
+    // Write all tags
     let tags = manager.tags().iter().filter_map(|t| match t {
         RepoTag::Full(tag) => Some(tag),
         _ => None,
     });
     block_on(db.add_tags(tags))?;
 
+    // Write all albums
     for album in manager.albums() {
         block_on(db.add_album(album))?;
     }
+
+    // Create Index
     block_on(db.create_index())?;
     Ok(())
 }

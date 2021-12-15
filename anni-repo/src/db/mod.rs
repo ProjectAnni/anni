@@ -6,6 +6,8 @@ use crate::prelude::RepoResult;
 
 mod rows;
 
+pub const DB_VERSION: &str = "1";
+
 pub struct RepoDatabaseRead {
     pool: sqlx::SqlitePool,
 }
@@ -386,6 +388,24 @@ CREATE INDEX IF NOT EXISTS "repo_tag_detail_index" ON "repo_tag_detail" (
                 }
             }
         }
+        Ok(())
+    }
+
+    async fn add_info(&mut self, key: &str, value: &str) -> RepoResult<()> {
+        sqlx::query("INSERT INTO repo_info (key, value) VALUES (?, ?)")
+            .bind(key)
+            .bind(value)
+            .execute(&mut self.conn)
+            .await?;
+        Ok(())
+    }
+
+    pub async fn write_info(&mut self, repo_name: &str, repo_edition: &str, repo_url: &str, repo_ref: &str) -> RepoResult<()> {
+        self.add_info("repo_name", repo_name).await?;
+        self.add_info("repo_edition", repo_edition).await?;
+        self.add_info("repo_url", repo_url).await?;
+        self.add_info("repo_ref", repo_ref).await?;
+        self.add_info("db_version", DB_VERSION).await?;
         Ok(())
     }
 }
