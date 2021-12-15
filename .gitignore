@@ -6,3 +6,5 @@
 
 *.svg
 perf.data
+*.db-shm
+*.db-wal

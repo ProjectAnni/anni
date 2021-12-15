@@ -60,11 +60,7 @@ impl BackendConfig {
 pub enum BackendItem {
     #[serde(rename = "file")]
     #[serde(rename_all = "kebab-case")]
-    File {
-        root: String,
-        #[serde(default)]
-        strict: bool,
-    },
+    File { root: String },
     #[serde(rename = "drive")]
     #[serde(rename_all = "kebab-case")]
     Drive {

@@ -6,18 +6,21 @@ use std::io::SeekFrom;
 use std::path::{Path, PathBuf};
 use tokio::fs::{read_dir, File};
 use tokio::io::AsyncSeekExt;
+use anni_repo::db::RepoDatabaseRead;
 use crate::BackendReader;
 
 pub struct FileBackend {
     root: PathBuf,
+    repo: RepoDatabaseRead,
     album_path: HashMap<String, PathBuf>,
     album_discs: HashMap<String, Vec<PathBuf>>,
 }
 
 impl FileBackend {
-    pub fn new(root: PathBuf) -> Self {
+    pub fn new(root: PathBuf, repo: RepoDatabaseRead) -> Self {
         FileBackend {
             root,
+            repo,
             album_path: Default::default(),
             album_discs: Default::default(),
         }
@@ -33,22 +36,27 @@ impl FileBackend {
         while let Some(entry) = dir.next_entry().await? {
             if entry.metadata().await?.is_dir() {
                 let path = entry.path();
-                if let Ok((release_date, catalog, _, disc_count)) = album_info(
+                if let Ok((release_date, catalog, title, disc_count)) = album_info(
                     path.file_name()
                         .ok_or(BackendError::InvalidPath)?
                         .to_str()
                         .ok_or(BackendError::InvalidPath)?,
                 ) {
                     log::debug!("Found album {} at: {:?}", catalog, path);
-                    // TODO: match album_id
-                    let album_id = catalog;
-
-                    if disc_count > 1 {
-                        // look for inner discs
-                        let discs = self.walk_discs(&path, disc_count).await?;
-                        self.album_discs.insert(album_id.clone(), discs);
+                    let album_id = self.repo.match_album(&catalog, &release_date, disc_count as u8, &title).await?;
+                    match album_id {
+                        Some(album_id) => {
+                            if disc_count > 1 {
+                                // look for inner discs
+                                let discs = self.walk_discs(&path, disc_count).await?;
+                                self.album_discs.insert(album_id.to_string(), discs);
+                            }
+                            self.album_path.insert(album_id.to_string(), path);
+                        }
+                        None => {
+                            log::warn!("Album ID not found for {}, ignoring...", catalog);
+                        }
                     }
-                    self.album_path.insert(album_id, path);
                 } else {
                     to_visit.push(path);
                 }
@@ -58,7 +66,7 @@ impl FileBackend {
     }
 
     async fn walk_discs<P: AsRef<Path> + Send>(&mut self, album: P, size: usize) -> Result<Vec<PathBuf>, BackendError> {
-        let mut discs = Vec::with_capacity(size);
+        let mut discs = vec![PathBuf::new(); size];
         let mut dir = read_dir(album).await?;
         while let Some(entry) = dir.next_entry().await? {
             if entry.metadata().await?.is_dir() {
@@ -151,9 +159,12 @@ impl Backend for FileBackend {
     }
 }
 
-#[tokio::test]
-async fn test_scan() {
-    let mut f = FileBackend::new(PathBuf::from("/data/Music/"), false);
-    let _ = f.albums().await.unwrap();
-    let _audio = f.get_audio("LACM-14986", 2).await.unwrap();
+#[cfg(feature = "test")]
+mod test {
+    #[tokio::test]
+    async fn test_scan() {
+        let mut f = FileBackend::new(PathBuf::from("/data/Music/"), false);
+        let _ = f.albums().await.unwrap();
+        let _audio = f.get_audio("LACM-14986", 2).await.unwrap();
+    }
 }

@@ -11,7 +11,7 @@ futures = "0.3"
 async-trait = "0.1.45"
 
 thiserror = "1.0"
-anni-repo = { path = "../anni-repo" }
+anni-repo = { path = "../anni-repo", features = ["db"] }
 log = "0.4.0"
 
 google-drive3 = "*"

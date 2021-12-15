@@ -80,6 +80,9 @@ pub enum BackendError {
     IOError(#[from] std::io::Error),
 
     #[error(transparent)]
+    RepoError(#[from] anni_repo::error::Error),
+
+    #[error(transparent)]
     OAuthError(#[from] yup_oauth2::Error),
 
     #[error(transparent)]

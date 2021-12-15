@@ -14,7 +14,7 @@ use crate::config::{Config, BackendItem};
 use actix_web::middleware::Logger;
 use jwt_simple::prelude::HS256Key;
 use crate::auth::{AnnilAuth, AnnilClaims};
-use anni_backend::AnniBackend;
+use anni_backend::{AnniBackend, RepoDatabaseRead};
 use std::collections::{HashSet, HashMap};
 use anni_backend::cache::{CachePool, Cache};
 use anni_backend::backends::drive::DriveBackendSettings;
@@ -152,8 +152,13 @@ async fn init_state(config: &Config) -> anyhow::Result<web::Data<AppState>> {
     for (backend_name, backend_config) in config.backends.iter() {
         log::debug!("Initializing backend: {}", backend_name);
         let mut backend = match &backend_config.item {
-            BackendItem::File { root, .. } =>
-                AnniBackend::File(FileBackend::new(PathBuf::from(root))),
+            BackendItem::File { root } =>
+                AnniBackend::File(
+                    FileBackend::new(
+                        PathBuf::from(root),
+                        RepoDatabaseRead::new(&backend_config.db.to_string_lossy()).await?,
+                    ),
+                ),
             BackendItem::Drive { drive_id, corpora, token_path } =>
                 AnniBackend::Drive(DriveBackend::new(Default::default(), DriveBackendSettings {
                     corpora: corpora.to_string(),
@@ -185,6 +190,7 @@ async fn init_state(config: &Config) -> anyhow::Result<web::Data<AppState>> {
 async fn main() -> anyhow::Result<()> {
     env_logger::builder()
         .filter_level(log::LevelFilter::Info)
+        .filter_module("sqlx::query", log::LevelFilter::Warn)
         .init();
     let config = Config::from_file(std::env::args().nth(1).unwrap_or_else(|| "config.toml".to_owned()))?;
     let state = init_state(&config).await?;
