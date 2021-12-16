@@ -25,8 +25,8 @@ impl Cache {
         }
     }
 
-    pub fn invalidate(&self, catalog: &str, track_id: u8) {
-        self.pool.remove(&do_hash(format!("{}/{:02}", catalog, track_id)));
+    pub fn invalidate(&self, album_id: &str, disc_id: u8, track_id: u8) {
+        self.pool.remove(&do_hash(format!("{}/{:02}/{:02}", album_id, disc_id, track_id)));
     }
 }
 
