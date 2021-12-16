@@ -180,14 +180,14 @@ impl Backend for DriveBackend {
         }
     }
 
-    async fn get_cover(&self, catalog: &str) -> Result<BackendReader, BackendError> {
+    async fn get_cover(&self, album_id: &str, disc_id: Option<u8>) -> Result<BackendReader, BackendError> {
         // catalog not found
-        if !self.folders.contains_key(catalog) {
+        if !self.folders.contains_key(album_id) {
             return Err(BackendError::UnknownCatalog);
         }
         // get cover file id
         let (_, list) = self.prepare_list()
-            .q(&format!("trashed = false and mimeType = 'image/jpeg' and name = 'cover.jpg' and '{}' in parents", self.folders[catalog]))
+            .q(&format!("trashed = false and mimeType = 'image/jpeg' and name = 'cover.jpg' and '{}' in parents", self.folders[album_id]))
             .param("fields", "nextPageToken, files(id,name)")
             .doit().await?;
         let files = list.files.unwrap();

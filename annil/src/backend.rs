@@ -54,8 +54,8 @@ impl AnnilBackend {
         self.inner.as_backend().get_audio(album_id, disc_id, track_id).await
     }
 
-    pub async fn get_cover(&self, album_id: &str) -> Result<impl AsyncRead, BackendError> {
+    pub async fn get_cover(&self, album_id: &str, disc_id: Option<u8>) -> Result<impl AsyncRead, BackendError> {
         log::trace!("[{}] Getting cover: {}", self.name(), album_id);
-        self.inner.as_backend().get_cover(album_id).await
+        self.inner.as_backend().get_cover(album_id, disc_id).await
     }
 }

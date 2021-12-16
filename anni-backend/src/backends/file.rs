@@ -97,12 +97,10 @@ impl FileBackend {
         }
     }
 
-    fn get_album_path(&self, album_id: &str) -> Result<PathBuf, BackendError> {
+    fn get_album_path(&self, album_id: &str) -> Result<&PathBuf, BackendError> {
         Ok(self.album_path
             .get(album_id)
-            .ok_or(BackendError::FileNotFound)?
-            .to_owned()
-        )
+            .ok_or(BackendError::FileNotFound)?)
     }
 }
 
@@ -151,8 +149,11 @@ impl Backend for FileBackend {
         Err(BackendError::FileNotFound)
     }
 
-    async fn get_cover(&self, album_id: &str) -> Result<BackendReader, BackendError> {
-        let path = self.get_album_path(album_id)?;
+    async fn get_cover(&self, album_id: &str, disc_id: Option<u8>) -> Result<BackendReader, BackendError> {
+        let path = match disc_id {
+            None => self.get_album_path(album_id)?,
+            Some(disc_id) => self.get_disc(album_id, disc_id)?,
+        };
         let path = path.join("cover.jpg");
         let file = File::open(path).await?;
         Ok(Box::pin(file))

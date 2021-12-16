@@ -120,17 +120,17 @@ async fn audio(claim: AnnilClaims, path: web::Path<(String, u8, u8)>, data: web:
 }
 
 /// Get audio cover of an album with {album_id}
+// TODO: support disc cover
 #[get("/{album_id}/cover")]
 async fn cover(claims: AnnilClaims, path: web::Path<String>, data: web::Data<AppState>) -> impl Responder {
     let album_id = path.into_inner();
-    // TODO: support disc cover
     if !claims.can_fetch(&album_id, None, None) {
         return HttpResponse::Forbidden().finish();
     }
 
     for backend in data.backends.iter() {
         if backend.enabled() && backend.has_album(&album_id) {
-            return match backend.get_cover(&album_id).await {
+            return match backend.get_cover(&album_id, None).await {
                 Ok(cover) => {
                     HttpResponse::Ok()
                         .content_type("image/jpeg")

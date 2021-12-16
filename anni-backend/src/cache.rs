@@ -44,9 +44,9 @@ impl Backend for Cache {
         ).await
     }
 
-    async fn get_cover(&self, catalog: &str) -> Result<BackendReader, BackendError> {
+    async fn get_cover(&self, album_id: &str, disc_id: Option<u8>) -> Result<BackendReader, BackendError> {
         // TODO: cache cover
-        self.inner.get_cover(catalog).await
+        self.inner.get_cover(album_id, disc_id).await
     }
 }
 

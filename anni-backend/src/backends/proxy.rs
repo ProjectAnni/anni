@@ -61,8 +61,12 @@ impl Backend for ProxyBackend {
         })
     }
 
-    async fn get_cover(&self, catalog: &str) -> Result<BackendReader, BackendError> {
-        let resp = self.get(&format!("/{}/cover", catalog)).await.map_err(|e| BackendError::RequestError(e))?;
+    async fn get_cover(&self, album_id: &str, disc_id: Option<u8>) -> Result<BackendReader, BackendError> {
+        let path = match disc_id {
+            Some(disc_id) => format!("/{}/{}/cover", album_id, disc_id),
+            None => format!("/{}/cover", album_id),
+        };
+        let resp = self.get(&path).await.map_err(|e| BackendError::RequestError(e))?;
         let body = resp
             .bytes_stream()
             .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e.to_string()))
