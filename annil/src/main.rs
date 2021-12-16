@@ -23,10 +23,24 @@ use crate::error::AnnilError;
 use actix_web::web::Query;
 use serde::Deserialize;
 use std::process::Stdio;
+use std::time::{SystemTime, UNIX_EPOCH};
+use jwt_simple::reexports::serde_json::json;
 
 struct AppState {
     backends: Vec<AnnilBackend>,
     key: HS256Key,
+
+    version: String,
+    last_update: u64,
+}
+
+#[get("/info")]
+async fn info(data: web::Data<AppState>) -> impl Responder {
+    HttpResponse::Ok().json(json!({
+        "version": data.version,
+        "protocol_version": "0.2.1",
+        "last_update": data.last_update,
+    }))
 }
 
 /// Get available albums of current annil server
@@ -147,7 +161,7 @@ async fn cover(claims: AnnilClaims, path: web::Path<String>, data: web::Data<App
 
 async fn init_state(config: &Config) -> anyhow::Result<web::Data<AppState>> {
     log::info!("Start initializing backends...");
-    let now = std::time::SystemTime::now();
+    let now = SystemTime::now();
     let mut backends = Vec::with_capacity(config.backends.len());
     let mut caches = HashMap::new();
     for (backend_name, backend_config) in config.backends.iter() {
@@ -184,7 +198,9 @@ async fn init_state(config: &Config) -> anyhow::Result<web::Data<AppState>> {
 
     // key
     let key = HS256Key::from_bytes(config.server.key().as_ref());
-    Ok(web::Data::new(AppState { backends, key }))
+    let version = format!("Anniv v{}", env!("CARGO_PKG_VERSION"));
+    let last_update = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs();
+    Ok(web::Data::new(AppState { backends, key, version, last_update }))
 }
 
 #[actix_web::main]
@@ -207,6 +223,7 @@ async fn main() -> anyhow::Result<()> {
                 .send_wildcard()
             )
             .wrap(Logger::default())
+            .service(info)
             .service(cover)
             .service(audio)
             .service(albums)
