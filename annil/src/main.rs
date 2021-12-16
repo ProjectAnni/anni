@@ -133,18 +133,22 @@ async fn audio(claim: AnnilClaims, path: web::Path<(String, u8, u8)>, data: web:
     HttpResponse::NotFound().finish()
 }
 
-/// Get audio cover of an album with {album_id}
-// TODO: support disc cover
-#[get("/{album_id}/cover")]
-async fn cover(claims: AnnilClaims, path: web::Path<String>, data: web::Data<AppState>) -> impl Responder {
-    let album_id = path.into_inner();
-    if !claims.can_fetch(&album_id, None, None) {
+#[derive(Deserialize)]
+struct CoverPath {
+    album_id: String,
+    disc_id: Option<u8>,
+}
+
+/// Get audio cover of an album with {album_id} and optional {disc_id}
+async fn cover(claims: AnnilClaims, path: web::Path<CoverPath>, data: web::Data<AppState>) -> impl Responder {
+    let CoverPath { album_id, disc_id } = path.into_inner();
+    if !claims.can_fetch(&album_id, disc_id, None) {
         return HttpResponse::Forbidden().finish();
     }
 
     for backend in data.backends.iter() {
         if backend.enabled() && backend.has_album(&album_id) {
-            return match backend.get_cover(&album_id, None).await {
+            return match backend.get_cover(&album_id, disc_id).await {
                 Ok(cover) => {
                     HttpResponse::Ok()
                         .content_type("image/jpeg")
@@ -206,7 +210,7 @@ async fn init_state(config: &Config) -> anyhow::Result<web::Data<AppState>> {
 #[actix_web::main]
 async fn main() -> anyhow::Result<()> {
     env_logger::builder()
-        .filter_level(log::LevelFilter::Info)
+        .filter_level(log::LevelFilter::Debug)
         .filter_module("sqlx::query", log::LevelFilter::Warn)
         .init();
     let config = Config::from_file(std::env::args().nth(1).unwrap_or_else(|| "config.toml".to_owned()))?;
@@ -224,7 +228,13 @@ async fn main() -> anyhow::Result<()> {
             )
             .wrap(Logger::default())
             .service(info)
-            .service(cover)
+            .service(
+                web::resource([
+                    "/{album_id}/cover",
+                    "/{album_id}/{disc_id}/cover",
+                ])
+                    .route(web::get().to(cover))
+            )
             .service(audio)
             .service(albums)
             .service(share::share)
