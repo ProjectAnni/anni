@@ -54,11 +54,11 @@ struct AudioQuery {
     prefer_bitrate: Option<String>,
 }
 
-/// Get audio in an album with {catalog} and {track_id}
-#[get("/{catalog}/{album_id}/{track_id}")]
+/// Get audio in an album with {album_id}, {disc_id} and {track_id}
+#[get("/{album_id}/{disc_id}/{track_id}")]
 async fn audio(claim: AnnilClaims, path: web::Path<(String, u8, u8)>, data: web::Data<AppState>, query: Query<AudioQuery>) -> impl Responder {
     let (album_id, disc_id, track_id) = path.into_inner();
-    if !claim.can_fetch(&album_id, Some(track_id)) {
+    if !claim.can_fetch(&album_id, Some(disc_id), Some(track_id)) {
         return AnnilError::Unauthorized.error_response();
     }
 
@@ -119,17 +119,18 @@ async fn audio(claim: AnnilClaims, path: web::Path<(String, u8, u8)>, data: web:
     HttpResponse::NotFound().finish()
 }
 
-/// Get audio cover of an album with {catalog}
-#[get("/{catalog}/cover")]
+/// Get audio cover of an album with {album_id}
+#[get("/{album_id}/cover")]
 async fn cover(claims: AnnilClaims, path: web::Path<String>, data: web::Data<AppState>) -> impl Responder {
-    let catalog = path.into_inner();
-    if !claims.can_fetch(&catalog, None) {
+    let album_id = path.into_inner();
+    // TODO: support disc cover
+    if !claims.can_fetch(&album_id, None, None) {
         return HttpResponse::Forbidden().finish();
     }
 
     for backend in data.backends.iter() {
-        if backend.enabled() && backend.has_album(&catalog) {
-            return match backend.get_cover(&catalog).await {
+        if backend.enabled() && backend.has_album(&album_id) {
+            return match backend.get_cover(&album_id).await {
                 Ok(cover) => {
                     HttpResponse::Ok()
                         .content_type("image/jpeg")

@@ -10,7 +10,7 @@ use crate::error::AnnilError;
 
 #[derive(Deserialize, Clone)]
 pub(crate) struct SharePayload {
-    audios: HashMap<String, Vec<u8>>,
+    audios: HashMap<String, HashMap<String, Vec<u8>>>,
     #[serde(skip_serializing, default)]
     expire: u64,
 }

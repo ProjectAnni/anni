@@ -24,7 +24,7 @@ pub(crate) struct UserClaim {
 #[derive(Serialize, Deserialize, Clone)]
 pub(crate) struct ShareClaim {
     pub(crate) username: String,
-    pub(crate) audios: HashMap<String, Vec<u8>>,
+    pub(crate) audios: HashMap<String, HashMap<String, Vec<u8>>>,
 }
 
 #[derive(Serialize, Deserialize, Clone)]
@@ -47,10 +47,32 @@ impl FromRequest for AnnilClaims {
 }
 
 impl AnnilClaims {
-    pub(crate) fn can_fetch(&self, catalog: &str, track_id: Option<u8>) -> bool {
+    pub(crate) fn can_fetch(&self, album_id: &str, disc_id: Option<u8>, track_id: Option<u8>) -> bool {
         match &self {
             AnnilClaims::User(_) => true,
-            AnnilClaims::Share(s) => s.audios.contains_key(catalog) && track_id.map(|i| s.audios[catalog].contains(&i)).unwrap_or(true),
+            AnnilClaims::Share(s) => {
+                match s.audios.get(album_id) {
+                    // album_id exist
+                    Some(album) => match disc_id {
+                        // disc_id requested
+                        Some(disc_id) => match album.get(&format!("{}", disc_id)) {
+                            // disc_id exist
+                            Some(disc) => match track_id {
+                                // track_id requested
+                                // return whether track_id exist in list
+                                Some(track_id) => disc.contains(&track_id),
+                                // track_id not requested
+                                None => true
+                            }
+                            // disc_id does not exist
+                            None => false,
+                        }
+                        // disc_id not requested, allow
+                        None => true,
+                    }
+                    None => false,
+                }
+            }
         }
     }
 
