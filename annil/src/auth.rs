@@ -35,7 +35,6 @@ pub(crate) enum AnnilClaims {
 }
 
 impl FromRequest for AnnilClaims {
-    type Config = ();
     type Error = Error;
     type Future = Ready<Result<Self, Self::Error>>;
 
@@ -102,7 +101,7 @@ impl<S> Service<ServiceRequest> for AnnilAuthMiddleware<S>
     }
 
     fn call(&self, req: ServiceRequest) -> Self::Future {
-        if matches!(req.method(), &Method::OPTIONS) {
+        if matches!(req.method(), &Method::OPTIONS) || req.path() == "/info" {
             return Either::Left(self.service.call(req));
         }
 

@@ -5,8 +5,8 @@ authors = ["Yesterday17 <mmf@mmf.moe>"]
 edition = "2018"
 
 [dependencies]
-actix-web = { version = "4.0.0-beta.9", features = ["rustls"] }
-actix-cors = "0.6.0-beta.2"
+actix-web = { version = "4.0.0-beta.14", features = ["rustls"] }
+actix-cors = "0.6.0-beta.6"
 anni-backend = { path = "../anni-backend" }
 actix-utils = "3.0.0"
 
