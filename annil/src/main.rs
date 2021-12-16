@@ -223,7 +223,7 @@ async fn main() -> anyhow::Result<()> {
             .wrap(Cors::default()
                 .allow_any_origin()
                 .allowed_methods(vec!["GET"])
-                .allowed_header(actix_web::http::header::AUTHORIZATION)
+                .allow_any_header()
                 .send_wildcard()
             )
             .wrap(Logger::default())
