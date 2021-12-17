@@ -143,10 +143,8 @@ CREATE TABLE IF NOT EXISTS "repo_track" (
         sqlx::query(r#"
 CREATE TABLE IF NOT EXISTS "repo_tag" (
   "tag_id"      INTEGER NOT NULL UNIQUE,
-  "name"        TEXT NOT NULL,
-  "edition"     TEXT,
-  PRIMARY KEY("tag_id" AUTOINCREMENT),
-  UNIQUE("name", "edition")
+  "name"        TEXT NOT NULL UNIQUE,
+  PRIMARY KEY("tag_id" AUTOINCREMENT)
 );
 "#)
             .execute(&mut self.conn)
@@ -255,10 +253,9 @@ CREATE INDEX IF NOT EXISTS "repo_tag_detail_index" ON "repo_tag_detail" (
 
         // add album tags
         for tag in album.tags() {
-            sqlx::query("INSERT INTO repo_tag_detail (album_id, tag_id) SELECT ?, tag_id FROM repo_tag WHERE name = ? AND edition = ?")
+            sqlx::query("INSERT INTO repo_tag_detail (album_id, tag_id) SELECT ?, tag_id FROM repo_tag WHERE name = ?")
                 .bind(&album_id)
                 .bind(tag.name())
-                .bind(tag.edition())
                 .execute(&mut self.conn)
                 .await?;
         }
@@ -280,11 +277,10 @@ CREATE INDEX IF NOT EXISTS "repo_tag_detail_index" ON "repo_tag_detail" (
 
             // add disc tags
             for tag in disc.tags() {
-                sqlx::query("INSERT INTO repo_tag_detail (album_id, disc_id, tag_id) SELECT ?, ?, tag_id FROM repo_tag WHERE name = ? AND edition = ?")
+                sqlx::query("INSERT INTO repo_tag_detail (album_id, disc_id, tag_id) SELECT ?, ?, tag_id FROM repo_tag WHERE name = ?")
                     .bind(&album_id)
                     .bind(disc_id as u8)
                     .bind(tag.name())
-                    .bind(tag.edition())
                     .execute(&mut self.conn)
                     .await?;
             }
@@ -305,12 +301,11 @@ CREATE INDEX IF NOT EXISTS "repo_tag_detail_index" ON "repo_tag_detail" (
 
                 // add track tags
                 for tag in track.tags() {
-                    sqlx::query("INSERT INTO repo_tag_detail (album_id, disc_id, track_id, tag_id) SELECT ?, ?, ?, tag_id FROM repo_tag WHERE name = ? AND edition = ?")
+                    sqlx::query("INSERT INTO repo_tag_detail (album_id, disc_id, track_id, tag_id) SELECT ?, ?, ?, tag_id FROM repo_tag WHERE name = ?")
                         .bind(&album_id)
                         .bind(disc_id as u8)
                         .bind(track_id as u8)
                         .bind(tag.name())
-                        .bind(tag.edition())
                         .execute(&mut self.conn)
                         .await?;
                 }
@@ -319,10 +314,9 @@ CREATE INDEX IF NOT EXISTS "repo_tag_detail_index" ON "repo_tag_detail" (
         Ok(())
     }
 
-    async fn add_tag(&mut self, name: &str, edition: Option<&str>) -> RepoResult<i32> {
-        let tag_result = sqlx::query("INSERT INTO repo_tag (name, edition) VALUES (?, ?)")
+    async fn add_tag(&mut self, name: &str) -> RepoResult<i32> {
+        let tag_result = sqlx::query("INSERT INTO repo_tag (name) VALUES (?)")
             .bind(name)
-            .bind(edition)
             .execute(&mut self.conn)
             .await?;
         // this is a hack to get the id of the tag we just inserted
@@ -356,11 +350,7 @@ CREATE INDEX IF NOT EXISTS "repo_tag_detail_index" ON "repo_tag_detail" (
         let mut relation_deferred = HashMap::new();
 
         for tag in tags {
-            if tag.is_empty() {
-                continue;
-            }
-
-            let id = self.add_tag(tag.name(), tag.edition()).await?;
+            let id = self.add_tag(tag.name()).await?;
             tag_id.insert(tag.get_ref(), id);
 
             // add alias
@@ -383,9 +373,7 @@ CREATE INDEX IF NOT EXISTS "repo_tag_detail_index" ON "repo_tag_detail" (
 
         for (child_id, parents) in relation_deferred {
             for parent in parents {
-                if !parent.is_empty() {
-                    self.add_parent(child_id, tag_id[parent]).await?;
-                }
+                self.add_parent(child_id, tag_id[parent]).await?;
             }
         }
         Ok(())

@@ -25,15 +25,15 @@ impl Hash for RepoTag {
 /// Two RepoTags equal iff their name and edition are the same.
 impl PartialEq for RepoTag {
     fn eq(&self, other: &Self) -> bool {
-        let (name_a, edition_a) = match self {
-            RepoTag::Ref(r) => (r.name.as_str(), r.edition.as_deref()),
-            RepoTag::Full(f) => (f.name.as_str(), f.edition.as_deref()),
+        let name_a = match self {
+            RepoTag::Ref(r) => r.name(),
+            RepoTag::Full(f) => f.name.as_str(),
         };
-        let (name_b, edition_b) = match other {
-            RepoTag::Ref(r) => (r.name.as_str(), r.edition.as_deref()),
-            RepoTag::Full(f) => (f.name.as_str(), f.edition.as_deref()),
+        let name_b = match other {
+            RepoTag::Ref(r) => r.name(),
+            RepoTag::Full(f) => f.name.as_str(),
         };
-        name_a.eq(name_b) && edition_a.eq(&edition_b)
+        name_a.eq(name_b)
     }
 }
 
@@ -65,53 +65,28 @@ impl RepoTag {
 
 /// Simple reference to a tag with owned name and edition.
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub struct TagRef {
-    name: String,
-    edition: Option<String>,
-}
+pub struct TagRef(String);
 
 impl TagRef {
     pub fn name(&self) -> &str {
-        self.name.as_str()
-    }
-
-    pub fn edition(&self) -> Option<&str> {
-        self.edition.as_deref()
+        self.0.as_str()
     }
 
     /// Extend a simple TagRef to a full tag with name, edition and parents.
     pub fn extend_simple(self, parents: Vec<TagRef>) -> Tag {
         Tag {
-            name: self.name,
-            edition: self.edition,
+            name: self.0,
             alias: vec![],
             parents,
             children: vec![],
         }
-    }
-
-    pub fn is_empty(&self) -> bool {
-        self.name.is_empty() && self.edition.is_none()
     }
 }
 
 impl Serialize for TagRef {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
         where S: Serializer {
-        let value = if let Some(edition) = &self.edition {
-            if edition.contains(':') {
-                let mut table = toml::value::Table::new();
-                table.insert("name".to_string(), Value::String(self.name.clone()));
-                table.insert("edition".to_string(), Value::String(edition.clone()));
-                Value::Table(table)
-            } else {
-                Value::String(format!("{}:{}", self.name, edition))
-            }
-        } else {
-            Value::String(self.name.clone())
-        };
-
-        value.serialize(serializer)
+        Value::String(self.0.clone()).serialize(serializer)
     }
 }
 
@@ -121,60 +96,23 @@ impl<'de> Deserialize<'de> for TagRef {
         use serde::de;
 
         let value = Value::deserialize(deserializer)?;
-        let result = match value {
-            Value::String(tag) => {
-                match tag.rsplit_once(':') {
-                    Some((name, edition)) => {
-                        Self {
-                            name: name.to_string(),
-                            edition: if edition.is_empty() { None } else { Some(edition.to_string()) },
-                        }
-                    }
-                    None => Self {
-                        name: tag,
-                        edition: None,
-                    }
-                }
-            }
-            Value::Table(table) => {
-                let name = table.get("name")
-                    .ok_or_else(|| de::Error::custom("Missing field `name`"))?
-                    .as_str()
-                    .ok_or_else(|| de::Error::custom("Invalid type for field `tag.name`"))?
-                    .to_string();
-                let edition = match table.get("edition") {
-                    Some(edition) => {
-                        edition.as_str().map(|r| r.to_string())
-                    }
-                    None => None,
-                };
-                Self { name, edition }
-            }
-            _ => {
-                return Err(de::Error::custom("Invalid tag format"));
-            }
-        };
-        Ok(result)
+        if let Value::String(tag) = value {
+            Ok(Self(tag))
+        } else {
+            Err(de::Error::custom("Tag should be a string"))
+        }
     }
 }
 
 impl Display for TagRef {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self.name)?;
-        if let Some(edition) = &self.edition {
-            write!(f, ":{}", edition)?;
-        }
-        Ok(())
+        write!(f, "{}", self.0)
     }
 }
 
 impl Hash for TagRef {
     fn hash<H: Hasher>(&self, state: &mut H) {
-        state.write(self.name.as_bytes());
-        if let Some(edition) = &self.edition {
-            state.write(b":");
-            state.write(edition.as_bytes());
-        }
+        state.write(self.0.as_bytes());
     }
 }
 
@@ -182,8 +120,6 @@ impl Hash for TagRef {
 pub struct Tag {
     /// Tag name
     name: String,
-    /// Tag edition
-    edition: Option<String>,
     /// Tag alias
     #[serde(default)]
     alias: Vec<String>,
@@ -200,10 +136,6 @@ pub struct Tag {
 impl Hash for Tag {
     fn hash<H: Hasher>(&self, state: &mut H) {
         state.write(self.name.as_bytes());
-        if let Some(edition) = &self.edition {
-            state.write(b":");
-            state.write(edition.as_bytes());
-        }
     }
 }
 
@@ -218,10 +150,6 @@ impl Tag {
         &self.name
     }
 
-    pub fn edition(&self) -> Option<&str> {
-        self.edition.as_ref().map(|r| r.as_str())
-    }
-
     pub fn alias(&self) -> &[String] {
         &self.alias
     }
@@ -230,20 +158,13 @@ impl Tag {
         &self.parents
     }
 
-    pub fn is_empty(&self) -> bool {
-        self.name.is_empty() && self.edition.is_none()
-    }
-
     #[doc(hidden)]
     pub fn children_raw(&self) -> &[TagRef] {
         &self.children
     }
 
     pub fn get_ref(&self) -> TagRef {
-        TagRef {
-            name: self.name.clone(),
-            edition: self.edition.clone(),
-        }
+        TagRef(self.name.clone())
     }
 }
 
