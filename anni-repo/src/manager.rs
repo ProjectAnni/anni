@@ -15,9 +15,6 @@ pub struct RepositoryManager {
     /// Top level tags with no parent.
     tags_top: HashSet<TagRef>,
 
-    /// Albums with no tag
-    // TODO: make this field non-public
-    pub album_without_tag: Vec<String>,
     album_tags: HashMap<TagRef, Vec<String>>,
 
     albums: HashMap<String, Album>,
@@ -33,7 +30,6 @@ impl RepositoryManager {
             tags_by_file: Default::default(),
             tags_top: Default::default(),
             album_tags: Default::default(),
-            album_without_tag: Default::default(),
             albums: Default::default(),
         };
         repo.load_tags()?;
@@ -170,14 +166,13 @@ impl RepositoryManager {
     /// Load albums tags.
     fn load_album_tags(&mut self) -> RepoResult<()> {
         self.album_tags.clear();
-        self.album_without_tag.clear();
 
         for catalog in self.catalogs()? {
             let album = self.load_album(&catalog)?;
             let tags = album.tags();
             if tags.is_empty() {
                 // this album has no tag
-                self.album_without_tag.push(catalog);
+                log::debug!("No tag found in album {}, catalog = {}", album.album_id(), catalog);
             } else {
                 for tag in tags {
                     if !self.album_tags.contains_key(tag) {

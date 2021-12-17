@@ -39,7 +39,6 @@ repo-validate-start = 仓库校验开始
 repo-validate-end = 仓库校验结束
 repo-catalog-filename-mismatch = 专辑 {$album_catalog} 的品番与文件名不一致
 repo-invalid-artist = 艺术家名称不可用：{$artist}
-repo-remaining-untagged = 剩余无 Tag 专辑数：{$count}
 
 repo-get = 从远程数据源获取专辑信息并导入
 vgmdb-api-host = VGMdb API 的地址

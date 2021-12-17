@@ -413,9 +413,6 @@ fn repo_validate(_: &RepoValidateAction, manager: &RepositoryManager) -> anyhow:
             }
         }
     }
-    if !manager.album_without_tag.is_empty() {
-        warn!(target: "repo", "{}", fl!("repo-remaining-untagged", count = manager.album_without_tag.len()));
-    }
     info!(target: "anni", "{}", fl!("repo-validate-end"));
     Ok(())
 }
