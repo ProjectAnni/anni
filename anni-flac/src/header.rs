@@ -158,6 +158,7 @@ impl FlacHeader {
         } else {
             // recalculate frame offset after header modify
             let frame_offset_now = self.frame_offset_now();
+            log::debug!("frame_offset_now = {}, flac.frame_offset = {}", frame_offset_now, self.frame_offset);
 
             let need_new_file = frame_offset_now > self.frame_offset || {
                 // if header is smaller than / the same size as previous header
@@ -170,11 +171,15 @@ impl FlacHeader {
                 if let MetadataBlockData::Padding(size) = &mut last.data {
                     // padding block exists, modify padding size directly
                     last.length += space_to_add;
+                    log::debug!("padding.size_original = {}, adjusted to {}", size, last.length);
                     *size = last.length;
                     false
                 } else if space_to_add >= 4 {
                     // padding block does not exist, add a new padding block
                     let space_to_add = space_to_add - 4;
+                    // make the last block not last
+                    self.blocks.last_mut().unwrap().is_last = false;
+                    // add padding block
                     self.blocks.push(MetadataBlock {
                         is_last: true,
                         length: space_to_add,

@@ -375,6 +375,7 @@ dependencies = [
  "byteorder",
  "hex",
  "image",
+ "log 0.4.14",
  "num-derive",
  "num-traits",
  "tempfile",

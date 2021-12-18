@@ -165,9 +165,13 @@ impl RepositoryManager {
             let tags = album.tags();
             if tags.is_empty() {
                 // this album has no tag
-                log::debug!("No tag found in album {}, catalog = {}", album.album_id(), catalog);
+                log::warn!("No tag found in album {}, catalog = {}", album.album_id(), catalog);
             } else {
                 for tag in tags {
+                    if !self.tags.contains(&RepoTag::Ref(tag.clone())) {
+                        log::warn!("Orphan tag {} found in album {}, catalog = {}", tag, album.album_id(), catalog);
+                    }
+
                     if !self.album_tags.contains_key(tag) {
                         self.album_tags.insert(tag.clone(), vec![]);
                     }
