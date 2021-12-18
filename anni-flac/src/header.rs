@@ -133,6 +133,27 @@ impl FlacHeader {
         frame_offset_now
     }
 
+    pub fn fix_last_block(&mut self) -> Result<()> {
+        let input_path = self.input_file.as_deref().expect("No input path provided!").to_path_buf();
+        let output_path = input_path.with_extension("anni");
+        let last = self.blocks.last_mut().unwrap();
+        if let MetadataBlockData::Padding(_) = last.data {
+            // skip normal file
+        } else {
+            self.blocks.last_mut().unwrap().is_last = false;
+            let mut file = File::create(output_path)?;
+
+            file.write_all(b"fLaC")?;
+            for block in self.blocks.iter() {
+                block.write_to(&mut file)?;
+            }
+            let mut file_input = File::open(input_path)?;
+            file_input.seek(SeekFrom::Start(self.frame_offset as u64))?;
+            std::io::copy(&mut file_input, &mut file)?;
+        }
+        Ok(())
+    }
+
     pub fn save<P: AsRef<Path>>(&mut self, output: Option<P>) -> Result<()> {
         let input_path = self.input_file.as_deref().expect("No input path provided!").to_path_buf();
         let output_path = match output {

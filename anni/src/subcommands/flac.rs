@@ -16,7 +16,8 @@ pub struct FlacSubcommand {
 #[derive(Parser, Handler, Debug, Clone)]
 pub enum FlacAction {
     #[clap(about = ll ! ("flac-export"))]
-    Export(FlacExportAction)
+    Export(FlacExportAction),
+    Fix(FlacFixAction),
 }
 
 #[derive(Parser, Debug, Clone)]
@@ -123,4 +124,21 @@ pub enum FlacExportType {
     /// List All
     #[clap(alias = "all")]
     List,
+}
+
+#[derive(Parser, Debug, Clone)]
+pub struct FlacFixAction {
+    #[clap(required = true)]
+    filename: Vec<InputPath<FlacInputFile>>,
+}
+
+#[handler(FlacFixAction)]
+fn flac_fix(me: &FlacFixAction) -> anyhow::Result<()> {
+    for path in me.filename.iter() {
+        for file in path.iter() {
+            let mut stream = FlacHeader::from_file(file)?;
+            stream.fix_last_block()?;
+        }
+    }
+    Ok(())
 }
