@@ -229,7 +229,7 @@ async fn init_state(config: &Config) -> anyhow::Result<web::Data<AppState>> {
 #[actix_web::main]
 async fn main() -> anyhow::Result<()> {
     env_logger::builder()
-        .filter_level(log::LevelFilter::Debug)
+        .filter_level(log::LevelFilter::Info)
         .filter_module("sqlx::query", log::LevelFilter::Warn)
         .init();
     let config = Config::from_file(std::env::args().nth(1).unwrap_or_else(|| "config.toml".to_owned()))?;
