@@ -33,7 +33,7 @@ struct AppState {
     reload_token: String,
 
     version: String,
-    last_update: u64,
+    last_update: RwLock<u64>,
 }
 
 #[get("/info")]
@@ -41,7 +41,7 @@ async fn info(data: web::Data<AppState>) -> impl Responder {
     HttpResponse::Ok().json(json!({
         "version": data.version,
         "protocol_version": "0.2.1",
-        "last_update": data.last_update,
+        "last_update": *data.last_update.read().await,
     }))
 }
 
@@ -173,6 +173,7 @@ async fn reload(data: web::Data<AppState>) -> impl Responder {
             log::error!("Failed to reload backend {}: {:?}", backend.name(), e);
         }
     }
+    *data.last_update.write().await = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs();
     HttpResponse::Ok().finish()
 }
 
@@ -222,7 +223,7 @@ async fn init_state(config: &Config) -> anyhow::Result<web::Data<AppState>> {
         key,
         reload_token: config.server.reload_token().to_string(),
         version,
-        last_update,
+        last_update: RwLock::new(last_update),
     }))
 }
 
