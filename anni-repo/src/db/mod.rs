@@ -9,12 +9,14 @@ mod rows;
 pub const DB_VERSION: &str = "1";
 
 pub struct RepoDatabaseRead {
+    uri: String,
     pool: sqlx::SqlitePool,
 }
 
 impl RepoDatabaseRead {
     pub async fn new(path: &str) -> RepoResult<Self> {
         Ok(Self {
+            uri: path.to_string(),
             pool: sqlx::SqlitePool::connect(path).await?,
         })
     }
@@ -72,6 +74,12 @@ SELECT album_id, title FROM repo_album
             .bind(track_id)
             .fetch_optional(&self.pool)
             .await?)
+    }
+
+    pub async fn reload(&mut self) -> RepoResult<()> {
+        self.pool.close().await;
+        self.pool = sqlx::SqlitePool::connect(&self.uri).await?;
+        Ok(())
     }
 }
 

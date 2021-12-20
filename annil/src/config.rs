@@ -23,6 +23,8 @@ pub struct ServerConfig {
     listen: Option<String>,
     #[serde(rename = "hmac-key")]
     key: String,
+    #[serde(rename = "reload-token")]
+    reload_token: String,
 }
 
 impl ServerConfig {
@@ -36,6 +38,10 @@ impl ServerConfig {
 
     pub fn key(&self) -> &str {
         self.key.as_str()
+    }
+
+    pub fn reload_token(&self) -> &str {
+        self.reload_token.as_str()
     }
 }
 

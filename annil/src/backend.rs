@@ -38,10 +38,10 @@ impl AnnilBackend {
         self.albums.iter().map(|a| a.as_str()).collect()
     }
 
-    pub async fn update_albums(&mut self) {
-        // FIXME
-        log::debug!("[{}] Updating backend albums", self.name());
-        self.albums = self.inner.as_backend_mut().albums().await.unwrap();
+    pub async fn reload(&mut self) -> Result<(), BackendError> {
+        log::debug!("[{}] Reloading backend albums", self.name());
+        self.albums = self.inner.as_backend_mut().albums().await?;
+        Ok(())
     }
 
     #[inline]

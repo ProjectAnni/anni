@@ -4,7 +4,7 @@ mod auth;
 mod share;
 mod error;
 
-use actix_web::{HttpServer, App, web, Responder, get, HttpResponse, ResponseError};
+use actix_web::{HttpServer, App, web, Responder, get, post, HttpResponse, ResponseError};
 use std::sync::Arc;
 use anni_backend::backends::{FileBackend, DriveBackend};
 use std::path::PathBuf;
@@ -25,10 +25,12 @@ use serde::Deserialize;
 use std::process::Stdio;
 use std::time::{SystemTime, UNIX_EPOCH};
 use jwt_simple::reexports::serde_json::json;
+use tokio::sync::RwLock;
 
 struct AppState {
-    backends: Vec<AnnilBackend>,
+    backends: RwLock<Vec<AnnilBackend>>,
     key: HS256Key,
+    reload_token: String,
 
     version: String,
     last_update: u64,
@@ -49,9 +51,10 @@ async fn albums(claims: AnnilClaims, data: web::Data<AppState>) -> impl Responde
     match claims {
         AnnilClaims::User(_) => {
             let mut albums: HashSet<&str> = HashSet::new();
+            let read = data.backends.read().await;
 
             // users can get real album list
-            for backend in data.backends.iter() {
+            for backend in read.iter() {
                 albums.extend(backend.albums().into_iter());
             }
             HttpResponse::Ok().json(albums)
@@ -76,7 +79,7 @@ async fn audio(claim: AnnilClaims, path: web::Path<(String, u8, u8)>, data: web:
         return AnnilError::Unauthorized.error_response();
     }
 
-    for backend in data.backends.iter() {
+    for backend in data.backends.read().await.iter() {
         if backend.enabled() && backend.has_album(&album_id) {
             let audio = backend.get_audio(&album_id, disc_id, track_id).await.map_err(|_| AnnilError::NotFound);
             if let Err(e) = audio {
@@ -146,7 +149,7 @@ async fn cover(claims: AnnilClaims, path: web::Path<CoverPath>, data: web::Data<
         return HttpResponse::Forbidden().finish();
     }
 
-    for backend in data.backends.iter() {
+    for backend in data.backends.read().await.iter() {
         if backend.enabled() && backend.has_album(&album_id) {
             return match backend.get_cover(&album_id, disc_id).await {
                 Ok(cover) => {
@@ -161,6 +164,16 @@ async fn cover(claims: AnnilClaims, path: web::Path<CoverPath>, data: web::Data<
         }
     }
     HttpResponse::NotFound().finish()
+}
+
+#[post("/reload")]
+async fn reload(data: web::Data<AppState>) -> impl Responder {
+    for backend in data.backends.write().await.iter_mut() {
+        if let Err(e) = backend.reload().await {
+            log::error!("Failed to reload backend {}: {:?}", backend.name(), e);
+        }
+    }
+    HttpResponse::Ok().finish()
 }
 
 async fn init_state(config: &Config) -> anyhow::Result<web::Data<AppState>> {
@@ -204,7 +217,13 @@ async fn init_state(config: &Config) -> anyhow::Result<web::Data<AppState>> {
     let key = HS256Key::from_bytes(config.server.key().as_ref());
     let version = format!("Anniv v{}", env!("CARGO_PKG_VERSION"));
     let last_update = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs();
-    Ok(web::Data::new(AppState { backends, key, version, last_update }))
+    Ok(web::Data::new(AppState {
+        backends: RwLock::new(backends),
+        key,
+        reload_token: config.server.reload_token().to_string(),
+        version,
+        last_update,
+    }))
 }
 
 #[actix_web::main]
@@ -228,6 +247,7 @@ async fn main() -> anyhow::Result<()> {
             )
             .wrap(Logger::default())
             .service(info)
+            .service(reload)
             .service(
                 web::resource([
                     "/{album_id}/cover",

@@ -143,7 +143,19 @@ impl<S> Service<ServiceRequest> for AnnilAuthMiddleware<S>
             );
         match auth {
             Some(auth) => {
+                // load app data
                 let data = req.app_data::<web::Data<AppState>>().unwrap();
+
+                // for /reload, treat auth as reload token
+                if req.path() == "/reload" {
+                    return if auth == data.reload_token {
+                        Either::Left(self.service.call(req))
+                    } else {
+                        Either::Right(ok(req.error_response(AnnilError::Unauthorized)))
+                    };
+                }
+
+                // for other requests, treat auth as JWT
                 match data.key.verify_token::<AnnilClaims>(&auth, None) {
                     Ok(token) => {
                         req.extensions_mut().insert(token.custom);

@@ -109,6 +109,7 @@ impl Backend for FileBackend {
     async fn albums(&mut self) -> Result<HashSet<String>, BackendError> {
         self.album_discs.clear();
         self.album_path.clear();
+        self.repo.reload().await?;
 
         let mut to_visit = Vec::new();
         self.walk_dir(&self.root.clone(), &mut to_visit).await?;
