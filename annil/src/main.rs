@@ -155,6 +155,7 @@ async fn cover(claims: AnnilClaims, path: web::Path<CoverPath>, data: web::Data<
                 Ok(cover) => {
                     HttpResponse::Ok()
                         .content_type("image/jpeg")
+                        .append_header(("Cache-Control", "public, max-age=31536000"))
                         .streaming(ReaderStream::new(cover))
                 }
                 Err(_) => {
