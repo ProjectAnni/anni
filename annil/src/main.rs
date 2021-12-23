@@ -100,6 +100,7 @@ async fn audio(claim: AnnilClaims, path: web::Path<(String, u8, u8)>, data: web:
             resp.append_header(("X-Origin-Type", format!("audio/{}", audio.extension)))
                 .append_header(("X-Origin-Size", audio.size))
                 .append_header(("X-Duration-Seconds", audio.duration))
+                .append_header(("Access-Control-Expose-Headers", "X-Origin-Type, X-Origin-Size, X-Duration-Seconds"))
                 .content_type(match bitrate {
                     Some(_) => "audio/aac".to_string(),
                     None => format!("audio/{}", audio.extension)
