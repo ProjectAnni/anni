@@ -13,9 +13,9 @@ use anni_common::traits::{Decode, Encode};
 use anni_clap_handler::handler;
 use anni_flac::{FlacHeader, MetadataBlock, MetadataBlockData};
 use anni_flac::blocks::{UserComment, UserCommentExt, BlockPicture, PictureType};
-use cue_sheet::tracklist::Tracklist;
 use crate::{ll, ball};
 use std::fmt::{Display, Formatter};
+use cuna::Cuna;
 
 #[derive(Parser, Debug, Clone)]
 #[clap(about = ll ! ("split"))]
@@ -62,15 +62,15 @@ impl SplitSubcommand {
         // extract cue break points
         let tracks = cue_tracks(cue_path.as_ref());
         struct TrackInfo {
-            begin: usize,
-            end: usize,
+            begin: u32,
+            end: u32,
             name: String,
             tags: Vec<UserComment>,
         }
 
         // generate time points
-        let mut time_points: Vec<_> = tracks.iter().map(|i| (&header).mmssff(i.mm, i.ss, i.ff)).collect();
-        time_points.push(header.data_size as usize);
+        let mut time_points: Vec<_> = tracks.iter().map(|i| (&header).offset_from_second_frames(i.seconds, i.frames)).collect();
+        time_points.push(header.data_size);
 
         // generate track info
         let tracks: Vec<_> = tracks.into_iter().enumerate().map(|(i, track)| TrackInfo {
@@ -362,9 +362,9 @@ impl Encode for WaveHeader {
 }
 
 impl WaveHeader {
-    pub fn mmssff(&self, m: usize, s: usize, f: usize) -> usize {
-        let br = self.byte_rate as usize;
-        br * 60 * m + br * s + br * f / 75
+    pub fn offset_from_second_frames(&self, s: u32, f: u32) -> u32 {
+        let br = self.byte_rate;
+        br * s + br * f / 75
     }
 }
 
@@ -398,9 +398,9 @@ impl FileProcess {
     }
 }
 
-fn split_wav<I: Read, O: Write>(header: &mut WaveHeader, input: &mut I, output: &mut O, start: usize, end: usize) -> anyhow::Result<()> {
+fn split_wav<I: Read, O: Write>(header: &mut WaveHeader, input: &mut I, output: &mut O, start: u32, end: u32) -> anyhow::Result<()> {
     let size = end - start;
-    header.data_size = size as u32;
+    header.data_size = size;
     header.write_to(output)?;
     std::io::copy(&mut input.take(size as u64), output)?;
     Ok(())
@@ -409,30 +409,18 @@ fn split_wav<I: Read, O: Write>(header: &mut WaveHeader, input: &mut I, output: 
 struct CueTrack {
     pub index: u8,
     pub title: String,
-    pub mm: usize,
-    pub ss: usize,
-    pub ff: usize,
+    pub seconds: u32,
+    pub frames: u32,
     pub tags: Vec<UserComment>,
 }
 
 fn cue_tracks<P: AsRef<Path>>(path: P) -> Vec<CueTrack> {
     let cue = anni_common::fs::read_to_string(path).unwrap();
-
-    // remove REM COMMENT
-    let rem_comment = regex::Regex::new(r#"(?m)^\s*REM COMMENT .+$"#).unwrap();
-    let cue = rem_comment.replace_all(&cue, "");
-
-    // remove FLAGS xxx
-    let flags = regex::Regex::new(r#"(?m)^\s*FLAGS .+$"#).unwrap();
-    let cue = flags.replace_all(&cue, "");
-
-    let cue = Tracklist::parse(&cue).unwrap();
+    let cue = Cuna::new(&cue).unwrap();
     debug!("{:#?}", cue);
-    let album = cue.info.get("TITLE").map(String::as_str).unwrap_or("");
-    let artist = cue.info.get("ARTIST").map(String::as_str).unwrap_or("");
-    let date = cue.info.get("DATE").map(String::as_str).unwrap_or("");
-    let disc_number = cue.info.get("DISCNUMBER").map(String::as_str).unwrap_or("1");
-    let disc_total = cue.info.get("TOTALDISCS").map(String::as_str).unwrap_or("1");
+
+    let album = cue.title().get(0).map(String::as_str).unwrap_or("");
+    let artist = cue.performer().get(0).map(String::as_str).unwrap_or("");
 
     let mut track_number = 1;
     let track_total = cue.files.iter().map(|f| f.tracks.len()).sum();
@@ -440,24 +428,22 @@ fn cue_tracks<P: AsRef<Path>>(path: P) -> Vec<CueTrack> {
     let mut result = Vec::with_capacity(track_total);
     for file in cue.files.iter() {
         for (i, track) in file.tracks.iter().enumerate() {
-            for (index, time) in track.index.iter() {
-                if *index == 1 {
-                    let title = track.info.get("TITLE").map(String::to_owned).unwrap_or(format!("Track {}", track_number));
+            for index in track.index.iter() {
+                if index.id() == 1 {
+                    let title = track.title.get(0).map(String::to_owned).unwrap_or(format!("Track {}", track_number));
+                    let artist = track.performer.get(0).map(String::as_str).unwrap_or(artist);
+                    let time = index.begin_time();
                     result.push(CueTrack {
                         index: (i + 1) as u8,
                         title: title.to_owned(),
-                        mm: time.minutes() as usize,
-                        ss: time.seconds() as usize,
-                        ff: time.frames() as usize,
+                        seconds: time.total_seconds(),
+                        frames: time.total_frames(),
                         tags: vec![
                             UserComment::title(title),
                             UserComment::album(album),
-                            UserComment::artist(track.info.get("ARTIST").map(String::as_str).unwrap_or(artist)),
-                            UserComment::date(date),
+                            UserComment::artist(artist),
                             UserComment::track_number(track_number),
                             UserComment::track_total(track_total),
-                            UserComment::disc_number(disc_number),
-                            UserComment::disc_total(disc_total),
                         ],
                     });
                 }
