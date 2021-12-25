@@ -64,8 +64,8 @@ pub fn album_info(path: &str) -> Result<(AnniDate, String, String, usize), InfoP
             r.get(2).unwrap().as_str(),
             r.get(3).unwrap().as_str(),
         ),
-        r.get(4).unwrap().as_str().to_owned(),
-        r.get(5).unwrap().as_str().to_owned(),
+        r.get(4).unwrap().as_str().replace('/', "／"),
+        r.get(5).unwrap().as_str().replace('/', "／"),
         usize::from_str(r.get(6).map(|r| r.as_str()).unwrap_or("1")).unwrap(),
     ))
 }
