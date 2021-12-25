@@ -146,14 +146,14 @@ pub struct SubFrame {
 pub enum SubframeType {
     /// <n> Unencoded constant value of the subblock, n = frame's bits-per-sample.
     Constant(i32),
-    Fixed(SubframeFixed),
-    LPC(SubframeLPC),
+    Fixed(SubFrameFixed),
+    LPC(SubFrameLPC),
     /// <n*i> Unencoded subblock; n = frame's bits-per-sample, i = frame's blocksize.
     Verbatim(Vec<u8>),
 }
 
 #[derive(Debug)]
-pub struct SubframeFixed {
+pub struct SubFrameFixed {
     // TODO: check type
     /// <n> Unencoded warm-up samples (n = frame's bits-per-sample * predictor order).
     pub warm_up: Vec<i32>,
@@ -162,7 +162,7 @@ pub struct SubframeFixed {
 }
 
 #[derive(Debug)]
-pub struct SubframeLPC {
+pub struct SubFrameLPC {
     /// <n> Unencoded warm-up samples (n = frame's bits-per-sample * lpc order).
     pub warm_up: Vec<i32>,
     /// <4> (Quantized linear predictor coefficients' precision in bits)-1 (1111 = invalid).

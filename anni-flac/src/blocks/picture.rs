@@ -133,9 +133,6 @@ impl fmt::Debug for BlockPicture {
         writeln!(f, "{prefix}depth: {}", self.depth, prefix = prefix)?;
         writeln!(f, "{prefix}colors: {}{}", self.colors, if self.color_indexed() { "" } else { " (unindexed)" }, prefix = prefix)?;
         writeln!(f, "{prefix}data length: {}", self.data.len(), prefix = prefix)?;
-        writeln!(f, "{prefix}data:", prefix = prefix)?;
-        // TODO: hexdump
-        writeln!(f, "{prefix}<TODO>", prefix = prefix)?;
         Ok(())
     }
 }

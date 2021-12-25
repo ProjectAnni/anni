@@ -1,8 +1,6 @@
 use std::io::Read;
 use crate::prelude::*;
 
-// TODO: Define those functions as trait
-
 pub(crate) fn take<R: Read>(reader: &mut R, len: usize) -> std::io::Result<Vec<u8>> {
     let mut r = Vec::with_capacity(len);
     std::io::copy(&mut reader.take(len as u64), &mut r)?;
