@@ -301,6 +301,7 @@ dependencies = [
  "anni-flac",
  "anni-repo",
  "async-trait",
+ "dashmap 5.0.0",
  "futures",
  "google-drive3",
  "hex",
@@ -312,6 +313,7 @@ dependencies = [
  "sha2",
  "thiserror",
  "tokio",
+ "tokio-stream",
  "tokio-util",
  "yup-oauth2",
 ]
@@ -916,6 +918,17 @@ checksum = "e77a43b28d0668df09411cb0bc9a8c2adc40f9a048afe863e05fd43251e8e39c"
 dependencies = [
  "cfg-if",
  "num_cpus",
+]
+
+[[package]]
+name = "dashmap"
+version = "5.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b799062aaf67eb976af3bdca031ee6f846d2f0a5710ddbb0d2efee33f3cc4760"
+dependencies = [
+ "cfg-if",
+ "num_cpus",
+ "parking_lot",
 ]
 
 [[package]]
@@ -1570,7 +1583,7 @@ version = "0.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "4d91f4951bd0bc19624a06781bf8cd05bdd59057622e5d4240823b42a5f102d2"
 dependencies = [
- "dashmap",
+ "dashmap 4.0.2",
  "find-crate",
  "fluent",
  "fluent-syntax",
@@ -3464,9 +3477,9 @@ dependencies = [
 
 [[package]]
 name = "tokio-stream"
-version = "0.1.6"
+version = "0.1.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f8864d706fdb3cc0843a49647ac892720dac98a6eeb818b77190592cf4994066"
+checksum = "50145484efff8818b5ccd256697f36863f587da82cf8b409c53adf1e840798e3"
 dependencies = [
  "futures-core",
  "pin-project-lite",

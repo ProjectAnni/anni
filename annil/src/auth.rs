@@ -123,7 +123,7 @@ impl<S> Service<ServiceRequest> for AnnilAuthMiddleware<S>
     }
 
     fn call(&self, req: ServiceRequest) -> Self::Future {
-        if matches!(req.method(), &Method::OPTIONS) || req.path() == "/info" {
+        if matches!(req.method(), &Method::OPTIONS) || req.path() == "/info" || req.path().ends_with("/cover") {
             return Either::Left(self.service.call(req));
         }
 

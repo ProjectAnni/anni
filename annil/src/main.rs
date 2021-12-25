@@ -144,12 +144,8 @@ struct CoverPath {
 }
 
 /// Get audio cover of an album with {album_id} and optional {disc_id}
-async fn cover(claims: AnnilClaims, path: web::Path<CoverPath>, data: web::Data<AppState>) -> impl Responder {
+async fn cover(path: web::Path<CoverPath>, data: web::Data<AppState>) -> impl Responder {
     let CoverPath { album_id, disc_id } = path.into_inner();
-    if !claims.can_fetch(&album_id, disc_id, None) {
-        return HttpResponse::Forbidden().finish();
-    }
-
     for backend in data.backends.read().await.iter() {
         if backend.enabled() && backend.has_album(&album_id) {
             return match backend.get_cover(&album_id, disc_id).await {
@@ -186,12 +182,13 @@ async fn init_state(config: &Config) -> anyhow::Result<web::Data<AppState>> {
     let mut caches = HashMap::new();
     for (backend_name, backend_config) in config.backends.iter() {
         log::debug!("Initializing backend: {}", backend_name);
+        let repo = RepoDatabaseRead::new(&backend_config.db.to_string_lossy()).await?;
         let mut backend = match &backend_config.item {
             BackendItem::File { root } =>
                 AnniBackend::File(
                     FileBackend::new(
                         PathBuf::from(root),
-                        RepoDatabaseRead::new(&backend_config.db.to_string_lossy()).await?,
+                        repo,
                     ),
                 ),
             BackendItem::Drive { drive_id, corpora, token_path } =>
@@ -199,7 +196,7 @@ async fn init_state(config: &Config) -> anyhow::Result<web::Data<AppState>> {
                     corpora: corpora.to_string(),
                     drive_id: drive_id.clone(),
                     token_path: token_path.as_deref().unwrap_or("annil.token").to_string(),
-                }).await?),
+                }, repo).await?),
         };
         if let Some(cache) = backend_config.cache() {
             log::debug!("Cache configuration detected: root = {}, max-size = {}", cache.root(), cache.max_size);

@@ -67,9 +67,6 @@ impl AnniBackend {
 
 #[derive(Debug, Error)]
 pub enum BackendError {
-    #[error("unknown catalog")]
-    UnknownCatalog,
-
     #[error("invalid path")]
     InvalidPath,
 
