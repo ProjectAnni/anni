@@ -46,15 +46,20 @@ impl Backend for ProxyBackend {
             Some(s) => s.to_str().unwrap_or("0"),
             None => "0",
         }.to_string();
+        let extension = match resp.headers().get("Content-Type") {
+            Some(content_type) => {
+                let content_type = content_type.to_str().unwrap_or("audio/flac");
+                content_type.strip_prefix("audio/").unwrap_or("flac").to_string()
+            }
+            None => "flac".to_string(),
+        };
         let body = resp
             .bytes_stream()
             .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e.to_string()))
             .into_async_read();
         let body = tokio_util::compat::FuturesAsyncReadCompatExt::compat(body);
         Ok(BackendReaderExt {
-            // FIXME: the correct extension might not be `flac`
-            extension: "flac".to_string(),
-            // TODO: Try to get correct size from response
+            extension,
             size: usize::from_str(original_size.as_str()).unwrap(),
             duration: u64::from_str(duration.as_str()).unwrap(),
             reader: Box::pin(body),
