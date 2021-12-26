@@ -1,3 +1,4 @@
+use std::borrow::Cow;
 use crate::{Backend, BackendError, BackendReaderExt, BackendReader};
 use std::collections::{HashSet, HashMap};
 use async_trait::async_trait;
@@ -131,6 +132,19 @@ impl DriveBackend {
         Ok(())
     }
 
+    fn get_parent_folder(&self, album_id: &str, disc_id: Option<u8>) -> Cow<str> {
+        match disc_id {
+            Some(disc_id) => {
+                if self.discs.contains_key(album_id) {
+                    Cow::Owned(self.discs.get(album_id).unwrap().as_deref().unwrap()[(disc_id - 1) as usize].clone())
+                } else {
+                    Cow::Borrowed(&self.folders[album_id])
+                }
+            }
+            None => Cow::Borrowed(&self.folders[album_id]),
+        }
+    }
+
     async fn get_file(&self, file_id: &str) -> Result<BackendReader, BackendError> {
         let permit = self.semaphore.acquire().await.unwrap();
         let (resp, _) = self.hub.files().get(file_id)
@@ -198,19 +212,20 @@ impl Backend for DriveBackend {
         if !self.folders.contains_key(album_id) {
             return Err(BackendError::FileNotFound);
         }
+
+        // get folder_id
         self.cache_discs(album_id).await?;
+        let folder_id = self.get_parent_folder(album_id, Some(disc_id));
+
         // get audio file id
         let permit = self.semaphore.acquire().await.unwrap();
-        let folder_id = if self.discs.contains_key(album_id) {
-            self.discs.get(album_id).unwrap().as_deref().unwrap()[(disc_id - 1) as usize].clone()
-        } else { self.folders[album_id].clone() };
         let (_, list) = self.prepare_list()
             .q(&format!("trashed = false and name contains '{:02}.' and '{}' in parents", track_id, folder_id))
             .param("fields", "nextPageToken, files(id,name,fileExtension,size)")
             .doit().await?;
         drop(permit);
+
         let files = list.files.unwrap();
-        // TODO: check whether the following line is correct
         let id = files.iter().reduce(|a, b| if a.name.as_ref().unwrap().starts_with(&format!("{:02}.", track_id)) { a } else { b });
         match id {
             Some(file) => {
@@ -235,19 +250,21 @@ impl Backend for DriveBackend {
             return Err(BackendError::FileNotFound);
         }
 
+        // get folder_id
+        self.cache_discs(album_id).await?;
+        let folder_id = self.get_parent_folder(album_id, disc_id);
+
         // get cover file id
         let permit = self.semaphore.acquire().await.unwrap();
         let (_, list) = self.prepare_list()
-            .q(&format!("trashed = false and mimeType = 'image/jpeg' and name = 'cover.jpg' and '{}' in parents", self.folders[album_id]))
+            .q(&format!("trashed = false and mimeType = 'image/jpeg' and name = 'cover.jpg' and '{}' in parents", folder_id))
             .param("fields", "nextPageToken, files(id,name)")
             .doit().await?;
         drop(permit);
+
+        // get cover file & return
         let files = list.files.unwrap();
-        // TODO: check whether the following line is correct
-        let id = files.iter().reduce(|a, b| if let Some("cover.jpg") = a.name.as_deref() { a } else { b });
-        match id {
-            Some(file) => self.get_file(file.id.as_ref().unwrap()).await,
-            None => Err(BackendError::FileNotFound),
-        }
+        let file = files.get(0).ok_or(BackendError::FileNotFound)?;
+        self.get_file(file.id.as_ref().unwrap()).await
     }
 }
