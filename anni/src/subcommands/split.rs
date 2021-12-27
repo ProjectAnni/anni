@@ -437,7 +437,7 @@ fn cue_tracks<P: AsRef<Path>>(path: P) -> Vec<CueTrack> {
                         index: (i + 1) as u8,
                         title: title.to_owned(),
                         seconds: time.total_seconds(),
-                        frames: time.total_frames(),
+                        frames: time.frames(),
                         tags: vec![
                             UserComment::title(title),
                             UserComment::album(album),
