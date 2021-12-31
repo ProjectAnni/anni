@@ -38,7 +38,7 @@ jobs:
         uses: actions/cache@v2.1.7
         with:
           path: target
-          key: ${{ runner.os }}-cargo-target
+          key: ${{ matrix.target }}-cargo-target
 
       - name: Setup | Rust
         uses: actions-rs/toolchain@v1
