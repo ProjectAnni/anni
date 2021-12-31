@@ -15,21 +15,21 @@ use std::collections::HashMap;
 use actix_web::http::Method;
 
 #[derive(Serialize, Deserialize, Clone)]
-pub(crate) struct UserClaim {
+pub struct UserClaim {
     pub(crate) username: String,
     #[serde(rename = "allowShare")]
     pub(crate) allow_share: bool,
 }
 
 #[derive(Serialize, Deserialize, Clone)]
-pub(crate) struct ShareClaim {
+pub struct ShareClaim {
     pub(crate) username: String,
     pub(crate) audios: HashMap<String, HashMap<String, Vec<u8>>>,
 }
 
 #[derive(Serialize, Deserialize, Clone)]
 #[serde(tag = "type", rename_all = "lowercase")]
-pub(crate) enum AnnilClaims {
+pub enum AnnilClaims {
     User(UserClaim),
     Share(ShareClaim),
 }
@@ -47,38 +47,27 @@ impl FromRequest for AnnilClaims {
 }
 
 impl AnnilClaims {
-    pub(crate) fn can_fetch(&self, album_id: &str, disc_id: Option<u8>, track_id: Option<u8>) -> bool {
+    pub(crate) fn can_fetch(&self, album_id: &str, disc_id: u8, track_id: u8) -> bool {
         match &self {
             AnnilClaims::User(_) => true,
             AnnilClaims::Share(s) => {
                 match s.audios.get(album_id) {
                     // album_id exist
-                    Some(album) => match disc_id {
-                        // disc_id requested
-                        Some(disc_id) => match album.get(&format!("{}", disc_id)) {
+                    Some(album) =>
+                        match album.get(&format!("{}", disc_id)) {
                             // disc_id exist
-                            Some(disc) => match track_id {
-                                // track_id requested
+                            Some(disc) => {
                                 // return whether track_id exist in list
-                                Some(track_id) => disc.contains(&track_id),
-                                // track_id not requested
-                                None => true
+                                disc.contains(&track_id)
                             }
                             // disc_id does not exist
                             None => false,
                         }
-                        // disc_id not requested, allow
-                        None => true,
-                    }
+                    // album id does not exist
                     None => false,
                 }
             }
         }
-    }
-
-    #[inline]
-    pub(crate) fn is_user(&self) -> bool {
-        matches!(self, AnnilClaims::User(_))
     }
 
     #[inline]

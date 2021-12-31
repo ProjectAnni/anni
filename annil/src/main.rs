@@ -3,176 +3,35 @@ mod config;
 mod auth;
 mod share;
 mod error;
+mod services;
 
-use actix_web::{HttpServer, App, web, Responder, get, post, HttpResponse, ResponseError};
+use actix_web::{HttpServer, App, web};
 use std::sync::Arc;
 use anni_backend::backends::{FileBackend, DriveBackend};
 use std::path::PathBuf;
 use crate::backend::AnnilBackend;
-use tokio_util::io::ReaderStream;
 use crate::config::{Config, BackendItem};
 use actix_web::middleware::Logger;
 use jwt_simple::prelude::HS256Key;
 use crate::auth::{AnnilAuth, AnnilClaims};
 use anni_backend::{AnniBackend, RepoDatabaseRead};
-use std::collections::{HashSet, HashMap};
+use std::collections::HashMap;
 use anni_backend::cache::{CachePool, Cache};
 use anni_backend::backends::drive::DriveBackendSettings;
 use actix_cors::Cors;
 use crate::error::AnnilError;
-use actix_web::web::Query;
-use serde::Deserialize;
-use std::process::Stdio;
 use std::time::{SystemTime, UNIX_EPOCH};
 use jwt_simple::reexports::serde_json::json;
 use tokio::sync::RwLock;
+use crate::services::*;
 
-struct AppState {
+pub struct AppState {
     backends: RwLock<Vec<AnnilBackend>>,
     key: HS256Key,
     reload_token: String,
 
     version: String,
     last_update: RwLock<u64>,
-}
-
-#[get("/info")]
-async fn info(data: web::Data<AppState>) -> impl Responder {
-    HttpResponse::Ok().json(json!({
-        "version": data.version,
-        "protocol_version": "0.2.1",
-        "last_update": *data.last_update.read().await,
-    }))
-}
-
-/// Get available albums of current annil server
-#[get("/albums")]
-async fn albums(claims: AnnilClaims, data: web::Data<AppState>) -> impl Responder {
-    match claims {
-        AnnilClaims::User(_) => {
-            let mut albums: HashSet<&str> = HashSet::new();
-            let read = data.backends.read().await;
-
-            // users can get real album list
-            for backend in read.iter() {
-                albums.extend(backend.albums().into_iter());
-            }
-            HttpResponse::Ok().json(albums)
-        }
-        AnnilClaims::Share(share) => {
-            // guests can only get album list defined in jwt
-            HttpResponse::Ok().json(share.audios.keys().collect::<Vec<_>>())
-        }
-    }
-}
-
-#[derive(Deserialize)]
-struct AudioQuery {
-    prefer_bitrate: Option<String>,
-}
-
-/// Get audio in an album with {album_id}, {disc_id} and {track_id}
-#[get("/{album_id}/{disc_id}/{track_id}")]
-async fn audio(claim: AnnilClaims, path: web::Path<(String, u8, u8)>, data: web::Data<AppState>, query: Query<AudioQuery>) -> impl Responder {
-    let (album_id, disc_id, track_id) = path.into_inner();
-    if !claim.can_fetch(&album_id, Some(disc_id), Some(track_id)) {
-        return AnnilError::Unauthorized.error_response();
-    }
-
-    for backend in data.backends.read().await.iter() {
-        if backend.enabled() && backend.has_album(&album_id) {
-            let audio = backend.get_audio(&album_id, disc_id, track_id).await.map_err(|_| AnnilError::NotFound);
-            if let Err(e) = audio {
-                return e.error_response();
-            }
-
-            let mut audio = audio.unwrap();
-            let prefer_bitrate = if claim.is_guest() { "low" } else { query.prefer_bitrate.as_deref().unwrap_or("medium") };
-            let bitrate = match prefer_bitrate {
-                "low" => Some("128k"),
-                "medium" => Some("192k"),
-                "high" => Some("320k"),
-                "lossless" => None,
-                _ => Some("128k"),
-            };
-
-            let mut resp = HttpResponse::Ok();
-            resp.append_header(("X-Origin-Type", format!("audio/{}", audio.extension)))
-                .append_header(("X-Origin-Size", audio.size))
-                .append_header(("X-Duration-Seconds", audio.duration))
-                .append_header(("Access-Control-Expose-Headers", "X-Origin-Type, X-Origin-Size, X-Duration-Seconds"))
-                .content_type(match bitrate {
-                    Some(_) => "audio/aac".to_string(),
-                    None => format!("audio/{}", audio.extension)
-                });
-
-            return match bitrate {
-                Some(bitrate) => {
-                    let mut process = tokio::process::Command::new("ffmpeg")
-                        .args(&[
-                            "-i", "pipe:0",
-                            "-map", "0:0",
-                            "-b:a", bitrate,
-                            "-f", "adts",
-                            "-",
-                        ])
-                        .stdin(Stdio::piped())
-                        .stdout(Stdio::piped())
-                        .stderr(Stdio::null())
-                        .spawn()
-                        .unwrap();
-                    let stdout = process.stdout.take().unwrap();
-                    tokio::spawn(async move {
-                        let mut stdin = process.stdin.as_mut().unwrap();
-                        let _ = tokio::io::copy(&mut audio.reader, &mut stdin).await;
-                    });
-                    resp.streaming(ReaderStream::new(stdout))
-                }
-                None => {
-                    resp.streaming(ReaderStream::new(audio.reader))
-                }
-            };
-        }
-    }
-    HttpResponse::NotFound().finish()
-}
-
-#[derive(Deserialize)]
-struct CoverPath {
-    album_id: String,
-    disc_id: Option<u8>,
-}
-
-/// Get audio cover of an album with {album_id} and optional {disc_id}
-async fn cover(path: web::Path<CoverPath>, data: web::Data<AppState>) -> impl Responder {
-    let CoverPath { album_id, disc_id } = path.into_inner();
-    for backend in data.backends.read().await.iter() {
-        if backend.enabled() && backend.has_album(&album_id) {
-            return match backend.get_cover(&album_id, disc_id).await {
-                Ok(cover) => {
-                    HttpResponse::Ok()
-                        .content_type("image/jpeg")
-                        .append_header(("Cache-Control", "public, max-age=31536000"))
-                        .streaming(ReaderStream::new(cover))
-                }
-                Err(_) => {
-                    HttpResponse::NotFound().finish()
-                }
-            };
-        }
-    }
-    HttpResponse::NotFound().finish()
-}
-
-#[post("/reload")]
-async fn reload(data: web::Data<AppState>) -> impl Responder {
-    for backend in data.backends.write().await.iter_mut() {
-        if let Err(e) = backend.reload().await {
-            log::error!("Failed to reload backend {}: {:?}", backend.name(), e);
-        }
-    }
-    *data.last_update.write().await = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs();
-    HttpResponse::Ok().finish()
 }
 
 async fn init_state(config: &Config) -> anyhow::Result<web::Data<AppState>> {
@@ -255,7 +114,10 @@ async fn main() -> anyhow::Result<()> {
                 ])
                     .route(web::get().to(cover))
             )
-            .service(audio)
+            .service(web::resource("/{album_id}/{disc_id}/{track_id}")
+                .route(web::get().to(audio))
+                .route(web::head().to(audio_head))
+            )
             .service(albums)
             .service(share::share)
     })
