@@ -21,7 +21,7 @@ pub async fn audio_head(claim: AnnilClaims, path: web::Path<(String, u8, u8)>, d
             let audio = backend.get_audio(&album_id, disc_id, track_id).await.map_err(|_| AnnilError::NotFound);
             return match audio {
                 Ok(audio) => {
-                    let transcode = if claim.is_guest() { true } else { query.prefer_bitrate.as_deref().unwrap_or("medium") == "lossless" };
+                    let transcode = if claim.is_guest() { true } else { query.prefer_bitrate.as_deref().unwrap_or("medium") != "lossless" };
 
                     let mut resp = HttpResponse::Ok();
                     resp.append_header(("X-Origin-Type", format!("audio/{}", audio.extension)))
