@@ -13,7 +13,7 @@ pub struct CoverPath {
 pub async fn cover(path: web::Path<CoverPath>, data: web::Data<AppState>) -> impl Responder {
     let CoverPath { album_id, disc_id } = path.into_inner();
     for backend in data.backends.read().await.iter() {
-        if backend.enabled() && backend.has_album(&album_id) {
+        if backend.has_album(&album_id).await {
             return match backend.get_cover(&album_id, disc_id).await {
                 Ok(cover) => {
                     HttpResponse::Ok()

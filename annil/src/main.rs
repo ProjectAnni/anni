@@ -48,7 +48,7 @@ async fn init_state(config: &Config) -> anyhow::Result<web::Data<AppState>> {
                     FileBackend::new(
                         PathBuf::from(root),
                         repo,
-                    ),
+                    ).await?,
                 ),
             BackendItem::Drive { drive_id, corpora, token_path } =>
                 AnniBackend::Drive(DriveBackend::new(Default::default(), DriveBackendSettings {
@@ -66,8 +66,7 @@ async fn init_state(config: &Config) -> anyhow::Result<web::Data<AppState>> {
             }
             backend = AnniBackend::Cache(Cache::new(backend.into_box(), caches[cache.root()].clone()));
         }
-        let mut backend = AnnilBackend::new(backend_name.to_string(), backend).await?;
-        backend.set_enable(backend_config.enable);
+        let backend = AnnilBackend::new(backend_name.to_string(), backend, backend_config.enable).await?;
         backends.push(backend);
     }
     log::info!("Backend initialization finished, used {:?}", now.elapsed().unwrap());

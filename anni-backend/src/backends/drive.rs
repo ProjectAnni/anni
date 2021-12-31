@@ -90,14 +90,16 @@ impl DriveBackend {
             "https://www.googleapis.com/auth/drive.readonly",
         ]).await?;
         let hub = DriveHub::new(hyper::Client::builder().build(hyper_rustls::HttpsConnector::with_native_roots()), auth);
-        Ok(Self {
+        let mut backend = Self {
             hub: Box::new(hub),
             folders: Default::default(),
             discs: Default::default(),
             settings,
             repo,
             semaphore: Semaphore::new(100),
-        })
+        };
+        backend.reload().await?;
+        Ok(backend)
     }
 
     fn prepare_list(&self) -> FileListCall {
@@ -162,48 +164,11 @@ impl DriveBackend {
 
 #[async_trait]
 impl Backend for DriveBackend {
-    async fn albums(&mut self) -> Result<HashSet<String>, BackendError> {
-        self.folders.clear();
-        self.discs.clear();
-        self.repo.reload().await?;
-
-        let mut page_token = String::new();
-        loop {
-            let permit = self.semaphore.acquire().await.unwrap();
-            let (_, list) = self.prepare_list()
-                .page_token(&page_token)
-                .q("mimeType = 'application/vnd.google-apps.folder' and trashed = false")
-                .param("fields", "nextPageToken, files(id,name)")
-                .doit().await?;
-            drop(permit);
-            for file in list.files.unwrap() {
-                let name = file.name.unwrap();
-                if let Ok((release_date, catalog, title, disc_count)) = album_info(&name) {
-                    let album_id = self.repo.match_album(&catalog, &release_date, disc_count as u8, &title).await?;
-                    match album_id {
-                        Some(album_id) => {
-                            self.folders.insert(album_id.to_string(), file.id.unwrap());
-                            if disc_count > 1 {
-                                self.discs.insert(album_id.to_string(), None);
-                            }
-                        }
-                        None => {
-                            log::warn!("Album ID not found for {}, ignoring...", catalog);
-                        }
-                    }
-                };
-            }
-            if list.next_page_token.is_none() {
-                break;
-            } else {
-                page_token = list.next_page_token.unwrap();
-            }
-        }
+    async fn albums(&self) -> Result<HashSet<Cow<str>>, BackendError> {
         Ok(self
             .folders
             .keys()
-            .into_iter()
-            .map(|a| a.to_owned())
+            .map(|a| Cow::Borrowed(a.as_str()))
             .collect())
     }
 
@@ -266,5 +231,45 @@ impl Backend for DriveBackend {
         let files = list.files.unwrap();
         let file = files.get(0).ok_or(BackendError::FileNotFound)?;
         self.get_file(file.id.as_ref().unwrap()).await
+    }
+
+    async fn reload(&mut self) -> Result<(), BackendError> {
+        self.folders.clear();
+        self.discs.clear();
+        self.repo.reload().await?;
+
+        let mut page_token = String::new();
+        loop {
+            let permit = self.semaphore.acquire().await.unwrap();
+            let (_, list) = self.prepare_list()
+                .page_token(&page_token)
+                .q("mimeType = 'application/vnd.google-apps.folder' and trashed = false")
+                .param("fields", "nextPageToken, files(id,name)")
+                .doit().await?;
+            drop(permit);
+            for file in list.files.unwrap() {
+                let name = file.name.unwrap();
+                if let Ok((release_date, catalog, title, disc_count)) = album_info(&name) {
+                    let album_id = self.repo.match_album(&catalog, &release_date, disc_count as u8, &title).await?;
+                    match album_id {
+                        Some(album_id) => {
+                            self.folders.insert(album_id.to_string(), file.id.unwrap());
+                            if disc_count > 1 {
+                                self.discs.insert(album_id.to_string(), None);
+                            }
+                        }
+                        None => {
+                            log::warn!("Album ID not found for {}, ignoring...", catalog);
+                        }
+                    }
+                };
+            }
+            if list.next_page_token.is_none() {
+                break;
+            } else {
+                page_token = list.next_page_token.unwrap();
+            }
+        }
+        Ok(())
     }
 }

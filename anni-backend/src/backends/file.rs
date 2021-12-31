@@ -1,3 +1,4 @@
+use std::borrow::Cow;
 use crate::common::{Backend, BackendReaderExt, BackendError};
 use anni_repo::library::{album_info, disc_info};
 use async_trait::async_trait;
@@ -15,13 +16,16 @@ pub struct FileBackend {
 }
 
 impl FileBackend {
-    pub fn new(root: PathBuf, repo: RepoDatabaseRead) -> Self {
-        FileBackend {
+    pub async fn new(root: PathBuf, repo: RepoDatabaseRead) -> Result<Self, BackendError> {
+        let mut backend = Self {
             root,
             repo,
             album_path: Default::default(),
             album_discs: Default::default(),
-        }
+        };
+
+        backend.reload().await?;
+        Ok(backend)
     }
 
     async fn walk_dir<P: AsRef<Path> + Send>(
@@ -104,18 +108,8 @@ impl FileBackend {
 
 #[async_trait]
 impl Backend for FileBackend {
-    async fn albums(&mut self) -> Result<HashSet<String>, BackendError> {
-        self.album_discs.clear();
-        self.album_path.clear();
-        self.repo.reload().await?;
-
-        let mut to_visit = Vec::new();
-        self.walk_dir(&self.root.clone(), &mut to_visit).await?;
-
-        while let Some(dir) = to_visit.pop() {
-            self.walk_dir(dir, &mut to_visit).await?;
-        }
-        Ok(self.album_path.keys().cloned().collect())
+    async fn albums(&self) -> Result<HashSet<Cow<str>>, BackendError> {
+        Ok(self.album_path.keys().map(|s| Cow::Borrowed(s.as_str())).collect())
     }
 
     async fn get_audio(
@@ -155,6 +149,20 @@ impl Backend for FileBackend {
         let path = path.join("cover.jpg");
         let file = File::open(path).await?;
         Ok(Box::pin(file))
+    }
+
+    async fn reload(&mut self) -> Result<(), BackendError> {
+        self.album_discs.clear();
+        self.album_path.clear();
+        self.repo.reload().await?;
+
+        let mut to_visit = Vec::new();
+        self.walk_dir(&self.root.clone(), &mut to_visit).await?;
+
+        while let Some(dir) = to_visit.pop() {
+            self.walk_dir(dir, &mut to_visit).await?;
+        }
+        Ok(())
     }
 }
 

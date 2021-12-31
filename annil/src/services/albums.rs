@@ -1,3 +1,4 @@
+use std::borrow::Cow;
 use std::collections::HashSet;
 use actix_web::{HttpResponse, Responder, web, get};
 use crate::{AnnilClaims, AppState};
@@ -7,12 +8,12 @@ use crate::{AnnilClaims, AppState};
 async fn albums(claims: AnnilClaims, data: web::Data<AppState>) -> impl Responder {
     match claims {
         AnnilClaims::User(_) => {
-            let mut albums: HashSet<&str> = HashSet::new();
+            let mut albums: HashSet<Cow<str>> = HashSet::new();
             let read = data.backends.read().await;
 
             // users can get real album list
             for backend in read.iter() {
-                albums.extend(backend.albums().into_iter());
+                albums.extend(backend.albums().await);
             }
             HttpResponse::Ok().json(albums)
         }

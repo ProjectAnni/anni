@@ -1,3 +1,4 @@
+use std::borrow::Cow;
 use std::collections::HashSet;
 use std::str::FromStr;
 use crate::{Backend, BackendError, BackendReader, BackendReaderExt};
@@ -31,7 +32,7 @@ impl ProxyBackend {
 
 #[async_trait]
 impl Backend for ProxyBackend {
-    async fn albums(&mut self) -> Result<HashSet<String>, BackendError> {
+    async fn albums(&self) -> Result<HashSet<Cow<str>>, BackendError> {
         let r = self.get("/albums").await.map_err(|e| BackendError::RequestError(e))?;
         Ok(r.json().await?)
     }
@@ -78,5 +79,10 @@ impl Backend for ProxyBackend {
             .into_async_read();
         let body = tokio_util::compat::FuturesAsyncReadCompatExt::compat(body);
         Ok(Box::pin(body))
+    }
+
+    async fn reload(&mut self) -> Result<(), BackendError> {
+        // proxy backend does not need to be reloaded
+        Ok(())
     }
 }

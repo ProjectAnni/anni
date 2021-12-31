@@ -1,3 +1,4 @@
+use std::borrow::Cow;
 use crate::backends;
 use async_trait::async_trait;
 use std::collections::HashSet;
@@ -24,13 +25,16 @@ pub struct BackendReaderExt {
 #[async_trait]
 pub trait Backend {
     /// Get album information provided by backend.
-    async fn albums(&mut self) -> Result<HashSet<String>, BackendError>;
+    async fn albums(&self) -> Result<HashSet<Cow<str>>, BackendError>;
 
     /// Returns a reader implements AsyncRead for content reading
     async fn get_audio(&self, album_id: &str, disc_id: u8, track_id: u8) -> Result<BackendReaderExt, BackendError>;
 
     /// Returns a cover of corresponding album
     async fn get_cover(&self, album_id: &str, disc_id: Option<u8>) -> Result<BackendReader, BackendError>;
+
+    /// Reloads the backend for new albums
+    async fn reload(&mut self) -> Result<(), BackendError>;
 }
 
 pub enum AnniBackend {
@@ -62,6 +66,10 @@ impl AnniBackend {
             AnniBackend::Drive(b) => b,
             AnniBackend::Cache(b) => b,
         }
+    }
+
+    pub async fn contains_album(&self, album_id: &str) -> bool {
+        self.as_backend().albums().await.unwrap_or(HashSet::new()).contains(album_id)
     }
 }
 

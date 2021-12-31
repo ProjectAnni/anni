@@ -1,3 +1,4 @@
+use std::borrow::Cow;
 use anni_backend::{BackendError, AnniBackend, BackendReaderExt};
 use tokio::io::AsyncRead;
 use std::collections::HashSet;
@@ -6,17 +7,14 @@ pub struct AnnilBackend {
     name: String,
     enabled: bool,
     inner: AnniBackend,
-    albums: HashSet<String>,
 }
 
 impl AnnilBackend {
-    pub async fn new(name: String, mut inner: AnniBackend) -> Result<Self, BackendError> {
-        let albums = inner.as_backend_mut().albums().await?;
+    pub async fn new(name: String, inner: AnniBackend, enable: bool) -> Result<Self, BackendError> {
         Ok(Self {
             name,
-            enabled: true,
+            enabled: enable,
             inner,
-            albums,
         })
     }
 
@@ -25,28 +23,22 @@ impl AnnilBackend {
         self.name.as_str()
     }
 
-    #[inline]
-    pub fn enabled(&self) -> bool {
-        self.enabled
+    pub async fn has_album(&self, album_id: &str) -> bool {
+        self.enabled && self.inner.contains_album(album_id).await
     }
 
-    pub fn has_album(&self, album_id: &str) -> bool {
-        self.albums.contains(album_id)
-    }
-
-    pub fn albums(&self) -> HashSet<&str> {
-        self.albums.iter().map(|a| a.as_str()).collect()
+    pub async fn albums(&self) -> HashSet<Cow<'_, str>> {
+        if self.enabled {
+            self.inner.as_backend().albums().await.unwrap_or(HashSet::new())
+        } else {
+            HashSet::new()
+        }
     }
 
     pub async fn reload(&mut self) -> Result<(), BackendError> {
         log::debug!("[{}] Reloading backend albums", self.name());
-        self.albums = self.inner.as_backend_mut().albums().await?;
+        self.inner.as_backend_mut().reload().await?;
         Ok(())
-    }
-
-    #[inline]
-    pub fn set_enable(&mut self, enable: bool) {
-        self.enabled = enable;
     }
 
     pub async fn get_audio(&self, album_id: &str, disc_id: u8, track_id: u8) -> Result<BackendReaderExt, BackendError> {

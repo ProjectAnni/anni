@@ -1,3 +1,4 @@
+use std::borrow::Cow;
 use crate::{Backend, BackendError, BackendReaderExt, BackendReader};
 use std::path::{PathBuf, Path};
 use std::collections::{HashSet, HashMap, BTreeMap};
@@ -32,7 +33,7 @@ impl Cache {
 
 #[async_trait]
 impl Backend for Cache {
-    async fn albums(&mut self) -> Result<HashSet<String>, BackendError> {
+    async fn albums(&self) -> Result<HashSet<Cow<str>>, BackendError> {
         // refresh should not be cached
         self.inner.albums().await
     }
@@ -47,6 +48,11 @@ impl Backend for Cache {
     async fn get_cover(&self, album_id: &str, disc_id: Option<u8>) -> Result<BackendReader, BackendError> {
         // TODO: cache cover
         self.inner.get_cover(album_id, disc_id).await
+    }
+
+    async fn reload(&mut self) -> Result<(), BackendError> {
+        // reload the inner backend
+        self.inner.reload().await
     }
 }
 

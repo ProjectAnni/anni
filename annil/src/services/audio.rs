@@ -17,7 +17,7 @@ pub async fn audio_head(claim: AnnilClaims, path: web::Path<(String, u8, u8)>, d
     }
 
     for backend in data.backends.read().await.iter() {
-        if backend.enabled() && backend.has_album(&album_id) {
+        if backend.has_album(&album_id).await {
             let audio = backend.get_audio(&album_id, disc_id, track_id).await.map_err(|_| AnnilError::NotFound);
             return match audio {
                 Ok(audio) => {
@@ -52,7 +52,7 @@ pub async fn audio(claim: AnnilClaims, path: web::Path<(String, u8, u8)>, data: 
     }
 
     for backend in data.backends.read().await.iter() {
-        if backend.enabled() && backend.has_album(&album_id) {
+        if backend.has_album(&album_id).await {
             let audio = backend.get_audio(&album_id, disc_id, track_id).await.map_err(|_| AnnilError::NotFound);
             if let Err(e) = audio {
                 return e.error_response();
