@@ -1,4 +1,4 @@
-use crate::artist::ArtistList;
+use anni_artist::ArtistList;
 use std::str::FromStr;
 use regex::Regex;
 use serde::{Deserialize, Deserializer};
@@ -123,7 +123,13 @@ pub fn date_validator(str: &str) -> ValidateResult {
 }
 
 pub fn artist_validator(str: &str) -> ValidateResult {
-    ValidateResult::new(ArtistList::is_valid(str), false)
+    match ArtistList::parse(str) {
+        Ok(_) => ValidateResult::new(true, false),
+        Err(err) => {
+            log::debug!("ArtistList parse error: {}", err);
+            ValidateResult::new(false, false)
+        }
+    }
 }
 
 lazy_static::lazy_static! {

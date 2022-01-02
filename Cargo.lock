@@ -295,6 +295,11 @@ dependencies = [
 ]
 
 [[package]]
+name = "anni-artist"
+version = "0.1.0"
+source = "git+https://github.com/ProjectAnni/anni-artist#6e372fb09b6ec001db5fc180794c11a1fc8d5776"
+
+[[package]]
 name = "anni-backend"
 version = "0.1.1"
 dependencies = [
@@ -340,6 +345,7 @@ dependencies = [
 name = "anni-common"
 version = "0.1.1"
 dependencies = [
+ "anni-artist",
  "anyhow",
  "byteorder",
  "chardetng",
