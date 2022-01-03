@@ -18,6 +18,7 @@ pub enum FlacAction {
     #[clap(about = ll ! ("flac-export"))]
     Export(FlacExportAction),
     Fix(FlacFixAction),
+    RemoveID3(FlacRemoveID3Action),
 }
 
 #[derive(Parser, Debug, Clone)]
@@ -138,6 +139,29 @@ fn flac_fix(me: &FlacFixAction) -> anyhow::Result<()> {
         for file in path.iter() {
             let mut stream = FlacHeader::from_file(file)?;
             stream.fix_last_block()?;
+        }
+    }
+    Ok(())
+}
+
+#[derive(Parser, Debug, Clone)]
+pub struct FlacRemoveID3Action {
+    #[clap(required = true)]
+    filename: Vec<InputPath<FlacInputFile>>,
+}
+
+#[handler(FlacRemoveID3Action)]
+fn flac_remove_id3(me: &FlacRemoveID3Action) -> anyhow::Result<()> {
+    for filenames in me.filename.iter() {
+        for path in filenames.iter() {
+            debug!("Opening {}", path.display());
+            let mut file = std::fs::OpenOptions::new().read(true).write(true).open(&path)?;
+            let removed = id3::Tag::remove_from(&mut file)?;
+            if removed {
+                info!("Removed ID3 tag from {}", path.display());
+            } else {
+                info!("No ID3 tag found in {}", path.display());
+            }
         }
     }
     Ok(())
