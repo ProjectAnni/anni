@@ -17,6 +17,7 @@ pub struct FlacSubcommand {
 pub enum FlacAction {
     #[clap(about = ll ! ("flac-export"))]
     Export(FlacExportAction),
+    #[clap(setting = clap::AppSettings::Hidden)]
     Fix(FlacFixAction),
     RemoveID3(FlacRemoveID3Action),
 }
