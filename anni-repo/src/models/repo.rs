@@ -12,15 +12,6 @@ pub struct Repository {
 struct RepositoryInner {
     name: String,
     edition: String,
-
-    cover: Option<AssetSetting>,
-    lyric: Option<AssetSetting>,
-}
-
-#[derive(Serialize, Deserialize)]
-pub struct AssetSetting {
-    pub enable: bool,
-    root: Option<String>,
 }
 
 impl FromStr for Repository {
@@ -50,19 +41,5 @@ impl Repository {
 
     pub fn edition(&self) -> &str {
         self.repo.edition.as_ref()
-    }
-
-    pub fn cover(&self) -> Option<&AssetSetting> {
-        self.repo.cover.as_ref()
-    }
-
-    pub fn lyric(&self) -> Option<&AssetSetting> {
-        self.repo.lyric.as_ref()
-    }
-}
-
-impl AssetSetting {
-    pub fn root(&self) -> Option<&str> {
-        self.root.as_ref().map(|r| r.as_ref())
     }
 }
