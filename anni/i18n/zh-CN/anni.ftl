@@ -37,6 +37,7 @@ repo-album-info-mismatch = 专辑信息与专辑目录不一致
 
 repo-validate-start = 仓库校验开始
 repo-validate-end = 仓库校验结束
+repo-validate-failed = 仓库校验失败
 repo-catalog-filename-mismatch = 专辑 {$album_catalog} 的品番与文件名不一致
 repo-invalid-artist = 艺术家名称不可用：{$artist}
 

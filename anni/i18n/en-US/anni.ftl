@@ -38,6 +38,7 @@ repo-album-info-mismatch = Album info mismatch with folder.
 
 repo-validate-start = Start validating repository.
 repo-validate-end = End validating repository.
+repo-validate-failed = Validation failed.
 repo-catalog-filename-mismatch = Album catalog '{$album_catalog}' does not match filename.
 repo-invalid-artist = Invalid artist: {$artist}
 

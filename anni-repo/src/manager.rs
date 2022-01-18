@@ -184,7 +184,7 @@ impl RepositoryManager {
         Ok(())
     }
 
-    pub fn check_tags_loop(&self) -> bool {
+    pub fn check_tags_loop(&self) -> Option<Vec<TagRef>> {
         fn dfs<'tag, 'func>(
             tag: &'tag TagRef,
             tags_relation: &'tag HashMap<TagRef, HashSet<TagRef>>,
@@ -227,14 +227,12 @@ impl RepositoryManager {
             if !visited.get(&tag).map_or(false, |x| *x) {
                 let (loop_detected, path) = dfs(&tag, &self.tags_relation, &mut current, &mut visited, Default::default());
                 if loop_detected {
-                    // FIXME: return path, do not print here
-                    log::error!("Loop detected: {:?}", path);
-                    return false;
+                    return Some(path.into_iter().map(|p| p.clone()).collect());
                 }
             }
         }
 
-        true
+        None
     }
 
     pub fn tags(&self) -> &HashSet<RepoTag> {

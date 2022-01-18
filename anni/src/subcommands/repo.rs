@@ -386,15 +386,18 @@ pub struct RepoValidateAction {}
 
 #[handler(RepoValidateAction)]
 fn repo_validate(_: &RepoValidateAction, manager: &RepositoryManager) -> anyhow::Result<()> {
+    let mut has_error = false;
     info!(target: "anni", "{}", fl!("repo-validate-start"));
     // check albums
     for catalog in manager.catalogs()? {
         let album = manager.load_album(&catalog)?;
         if album.catalog() != catalog {
             error!(target: &format!("repo|{}", catalog), "{}", fl!("repo-catalog-filename-mismatch", album_catalog = album.catalog()));
+            has_error = true;
         }
         if album.artist() == "[Unknown Artist]" || album.artist() == "UnknownArtist" {
             error!(target: &format!("repo|{}", catalog), "{}", fl!("repo-invalid-artist", artist = album.artist()));
+            has_error = true;
         }
         if let TrackType::Other(o) = album.track_type() {
             warn!(target: &format!("repo|{}", catalog), "Unknown track type: {}", o);
@@ -415,9 +418,16 @@ fn repo_validate(_: &RepoValidateAction, manager: &RepositoryManager) -> anyhow:
         }
     }
     // check tags
-    manager.check_tags_loop();
-    info!(target: "anni", "{}", fl!("repo-validate-end"));
-    Ok(())
+    if let Some(path) = manager.check_tags_loop() {
+        log::error!(target: "repo|tags", "Loop detected: {:?}", path);
+        has_error = true;
+    }
+    if !has_error {
+        info!(target: "anni", "{}", fl!("repo-validate-end"));
+        Ok(())
+    } else {
+        ball!("repo-validate-failed");
+    }
 }
 
 #[derive(Parser, Debug, Clone)]
