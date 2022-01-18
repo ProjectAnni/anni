@@ -202,7 +202,8 @@ impl RepositoryManager {
                         path.push(child);
                         return (true, path);
                     }
-                    if !*visited.get(child).unwrap_or(&false) {
+                    // if !visited[child]
+                    if !visited.get(child).map_or(false, |x| *x) {
                         let (loop_detected, loop_path) = dfs(child, tags_relation, current, visited, path);
                         if loop_detected {
                             return (true, loop_path);
@@ -222,7 +223,8 @@ impl RepositoryManager {
         let mut current: HashMap<&TagRef, bool> = Default::default();
         let tags: Vec<_> = self.tags.iter().map(|t| t.get_ref()).collect();
         for tag in tags.iter() {
-            if !*visited.get(&tag).unwrap_or(&false) {
+            // if !visited[tag]
+            if !visited.get(&tag).map_or(false, |x| *x) {
                 let (loop_detected, path) = dfs(&tag, &self.tags_relation, &mut current, &mut visited, Default::default());
                 if loop_detected {
                     // FIXME: return path, do not print here
