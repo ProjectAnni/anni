@@ -19,11 +19,11 @@ pub enum Error {
     #[error("failed to load tags from {file:?}: {err:?}")]
     RepoTagLoadError { file: std::path::PathBuf, err: anyhow::Error },
 
-    #[error("duplicated tag {0}")]
-    RepoTagDuplicate(std::path::PathBuf),
+    #[error("duplicated tag {tag} defined in {path}")]
+    RepoTagDuplicate { tag: TagRef, path: std::path::PathBuf },
 
-    #[error("parent tag for tag {tag} not found: {parent}")]
-    RepoTagParentNotFound { tag: TagRef, parent: TagRef },
+    #[error("undefined tags {0:?}")]
+    RepoTagsUndefined(Vec<TagRef>),
 
     #[error(transparent)]
     IOError(#[from] std::io::Error),

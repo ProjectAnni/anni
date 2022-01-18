@@ -10,10 +10,8 @@ pub struct RepositoryManager {
 
     /// All available tags.
     tags: HashSet<RepoTag>,
-    /// Path -> Tags map.
-    tags_by_file: HashMap<PathBuf, HashSet<TagRef>>,
-    /// Top level tags with no parent.
-    tags_top: HashSet<TagRef>,
+    /// Parent to child tag relation
+    tags_relation: HashMap<TagRef, HashSet<TagRef>>,
 
     album_tags: HashMap<TagRef, Vec<String>>,
 
@@ -27,8 +25,7 @@ impl RepositoryManager {
             root: root.as_ref().to_owned(),
             repo: Repository::from_file(repo).map_err(Error::RepoInitError)?,
             tags: Default::default(),
-            tags_by_file: Default::default(),
-            tags_top: Default::default(),
+            tags_relation: Default::default(),
             album_tags: Default::default(),
             albums: Default::default(),
         };
@@ -89,6 +86,16 @@ impl RepositoryManager {
         self.albums.values()
     }
 
+    fn add_tag_relation(&mut self, parent: TagRef, child: TagRef) {
+        if let Some(children) = self.tags_relation.get_mut(&parent) {
+            children.insert(child);
+        } else {
+            let mut set = HashSet::new();
+            set.insert(child);
+            self.tags_relation.insert(parent, set);
+        }
+    }
+
     /// Load tags into self.tags.
     fn load_tags(&mut self) -> RepoResult<()> {
         // filter out toml files
@@ -97,8 +104,7 @@ impl RepositoryManager {
 
         // clear tags
         self.tags.clear();
-        self.tags_by_file.clear();
-        self.tags_top.clear();
+        self.tags_relation.clear();
 
         // iterate over tag files
         for tag_file in tags_path {
@@ -108,49 +114,43 @@ impl RepositoryManager {
                 input: text,
                 err: e,
             })?.into_inner();
-            let tags_count = tags.len();
 
-            let refs = tags.iter().map(|t| t.get_ref()).collect::<HashSet<_>>();
-            let tags = tags.into_iter().map(|t| RepoTag::Full(t)).collect::<HashSet<_>>();
-
-            if tags_count != tags.len() || !self.tags.is_disjoint(&tags) {
-                return Err(Error::RepoTagDuplicate(tag_file));
-            } else {
-                for tag in tags.iter() {
-                    if let RepoTag::Full(tag) = tag {
-                        // if parents is empty, add to top level tags set
-                        if tag.parents().is_empty() {
-                            self.tags_top.insert(tag.get_ref());
-                        }
-
-                        // add children to set
-                        for child in tag.children_raw() {
-                            self.tags.insert(RepoTag::Full(child.clone().extend_simple(vec![tag.get_ref()])));
-                        }
-                    } else {
-                        unreachable!()
-                    }
+            for tag in tags {
+                for parent in tag.parents() {
+                    self.add_tag_relation(parent.clone(), tag.get_ref());
                 }
-                self.tags.extend(tags);
-                let relative_path = tag_file.strip_prefix(self.root.join("tag")).expect("Failed to extract tag file relative path, this should not happen.");
-                self.tags_by_file.insert(relative_path.to_path_buf(), refs);
+
+                // add children to set
+                for child in tag.children_raw() {
+                    if !self.tags.insert(RepoTag::Full(child.clone().extend_simple(vec![tag.get_ref()]))) {
+                        // duplicated simple tag
+                        return Err(Error::RepoTagDuplicate {
+                            tag: child.clone(),
+                            path: tag_file,
+                        });
+                    }
+                    self.add_tag_relation(tag.get_ref(), child.clone());
+                }
+
+                let tag_ref = tag.get_ref();
+                if !self.tags.insert(RepoTag::Full(tag)) {
+                    // duplicated
+                    return Err(Error::RepoTagDuplicate {
+                        tag: tag_ref,
+                        path: tag_file,
+                    });
+                }
             }
         }
 
-        // check parent exists
-        for tag in self.tags.iter() {
-            if let RepoTag::Full(tag) = tag {
-                for parent in tag.parents() {
-                    if !self.tags.contains(&RepoTag::Ref(parent.clone())) {
-                        return Err(Error::RepoTagParentNotFound {
-                            tag: tag.get_ref(),
-                            parent: parent.clone(),
-                        });
-                    }
-                }
-            } else {
-                unreachable!()
-            }
+        // check tag relationship
+        let all_tags: HashSet<_> = self.tags.iter().map(|t| t.get_ref()).collect();
+        let all_tags: HashSet<_> = all_tags.iter().collect();
+        let mut rel_tags: HashSet<_> = self.tags_relation.keys().collect();
+        let rel_children: HashSet<_> = self.tags_relation.values().flatten().collect();
+        rel_tags.extend(rel_children);
+        if !rel_tags.is_subset(&all_tags) {
+            return Err(Error::RepoTagsUndefined(rel_tags.difference(&all_tags).cloned().cloned().collect()));
         }
 
         Ok(())
@@ -182,6 +182,57 @@ impl RepositoryManager {
         }
 
         Ok(())
+    }
+
+    pub fn check_tags_loop(&self) -> bool {
+        fn dfs<'tag, 'func>(
+            tag: &'tag TagRef,
+            tags_relation: &'tag HashMap<TagRef, HashSet<TagRef>>,
+            current: &'func mut HashMap<&'tag TagRef, bool>,
+            visited: &'func mut HashMap<&'tag TagRef, bool>,
+            mut path: Vec<&'tag TagRef>,
+        ) -> (bool, Vec<&'tag TagRef>) {
+            visited.insert(tag, true);
+            current.insert(tag, true);
+            path.push(tag);
+
+            if let Some(children) = tags_relation.get(tag) {
+                for child in children {
+                    if let Some(true) = current.get(child) {
+                        path.push(child);
+                        return (true, path);
+                    }
+                    if !*visited.get(child).unwrap_or(&false) {
+                        let (loop_detected, loop_path) = dfs(child, tags_relation, current, visited, path);
+                        if loop_detected {
+                            return (true, loop_path);
+                        } else {
+                            path = loop_path;
+                        }
+                    }
+                }
+            }
+
+            current.insert(tag, false);
+            path.pop();
+            (false, path)
+        }
+
+        let mut visited: HashMap<&TagRef, bool> = Default::default();
+        let mut current: HashMap<&TagRef, bool> = Default::default();
+        let tags: Vec<_> = self.tags.iter().map(|t| t.get_ref()).collect();
+        for tag in tags.iter() {
+            if !*visited.get(&tag).unwrap_or(&false) {
+                let (loop_detected, path) = dfs(&tag, &self.tags_relation, &mut current, &mut visited, Default::default());
+                if loop_detected {
+                    // FIXME: return path, do not print here
+                    log::error!("Loop detected: {:?}", path);
+                    return false;
+                }
+            }
+        }
+
+        true
     }
 
     pub fn tags(&self) -> &HashSet<RepoTag> {

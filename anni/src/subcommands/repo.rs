@@ -387,6 +387,7 @@ pub struct RepoValidateAction {}
 #[handler(RepoValidateAction)]
 fn repo_validate(_: &RepoValidateAction, manager: &RepositoryManager) -> anyhow::Result<()> {
     info!(target: "anni", "{}", fl!("repo-validate-start"));
+    // check albums
     for catalog in manager.catalogs()? {
         let album = manager.load_album(&catalog)?;
         if album.catalog() != catalog {
@@ -413,6 +414,8 @@ fn repo_validate(_: &RepoValidateAction, manager: &RepositoryManager) -> anyhow:
             }
         }
     }
+    // check tags
+    manager.check_tags_loop();
     info!(target: "anni", "{}", fl!("repo-validate-end"));
     Ok(())
 }
