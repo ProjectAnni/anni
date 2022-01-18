@@ -160,16 +160,19 @@ impl RepositoryManager {
     fn load_album_tags(&mut self) -> RepoResult<()> {
         self.album_tags.clear();
 
+        let mut has_problem = false;
         for catalog in self.catalogs()? {
             let album = self.load_album(&catalog)?;
             let tags = album.tags();
             if tags.is_empty() {
                 // this album has no tag
                 log::warn!("No tag found in album {}, catalog = {}", album.album_id(), catalog);
+                has_problem = true;
             } else {
                 for tag in tags {
                     if !self.tags.contains(&RepoTag::Ref(tag.clone())) {
-                        log::warn!("Orphan tag {} found in album {}, catalog = {}", tag, album.album_id(), catalog);
+                        log::error!("Orphan tag {} found in album {}, catalog = {}", tag, album.album_id(), catalog);
+                        has_problem = true;
                     }
 
                     if !self.album_tags.contains_key(tag) {
@@ -181,7 +184,11 @@ impl RepositoryManager {
             self.albums.insert(album.album_id().to_string(), album);
         }
 
-        Ok(())
+        if !has_problem {
+            Ok(())
+        } else {
+            Err(Error::RepoInitError(anyhow::anyhow!("Problems detected in album tags")))
+        }
     }
 
     pub fn check_tags_loop(&self) -> Option<Vec<TagRef>> {
