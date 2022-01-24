@@ -44,10 +44,17 @@ pub struct SplitSubcommand {
     #[clap(long = "no-trashcan", parse(from_flag = std::ops::Not::not))]
     trashcan: bool,
 
+    #[clap(long = "dry-run")]
+    dry_run: bool,
+
     directories: Vec<PathBuf>,
 }
 
 impl SplitSubcommand {
+    fn need_remove_after_success(&self) -> bool {
+        !self.dry_run && self.remove_after_success
+    }
+
     fn split<P>(&self, audio_path: P, cue_path: P, cover: Option<P>) -> anyhow::Result<()>
         where P: AsRef<Path> {
         info!(target: "split", "Splitting {}...", audio_path.as_ref().display());
@@ -98,40 +105,41 @@ impl SplitSubcommand {
         tracks.into_iter().zip(files).try_for_each(|(mut track, path)| -> anyhow::Result<()>{
             info!(target: "split", "{}...", track.name);
 
-            // choose output format
-            let mut process = self.output_format.to_process(&path)?;
+            if !self.dry_run {
+                // choose output format
+                let mut process = self.output_format.to_process(&path)?;
 
-            // split wav from start to end
-            split_wav(&mut header, audio, &mut process.get_writer(), track.begin, track.end)?;
+                // split wav from start to end
+                split_wav(&mut header, audio, &mut process.get_writer(), track.begin, track.end)?;
 
-            // wait for process to exit
-            process.wait();
+                // wait for process to exit
+                process.wait();
 
-            if self.apply_tags || cover.is_some() && matches!(self.output_format, SplitOutputFormat::Flac) {
-                // info!(target: "split", "Writing tags...");
-                let mut flac = FlacHeader::from_file(&path)?;
+                if self.apply_tags || cover.is_some() && matches!(self.output_format, SplitOutputFormat::Flac) {
+                    let mut flac = FlacHeader::from_file(&path)?;
 
-                // write tags
-                if self.apply_tags {
-                    let comment = flac.comments_mut();
-                    comment.clear();
-                    comment.comments.append(&mut track.tags);
+                    // write tags
+                    if self.apply_tags {
+                        let comment = flac.comments_mut();
+                        comment.clear();
+                        comment.comments.append(&mut track.tags);
+                    }
+
+                    // write cover
+                    if let Some(cover) = &cover {
+                        let picture = BlockPicture::new(cover, PictureType::CoverFront, String::new())?;
+                        flac.blocks.push(MetadataBlock::new(MetadataBlockData::Picture(picture)));
+                    }
+
+                    // save flac file
+                    flac.save(Some(path))?;
                 }
-
-                // write cover
-                if let Some(cover) = &cover {
-                    let picture = BlockPicture::new(cover, PictureType::CoverFront, String::new())?;
-                    flac.blocks.push(MetadataBlock::new(MetadataBlockData::Picture(picture)));
-                }
-
-                // save flac file
-                flac.save(Some(path))?;
             }
             Ok(())
         })?;
 
         // Option to remove full track after successful split
-        if self.remove_after_success {
+        if self.need_remove_after_success() {
             debug!(target: "split", "Removing audio file: {}", audio_path.as_ref().display());
             fs::remove_file(audio_path, self.trashcan)?;
             debug!(target: "split", "Removing cue file: {}", cue_path.as_ref().display());
