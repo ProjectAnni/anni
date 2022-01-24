@@ -204,6 +204,33 @@ impl SplitFormat {
             }
         }
     }
+
+    fn check_decoder(&self) -> bool {
+        match self {
+            SplitFormat::Wav => true,
+            SplitFormat::Flac => match which::which("flac") {
+                Ok(path) => {
+                    debug!(target: "split", "FLAC decoder detected at: {}", path.display());
+                    true
+                }
+                _ => false,
+            }
+            SplitFormat::Ape => match which::which("mac") {
+                Ok(path) => {
+                    debug!(target: "split", "APE decoder detected at: {}", path.display());
+                    true
+                }
+                _ => false,
+            }
+            SplitFormat::Tak => match which::which("takc") {
+                Ok(path) => {
+                    debug!(target: "split", "TAK decoder detected at: {}", path.display());
+                    true
+                }
+                _ => false,
+            }
+        }
+    }
 }
 
 impl Display for SplitFormat {
@@ -244,6 +271,19 @@ impl SplitOutputFormat {
             }
         }
     }
+
+    fn check_encoder(&self) -> bool {
+        match self {
+            SplitOutputFormat::Wav => true,
+            SplitOutputFormat::Flac => match which::which("flac") {
+                Ok(path) => {
+                    debug!(target: "split", "FLAC encoder detected at: {}", path.display());
+                    true
+                }
+                _ => false,
+            }
+        }
+    }
 }
 
 impl Display for SplitOutputFormat {
@@ -254,6 +294,10 @@ impl Display for SplitOutputFormat {
 
 #[handler(SplitSubcommand)]
 fn handle_split(me: &SplitSubcommand) -> anyhow::Result<()> {
+    if !me.input_format.check_decoder() || !me.output_format.check_encoder() {
+        anyhow!("Some of the required encoders/decoders are missing. Please install them and try again.");
+    }
+
     for directory in me.directories.iter() {
         if !directory.is_dir() {
             warn!(target: "split", "Ignoring non-dir file {}", directory.display());
