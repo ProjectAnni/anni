@@ -266,7 +266,6 @@ version = "0.1.0"
 dependencies = [
  "anni-clap-handler",
  "anni-common",
- "anni-derive",
  "anni-flac",
  "anni-repo",
  "anni-vgmdb",
@@ -360,14 +359,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "anni-derive"
-version = "0.1.0"
-dependencies = [
- "quote",
- "syn",
-]
-
-[[package]]
 name = "anni-flac"
 version = "0.2.2"
 dependencies = [
@@ -388,7 +379,6 @@ name = "anni-repo"
 version = "0.1.0"
 dependencies = [
  "anni-common",
- "anni-derive",
  "anyhow",
  "edit",
  "log 0.4.14",

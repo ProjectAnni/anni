@@ -1,9 +1,4 @@
-use std::path::Path;
 use std::io::{Write, Read};
-
-pub trait FromFile: Sized {
-    fn from_file<P: AsRef<Path>>(path: P) -> Result<Self, anyhow::Error>;
-}
 
 pub trait Decode: Sized {
     type Err;

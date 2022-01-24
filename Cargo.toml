@@ -6,7 +6,6 @@ members = [
     "anni-common",
     "anni-clap-handler",
     "anni-clap-handler-derive",
-    "anni-derive",
     "anni-flac",
     "anni-repo",
 ]

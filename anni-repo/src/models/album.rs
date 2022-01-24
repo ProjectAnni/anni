@@ -1,12 +1,11 @@
 use serde::{Serialize, Deserialize, Deserializer, Serializer};
 use std::str::FromStr;
-use anni_derive::FromFile;
 use anni_common::inherit::InheritableValue;
 use std::borrow::Cow;
 use uuid::Uuid;
 use crate::prelude::*;
 
-#[derive(Serialize, Deserialize, FromFile)]
+#[derive(Serialize, Deserialize)]
 pub struct Album {
     #[serde(rename = "album")]
     info: AlbumInfo,

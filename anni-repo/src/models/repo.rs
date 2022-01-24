@@ -1,9 +1,8 @@
 use serde::{Serialize, Deserialize};
 use std::str::FromStr;
-use anni_derive::FromFile;
 use crate::prelude::*;
 
-#[derive(Serialize, Deserialize, FromFile)]
+#[derive(Serialize, Deserialize)]
 pub struct Repository {
     repo: RepositoryInner,
 }

@@ -1,8 +1,8 @@
 use crate::prelude::*;
-use anni_common::traits::FromFile;
 use anni_common::fs;
 use std::path::{PathBuf, Path};
 use std::collections::{HashMap, HashSet};
+use std::str::FromStr;
 
 pub struct RepositoryManager {
     root: PathBuf,
@@ -23,7 +23,7 @@ impl RepositoryManager {
         let repo = root.as_ref().join("repo.toml");
         let mut repo = Self {
             root: root.as_ref().to_owned(),
-            repo: Repository::from_file(repo).map_err(Error::RepoInitError)?,
+            repo: Repository::from_str(&fs::read_to_string(repo)?)?,
             tags: Default::default(),
             tags_relation: Default::default(),
             album_tags: Default::default(),
@@ -51,10 +51,7 @@ impl RepositoryManager {
 
     /// Load album with given catalog.
     pub fn load_album(&self, catalog: &str) -> RepoResult<Album> {
-        Album::from_file(self.album_path(catalog)).map_err(|e| Error::RepoAlbumLoadError {
-            album: catalog.to_owned(),
-            err: e,
-        })
+        Album::from_str(&fs::read_to_string(self.album_path(catalog))?)
     }
 
     /// Add new album to the repository.
