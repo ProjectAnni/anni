@@ -7,6 +7,7 @@ use clap::{Parser, ArgEnum, crate_version};
 use crate::{fl, ll, ball};
 use std::path::PathBuf;
 use std::str::FromStr;
+use std::time::{SystemTime, UNIX_EPOCH};
 use anni_vgmdb::VGMClient;
 use futures::executor::block_on;
 use anni_flac::blocks::{UserComment, UserCommentExt};
@@ -542,14 +543,18 @@ fn is_album_folder(input: &str) -> bool {
 // Repo database
 #[derive(Parser, Debug, Clone)]
 pub struct RepoDatabaseAction {
-    #[clap(default_value = "-")]
     #[clap(about = ll ! {"export-to"})]
     output: PathBuf,
 }
 
 #[handler(RepoDatabaseAction)]
 fn repo_database_action(me: &RepoDatabaseAction, manager: &RepositoryManager) -> anyhow::Result<()> {
-    let mut db = block_on(RepoDatabaseWrite::create(me.output.to_string_lossy().as_ref()))?;
+    if !me.output.is_dir() {
+        anyhow!("Output path must be a directory!");
+    }
+
+    let db_path = me.output.join("repo.db");
+    let mut db = block_on(RepoDatabaseWrite::create(db_path))?;
     // TODO: get url / ref from repo
     block_on(db.write_info(manager.repo.name(), manager.repo.edition(), "", ""))?;
 
@@ -567,6 +572,9 @@ fn repo_database_action(me: &RepoDatabaseAction, manager: &RepositoryManager) ->
 
     // Create Index
     block_on(db.create_index())?;
+
+    // Creation time
+    fs::write(me.output.join("repo.json"), &format!("{{\"last_modified\": {}}}", SystemTime::now().duration_since(UNIX_EPOCH)?.as_secs()))?;
     Ok(())
 }
 

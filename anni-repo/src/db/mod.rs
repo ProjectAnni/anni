@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::path::Path;
 use sqlx::ConnectOptions;
 use sqlx::sqlite::{SqliteConnectOptions, SqliteJournalMode, SqliteSynchronous};
 use uuid::Uuid;
@@ -88,7 +89,7 @@ pub struct RepoDatabaseWrite {
 }
 
 impl RepoDatabaseWrite {
-    pub async fn create(path: &str) -> RepoResult<Self> {
+    pub async fn create(path: impl AsRef<Path>) -> RepoResult<Self> {
         let conn = SqliteConnectOptions::new()
             .filename(path)
             .create_if_missing(true)
