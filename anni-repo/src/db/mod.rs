@@ -68,12 +68,27 @@ SELECT album_id, title FROM repo_album
             .await?)
     }
 
+    pub async fn discs(&self, album_id: Uuid) -> RepoResult<Vec<rows::DiscRow>> {
+        Ok(sqlx::query_as("SELECT * FROM repo_disc WHERE album_id = ? ORDER BY disc_id")
+            .bind(album_id)
+            .fetch_all(&self.pool)
+            .await?)
+    }
+
     pub async fn track(&self, album_id: Uuid, disc_id: u8, track_id: u8) -> RepoResult<Option<rows::TrackRow>> {
         Ok(sqlx::query_as("SELECT * FROM repo_track WHERE album_id = ? AND disc_id = ? AND track_id = ?")
             .bind(album_id)
             .bind(disc_id)
             .bind(track_id)
             .fetch_optional(&self.pool)
+            .await?)
+    }
+
+    pub async fn tracks(&self, album_id: Uuid, disc_id: u8) -> RepoResult<Vec<rows::TrackRow>> {
+        Ok(sqlx::query_as("SELECT * FROM repo_disc WHERE album_id = ? AND disc_id = ? ORDER BY track_id")
+            .bind(album_id)
+            .bind(disc_id)
+            .fetch_all(&self.pool)
             .await?)
     }
 
@@ -138,7 +153,7 @@ CREATE TABLE IF NOT EXISTS "repo_disc" (
 CREATE TABLE IF NOT EXISTS "repo_track" (
   "album_id"     BLOB NOT NULL,
   "disc_id"      INTEGER NOT NULL,
-  "track_id"     TEXT NOT NULL,
+  "track_id"     INTEGER NOT NULL,
   "title"        TEXT NOT NULL,
   "artist"       TEXT NOT NULL,
   "track_type"   TEXT NOT NULL DEFAULT 'normal' CHECK("track_type" IN ('normal', 'instrumental', 'absolute', 'drama', 'radio', 'vocal')),
