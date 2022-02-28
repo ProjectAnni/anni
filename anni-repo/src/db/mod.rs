@@ -22,7 +22,7 @@ impl RepoDatabaseRead {
         })
     }
 
-    pub async fn match_album(&mut self, catalog: &str, release_date: &crate::models::AnniDate, total_discs: u8, album_title: &str) -> RepoResult<Option<Uuid>> {
+    pub async fn match_album(&self, catalog: &str, release_date: &crate::models::AnniDate, total_discs: u8, album_title: &str) -> RepoResult<Option<Uuid>> {
         let albums: Vec<(Uuid, String)> = sqlx::query_as("
 SELECT album_id, title FROM repo_album
   WHERE catalog = ? AND release_date = ? AND disc_count = ?;
@@ -53,14 +53,14 @@ SELECT album_id, title FROM repo_album
         }
     }
 
-    pub async fn album(&mut self, album_id: Uuid) -> RepoResult<Option<rows::AlbumRow>> {
+    pub async fn album(&self, album_id: Uuid) -> RepoResult<Option<rows::AlbumRow>> {
         Ok(sqlx::query_as("SELECT * FROM repo_album WHERE album_id = ?")
             .bind(album_id)
             .fetch_optional(&self.pool)
             .await?)
     }
 
-    pub async fn disc(&mut self, album_id: Uuid, disc_id: u8) -> RepoResult<Option<rows::DiscRow>> {
+    pub async fn disc(&self, album_id: Uuid, disc_id: u8) -> RepoResult<Option<rows::DiscRow>> {
         Ok(sqlx::query_as("SELECT * FROM repo_disc WHERE album_id = ? AND disc_id = ?")
             .bind(album_id)
             .bind(disc_id)
@@ -68,7 +68,7 @@ SELECT album_id, title FROM repo_album
             .await?)
     }
 
-    pub async fn track(&mut self, album_id: Uuid, disc_id: u8, track_id: u8) -> RepoResult<Option<rows::TrackRow>> {
+    pub async fn track(&self, album_id: Uuid, disc_id: u8, track_id: u8) -> RepoResult<Option<rows::TrackRow>> {
         Ok(sqlx::query_as("SELECT * FROM repo_track WHERE album_id = ? AND disc_id = ? AND track_id = ?")
             .bind(album_id)
             .bind(disc_id)
@@ -403,6 +403,15 @@ CREATE INDEX IF NOT EXISTS "repo_tag_detail_index" ON "repo_tag_detail" (
         self.add_info("repo_url", repo_url).await?;
         self.add_info("repo_ref", repo_ref).await?;
         self.add_info("db_version", DB_VERSION).await?;
+        Ok(())
+    }
+
+    pub async fn add_detailed_artist(&mut self, key: &str, value: &str) -> RepoResult<()> {
+        sqlx::query("INSERT INTO repo_artists (key, value) VALUES (?, ?)")
+            .bind(key)
+            .bind(value)
+            .execute(&mut self.conn)
+            .await?;
         Ok(())
     }
 }
