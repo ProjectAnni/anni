@@ -468,8 +468,6 @@ struct CueTrack {
 
 fn cue_tracks<P: AsRef<Path>>(path: P) -> Vec<CueTrack> {
     let cue = anni_common::fs::read_to_string(path).unwrap();
-    // FIXME: https://github.com/snylonue/cuna/issues/5
-    let cue = cue.replace("FLAGS DCP", "");
     let cue = Cuna::new(&cue).unwrap();
     debug!("{:#?}", cue);
 

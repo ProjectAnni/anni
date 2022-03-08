@@ -851,9 +851,9 @@ dependencies = [
 
 [[package]]
 name = "cuna"
-version = "0.6.2"
+version = "0.6.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "485c1fd8a52ba6739ed0713945689580d5c29b885fd6cfab5aeeeca5987a227f"
+checksum = "a6ed2ffec9c5969b2bc30bb5c2d8e5c55d7867f9c124bfe52b3a2de7a7bb7666"
 dependencies = [
  "nom 6.1.2",
  "thiserror",
