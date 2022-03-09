@@ -1,18 +1,18 @@
-use actix_web::{HttpRequest, HttpMessage, FromRequest, web};
+use actix_web::{web, FromRequest, HttpMessage, HttpRequest};
 use jwt_simple::prelude::*;
-use serde::{Serialize, Deserialize};
+use serde::{Deserialize, Serialize};
 
 use std::task::{Context, Poll};
 
-use actix_web::{dev::ServiceRequest, dev::ServiceResponse, Error};
-use actix_utils::future::{ok, Ready};
-use actix_web::web::Query;
-use actix_web::dev::{Transform, Service, Payload};
-use futures::future::Either;
 use crate::error::AnnilError;
 use crate::AppState;
-use std::collections::HashMap;
+use actix_utils::future::{ok, Ready};
+use actix_web::dev::{Payload, Service, Transform};
 use actix_web::http::Method;
+use actix_web::web::Query;
+use actix_web::{dev::ServiceRequest, dev::ServiceResponse, Error};
+use futures::future::Either;
+use std::collections::HashMap;
 
 #[derive(Serialize, Deserialize, Clone)]
 pub struct UserClaim {
@@ -53,16 +53,15 @@ impl AnnilClaims {
             AnnilClaims::Share(s) => {
                 match s.audios.get(album_id) {
                     // album_id exist
-                    Some(album) =>
-                        match album.get(&format!("{}", disc_id)) {
-                            // disc_id exist
-                            Some(disc) => {
-                                // return whether track_id exist in list
-                                disc.contains(&track_id)
-                            }
-                            // disc_id does not exist
-                            None => false,
+                    Some(album) => match album.get(&format!("{}", disc_id)) {
+                        // disc_id exist
+                        Some(disc) => {
+                            // return whether track_id exist in list
+                            disc.contains(&track_id)
                         }
+                        // disc_id does not exist
+                        None => false,
+                    },
                     // album id does not exist
                     None => false,
                 }
@@ -79,9 +78,9 @@ impl AnnilClaims {
 pub struct AnnilAuth;
 
 impl<S> Transform<S, ServiceRequest> for AnnilAuth
-    where
-        S: Service<ServiceRequest, Response=ServiceResponse, Error=Error>,
-        S::Future: 'static,
+where
+    S: Service<ServiceRequest, Response = ServiceResponse, Error = Error>,
+    S::Future: 'static,
 {
     type Response = ServiceResponse;
     type Error = Error;
@@ -99,9 +98,9 @@ pub struct AnnilAuthMiddleware<S> {
 }
 
 impl<S> Service<ServiceRequest> for AnnilAuthMiddleware<S>
-    where
-        S: Service<ServiceRequest, Response=ServiceResponse, Error=Error>,
-        S::Future: 'static,
+where
+    S: Service<ServiceRequest, Response = ServiceResponse, Error = Error>,
+    S::Future: 'static,
 {
     type Response = ServiceResponse;
     type Error = Error;
@@ -112,7 +111,10 @@ impl<S> Service<ServiceRequest> for AnnilAuthMiddleware<S>
     }
 
     fn call(&self, req: ServiceRequest) -> Self::Future {
-        if matches!(req.method(), &Method::OPTIONS) || req.path() == "/info" || req.path().ends_with("/cover") {
+        if matches!(req.method(), &Method::OPTIONS)
+            || req.path() == "/info"
+            || req.path().ends_with("/cover")
+        {
             return Either::Left(self.service.call(req));
         }
 
@@ -122,14 +124,12 @@ impl<S> Service<ServiceRequest> for AnnilAuthMiddleware<S>
         }
 
         // get Authorization from header / query
-        let auth = req.headers()
-            .get("Authorization")
-            .map_or(
-                Query::<AuthQuery>::from_query(req.query_string())
-                    .ok()
-                    .map(|q| q.into_inner().auth),
-                |header| header.to_str().ok().map(|r| r.to_string()),
-            );
+        let auth = req.headers().get("Authorization").map_or(
+            Query::<AuthQuery>::from_query(req.query_string())
+                .ok()
+                .map(|q| q.into_inner().auth),
+            |header| header.to_str().ok().map(|r| r.to_string()),
+        );
         match auth {
             Some(auth) => {
                 // load app data
@@ -156,7 +156,7 @@ impl<S> Service<ServiceRequest> for AnnilAuthMiddleware<S>
                     }
                 }
             }
-            None => Either::Right(ok(req.error_response(AnnilError::Unauthorized)))
+            None => Either::Right(ok(req.error_response(AnnilError::Unauthorized))),
         }
     }
 }
@@ -164,8 +164,8 @@ impl<S> Service<ServiceRequest> for AnnilAuthMiddleware<S>
 #[test]
 fn test_sign() {
     let key = HS256Key::from_bytes(b"a token here");
-    let jwt = key.authenticate(
-        JWTClaims {
+    let jwt = key
+        .authenticate(JWTClaims {
             issued_at: Some(0.into()),
             expires_at: None,
             invalid_before: None,
@@ -174,11 +174,11 @@ fn test_sign() {
             audiences: None,
             jwt_id: None,
             nonce: None,
-            custom: UserClaim {
+            custom: AnnilClaims::User(UserClaim {
                 username: "test".to_string(),
                 allow_share: true,
-            },
-        }
-    ).expect("failed to sign jwt");
+            }),
+        })
+        .expect("failed to sign jwt");
     assert_eq!(jwt, "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpYXQiOjAsInR5cGUiOiJ1c2VyIiwidXNlcm5hbWUiOiJ0ZXN0IiwiYWxsb3dTaGFyZSI6dHJ1ZX0.7CH27OBvUnJhKxBdtZbJSXA-JIwQ4MWqI5JsZ46NoKk");
 }

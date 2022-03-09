@@ -1,16 +1,18 @@
-use anni_repo::album::{Album, TrackType};
+use anni_repo::prelude::*;
 use std::str::FromStr;
 
 fn album_from_str() -> Album {
-    Album::from_str(r#"
+    Album::from_str(
+        r#"
 [album]
-title = "夏凪ぎ/宝物になった日"
+album_id = "15006392-e2ae-4204-b7db-e59211f3cdcf"
+title = "夏凪ぎ／宝物になった日"
 edition = "Test"
 artist = "やなぎなぎ"
 date = 2020-12-16
 type = "normal"
 catalog = "KSLA-0178"
-tags = ["tag1", "tag2:e1", "tag3:special:e2", { "name" = "tag3", "edition" = "e2" }]
+tags = ["tag1", "tag2"]
 
 [[discs]]
 catalog = "KSLA-0178"
@@ -37,17 +39,27 @@ type = "instrumental"
 title = "宝物になった日(Instrumental)"
 artist = "麻枝准"
 type = "instrumental"
-"#).expect("Failed to parse album toml.")
+"#,
+    )
+    .expect("Failed to parse album toml.")
 }
 
 #[test]
 fn deserialize_album_toml() {
     let album = album_from_str();
-    assert_eq!(album.title(), "夏凪ぎ/宝物になった日【Test】");
+    assert_eq!(
+        album.album_id().to_string(),
+        "15006392-e2ae-4204-b7db-e59211f3cdcf".to_string()
+    );
+    assert_eq!(album.title(), "夏凪ぎ／宝物になった日【Test】");
     assert_eq!(album.artist(), "やなぎなぎ");
     assert_eq!(album.release_date().to_string(), "2020-12-16");
     assert_eq!(album.track_type().as_ref(), "normal");
     assert_eq!(album.catalog(), "KSLA-0178");
+
+    let tags = album.tags();
+    assert_eq!(tags[0].name(), "tag1");
+    assert_eq!(tags[1].name(), "tag2");
 
     // TODO: assert for tags
     for disc in album.discs() {
@@ -93,12 +105,17 @@ fn deserialize_album_toml() {
 #[test]
 fn serialize_album() {
     let album = album_from_str();
-    assert_eq!(album.to_string(), r#"[album]
-title = "夏凪ぎ/宝物になった日"
+    assert_eq!(
+        album.to_string(),
+        r#"[album]
+album_id = "15006392-e2ae-4204-b7db-e59211f3cdcf"
+title = "夏凪ぎ／宝物になった日"
+edition = "Test"
 artist = "やなぎなぎ"
 date = 2020-12-16
 type = "normal"
 catalog = "KSLA-0178"
+tags = ["tag1", "tag2"]
 
 [[discs]]
 catalog = "KSLA-0178"
@@ -125,5 +142,6 @@ type = "instrumental"
 title = "宝物になった日(Instrumental)"
 artist = "麻枝准"
 type = "instrumental"
-"#);
+"#
+    );
 }

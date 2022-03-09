@@ -1,8 +1,8 @@
 use anni_artist::ArtistList;
-use std::str::FromStr;
 use regex::Regex;
-use serde::{Deserialize, Deserializer};
 use serde::de::Error;
+use serde::{Deserialize, Deserializer};
+use std::str::FromStr;
 
 pub struct Validator(&'static str, fn(&str) -> ValidateResult);
 
@@ -28,14 +28,15 @@ impl FromStr for Validator {
             "date" => Ok(Self("date", date_validator)),
             "artist" => Ok(Self("artist", artist_validator)),
             "dot" => Ok(Self("dot", middle_dot_validator)),
-            _ => Err(())
+            _ => Err(()),
         }
     }
 }
 
 impl<'de> Deserialize<'de> for Validator {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-        where D: Deserializer<'de>
+    where
+        D: Deserializer<'de>,
     {
         let s = String::deserialize(deserializer)?;
         Validator::from_str(s.as_str()).map_err(|_| D::Error::custom(s))
@@ -148,52 +149,53 @@ pub fn middle_dot_replace(input: &str) -> String {
 
 #[cfg(test)]
 mod tests {
-    use crate::validator::{trim_validator, date_validator, middle_dot_validator, middle_dot_replace};
+    use crate::validator::{
+        date_validator, middle_dot_replace, middle_dot_validator, trim_validator,
+    };
 
     #[test]
     fn trim_exist() {
-        assert!(!trim_validator("  1234"));
-        assert!(!trim_validator("1234   "));
-        assert!(!trim_validator("\n1234"));
+        assert!(!trim_validator("  1234").valid);
+        assert!(!trim_validator("1234   ").valid);
+        assert!(!trim_validator("\n1234").valid);
     }
 
     #[test]
     fn trim_not_exist() {
-        assert!(trim_validator("1234"));
+        assert!(trim_validator("1234").valid);
     }
 
     #[test]
     fn date_valid() {
-        assert!(date_validator("2021-01-01"));
+        assert!(date_validator("2021-01-01").valid);
     }
 
     #[test]
     fn date_invalid() {
-        assert!(!date_validator("2020-01-012"));
-        assert!(!date_validator("2020~01-01"));
-        assert!(!date_validator("2020"));
-        assert!(!date_validator("?"));
+        assert!(!date_validator("2020-01-012").valid);
+        assert!(!date_validator("2020~01-01").valid);
+        assert!(!date_validator("?").valid);
     }
 
     #[test]
     fn middle_dot_detect() {
-        assert!(middle_dot_validator("123"));
+        assert!(middle_dot_validator("123").valid);
 
-        assert!(!middle_dot_validator("\u{0087}"));
-        assert!(!middle_dot_validator("\u{0087}"));
-        assert!(!middle_dot_validator("\u{0387}"));
-        assert!(!middle_dot_validator("\u{16eb}"));
-        assert!(!middle_dot_validator("\u{2022}"));
-        assert!(!middle_dot_validator("\u{2027}"));
-        assert!(!middle_dot_validator("\u{2218}"));
-        assert!(!middle_dot_validator("\u{2219}"));
-        assert!(!middle_dot_validator("\u{22c5}"));
-        assert!(!middle_dot_validator("\u{25e6}"));
-        assert!(!middle_dot_validator("\u{2981}"));
-        assert!(!middle_dot_validator("\u{2e30}"));
-        assert!(!middle_dot_validator("\u{2e31}"));
-        assert!(!middle_dot_validator("\u{ff65}"));
-        assert!(!middle_dot_validator("\u{10101}"));
+        assert!(!middle_dot_validator("\u{0087}").valid);
+        assert!(!middle_dot_validator("\u{0087}").valid);
+        assert!(!middle_dot_validator("\u{0387}").valid);
+        assert!(!middle_dot_validator("\u{16eb}").valid);
+        assert!(!middle_dot_validator("\u{2022}").valid);
+        assert!(!middle_dot_validator("\u{2027}").valid);
+        assert!(!middle_dot_validator("\u{2218}").valid);
+        assert!(!middle_dot_validator("\u{2219}").valid);
+        assert!(!middle_dot_validator("\u{22c5}").valid);
+        assert!(!middle_dot_validator("\u{25e6}").valid);
+        assert!(!middle_dot_validator("\u{2981}").valid);
+        assert!(!middle_dot_validator("\u{2e30}").valid);
+        assert!(!middle_dot_validator("\u{2e31}").valid);
+        assert!(!middle_dot_validator("\u{ff65}").valid);
+        assert!(!middle_dot_validator("\u{10101}").valid);
     }
 
     #[test]

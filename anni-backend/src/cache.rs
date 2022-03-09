@@ -1,17 +1,17 @@
-use std::borrow::Cow;
-use crate::{Backend, BackendError, BackendReaderExt, BackendReader};
-use std::path::{PathBuf, Path};
-use std::collections::{HashSet, HashMap, BTreeMap};
+use crate::{Backend, BackendError, BackendReader, BackendReaderExt};
 use async_trait::async_trait;
-use std::sync::Arc;
-use tokio::io::{AsyncRead, ReadBuf};
-use std::task::{Context, Poll};
-use std::pin::Pin;
-use tokio::time::Duration;
-use std::future::Future;
-use tokio::fs::File;
 use parking_lot::RwLock;
+use std::borrow::Cow;
+use std::collections::{BTreeMap, HashMap, HashSet};
+use std::future::Future;
+use std::path::{Path, PathBuf};
+use std::pin::Pin;
+use std::sync::Arc;
+use std::task::{Context, Poll};
 use std::time::SystemTime;
+use tokio::fs::File;
+use tokio::io::{AsyncRead, ReadBuf};
+use tokio::time::Duration;
 
 pub struct Cache {
     inner: Box<dyn Backend + Send + Sync>,
@@ -20,14 +20,14 @@ pub struct Cache {
 
 impl Cache {
     pub fn new(inner: Box<dyn Backend + Send + Sync>, pool: Arc<CachePool>) -> Self {
-        Self {
-            inner,
-            pool,
-        }
+        Self { inner, pool }
     }
 
     pub fn invalidate(&self, album_id: &str, disc_id: u8, track_id: u8) {
-        self.pool.remove(&do_hash(format!("{}/{:02}/{:02}", album_id, disc_id, track_id)));
+        self.pool.remove(&do_hash(format!(
+            "{}/{:02}/{:02}",
+            album_id, disc_id, track_id
+        )));
     }
 }
 
@@ -38,14 +38,25 @@ impl Backend for Cache {
         self.inner.albums().await
     }
 
-    async fn get_audio(&self, album_id: &str, disc_id: u8, track_id: u8) -> Result<BackendReaderExt, BackendError> {
-        self.pool.fetch(
-            do_hash(format!("{}/{:02}/{:02}", album_id, disc_id, track_id)),
-            self.inner.get_audio(album_id, disc_id, track_id),
-        ).await
+    async fn get_audio(
+        &self,
+        album_id: &str,
+        disc_id: u8,
+        track_id: u8,
+    ) -> Result<BackendReaderExt, BackendError> {
+        self.pool
+            .fetch(
+                do_hash(format!("{}/{:02}/{:02}", album_id, disc_id, track_id)),
+                self.inner.get_audio(album_id, disc_id, track_id),
+            )
+            .await
     }
 
-    async fn get_cover(&self, album_id: &str, disc_id: Option<u8>) -> Result<BackendReader, BackendError> {
+    async fn get_cover(
+        &self,
+        album_id: &str,
+        disc_id: Option<u8>,
+    ) -> Result<BackendReader, BackendError> {
         // TODO: cache cover
         self.inner.get_cover(album_id, disc_id).await
     }
@@ -79,9 +90,12 @@ impl CachePool {
     async fn fetch(
         &self,
         key: String,
-        on_miss: impl Future<Output=Result<BackendReaderExt, BackendError>>,
+        on_miss: impl Future<Output = Result<BackendReaderExt, BackendError>>,
     ) -> Result<BackendReaderExt, BackendError> {
-        let now = SystemTime::now().duration_since(SystemTime::UNIX_EPOCH).unwrap().as_millis();
+        let now = SystemTime::now()
+            .duration_since(SystemTime::UNIX_EPOCH)
+            .unwrap()
+            .as_millis();
         let item = if !self.has_cache(&key) {
             // calculate current space used
             let space_used = self.space_used();
@@ -89,7 +103,12 @@ impl CachePool {
             // prepare for new item
             let path = self.root.join(&key);
             let mut file = tokio::fs::File::create(&path).await?;
-            let BackendReaderExt { extension, size, duration, mut reader } = on_miss.await?;
+            let BackendReaderExt {
+                extension,
+                size,
+                duration,
+                mut reader,
+            } = on_miss.await?;
             let item = Arc::new(CacheItem::new(path, extension, size, duration, false));
 
             // write to map
@@ -140,12 +159,17 @@ impl CachePool {
     }
 
     fn space_used(&self) -> usize {
-        self.cache.read().values().map(|a| a.size()).reduce(|a, b| a + b).unwrap_or(0)
+        self.cache
+            .read()
+            .values()
+            .map(|a| a.size())
+            .reduce(|a, b| a + b)
+            .unwrap_or(0)
     }
 }
 
 fn do_hash(key: String) -> String {
-    use sha2::{Sha256, Digest};
+    use sha2::{Digest, Sha256};
     let mut hasher = Sha256::new();
     Sha256::update(&mut hasher, key);
     let result = hasher.finalize();
@@ -232,11 +256,15 @@ struct CacheItemReader {
     file: Pin<Box<tokio::fs::File>>,
     filled: usize,
 
-    timer: Option<Pin<Box<dyn Future<Output=()> + Send>>>,
+    timer: Option<Pin<Box<dyn Future<Output = ()> + Send>>>,
 }
 
 impl AsyncRead for CacheItemReader {
-    fn poll_read(mut self: Pin<&mut Self>, cx: &mut Context<'_>, buf: &mut ReadBuf<'_>) -> Poll<std::io::Result<()>> {
+    fn poll_read(
+        mut self: Pin<&mut Self>,
+        cx: &mut Context<'_>,
+        buf: &mut ReadBuf<'_>,
+    ) -> Poll<std::io::Result<()>> {
         // Wait mode
         if self.timer.is_some() {
             let task = self.timer.as_mut().unwrap();
@@ -275,7 +303,8 @@ impl AsyncRead for CacheItemReader {
                         } else {
                             // not done, wait for more data
                             // set up timer to wait
-                            self.timer = Some(Box::pin(tokio::time::sleep(Duration::from_millis(100))));
+                            self.timer =
+                                Some(Box::pin(tokio::time::sleep(Duration::from_millis(100))));
                             // wait immediately to poll the timer
                             cx.waker().wake_by_ref();
                             Poll::Pending
@@ -291,39 +320,39 @@ impl AsyncRead for CacheItemReader {
     }
 }
 
-#[cfg(test)]
-mod test {
-    use crate::cache::{Cache, CachePool};
-    use crate::backends::drive::{DriveBackendSettings, DriveBackend};
-    use std::path::PathBuf;
-    use crate::Backend;
-    use tokio::io::AsyncReadExt;
-    use std::sync::Arc;
+// #[cfg(test)]
+// mod test {
+//     use crate::cache::{Cache, CachePool};
+//     use crate::backends::drive::{DriveBackendSettings, DriveBackend};
+//     use std::path::PathBuf;
+//     use crate::Backend;
+//     use tokio::io::AsyncReadExt;
+//     use std::sync::Arc;
 
-    #[tokio::test]
-    async fn test_cache() {
-        panic!("cache test can not run properly!");
+//     #[tokio::test]
+//     async fn test_cache() {
+//         panic!("cache test can not run properly!");
 
-        let mut cache = Cache::new(
-            Box::new(DriveBackend::new(Default::default(), DriveBackendSettings {
-                corpora: "drive".to_string(),
-                drive_id: Some("0AJIJiIDxF1yBUk9PVA".to_string()),
-                token_path: "/tmp/anni_token".to_string(),
-            }).await.unwrap()),
-            Arc::new(CachePool {
-                root: PathBuf::from("/tmp"),
-                max_size: 0,
-                cache: Default::default(),
-                last_used: Default::default(),
-            }),
-        );
-        cache.albums().await.unwrap();
-        let mut reader = cache.get_audio("TGCS-10948", 1).await.unwrap();
-        let mut r = Vec::new();
-        reader.reader.read_to_end(&mut r).await.unwrap();
-        let mut w = Vec::new();
-        let mut file = tokio::fs::File::open("/tmp/90e369a90385e1c4467fe1d5dc3e3e69d8a0e24b05d0379b9131de6d579dbb08").await.unwrap();
-        file.read_to_end(&mut w).await.unwrap();
-        assert_eq!(r, w);
-    }
-}
+//         let mut cache = Cache::new(
+//             Box::new(DriveBackend::new(Default::default(), DriveBackendSettings {
+//                 corpora: "drive".to_string(),
+//                 drive_id: Some("0AJIJiIDxF1yBUk9PVA".to_string()),
+//                 token_path: "/tmp/anni_token".to_string(),
+//             }).await.unwrap()),
+//             Arc::new(CachePool {
+//                 root: PathBuf::from("/tmp"),
+//                 max_size: 0,
+//                 cache: Default::default(),
+//                 last_used: Default::default(),
+//             }),
+//         );
+//         cache.albums().await.unwrap();
+//         let mut reader = cache.get_audio("TGCS-10948", 1).await.unwrap();
+//         let mut r = Vec::new();
+//         reader.reader.read_to_end(&mut r).await.unwrap();
+//         let mut w = Vec::new();
+//         let mut file = tokio::fs::File::open("/tmp/90e369a90385e1c4467fe1d5dc3e3e69d8a0e24b05d0379b9131de6d579dbb08").await.unwrap();
+//         file.read_to_end(&mut w).await.unwrap();
+//         assert_eq!(r, w);
+//     }
+// }
