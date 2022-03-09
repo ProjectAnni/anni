@@ -6,7 +6,7 @@ bit-per-sample = 16
 
 # Global type validators
 [types]
-string = ["trim", "dot"]
+string = ["trim", "dot", "tidle"]
 number = ["number"]
 
 # Required Tags

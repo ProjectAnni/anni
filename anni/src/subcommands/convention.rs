@@ -1,17 +1,17 @@
-use clap::Parser;
+use crate::args::{FlacInputPath, InputPath};
+use crate::config::read_config;
 use crate::ll;
-use std::path::{Path, PathBuf};
-use std::collections::{HashSet, HashMap};
+use anni_clap_handler::{handler, Context, Handler};
 use anni_common::validator::*;
+use anni_flac::blocks::{BlockStreamInfo, BlockVorbisComment, PictureType};
+use anni_flac::{FlacHeader, MetadataBlockData};
+use clap::Parser;
+use serde::de::Error;
 use serde::{Deserialize, Deserializer};
+use std::collections::{HashMap, HashSet};
+use std::path::{Path, PathBuf};
 use std::rc::Rc;
 use std::str::FromStr;
-use serde::de::Error;
-use crate::config::read_config;
-use anni_flac::{FlacHeader, MetadataBlockData};
-use anni_flac::blocks::{BlockVorbisComment, BlockStreamInfo, PictureType};
-use crate::args::{InputPath, FlacInputPath};
-use anni_clap_handler::{Context, Handler, handler};
 
 #[derive(Parser, Debug, Clone)]
 #[clap(about = ll ! ("convention"))]
@@ -24,11 +24,13 @@ pub struct ConventionSubcommand {
 impl Handler for ConventionSubcommand {
     fn handle_command(&mut self, ctx: &mut Context) -> anyhow::Result<()> {
         // Initialize rules
-        let config: ConventionConfig = read_config("convention").map_err(|e| {
-            debug!(target: "convention", "Failed to read convention.toml: {}", e);
-            debug!(target: "convention", "Using default anni convention");
-            e
-        }).unwrap_or_default();
+        let config: ConventionConfig = read_config("convention")
+            .map_err(|e| {
+                debug!(target: "convention", "Failed to read convention.toml: {}", e);
+                debug!(target: "convention", "Using default anni convention");
+                e
+            })
+            .unwrap_or_default();
         let rules = config.into_rules();
         ctx.insert(rules);
         Ok(())
@@ -65,7 +67,9 @@ fn convention_check(me: &ConventionCheckAction, rules: &ConventionRules) -> anyh
                 Ok(mut flac) => {
                     rules.validate(file, &mut flac, me.fix);
                 }
-                Err(e) => error!(target: "convention/parse", "Failed to parse header of file {}: {:?}", file.to_string_lossy(), e),
+                Err(e) => {
+                    error!(target: "convention/parse", "Failed to parse header of file {}: {:?}", file.to_string_lossy(), e)
+                }
             }
         }
     }
@@ -84,7 +88,9 @@ struct ConventionRules {
 
 impl ConventionRules {
     pub(crate) fn validate<P>(&self, filename: P, flac: &mut FlacHeader, fix: bool)
-        where P: AsRef<Path> {
+    where
+        P: AsRef<Path>,
+    {
         let mut fixed = false;
 
         // validate stream info
@@ -107,7 +113,9 @@ impl ConventionRules {
 
         // validate comments
         match flac.comments() {
-            None => error!(target: "convention/comment", "No VorbisComment block found in file {}!", filename.as_ref().to_string_lossy()),
+            None => {
+                error!(target: "convention/comment", "No VorbisComment block found in file {}!", filename.as_ref().to_string_lossy())
+            }
             Some(_) => {
                 let c = flac.comments_mut();
                 let (comment_fixed, new_path) = self.validate_tags(filename.as_ref(), c, fix);
@@ -125,7 +133,9 @@ impl ConventionRules {
     }
 
     fn validate_stream_info<P>(&self, filename: P, info: &BlockStreamInfo)
-        where P: AsRef<Path> {
+    where
+        P: AsRef<Path>,
+    {
         let filename = filename.as_ref().to_string_lossy();
         self.stream_info.sample_rate.iter().for_each(|expected| {
             if !expected.contains(&info.sample_rate) {
@@ -144,8 +154,15 @@ impl ConventionRules {
         });
     }
 
-    fn validate_tags<P>(&self, filename: P, comment: &mut BlockVorbisComment, fix: bool) -> (bool, Option<PathBuf>)
-        where P: AsRef<Path> {
+    fn validate_tags<P>(
+        &self,
+        filename: P,
+        comment: &mut BlockVorbisComment,
+        fix: bool,
+    ) -> (bool, Option<PathBuf>)
+    where
+        P: AsRef<Path>,
+    {
         let mut fixed = false;
         let mut new_path = None;
 
@@ -237,8 +254,12 @@ impl ConventionRules {
             } else if &tag.name == "ARTIST" {
                 // additional artist name check
                 match value {
-                    "[Unknown Artist]" | "UnknownArtist" => error!(target: "convention/tag/artist", "Invalid artist: {} in file: {}", value, filename_str),
-                    "Various Artists" => warn!(target: "convention/tag/artist", "Various Artist is used as track artist in file: {}. Could it be more accurate?", filename_str),
+                    "[Unknown Artist]" | "UnknownArtist" => {
+                        error!(target: "convention/tag/artist", "Invalid artist: {} in file: {}", value, filename_str)
+                    }
+                    "Various Artists" => {
+                        warn!(target: "convention/tag/artist", "Various Artist is used as track artist in file: {}. Could it be more accurate?", filename_str)
+                    }
                     _ => {}
                 }
             }
@@ -251,8 +272,14 @@ impl ConventionRules {
 
         // Filename check
         if let (Some(title), Some(track_number)) = (title, track_number) {
-            let filename_expected: &str = &format!("{:0>2}. {}.flac", track_number, title).replace("/", "／");
-            let filename_raw = filename.as_ref().file_name().unwrap().to_str().expect("Non-UTF8 filenames are currently not supported!");
+            let filename_expected: &str =
+                &format!("{:0>2}. {}.flac", track_number, title).replace("/", "／");
+            let filename_raw = filename
+                .as_ref()
+                .file_name()
+                .unwrap()
+                .to_str()
+                .expect("Non-UTF8 filenames are currently not supported!");
             if filename_raw != filename_expected {
                 error!(target: "convention/filename", "Filename of file: {} mismatch. Expected {}", filename_str, filename_expected);
                 if fix {
@@ -314,9 +341,21 @@ impl Default for ConventionConfig {
         Self {
             stream_info: Default::default(),
             types: vec![
-                ("string".to_string(), vec![Validator::from_str("trim").unwrap(), Validator::from_str("dot").unwrap()]),
-                ("number".to_string(), vec![Validator::from_str("number").unwrap()]),
-            ].into_iter().collect(),
+                (
+                    "string".to_string(),
+                    vec![
+                        Validator::from_str("trim").unwrap(),
+                        Validator::from_str("dot").unwrap(),
+                        Validator::from_str("tidle").unwrap(),
+                    ],
+                ),
+                (
+                    "number".to_string(),
+                    vec![Validator::from_str("number").unwrap()],
+                ),
+            ]
+            .into_iter()
+            .collect(),
             tags: ConventionTagConfig {
                 required: vec![
                     ConventionTag {
@@ -448,14 +487,15 @@ impl ValueType {
     pub(crate) fn as_str(&self) -> &'static str {
         match self {
             ValueType::String => "string",
-            ValueType::Number => "number"
+            ValueType::Number => "number",
         }
     }
 }
 
 impl<'de> Deserialize<'de> for ValueType {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-        where D: Deserializer<'de>
+    where
+        D: Deserializer<'de>,
     {
         let s = String::deserialize(deserializer)?;
         match s.as_str() {
