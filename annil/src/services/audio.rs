@@ -16,9 +16,9 @@ pub async fn audio_head(claim: AnnilClaims, path: web::Path<(String, u8, u8)>, d
         return AnnilError::Unauthorized.error_response();
     }
 
-    for backend in data.backends.read().await.iter() {
-        if backend.has_album(&album_id).await {
-            let audio = backend.get_audio(&album_id, disc_id, track_id, Some("bytes=0-42".into())).await.map_err(|_| AnnilError::NotFound);
+    for provider in data.providers.read().await.iter() {
+        if provider.has_album(&album_id).await {
+            let audio = provider.get_audio(&album_id, disc_id, track_id, Some("bytes=0-42".into())).await.map_err(|_| AnnilError::NotFound);
             return match audio {
                 Ok(audio) => {
                     let transcode = if claim.is_guest() { true } else { query.prefer_bitrate.as_deref().unwrap_or("medium") != "lossless" };
@@ -61,11 +61,11 @@ pub async fn audio(claim: AnnilClaims, path: web::Path<(String, u8, u8)>, data: 
     };
     let range = req.headers().get("Range").map(|r| r.to_str().unwrap_or("0-42").to_string());
 
-    for backend in data.backends.read().await.iter() {
-        if backend.has_album(&album_id).await {
+    for provider in data.providers.read().await.iter() {
+        if provider.has_album(&album_id).await {
             // range is only supported on lossless
             let range = if bitrate.is_some() { None } else { range };
-            let audio = backend.get_audio(&album_id, disc_id, track_id, range).await.map_err(|_| AnnilError::NotFound);
+            let audio = provider.get_audio(&album_id, disc_id, track_id, range).await.map_err(|_| AnnilError::NotFound);
             if let Err(e) = audio {
                 return e.error_response();
             }

@@ -12,9 +12,9 @@ pub struct CoverPath {
 /// Get audio cover of an album with {album_id} and optional {disc_id}
 pub async fn cover(path: web::Path<CoverPath>, data: web::Data<AppState>) -> impl Responder {
     let CoverPath { album_id, disc_id } = path.into_inner();
-    for backend in data.backends.read().await.iter() {
-        if backend.has_album(&album_id).await {
-            return match backend.get_cover(&album_id, disc_id).await {
+    for provider in data.providers.read().await.iter() {
+        if provider.has_album(&album_id).await {
+            return match provider.get_cover(&album_id, disc_id).await {
                 Ok(cover) => {
                     HttpResponse::Ok()
                         .content_type("image/jpeg")

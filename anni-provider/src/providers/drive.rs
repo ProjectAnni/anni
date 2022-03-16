@@ -60,7 +60,7 @@ impl DriveAuth {
     }
 }
 
-pub struct DriveBackendSettings {
+pub struct DriveProviderSettings {
     pub corpora: String,
     pub drive_id: Option<String>,
     pub token_path: String,
@@ -84,21 +84,21 @@ pub struct DriveBackend {
     /// file_id <-> (extension, filesize)
     audios: DashMap<String, (String, usize)>,
     /// Settings
-    settings: DriveBackendSettings,
+    settings: DriveProviderSettings,
     repo: RepoDatabaseRead,
     /// Semaphore for rate limiting
     semaphore: Semaphore,
 }
 
 impl DriveBackend {
-    pub async fn new(auth: DriveAuth, settings: DriveBackendSettings, repo: RepoDatabaseRead) -> Result<Self, ProviderError> {
+    pub async fn new(auth: DriveAuth, settings: DriveProviderSettings, repo: RepoDatabaseRead) -> Result<Self, ProviderError> {
         let auth = auth.build(&settings.token_path).await?;
         auth.token(&[
             "https://www.googleapis.com/auth/drive.metadata.readonly",
             "https://www.googleapis.com/auth/drive.readonly",
         ]).await?;
         let hub = DriveHub::new(hyper::Client::builder().build(hyper_rustls::HttpsConnector::with_native_roots()), auth);
-        let mut backend = Self {
+        let mut this = Self {
             hub: Box::new(hub),
             folders: Default::default(),
             discs: Default::default(),
@@ -108,8 +108,8 @@ impl DriveBackend {
             repo,
             semaphore: Semaphore::new(100),
         };
-        backend.reload().await?;
-        Ok(backend)
+        this.reload().await?;
+        Ok(this)
     }
 
     fn prepare_list(&self) -> FileListCall {

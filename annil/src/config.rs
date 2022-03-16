@@ -6,7 +6,8 @@ use std::collections::HashMap;
 #[derive(Serialize, Deserialize)]
 pub struct Config {
     pub server: ServerConfig,
-    pub backends: HashMap<String, BackendConfig>,
+    #[serde(rename = "backends")]
+    pub providers: HashMap<String, ProviderConfig>,
 }
 
 impl Config {
@@ -46,15 +47,15 @@ impl ServerConfig {
 }
 
 #[derive(Serialize, Deserialize)]
-pub struct BackendConfig {
+pub struct ProviderConfig {
     pub enable: bool,
     pub db: PathBuf,
     #[serde(flatten)]
-    pub item: BackendItem,
+    pub item: ProviderItem,
     cache: Option<CacheConfig>,
 }
 
-impl BackendConfig {
+impl ProviderConfig {
     #[inline]
     pub fn cache(&self) -> Option<&CacheConfig> {
         self.cache.as_ref()
@@ -63,7 +64,7 @@ impl BackendConfig {
 
 #[derive(Serialize, Deserialize)]
 #[serde(tag = "type")]
-pub enum BackendItem {
+pub enum ProviderItem {
     #[serde(rename = "file")]
     #[serde(rename_all = "kebab-case")]
     File { root: String },

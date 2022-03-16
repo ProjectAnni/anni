@@ -3,13 +3,13 @@ use anni_provider::{ProviderError, AudioResourceReader, AnniProvider};
 use tokio::io::AsyncRead;
 use std::collections::HashSet;
 
-pub struct AnnilBackend {
+pub struct AnnilProvider {
     name: String,
     enabled: bool,
     inner: Box<dyn AnniProvider + Send + Sync>,
 }
 
-impl AnnilBackend {
+impl AnnilProvider {
     pub async fn new(name: String, inner: Box<dyn AnniProvider + Send + Sync>, enable: bool) -> Result<Self, ProviderError> {
         Ok(Self {
             name,
@@ -36,7 +36,7 @@ impl AnnilBackend {
     }
 
     pub async fn reload(&mut self) -> Result<(), ProviderError> {
-        log::debug!("[{}] Reloading backend albums", self.name());
+        log::debug!("[{}] Reloading provider albums", self.name());
         self.inner.reload().await?;
         Ok(())
     }

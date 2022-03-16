@@ -21,11 +21,11 @@ pub struct AudioResourceReader {
     pub reader: ResourceReader,
 }
 
-/// AnniProvider is a common trait for anni backends.
-/// It provides functions to update albums, and read from an initialized backend.
+/// AnniProvider is a common trait for anni resource providers.
+/// It provides functions to get cover, audio, album list and reload.
 #[async_trait]
 pub trait AnniProvider {
-    /// Get album information provided by backend.
+    /// Get album information provided by provider.
     async fn albums(&self) -> Result<HashSet<Cow<str>>, ProviderError>;
 
     /// Returns a reader implements AsyncRead for content reading
@@ -34,7 +34,7 @@ pub trait AnniProvider {
     /// Returns a cover of corresponding album
     async fn get_cover(&self, album_id: &str, disc_id: Option<u8>) -> Result<ResourceReader, ProviderError>;
 
-    /// Reloads the backend for new albums
+    /// Reloads the provider for new albums
     async fn reload(&mut self) -> Result<(), ProviderError>;
 }
 

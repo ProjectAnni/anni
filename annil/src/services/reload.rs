@@ -4,9 +4,9 @@ use crate::AppState;
 
 #[post("/reload")]
 async fn reload(data: web::Data<AppState>) -> impl Responder {
-    for backend in data.backends.write().await.iter_mut() {
-        if let Err(e) = backend.reload().await {
-            log::error!("Failed to reload backend {}: {:?}", backend.name(), e);
+    for provider in data.providers.write().await.iter_mut() {
+        if let Err(e) = provider.reload().await {
+            log::error!("Failed to reload provider {}: {:?}", provider.name(), e);
         }
     }
     *data.last_update.write().await = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs();

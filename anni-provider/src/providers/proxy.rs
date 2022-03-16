@@ -87,7 +87,7 @@ impl AnniProvider for ProxyBackend {
     }
 
     async fn reload(&mut self) -> Result<(), ProviderError> {
-        // proxy backend does not need to be reloaded
+        // proxy provider does not need to be reloaded
         Ok(())
     }
 }

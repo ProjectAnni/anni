@@ -63,7 +63,7 @@ impl AnniProvider for Cache {
     }
 
     async fn reload(&mut self) -> Result<(), ProviderError> {
-        // reload the inner backend
+        // reload the inner provider
         self.inner.reload().await
     }
 }
@@ -155,7 +155,7 @@ impl CachePool {
             self.cache.read().get(&key).unwrap().clone()
         };
 
-        Ok(item.to_backend_reader_ext(tokio::fs::File::open(&item.path).await?))
+        Ok(item.to_audio_resource_reader(tokio::fs::File::open(&item.path).await?))
     }
 
     fn remove(&self, key: &str) {
@@ -224,7 +224,7 @@ impl CacheItem {
 trait CacheReader {
     fn to_reader(&self, file: tokio::fs::File) -> CacheItemReader;
 
-    fn to_backend_reader_ext(&self, file: tokio::fs::File) -> AudioResourceReader;
+    fn to_audio_resource_reader(&self, file: tokio::fs::File) -> AudioResourceReader;
 }
 
 impl CacheReader for Arc<CacheItem> {
@@ -237,7 +237,7 @@ impl CacheReader for Arc<CacheItem> {
         }
     }
 
-    fn to_backend_reader_ext(&self, file: File) -> AudioResourceReader {
+    fn to_audio_resource_reader(&self, file: File) -> AudioResourceReader {
         AudioResourceReader {
             extension: self.ext.clone(),
             size: self.size(),
@@ -329,40 +329,3 @@ impl AsyncRead for CacheItemReader {
         }
     }
 }
-
-// #[cfg(test)]
-// mod test {
-//     use crate::cache::{Cache, CachePool};
-//     use crate::backends::drive::{DriveBackendSettings, DriveBackend};
-//     use std::path::PathBuf;
-//     use crate::Backend;
-//     use tokio::io::AsyncReadExt;
-//     use std::sync::Arc;
-
-//     #[tokio::test]
-//     async fn test_cache() {
-//         panic!("cache test can not run properly!");
-
-//         let mut cache = Cache::new(
-//             Box::new(DriveBackend::new(Default::default(), DriveBackendSettings {
-//                 corpora: "drive".to_string(),
-//                 drive_id: Some("0AJIJiIDxF1yBUk9PVA".to_string()),
-//                 token_path: "/tmp/anni_token".to_string(),
-//             }).await.unwrap()),
-//             Arc::new(CachePool {
-//                 root: PathBuf::from("/tmp"),
-//                 max_size: 0,
-//                 cache: Default::default(),
-//                 last_used: Default::default(),
-//             }),
-//         );
-//         cache.albums().await.unwrap();
-//         let mut reader = cache.get_audio("TGCS-10948", 1).await.unwrap();
-//         let mut r = Vec::new();
-//         reader.reader.read_to_end(&mut r).await.unwrap();
-//         let mut w = Vec::new();
-//         let mut file = tokio::fs::File::open("/tmp/90e369a90385e1c4467fe1d5dc3e3e69d8a0e24b05d0379b9131de6d579dbb08").await.unwrap();
-//         file.read_to_end(&mut w).await.unwrap();
-//         assert_eq!(r, w);
-//     }
-// }

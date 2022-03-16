@@ -1,4 +1,4 @@
-mod backend;
+mod provider;
 mod config;
 mod auth;
 mod share;
@@ -9,15 +9,15 @@ use actix_web::{HttpServer, App, web};
 use std::sync::Arc;
 use anni_provider::providers::{FileBackend, DriveBackend};
 use std::path::PathBuf;
-use crate::backend::AnnilBackend;
-use crate::config::{Config, BackendItem};
+use crate::provider::AnnilProvider;
+use crate::config::{Config, ProviderItem};
 use actix_web::middleware::Logger;
 use jwt_simple::prelude::HS256Key;
 use crate::auth::{AnnilAuth, AnnilClaims};
 use anni_provider::{AnniProvider, RepoDatabaseRead};
 use std::collections::HashMap;
 use anni_provider::cache::{CachePool, Cache};
-use anni_provider::providers::drive::DriveBackendSettings;
+use anni_provider::providers::drive::DriveProviderSettings;
 use actix_cors::Cors;
 use crate::error::AnnilError;
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -26,7 +26,7 @@ use tokio::sync::RwLock;
 use crate::services::*;
 
 pub struct AppState {
-    backends: RwLock<Vec<AnnilBackend>>,
+    providers: RwLock<Vec<AnnilProvider>>,
     key: HS256Key,
     reload_token: String,
 
@@ -35,43 +35,43 @@ pub struct AppState {
 }
 
 async fn init_state(config: &Config) -> anyhow::Result<web::Data<AppState>> {
-    log::info!("Start initializing backends...");
+    log::info!("Start initializing providers...");
     let now = SystemTime::now();
-    let mut backends = Vec::with_capacity(config.backends.len());
+    let mut providers = Vec::with_capacity(config.providers.len());
     let mut caches = HashMap::new();
-    for (backend_name, backend_config) in config.backends.iter() {
-        log::debug!("Initializing backend: {}", backend_name);
-        let repo = RepoDatabaseRead::new(&backend_config.db.to_string_lossy()).await?;
-        let mut backend: Box<dyn AnniProvider + Send + Sync> = match &backend_config.item {
-            BackendItem::File { root } =>
+    for (provider_name, provider_config) in config.providers.iter() {
+        log::debug!("Initializing provider: {}", provider_name);
+        let repo = RepoDatabaseRead::new(&provider_config.db.to_string_lossy()).await?;
+        let mut provider: Box<dyn AnniProvider + Send + Sync> = match &provider_config.item {
+            ProviderItem::File { root } =>
                 Box::new(FileBackend::new(PathBuf::from(root), repo).await?),
-            BackendItem::Drive { drive_id, corpora, token_path } =>
-                Box::new(DriveBackend::new(Default::default(), DriveBackendSettings {
+            ProviderItem::Drive { drive_id, corpora, token_path } =>
+                Box::new(DriveBackend::new(Default::default(), DriveProviderSettings {
                     corpora: corpora.to_string(),
                     drive_id: drive_id.clone(),
                     token_path: token_path.as_deref().unwrap_or("annil.token").to_string(),
                 }, repo).await?),
         };
-        if let Some(cache) = backend_config.cache() {
+        if let Some(cache) = provider_config.cache() {
             log::debug!("Cache configuration detected: root = {}, max-size = {}", cache.root(), cache.max_size);
             if !caches.contains_key(cache.root()) {
                 // new cache pool
                 let pool = CachePool::new(cache.root(), cache.max_size);
                 caches.insert(cache.root().to_string(), Arc::new(pool));
             }
-            backend = Box::new(Cache::new(backend, caches[cache.root()].clone()));
+            provider = Box::new(Cache::new(provider, caches[cache.root()].clone()));
         }
-        let backend = AnnilBackend::new(backend_name.to_string(), backend, backend_config.enable).await?;
-        backends.push(backend);
+        let provider = AnnilProvider::new(provider_name.to_string(), provider, provider_config.enable).await?;
+        providers.push(provider);
     }
-    log::info!("Backend initialization finished, used {:?}", now.elapsed().unwrap());
+    log::info!("Provider initialization finished, used {:?}", now.elapsed().unwrap());
 
     // key
     let key = HS256Key::from_bytes(config.server.key().as_ref());
     let version = format!("Anniv v{}", env!("CARGO_PKG_VERSION"));
     let last_update = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs();
     Ok(web::Data::new(AppState {
-        backends: RwLock::new(backends),
+        providers: RwLock::new(providers),
         key,
         reload_token: config.server.reload_token().to_string(),
         version,

@@ -9,11 +9,11 @@ async fn albums(claims: AnnilClaims, data: web::Data<AppState>) -> impl Responde
     match claims {
         AnnilClaims::User(_) => {
             let mut albums: HashSet<Cow<str>> = HashSet::new();
-            let read = data.backends.read().await;
+            let read = data.providers.read().await;
 
             // users can get real album list
-            for backend in read.iter() {
-                albums.extend(backend.albums().await);
+            for provider in read.iter() {
+                albums.extend(provider.albums().await);
             }
             HttpResponse::Ok().json(albums)
         }

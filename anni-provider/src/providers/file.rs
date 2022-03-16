@@ -17,15 +17,15 @@ pub struct FileBackend {
 
 impl FileBackend {
     pub async fn new(root: PathBuf, repo: RepoDatabaseRead) -> Result<Self, ProviderError> {
-        let mut backend = Self {
+        let mut this = Self {
             root,
             repo,
             album_path: Default::default(),
             album_discs: Default::default(),
         };
 
-        backend.reload().await?;
-        Ok(backend)
+        this.reload().await?;
+        Ok(this)
     }
 
     async fn walk_dir<P: AsRef<Path> + Send>(
