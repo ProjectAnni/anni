@@ -127,7 +127,6 @@ impl DriveBackend {
                 return Some((disc_index, file.id.as_deref().unwrap().to_string()));
             }).collect();
             discs.sort();
-            // discs.sorted_by_key(|(disc_index, _)| *disc_index).collect();
             self.discs.insert(album_id.to_string(), Some(discs.into_iter().map(|(_, id)| id).collect()));
         }
 
@@ -152,6 +151,7 @@ impl DriveBackend {
         let (resp, _) = self.hub.files().get(file_id)
             .supports_all_drives(true)
             .param("alt", "media")
+            // .range(format!("bytes=0-"))
             .doit().await?;
         drop(permit);
         let body = resp.into_body()

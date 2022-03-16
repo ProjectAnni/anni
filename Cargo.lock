@@ -213,7 +213,7 @@ dependencies = [
  "smallvec",
  "socket2 0.4.2",
  "time 0.3.5",
- "url 2.2.0",
+ "url 2.2.2",
 ]
 
 [[package]]
@@ -1324,9 +1324,7 @@ dependencies = [
 
 [[package]]
 name = "google-drive3"
-version = "2.0.5+20210322"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f37f915aa1329a2d0c97abfbbbd823dc3436c052b52f1760677ddb1f3d414896"
+version = "3.0.0+20220225"
 dependencies = [
  "hyper",
  "hyper-rustls",
@@ -2587,7 +2585,7 @@ dependencies = [
  "serde_urlencoded",
  "tokio",
  "tokio-rustls 0.22.0",
- "url 2.2.0",
+ "url 2.2.2",
  "wasm-bindgen",
  "wasm-bindgen-futures",
  "web-sys",
@@ -3075,7 +3073,7 @@ dependencies = [
  "stringprep",
  "thiserror",
  "tokio-stream",
- "url 2.2.0",
+ "url 2.2.2",
  "uuid",
  "webpki 0.21.4",
  "webpki-roots 0.21.1",
@@ -3098,7 +3096,7 @@ dependencies = [
  "sqlx-core",
  "sqlx-rt",
  "syn",
- "url 2.2.0",
+ "url 2.2.2",
 ]
 
 [[package]]
@@ -3520,7 +3518,7 @@ dependencies = [
  "log 0.4.14",
  "objc",
  "scopeguard",
- "url 2.2.0",
+ "url 2.2.2",
  "windows",
 ]
 
@@ -3634,9 +3632,9 @@ dependencies = [
 
 [[package]]
 name = "url"
-version = "2.2.0"
+version = "2.2.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5909f2b0817350449ed73e8bcd81c8c3c8d9a7a5d8acba4b27db277f1868976e"
+checksum = "a507c383b2d33b5fc35d1861e77e6b383d158b2da5e14fe51b83dfedf6fd578c"
 dependencies = [
  "form_urlencoded",
  "idna 0.2.1",
@@ -3929,16 +3927,19 @@ checksum = "85e60b0d1b5f99db2556934e21937020776a5d31520bf169e851ac44e6420214"
 
 [[package]]
 name = "yup-oauth2"
-version = "5.1.0"
+version = "6.3.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2573621fa28865489bdf556cdb8703604f4e8498612e3041a212ac20e59c4aeb"
+checksum = "df0647712324d99fab8977022a015feeab311cecd8630ce2cd1e74643b651cf1"
 dependencies = [
+ "anyhow",
+ "async-trait",
  "base64",
  "chrono",
  "futures",
  "http",
  "hyper",
  "hyper-rustls",
+ "itertools",
  "log 0.4.14",
  "percent-encoding 2.1.0",
  "rustls 0.19.0",
@@ -3946,7 +3947,7 @@ dependencies = [
  "serde",
  "serde_json",
  "tokio",
- "url 2.2.0",
+ "url 2.2.2",
 ]
 
 [[package]]

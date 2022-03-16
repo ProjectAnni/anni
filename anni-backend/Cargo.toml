@@ -15,8 +15,8 @@ thiserror = "1.0"
 anni-repo = { path = "../anni-repo", features = ["db"] }
 log = "0.4.0"
 
-google-drive3 = "*"
-yup-oauth2 = "^5.0"
+google-drive3 = { path = "../third_party/google-drive3" }
+yup-oauth2 = "^6.0"
 hyper = { version = "^0.14", features = ["stream"] }
 hyper-rustls = "^0.22"
 

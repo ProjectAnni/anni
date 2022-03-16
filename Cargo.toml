@@ -8,4 +8,6 @@ members = [
     "anni-clap-handler-derive",
     "anni-flac",
     "anni-repo",
+
+    "third_party/google-drive3"
 ]
