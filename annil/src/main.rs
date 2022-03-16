@@ -102,7 +102,6 @@ async fn main() -> anyhow::Result<()> {
                 .allowed_methods(vec!["GET"])
                 .allow_any_header()
                 .send_wildcard()
-                .disable_vary_header()
             )
             .wrap(Logger::default())
             .service(info)
