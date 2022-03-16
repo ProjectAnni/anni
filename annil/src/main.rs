@@ -14,7 +14,7 @@ use crate::config::{Config, BackendItem};
 use actix_web::middleware::Logger;
 use jwt_simple::prelude::HS256Key;
 use crate::auth::{AnnilAuth, AnnilClaims};
-use anni_provider::{AnniBackend, RepoDatabaseRead};
+use anni_provider::{AnniProvider, RepoDatabaseRead};
 use std::collections::HashMap;
 use anni_provider::cache::{CachePool, Cache};
 use anni_provider::providers::drive::DriveBackendSettings;
@@ -42,16 +42,11 @@ async fn init_state(config: &Config) -> anyhow::Result<web::Data<AppState>> {
     for (backend_name, backend_config) in config.backends.iter() {
         log::debug!("Initializing backend: {}", backend_name);
         let repo = RepoDatabaseRead::new(&backend_config.db.to_string_lossy()).await?;
-        let mut backend = match &backend_config.item {
+        let mut backend: Box<dyn AnniProvider + Send + Sync> = match &backend_config.item {
             BackendItem::File { root } =>
-                AnniBackend::File(
-                    FileBackend::new(
-                        PathBuf::from(root),
-                        repo,
-                    ).await?,
-                ),
+                Box::new(FileBackend::new(PathBuf::from(root), repo).await?),
             BackendItem::Drive { drive_id, corpora, token_path } =>
-                AnniBackend::Drive(DriveBackend::new(Default::default(), DriveBackendSettings {
+                Box::new(DriveBackend::new(Default::default(), DriveBackendSettings {
                     corpora: corpora.to_string(),
                     drive_id: drive_id.clone(),
                     token_path: token_path.as_deref().unwrap_or("annil.token").to_string(),
@@ -64,7 +59,7 @@ async fn init_state(config: &Config) -> anyhow::Result<web::Data<AppState>> {
                 let pool = CachePool::new(cache.root(), cache.max_size);
                 caches.insert(cache.root().to_string(), Arc::new(pool));
             }
-            backend = AnniBackend::Cache(Cache::new(backend.into_box(), caches[cache.root()].clone()));
+            backend = Box::new(Cache::new(backend, caches[cache.root()].clone()));
         }
         let backend = AnnilBackend::new(backend_name.to_string(), backend, backend_config.enable).await?;
         backends.push(backend);

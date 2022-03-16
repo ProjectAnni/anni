@@ -1,5 +1,4 @@
 use std::borrow::Cow;
-use crate::providers;
 use async_trait::async_trait;
 use std::collections::HashSet;
 use std::pin::Pin;
@@ -22,7 +21,7 @@ pub struct AudioResourceReader {
     pub reader: ResourceReader,
 }
 
-/// Backend is a common trait for anni backends.
+/// AnniProvider is a common trait for anni backends.
 /// It provides functions to update albums, and read from an initialized backend.
 #[async_trait]
 pub trait AnniProvider {
@@ -37,42 +36,6 @@ pub trait AnniProvider {
 
     /// Reloads the backend for new albums
     async fn reload(&mut self) -> Result<(), ProviderError>;
-}
-
-pub enum AnniBackend {
-    File(providers::FileBackend),
-    Drive(providers::DriveBackend),
-    Cache(crate::cache::Cache),
-}
-
-impl AnniBackend {
-    pub fn into_box(self) -> Box<dyn AnniProvider + Send + Sync> {
-        match self {
-            AnniBackend::File(b) => Box::new(b),
-            AnniBackend::Drive(b) => Box::new(b),
-            AnniBackend::Cache(b) => Box::new(b),
-        }
-    }
-
-    pub fn as_backend(&self) -> &dyn AnniProvider {
-        match self {
-            AnniBackend::File(b) => b,
-            AnniBackend::Drive(b) => b,
-            AnniBackend::Cache(b) => b,
-        }
-    }
-
-    pub fn as_backend_mut(&mut self) -> &mut dyn AnniProvider {
-        match self {
-            AnniBackend::File(b) => b,
-            AnniBackend::Drive(b) => b,
-            AnniBackend::Cache(b) => b,
-        }
-    }
-
-    pub async fn contains_album(&self, album_id: &str) -> bool {
-        self.as_backend().albums().await.unwrap_or(HashSet::new()).contains(album_id)
-    }
 }
 
 #[derive(Debug, Error)]
