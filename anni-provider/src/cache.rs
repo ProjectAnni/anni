@@ -1,4 +1,4 @@
-use crate::{Backend, BackendError, BackendReader, BackendReaderExt};
+use crate::{AnniProvider, ProviderError, ResourceReader, AudioResourceReader};
 use async_trait::async_trait;
 use parking_lot::RwLock;
 use std::borrow::Cow;
@@ -14,12 +14,12 @@ use tokio::io::{AsyncRead, ReadBuf};
 use tokio::time::Duration;
 
 pub struct Cache {
-    inner: Box<dyn Backend + Send + Sync>,
+    inner: Box<dyn AnniProvider + Send + Sync>,
     pool: Arc<CachePool>,
 }
 
 impl Cache {
-    pub fn new(inner: Box<dyn Backend + Send + Sync>, pool: Arc<CachePool>) -> Self {
+    pub fn new(inner: Box<dyn AnniProvider + Send + Sync>, pool: Arc<CachePool>) -> Self {
         Self { inner, pool }
     }
 
@@ -32,8 +32,8 @@ impl Cache {
 }
 
 #[async_trait]
-impl Backend for Cache {
-    async fn albums(&self) -> Result<HashSet<Cow<str>>, BackendError> {
+impl AnniProvider for Cache {
+    async fn albums(&self) -> Result<HashSet<Cow<str>>, ProviderError> {
         // refresh should not be cached
         self.inner.albums().await
     }
@@ -44,7 +44,7 @@ impl Backend for Cache {
         disc_id: u8,
         track_id: u8,
         range: Option<String>,
-    ) -> Result<BackendReaderExt, BackendError> {
+    ) -> Result<AudioResourceReader, ProviderError> {
         self.pool
             .fetch(
                 do_hash(format!("{}/{:02}/{:02}", album_id, disc_id, track_id)),
@@ -57,12 +57,12 @@ impl Backend for Cache {
         &self,
         album_id: &str,
         disc_id: Option<u8>,
-    ) -> Result<BackendReader, BackendError> {
+    ) -> Result<ResourceReader, ProviderError> {
         // TODO: cache cover
         self.inner.get_cover(album_id, disc_id).await
     }
 
-    async fn reload(&mut self) -> Result<(), BackendError> {
+    async fn reload(&mut self) -> Result<(), ProviderError> {
         // reload the inner backend
         self.inner.reload().await
     }
@@ -91,8 +91,8 @@ impl CachePool {
     async fn fetch(
         &self,
         key: String,
-        on_miss: impl Future<Output=Result<BackendReaderExt, BackendError>>,
-    ) -> Result<BackendReaderExt, BackendError> {
+        on_miss: impl Future<Output=Result<AudioResourceReader, ProviderError>>,
+    ) -> Result<AudioResourceReader, ProviderError> {
         let now = SystemTime::now()
             .duration_since(SystemTime::UNIX_EPOCH)
             .unwrap()
@@ -111,7 +111,7 @@ impl CachePool {
                 return Ok(result);
             }
 
-            let BackendReaderExt {
+            let AudioResourceReader {
                 extension,
                 size,
                 duration,
@@ -224,7 +224,7 @@ impl CacheItem {
 trait CacheReader {
     fn to_reader(&self, file: tokio::fs::File) -> CacheItemReader;
 
-    fn to_backend_reader_ext(&self, file: tokio::fs::File) -> BackendReaderExt;
+    fn to_backend_reader_ext(&self, file: tokio::fs::File) -> AudioResourceReader;
 }
 
 impl CacheReader for Arc<CacheItem> {
@@ -237,8 +237,8 @@ impl CacheReader for Arc<CacheItem> {
         }
     }
 
-    fn to_backend_reader_ext(&self, file: File) -> BackendReaderExt {
-        BackendReaderExt {
+    fn to_backend_reader_ext(&self, file: File) -> AudioResourceReader {
+        AudioResourceReader {
             extension: self.ext.clone(),
             size: self.size(),
             duration: self.duration,

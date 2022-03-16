@@ -1,7 +1,7 @@
 pub use common::*;
 
 mod common;
-pub mod backends;
+pub mod providers;
 pub mod cache;
 mod utils;
 

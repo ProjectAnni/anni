@@ -1,5 +1,5 @@
 use std::borrow::Cow;
-use anni_backend::{BackendError, AnniBackend, BackendReaderExt};
+use anni_provider::{ProviderError, AnniBackend, AudioResourceReader};
 use tokio::io::AsyncRead;
 use std::collections::HashSet;
 
@@ -10,7 +10,7 @@ pub struct AnnilBackend {
 }
 
 impl AnnilBackend {
-    pub async fn new(name: String, inner: AnniBackend, enable: bool) -> Result<Self, BackendError> {
+    pub async fn new(name: String, inner: AnniBackend, enable: bool) -> Result<Self, ProviderError> {
         Ok(Self {
             name,
             enabled: enable,
@@ -35,18 +35,18 @@ impl AnnilBackend {
         }
     }
 
-    pub async fn reload(&mut self) -> Result<(), BackendError> {
+    pub async fn reload(&mut self) -> Result<(), ProviderError> {
         log::debug!("[{}] Reloading backend albums", self.name());
         self.inner.as_backend_mut().reload().await?;
         Ok(())
     }
 
-    pub async fn get_audio(&self, album_id: &str, disc_id: u8, track_id: u8, range: Option<String>) -> Result<BackendReaderExt, BackendError> {
+    pub async fn get_audio(&self, album_id: &str, disc_id: u8, track_id: u8, range: Option<String>) -> Result<AudioResourceReader, ProviderError> {
         log::trace!("[{}] Getting audio: {}/{}", self.name(), album_id, track_id);
         self.inner.as_backend().get_audio(album_id, disc_id, track_id, range).await
     }
 
-    pub async fn get_cover(&self, album_id: &str, disc_id: Option<u8>) -> Result<impl AsyncRead, BackendError> {
+    pub async fn get_cover(&self, album_id: &str, disc_id: Option<u8>) -> Result<impl AsyncRead, ProviderError> {
         log::trace!("[{}] Getting cover: {}", self.name(), album_id);
         self.inner.as_backend().get_cover(album_id, disc_id).await
     }

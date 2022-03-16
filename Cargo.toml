@@ -2,7 +2,7 @@
 members = [
     "anni",
     "annil",
-    "anni-backend",
+    "anni-provider",
     "anni-common",
     "anni-clap-handler",
     "anni-clap-handler-derive",

@@ -1,15 +1,15 @@
 use std::borrow::Cow;
-use crate::backends;
+use crate::providers;
 use async_trait::async_trait;
 use std::collections::HashSet;
 use std::pin::Pin;
 use thiserror::Error;
 use tokio::io::AsyncRead;
 
-pub type BackendReader = Pin<Box<dyn AsyncRead + Send>>;
+pub type ResourceReader = Pin<Box<dyn AsyncRead + Send>>;
 
-/// BackendReaderExt abstracts the file result a backend returns with extra information other than a reader
-pub struct BackendReaderExt {
+/// AudioResourceReader abstracts the file result a provider returns with extra information of audio
+pub struct AudioResourceReader {
     /// File extension of the file
     pub extension: String,
     /// File size of the file
@@ -19,34 +19,34 @@ pub struct BackendReaderExt {
     /// Optional file range
     pub range: Option<String>,
     /// Async Reader for the file
-    pub reader: BackendReader,
+    pub reader: ResourceReader,
 }
 
 /// Backend is a common trait for anni backends.
 /// It provides functions to update albums, and read from an initialized backend.
 #[async_trait]
-pub trait Backend {
+pub trait AnniProvider {
     /// Get album information provided by backend.
-    async fn albums(&self) -> Result<HashSet<Cow<str>>, BackendError>;
+    async fn albums(&self) -> Result<HashSet<Cow<str>>, ProviderError>;
 
     /// Returns a reader implements AsyncRead for content reading
-    async fn get_audio(&self, album_id: &str, disc_id: u8, track_id: u8, range: Option<String>) -> Result<BackendReaderExt, BackendError>;
+    async fn get_audio(&self, album_id: &str, disc_id: u8, track_id: u8, range: Option<String>) -> Result<AudioResourceReader, ProviderError>;
 
     /// Returns a cover of corresponding album
-    async fn get_cover(&self, album_id: &str, disc_id: Option<u8>) -> Result<BackendReader, BackendError>;
+    async fn get_cover(&self, album_id: &str, disc_id: Option<u8>) -> Result<ResourceReader, ProviderError>;
 
     /// Reloads the backend for new albums
-    async fn reload(&mut self) -> Result<(), BackendError>;
+    async fn reload(&mut self) -> Result<(), ProviderError>;
 }
 
 pub enum AnniBackend {
-    File(backends::FileBackend),
-    Drive(backends::DriveBackend),
+    File(providers::FileBackend),
+    Drive(providers::DriveBackend),
     Cache(crate::cache::Cache),
 }
 
 impl AnniBackend {
-    pub fn into_box(self) -> Box<dyn Backend + Send + Sync> {
+    pub fn into_box(self) -> Box<dyn AnniProvider + Send + Sync> {
         match self {
             AnniBackend::File(b) => Box::new(b),
             AnniBackend::Drive(b) => Box::new(b),
@@ -54,7 +54,7 @@ impl AnniBackend {
         }
     }
 
-    pub fn as_backend(&self) -> &dyn Backend {
+    pub fn as_backend(&self) -> &dyn AnniProvider {
         match self {
             AnniBackend::File(b) => b,
             AnniBackend::Drive(b) => b,
@@ -62,7 +62,7 @@ impl AnniBackend {
         }
     }
 
-    pub fn as_backend_mut(&mut self) -> &mut dyn Backend {
+    pub fn as_backend_mut(&mut self) -> &mut dyn AnniProvider {
         match self {
             AnniBackend::File(b) => b,
             AnniBackend::Drive(b) => b,
@@ -76,7 +76,7 @@ impl AnniBackend {
 }
 
 #[derive(Debug, Error)]
-pub enum BackendError {
+pub enum ProviderError {
     #[error("invalid path")]
     InvalidPath,
 

@@ -3,9 +3,9 @@ use std::str::FromStr;
 use tokio::io::{AsyncRead, AsyncReadExt, AsyncWriteExt};
 use anni_flac::blocks::BlockStreamInfo;
 use anni_flac::prelude::{AsyncDecode, Encode, Result};
-use crate::BackendReader;
+use crate::ResourceReader;
 
-pub(crate) async fn read_header<R>(mut reader: R) -> Result<(BlockStreamInfo, BackendReader)>
+pub(crate) async fn read_header<R>(mut reader: R) -> Result<(BlockStreamInfo, ResourceReader)>
     where R: AsyncRead + Unpin + Send + 'static {
     let first = reader.read_u32().await.unwrap();
     let second = reader.read_u32().await.unwrap();

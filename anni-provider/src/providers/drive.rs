@@ -1,5 +1,5 @@
 use std::borrow::Cow;
-use crate::{Backend, BackendError, BackendReaderExt, BackendReader};
+use crate::{AnniProvider, ProviderError, AudioResourceReader, ResourceReader};
 use std::collections::{HashSet, HashMap};
 use async_trait::async_trait;
 use google_drive3::DriveHub;
@@ -91,7 +91,7 @@ pub struct DriveBackend {
 }
 
 impl DriveBackend {
-    pub async fn new(auth: DriveAuth, settings: DriveBackendSettings, repo: RepoDatabaseRead) -> Result<Self, BackendError> {
+    pub async fn new(auth: DriveAuth, settings: DriveBackendSettings, repo: RepoDatabaseRead) -> Result<Self, ProviderError> {
         let auth = auth.build(&settings.token_path).await?;
         auth.token(&[
             "https://www.googleapis.com/auth/drive.metadata.readonly",
@@ -124,7 +124,7 @@ impl DriveBackend {
         }
     }
 
-    async fn cache_discs(&self, album_id: &str) -> Result<(), BackendError> {
+    async fn cache_discs(&self, album_id: &str) -> Result<(), ProviderError> {
         if self.folders.contains_key(album_id) && self.discs.contains_key(album_id) && self.discs.get(album_id).unwrap().is_none() {
             let permit = self.semaphore.acquire().await.unwrap();
             let (_, list) = self.prepare_list()
@@ -156,7 +156,7 @@ impl DriveBackend {
         }
     }
 
-    async fn get_file(&self, file_id: &str, range: Option<String>) -> Result<(BackendReader, Option<String>), BackendError> {
+    async fn get_file(&self, file_id: &str, range: Option<String>) -> Result<(ResourceReader, Option<String>), ProviderError> {
         let permit = self.semaphore.acquire().await.unwrap();
         let (resp, _) = self.hub.files().get(file_id)
             .supports_all_drives(true)
@@ -174,8 +174,8 @@ impl DriveBackend {
 }
 
 #[async_trait]
-impl Backend for DriveBackend {
-    async fn albums(&self) -> Result<HashSet<Cow<str>>, BackendError> {
+impl AnniProvider for DriveBackend {
+    async fn albums(&self) -> Result<HashSet<Cow<str>>, ProviderError> {
         Ok(self
             .folders
             .keys()
@@ -183,10 +183,10 @@ impl Backend for DriveBackend {
             .collect())
     }
 
-    async fn get_audio(&self, album_id: &str, disc_id: u8, track_id: u8, range: Option<String>) -> Result<BackendReaderExt, BackendError> {
+    async fn get_audio(&self, album_id: &str, disc_id: u8, track_id: u8, range: Option<String>) -> Result<AudioResourceReader, ProviderError> {
         // catalog not found
         if !self.folders.contains_key(album_id) {
-            return Err(BackendError::FileNotFound);
+            return Err(ProviderError::FileNotFound);
         }
 
         let is_head = does_range_contain_flac_header(&range);
@@ -215,7 +215,7 @@ impl Backend for DriveBackend {
                 ));
                 self.files.insert(key.to_string(), id.to_string());
             } else {
-                return Err(BackendError::FileNotFound);
+                return Err(ProviderError::FileNotFound);
             }
         }
 
@@ -229,7 +229,7 @@ impl Backend for DriveBackend {
                     reader = _reader;
                     info.total_samples / info.sample_rate as u64
                 } else { 0 };
-                Ok(BackendReaderExt {
+                Ok(AudioResourceReader {
                     extension: metadata.0.to_string(),
                     size: metadata.1,
                     duration,
@@ -237,16 +237,16 @@ impl Backend for DriveBackend {
                     reader,
                 })
             }
-            None => Err(BackendError::FileNotFound),
+            None => Err(ProviderError::FileNotFound),
         }
     }
 
-    async fn get_cover(&self, album_id: &str, disc_id: Option<u8>) -> Result<BackendReader, BackendError> {
+    async fn get_cover(&self, album_id: &str, disc_id: Option<u8>) -> Result<ResourceReader, ProviderError> {
         // album_id not found
         if !self.folders.contains_key(album_id) ||
             // disc not found
             (disc_id.is_some() && !matches!(disc_id, Some(1)) && !self.discs.contains_key(album_id)) {
-            return Err(BackendError::FileNotFound);
+            return Err(ProviderError::FileNotFound);
         }
 
         let key = match disc_id {
@@ -272,7 +272,7 @@ impl Backend for DriveBackend {
 
                 // get cover file & return
                 let files = list.files.unwrap();
-                let file = files.get(0).ok_or(BackendError::FileNotFound)?;
+                let file = files.get(0).ok_or(ProviderError::FileNotFound)?;
                 let id = file.id.as_ref().unwrap().to_string();
                 self.files.insert(key.to_string(), id);
                 self.files.get(&key).unwrap().value()
@@ -282,7 +282,7 @@ impl Backend for DriveBackend {
         Ok(self.get_file(id, None).await?.0)
     }
 
-    async fn reload(&mut self) -> Result<(), BackendError> {
+    async fn reload(&mut self) -> Result<(), ProviderError> {
         self.folders.clear();
         self.discs.clear();
         self.files.clear();

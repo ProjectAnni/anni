@@ -1,7 +1,7 @@
 use std::borrow::Cow;
 use std::collections::HashSet;
 use std::str::FromStr;
-use crate::{Backend, BackendError, BackendReader, BackendReaderExt};
+use crate::{AnniProvider, ProviderError, ResourceReader, AudioResourceReader};
 use async_trait::async_trait;
 use futures::TryStreamExt;
 use reqwest::Response;
@@ -34,14 +34,14 @@ impl ProxyBackend {
 }
 
 #[async_trait]
-impl Backend for ProxyBackend {
-    async fn albums(&self) -> Result<HashSet<Cow<str>>, BackendError> {
-        let r = self.get("/albums", None).await.map_err(|e| BackendError::RequestError(e))?;
+impl AnniProvider for ProxyBackend {
+    async fn albums(&self) -> Result<HashSet<Cow<str>>, ProviderError> {
+        let r = self.get("/albums", None).await.map_err(|e| ProviderError::RequestError(e))?;
         Ok(r.json().await?)
     }
 
-    async fn get_audio(&self, album_id: &str, disc_id: u8, track_id: u8, range: Option<String>) -> Result<BackendReaderExt, BackendError> {
-        let resp = self.get(&format!("/{}/{}/{}?prefer_bitrate=lossless", album_id, disc_id, track_id), range).await.map_err(|e| BackendError::RequestError(e))?;
+    async fn get_audio(&self, album_id: &str, disc_id: u8, track_id: u8, range: Option<String>) -> Result<AudioResourceReader, ProviderError> {
+        let resp = self.get(&format!("/{}/{}/{}?prefer_bitrate=lossless", album_id, disc_id, track_id), range).await.map_err(|e| ProviderError::RequestError(e))?;
         let original_size = match resp.headers().get("x-origin-size") {
             Some(s) => s.to_str().unwrap_or("0"),
             None => "0",
@@ -63,7 +63,7 @@ impl Backend for ProxyBackend {
             .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e.to_string()))
             .into_async_read();
         let body = tokio_util::compat::FuturesAsyncReadCompatExt::compat(body);
-        Ok(BackendReaderExt {
+        Ok(AudioResourceReader {
             extension,
             size: usize::from_str(original_size.as_str()).unwrap(),
             duration: u64::from_str(duration.as_str()).unwrap(),
@@ -72,12 +72,12 @@ impl Backend for ProxyBackend {
         })
     }
 
-    async fn get_cover(&self, album_id: &str, disc_id: Option<u8>) -> Result<BackendReader, BackendError> {
+    async fn get_cover(&self, album_id: &str, disc_id: Option<u8>) -> Result<ResourceReader, ProviderError> {
         let path = match disc_id {
             Some(disc_id) => format!("/{}/{}/cover", album_id, disc_id),
             None => format!("/{}/cover", album_id),
         };
-        let resp = self.get(&path, None).await.map_err(|e| BackendError::RequestError(e))?;
+        let resp = self.get(&path, None).await.map_err(|e| ProviderError::RequestError(e))?;
         let body = resp
             .bytes_stream()
             .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e.to_string()))
@@ -86,7 +86,7 @@ impl Backend for ProxyBackend {
         Ok(Box::pin(body))
     }
 
-    async fn reload(&mut self) -> Result<(), BackendError> {
+    async fn reload(&mut self) -> Result<(), ProviderError> {
         // proxy backend does not need to be reloaded
         Ok(())
     }

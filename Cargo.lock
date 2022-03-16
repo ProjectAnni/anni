@@ -299,30 +299,6 @@ version = "0.1.0"
 source = "git+https://github.com/ProjectAnni/anni-artist#6e372fb09b6ec001db5fc180794c11a1fc8d5776"
 
 [[package]]
-name = "anni-backend"
-version = "0.1.1"
-dependencies = [
- "anni-flac",
- "anni-repo",
- "async-trait",
- "dashmap 5.0.0",
- "futures",
- "google-drive3",
- "hex",
- "hyper",
- "hyper-rustls",
- "log 0.4.14",
- "parking_lot",
- "reqwest",
- "sha2",
- "thiserror",
- "tokio",
- "tokio-stream",
- "tokio-util",
- "yup-oauth2",
-]
-
-[[package]]
 name = "anni-clap-handler"
 version = "0.1.0"
 dependencies = [
@@ -375,6 +351,30 @@ dependencies = [
 ]
 
 [[package]]
+name = "anni-provider"
+version = "0.1.1"
+dependencies = [
+ "anni-flac",
+ "anni-repo",
+ "async-trait",
+ "dashmap 5.0.0",
+ "futures",
+ "google-drive3",
+ "hex",
+ "hyper",
+ "hyper-rustls",
+ "log 0.4.14",
+ "parking_lot",
+ "reqwest",
+ "sha2",
+ "thiserror",
+ "tokio",
+ "tokio-stream",
+ "tokio-util",
+ "yup-oauth2",
+]
+
+[[package]]
 name = "anni-repo"
 version = "0.1.0"
 dependencies = [
@@ -408,8 +408,8 @@ dependencies = [
  "actix-cors",
  "actix-utils",
  "actix-web",
- "anni-backend",
  "anni-flac",
+ "anni-provider",
  "anyhow",
  "async-trait",
  "env_logger 0.8.3",

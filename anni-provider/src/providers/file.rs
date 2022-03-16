@@ -1,12 +1,12 @@
 use std::borrow::Cow;
-use crate::common::{Backend, BackendReaderExt, BackendError};
+use crate::common::{AnniProvider, AudioResourceReader, ProviderError};
 use anni_repo::library::{album_info, disc_info};
 use async_trait::async_trait;
 use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 use tokio::fs::{read_dir, File};
 use anni_repo::db::RepoDatabaseRead;
-use crate::BackendReader;
+use crate::ResourceReader;
 
 pub struct FileBackend {
     root: PathBuf,
@@ -16,7 +16,7 @@ pub struct FileBackend {
 }
 
 impl FileBackend {
-    pub async fn new(root: PathBuf, repo: RepoDatabaseRead) -> Result<Self, BackendError> {
+    pub async fn new(root: PathBuf, repo: RepoDatabaseRead) -> Result<Self, ProviderError> {
         let mut backend = Self {
             root,
             repo,
@@ -32,7 +32,7 @@ impl FileBackend {
         &mut self,
         dir: P,
         to_visit: &mut Vec<PathBuf>,
-    ) -> Result<(), BackendError> {
+    ) -> Result<(), ProviderError> {
         log::debug!("Walking dir: {:?}", dir.as_ref());
         let mut dir = read_dir(dir).await?;
         while let Some(entry) = dir.next_entry().await? {
@@ -40,9 +40,9 @@ impl FileBackend {
                 let path = entry.path();
                 if let Ok((release_date, catalog, title, disc_count)) = album_info(
                     path.file_name()
-                        .ok_or(BackendError::InvalidPath)?
+                        .ok_or(ProviderError::InvalidPath)?
                         .to_str()
-                        .ok_or(BackendError::InvalidPath)?,
+                        .ok_or(ProviderError::InvalidPath)?,
                 ) {
                     log::debug!("Found album {} at: {:?}", catalog, path);
                     let album_id = self.repo.match_album(&catalog, &release_date, disc_count as u8, &title).await?;
@@ -67,7 +67,7 @@ impl FileBackend {
         Ok(())
     }
 
-    async fn walk_discs<P: AsRef<Path> + Send>(&mut self, album: P, size: usize) -> Result<Vec<PathBuf>, BackendError> {
+    async fn walk_discs<P: AsRef<Path> + Send>(&mut self, album: P, size: usize) -> Result<Vec<PathBuf>, ProviderError> {
         let mut discs = vec![PathBuf::new(); size];
         let mut dir = read_dir(album).await?;
         while let Some(entry) = dir.next_entry().await? {
@@ -75,9 +75,9 @@ impl FileBackend {
                 let path = entry.path();
                 let disc_name = path
                     .file_name()
-                    .ok_or(BackendError::InvalidPath)?
+                    .ok_or(ProviderError::InvalidPath)?
                     .to_str()
-                    .ok_or(BackendError::InvalidPath)?;
+                    .ok_or(ProviderError::InvalidPath)?;
                 if let Ok((catalog, _, disc_id)) = disc_info(disc_name) {
                     log::debug!("Found disc {} at: {:?}", catalog, path);
                     discs[disc_id - 1] = path;
@@ -87,7 +87,7 @@ impl FileBackend {
         Ok(discs)
     }
 
-    fn get_disc(&self, album_id: &str, disc_id: u8) -> Result<&PathBuf, BackendError> {
+    fn get_disc(&self, album_id: &str, disc_id: u8) -> Result<&PathBuf, ProviderError> {
         if self.album_discs.contains_key(album_id) {
             // has multiple discs
             Ok(&self.album_discs[album_id][(disc_id - 1) as usize])
@@ -95,20 +95,20 @@ impl FileBackend {
             // has only one disc
             Ok(&self.album_path[album_id])
         } else {
-            Err(BackendError::FileNotFound)
+            Err(ProviderError::FileNotFound)
         }
     }
 
-    fn get_album_path(&self, album_id: &str) -> Result<&PathBuf, BackendError> {
+    fn get_album_path(&self, album_id: &str) -> Result<&PathBuf, ProviderError> {
         Ok(self.album_path
             .get(album_id)
-            .ok_or(BackendError::FileNotFound)?)
+            .ok_or(ProviderError::FileNotFound)?)
     }
 }
 
 #[async_trait]
-impl Backend for FileBackend {
-    async fn albums(&self) -> Result<HashSet<Cow<str>>, BackendError> {
+impl AnniProvider for FileBackend {
+    async fn albums(&self) -> Result<HashSet<Cow<str>>, ProviderError> {
         Ok(self.album_path.keys().map(|s| Cow::Borrowed(s.as_str())).collect())
     }
 
@@ -119,7 +119,7 @@ impl Backend for FileBackend {
         disc_id: u8,
         track_id: u8,
         _range: Option<String>,
-    ) -> Result<BackendReaderExt, BackendError> {
+    ) -> Result<AudioResourceReader, ProviderError> {
         let path = self.get_disc(album_id, disc_id)?;
         let mut dir = read_dir(path).await?;
         while let Some(entry) = dir.next_entry().await? {
@@ -132,7 +132,7 @@ impl Backend for FileBackend {
                 let file = File::open(&path).await?;
                 let (info, reader) = crate::utils::read_header(file).await?;
 
-                return Ok(BackendReaderExt {
+                return Ok(AudioResourceReader {
                     extension: path.extension().map(|s| s.to_string_lossy().to_string()).unwrap_or_default(),
                     size: entry.metadata().await?.len() as usize,
                     duration: info.total_samples / info.sample_rate as u64,
@@ -141,10 +141,10 @@ impl Backend for FileBackend {
                 });
             }
         }
-        Err(BackendError::FileNotFound)
+        Err(ProviderError::FileNotFound)
     }
 
-    async fn get_cover(&self, album_id: &str, disc_id: Option<u8>) -> Result<BackendReader, BackendError> {
+    async fn get_cover(&self, album_id: &str, disc_id: Option<u8>) -> Result<ResourceReader, ProviderError> {
         let path = match disc_id {
             None => self.get_album_path(album_id)?,
             Some(disc_id) => self.get_disc(album_id, disc_id)?,
@@ -154,7 +154,7 @@ impl Backend for FileBackend {
         Ok(Box::pin(file))
     }
 
-    async fn reload(&mut self) -> Result<(), BackendError> {
+    async fn reload(&mut self) -> Result<(), ProviderError> {
         self.album_discs.clear();
         self.album_path.clear();
         self.repo.reload().await?;
