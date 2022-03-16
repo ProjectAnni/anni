@@ -21,10 +21,13 @@ impl ProxyBackend {
         }
     }
 
-    pub async fn get(&self, path: &str) -> reqwest::Result<Response> {
-        let req = self.client.get(&format!("{}{}", self.url, path))
-            .header("Authorization", &self.auth)
-            .build()
+    pub async fn get(&self, path: &str, range: Option<String>) -> reqwest::Result<Response> {
+        let mut req = self.client.get(&format!("{}{}", self.url, path))
+            .header("Authorization", &self.auth);
+        if let Some(range) = range {
+            req = req.header("Range", range);
+        }
+        let req = req.build()
             .unwrap();
         self.client.execute(req).await
     }
@@ -33,12 +36,12 @@ impl ProxyBackend {
 #[async_trait]
 impl Backend for ProxyBackend {
     async fn albums(&self) -> Result<HashSet<Cow<str>>, BackendError> {
-        let r = self.get("/albums").await.map_err(|e| BackendError::RequestError(e))?;
+        let r = self.get("/albums", None).await.map_err(|e| BackendError::RequestError(e))?;
         Ok(r.json().await?)
     }
 
-    async fn get_audio(&self, album_id: &str, disc_id: u8, track_id: u8) -> Result<BackendReaderExt, BackendError> {
-        let resp = self.get(&format!("/{}/{}/{}?prefer_bitrate=lossless", album_id, disc_id, track_id)).await.map_err(|e| BackendError::RequestError(e))?;
+    async fn get_audio(&self, album_id: &str, disc_id: u8, track_id: u8, range: Option<String>) -> Result<BackendReaderExt, BackendError> {
+        let resp = self.get(&format!("/{}/{}/{}?prefer_bitrate=lossless", album_id, disc_id, track_id), range).await.map_err(|e| BackendError::RequestError(e))?;
         let original_size = match resp.headers().get("x-origin-size") {
             Some(s) => s.to_str().unwrap_or("0"),
             None => "0",
@@ -74,7 +77,7 @@ impl Backend for ProxyBackend {
             Some(disc_id) => format!("/{}/{}/cover", album_id, disc_id),
             None => format!("/{}/cover", album_id),
         };
-        let resp = self.get(&path).await.map_err(|e| BackendError::RequestError(e))?;
+        let resp = self.get(&path, None).await.map_err(|e| BackendError::RequestError(e))?;
         let body = resp
             .bytes_stream()
             .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e.to_string()))

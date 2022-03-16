@@ -43,11 +43,12 @@ impl Backend for Cache {
         album_id: &str,
         disc_id: u8,
         track_id: u8,
+        range: Option<String>,
     ) -> Result<BackendReaderExt, BackendError> {
         self.pool
             .fetch(
                 do_hash(format!("{}/{:02}/{:02}", album_id, disc_id, track_id)),
-                self.inner.get_audio(album_id, disc_id, track_id),
+                self.inner.get_audio(album_id, disc_id, track_id, range),
             )
             .await
     }

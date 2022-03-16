@@ -112,11 +112,13 @@ impl Backend for FileBackend {
         Ok(self.album_path.keys().map(|s| Cow::Borrowed(s.as_str())).collect())
     }
 
+    // TODO: support partial request for file backend
     async fn get_audio(
         &self,
         album_id: &str,
         disc_id: u8,
         track_id: u8,
+        _range: Option<String>,
     ) -> Result<BackendReaderExt, BackendError> {
         let path = self.get_disc(album_id, disc_id)?;
         let mut dir = read_dir(path).await?;

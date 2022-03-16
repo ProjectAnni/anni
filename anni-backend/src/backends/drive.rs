@@ -17,6 +17,7 @@ use std::str::FromStr;
 use dashmap::DashMap;
 use tokio::sync::Semaphore;
 use anni_repo::db::RepoDatabaseRead;
+use crate::utils::does_range_contain_flac_header;
 
 pub enum DriveAuth {
     InstalledFlow { client_id: String, client_secret: String, project_id: Option<String> },
@@ -182,11 +183,13 @@ impl Backend for DriveBackend {
             .collect())
     }
 
-    async fn get_audio(&self, album_id: &str, disc_id: u8, track_id: u8) -> Result<BackendReaderExt, BackendError> {
+    async fn get_audio(&self, album_id: &str, disc_id: u8, track_id: u8, range: Option<String>) -> Result<BackendReaderExt, BackendError> {
         // catalog not found
         if !self.folders.contains_key(album_id) {
             return Err(BackendError::FileNotFound);
         }
+
+        let is_head = does_range_contain_flac_header(&range);
 
         let key = format!("{album_id}/{disc_id}/{track_id}");
         if !self.files.contains_key(&key) {
@@ -216,17 +219,20 @@ impl Backend for DriveBackend {
             }
         }
 
-
         match self.files.get(&key) {
             Some(id) => {
                 let id = id.value();
                 let metadata = self.audios.get(id).unwrap().value();
-                let (reader, range) = self.get_file(id, None).await?;
-                let (info, reader) = crate::utils::read_header(reader).await?;
+                let (mut reader, range) = self.get_file(id, range).await?;
+                let duration = if is_head {
+                    let (info, _reader) = crate::utils::read_header(reader).await?;
+                    reader = _reader;
+                    info.total_samples / info.sample_rate as u64
+                } else { 0 };
                 Ok(BackendReaderExt {
                     extension: metadata.0.to_string(),
                     size: metadata.1,
-                    duration: info.total_samples / info.sample_rate as u64,
+                    duration,
                     range,
                     reader,
                 })

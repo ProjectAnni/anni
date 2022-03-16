@@ -30,7 +30,7 @@ pub trait Backend {
     async fn albums(&self) -> Result<HashSet<Cow<str>>, BackendError>;
 
     /// Returns a reader implements AsyncRead for content reading
-    async fn get_audio(&self, album_id: &str, disc_id: u8, track_id: u8) -> Result<BackendReaderExt, BackendError>;
+    async fn get_audio(&self, album_id: &str, disc_id: u8, track_id: u8, range: Option<String>) -> Result<BackendReaderExt, BackendError>;
 
     /// Returns a cover of corresponding album
     async fn get_cover(&self, album_id: &str, disc_id: Option<u8>) -> Result<BackendReader, BackendError>;
