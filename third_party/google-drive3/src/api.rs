@@ -9997,8 +9997,8 @@ impl<'a> FileGetCall<'a> {
         self
     }
 
-    pub fn range(mut self, new_value: String) -> FileGetCall<'a> {
-        self._range = Some(new_value);
+    pub fn range(mut self, new_value: Option<String>) -> FileGetCall<'a> {
+        self._range = new_value;
         self
     }
 }

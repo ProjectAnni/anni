@@ -75,6 +75,13 @@ pub struct DriveBackend {
     /// If the value is None, it means the album is not cached
     /// If the value is Some, then the value of index is the folder_id of the disc
     discs: DashMap<String, Option<Vec<String>>>,
+    /// Cache file id
+    /// "{album_id}/cover" <-> file_id
+    /// "{album_id}/{disc_id}/cover" <-> file_id
+    /// "{album_id}/{disc_id}/track_id" <-> file_id
+    files: DashMap<String, String>,
+    /// file_id <-> (extension, filesize)
+    audios: DashMap<String, (String, usize)>,
     /// Settings
     settings: DriveBackendSettings,
     repo: RepoDatabaseRead,
@@ -94,6 +101,8 @@ impl DriveBackend {
             hub: Box::new(hub),
             folders: Default::default(),
             discs: Default::default(),
+            files: Default::default(),
+            audios: Default::default(),
             settings,
             repo,
             semaphore: Semaphore::new(100),
@@ -146,12 +155,12 @@ impl DriveBackend {
         }
     }
 
-    async fn get_file(&self, file_id: &str) -> Result<BackendReader, BackendError> {
+    async fn get_file(&self, file_id: &str, range: Option<String>) -> Result<BackendReader, BackendError> {
         let permit = self.semaphore.acquire().await.unwrap();
         let (resp, _) = self.hub.files().get(file_id)
             .supports_all_drives(true)
             .param("alt", "media")
-            // .range(format!("bytes=0-"))
+            .range(range)
             .doit().await?;
         drop(permit);
         let body = resp.into_body()
@@ -178,27 +187,44 @@ impl Backend for DriveBackend {
             return Err(BackendError::FileNotFound);
         }
 
-        // get folder_id
-        self.cache_discs(album_id).await?;
-        let folder_id = self.get_parent_folder(album_id, Some(disc_id));
+        let key = format!("{album_id}/{disc_id}/{track_id}");
+        if !self.files.contains_key(&key) {
+            // get folder_id
+            self.cache_discs(album_id).await?;
+            let folder_id = self.get_parent_folder(album_id, Some(disc_id));
 
-        // get audio file id
-        let permit = self.semaphore.acquire().await.unwrap();
-        let (_, list) = self.prepare_list()
-            .q(&format!("trashed = false and name contains '{:02}.' and '{}' in parents", track_id, folder_id))
-            .param("fields", "nextPageToken, files(id,name,fileExtension,size)")
-            .doit().await?;
-        drop(permit);
+            // get audio file id
+            let permit = self.semaphore.acquire().await.unwrap();
+            let (_, list) = self.prepare_list()
+                .q(&format!("trashed = false and name contains '{:02}.' and '{}' in parents", track_id, folder_id))
+                .param("fields", "nextPageToken, files(id,name,fileExtension,size)")
+                .doit().await?;
+            drop(permit);
 
-        let files = list.files.unwrap();
-        let id = files.iter().reduce(|a, b| if a.name.as_ref().unwrap().starts_with(&format!("{:02}.", track_id)) { a } else { b });
-        match id {
-            Some(file) => {
-                let reader = self.get_file(file.id.as_ref().unwrap()).await?;
+            let files = list.files.unwrap();
+            let id = files.iter().reduce(|a, b| if a.name.as_ref().unwrap().starts_with(&format!("{:02}.", track_id)) { a } else { b });
+            if let Some(file) = id {
+                let id = file.id.as_ref().unwrap();
+                self.audios.insert(id.to_string(), (
+                    file.file_extension.as_ref().unwrap().to_string(),
+                    usize::from_str(file.size.as_ref().unwrap()).unwrap()
+                ));
+                self.files.insert(key.to_string(), id.to_string());
+            } else {
+                return Err(BackendError::FileNotFound);
+            }
+        }
+
+
+        match self.files.get(&key) {
+            Some(id) => {
+                let id = id.value();
+                let metadata = self.audios.get(id).unwrap().value();
+                let reader = self.get_file(id, None).await?;
                 let (info, reader) = crate::utils::read_header(reader).await?;
                 Ok(BackendReaderExt {
-                    extension: file.file_extension.as_ref().unwrap().to_string(),
-                    size: usize::from_str(file.size.as_ref().unwrap()).unwrap(),
+                    extension: metadata.0.to_string(),
+                    size: metadata.1,
                     duration: info.total_samples / info.sample_rate as u64,
                     reader,
                 })
@@ -215,27 +241,44 @@ impl Backend for DriveBackend {
             return Err(BackendError::FileNotFound);
         }
 
-        // get folder_id
-        self.cache_discs(album_id).await?;
-        let folder_id = self.get_parent_folder(album_id, disc_id);
+        let key = match disc_id {
+            Some(disc_id) => format!("{album_id}/{disc_id}/cover"),
+            None => format!("{album_id}/cover"),
+        };
+        let id = match self.files.get(&key) {
+            Some(file) => {
+                file.value()
+            }
+            None => {
+                // get folder_id
+                self.cache_discs(album_id).await?;
+                let folder_id = self.get_parent_folder(album_id, disc_id);
 
-        // get cover file id
-        let permit = self.semaphore.acquire().await.unwrap();
-        let (_, list) = self.prepare_list()
-            .q(&format!("trashed = false and mimeType = 'image/jpeg' and name = 'cover.jpg' and '{}' in parents", folder_id))
-            .param("fields", "nextPageToken, files(id,name)")
-            .doit().await?;
-        drop(permit);
+                // get cover file id
+                let permit = self.semaphore.acquire().await.unwrap();
+                let (_, list) = self.prepare_list()
+                    .q(&format!("trashed = false and mimeType = 'image/jpeg' and name = 'cover.jpg' and '{}' in parents", folder_id))
+                    .param("fields", "nextPageToken, files(id,name)")
+                    .doit().await?;
+                drop(permit);
 
-        // get cover file & return
-        let files = list.files.unwrap();
-        let file = files.get(0).ok_or(BackendError::FileNotFound)?;
-        self.get_file(file.id.as_ref().unwrap()).await
+                // get cover file & return
+                let files = list.files.unwrap();
+                let file = files.get(0).ok_or(BackendError::FileNotFound)?;
+                let id = file.id.as_ref().unwrap().to_string();
+                self.files.insert(key.to_string(), id);
+                self.files.get(&key).unwrap().value()
+            }
+        };
+
+        self.get_file(id, None).await
     }
 
     async fn reload(&mut self) -> Result<(), BackendError> {
         self.folders.clear();
         self.discs.clear();
+        self.files.clear();
+        self.audios.clear();
         self.repo.reload().await?;
 
         let mut page_token = String::new();
