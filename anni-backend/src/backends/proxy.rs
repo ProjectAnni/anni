@@ -54,6 +54,7 @@ impl Backend for ProxyBackend {
             }
             None => "flac".to_string(),
         };
+        let range = resp.headers().get("Content-Range").map(|s| s.to_str().unwrap().to_string());
         let body = resp
             .bytes_stream()
             .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e.to_string()))
@@ -63,6 +64,7 @@ impl Backend for ProxyBackend {
             extension,
             size: usize::from_str(original_size.as_str()).unwrap(),
             duration: u64::from_str(duration.as_str()).unwrap(),
+            range,
             reader: Box::pin(body),
         })
     }

@@ -134,6 +134,7 @@ impl Backend for FileBackend {
                     extension: path.extension().map(|s| s.to_string_lossy().to_string()).unwrap_or_default(),
                     size: entry.metadata().await?.len() as usize,
                     duration: info.total_samples / info.sample_rate as u64,
+                    range: None,
                     reader,
                 });
             }

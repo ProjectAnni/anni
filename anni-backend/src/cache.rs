@@ -90,7 +90,7 @@ impl CachePool {
     async fn fetch(
         &self,
         key: String,
-        on_miss: impl Future<Output = Result<BackendReaderExt, BackendError>>,
+        on_miss: impl Future<Output=Result<BackendReaderExt, BackendError>>,
     ) -> Result<BackendReaderExt, BackendError> {
         let now = SystemTime::now()
             .duration_since(SystemTime::UNIX_EPOCH)
@@ -103,12 +103,20 @@ impl CachePool {
             // prepare for new item
             let path = self.root.join(&key);
             let mut file = tokio::fs::File::create(&path).await?;
+
+            // get data, return directly if it's a partial request
+            let result = on_miss.await?;
+            if result.range.is_some() {
+                return Ok(result);
+            }
+
             let BackendReaderExt {
                 extension,
                 size,
                 duration,
                 mut reader,
-            } = on_miss.await?;
+                ..
+            } = result;
             let item = Arc::new(CacheItem::new(path, extension, size, duration, false));
 
             // write to map
@@ -233,6 +241,7 @@ impl CacheReader for Arc<CacheItem> {
             extension: self.ext.clone(),
             size: self.size(),
             duration: self.duration,
+            range: None,
             reader: Box::pin(self.to_reader(file)),
         }
     }
@@ -256,7 +265,7 @@ struct CacheItemReader {
     file: Pin<Box<tokio::fs::File>>,
     filled: usize,
 
-    timer: Option<Pin<Box<dyn Future<Output = ()> + Send>>>,
+    timer: Option<Pin<Box<dyn Future<Output=()> + Send>>>,
 }
 
 impl AsyncRead for CacheItemReader {

@@ -155,7 +155,7 @@ impl DriveBackend {
         }
     }
 
-    async fn get_file(&self, file_id: &str, range: Option<String>) -> Result<BackendReader, BackendError> {
+    async fn get_file(&self, file_id: &str, range: Option<String>) -> Result<(BackendReader, Option<String>), BackendError> {
         let permit = self.semaphore.acquire().await.unwrap();
         let (resp, _) = self.hub.files().get(file_id)
             .supports_all_drives(true)
@@ -163,11 +163,12 @@ impl DriveBackend {
             .range(range)
             .doit().await?;
         drop(permit);
+        let content_range = resp.headers().get("Content-Range").map(|v| v.to_str().unwrap().to_string());
         let body = resp.into_body()
             .map_err(|_| std::io::Error::new(std::io::ErrorKind::Other, "Error!"))
             .into_async_read();
         let body = tokio_util::compat::FuturesAsyncReadCompatExt::compat(body);
-        Ok(Box::pin(body))
+        Ok((Box::pin(body), content_range))
     }
 }
 
@@ -220,12 +221,13 @@ impl Backend for DriveBackend {
             Some(id) => {
                 let id = id.value();
                 let metadata = self.audios.get(id).unwrap().value();
-                let reader = self.get_file(id, None).await?;
+                let (reader, range) = self.get_file(id, None).await?;
                 let (info, reader) = crate::utils::read_header(reader).await?;
                 Ok(BackendReaderExt {
                     extension: metadata.0.to_string(),
                     size: metadata.1,
                     duration: info.total_samples / info.sample_rate as u64,
+                    range,
                     reader,
                 })
             }
@@ -271,7 +273,7 @@ impl Backend for DriveBackend {
             }
         };
 
-        self.get_file(id, None).await
+        Ok(self.get_file(id, None).await?.0)
     }
 
     async fn reload(&mut self) -> Result<(), BackendError> {

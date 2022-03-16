@@ -16,6 +16,8 @@ pub struct BackendReaderExt {
     pub size: usize,
     /// Audio duration of the file
     pub duration: u64,
+    /// Optional file range
+    pub range: Option<String>,
     /// Async Reader for the file
     pub reader: BackendReader,
 }
