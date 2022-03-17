@@ -550,7 +550,7 @@ pub struct RepoDatabaseAction {
 #[handler(RepoDatabaseAction)]
 fn repo_database_action(me: &RepoDatabaseAction, manager: &RepositoryManager) -> anyhow::Result<()> {
     if !me.output.is_dir() {
-        anyhow!("Output path must be a directory!");
+        bail!("Output path must be a directory!");
     }
 
     let db_path = me.output.join("repo.db");

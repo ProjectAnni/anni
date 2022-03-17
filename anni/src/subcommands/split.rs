@@ -295,7 +295,7 @@ impl Display for SplitOutputFormat {
 #[handler(SplitSubcommand)]
 fn handle_split(me: &SplitSubcommand) -> anyhow::Result<()> {
     if !me.input_format.check_decoder() || !me.output_format.check_encoder() {
-        anyhow!("Some of the required encoders/decoders are missing. Please install them and try again.");
+        bail!("Some of the required encoders/decoders are missing. Please install them and try again.");
     }
 
     for directory in me.directories.iter() {
