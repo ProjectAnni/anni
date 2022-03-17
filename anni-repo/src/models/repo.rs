@@ -11,6 +11,12 @@ pub struct Repository {
 struct RepositoryInner {
     name: String,
     edition: String,
+    #[serde(default = "default_albums")]
+    albums: Vec<String>,
+}
+
+fn default_albums() -> Vec<String> {
+    vec!["album".into()]
 }
 
 impl FromStr for Repository {
@@ -40,5 +46,9 @@ impl Repository {
 
     pub fn edition(&self) -> &str {
         self.repo.edition.as_ref()
+    }
+
+    pub fn albums(&self) -> &[String] {
+        self.repo.albums.as_ref()
     }
 }

@@ -174,6 +174,7 @@ struct AlbumInfo {
     artist: InheritableValue<String>,
     /// Album artists
     #[serde(default = "default_some")]
+    #[serde(skip_serializing_if = "is_artists_empty")]
     artists: InheritableValue<HashMap<String, String>>,
     /// Album release date
     #[serde(rename = "date")]
@@ -195,6 +196,7 @@ pub struct Disc {
     /// Disc artist
     artist: InheritableValue<String>,
     /// Disc artists
+    #[serde(skip_serializing_if = "is_artists_empty")]
     artists: InheritableValue<HashMap<String, String>>,
     /// Disc catalog
     catalog: String,
@@ -319,6 +321,7 @@ pub struct Track {
     /// Track artist
     artist: InheritableValue<String>,
     /// Track artists
+    #[serde(skip_serializing_if = "is_artists_empty")]
     artists: InheritableValue<HashMap<String, String>>,
     /// Track type
     #[serde(rename = "type")]
@@ -417,5 +420,12 @@ impl<'de> Deserialize<'de> for TrackType {
             "vocal" => TrackType::Vocal,
             _ => TrackType::Other(s),
         })
+    }
+}
+
+fn is_artists_empty(artists: &InheritableValue<HashMap<String, String>>) -> bool {
+    match artists {
+        InheritableValue::Owned(artists) => artists.is_empty(),
+        InheritableValue::Inherited(_) => true,
     }
 }

@@ -13,6 +13,9 @@ pub enum Error {
     #[error("failed to initialize repository: {0}")]
     RepoInitError(anyhow::Error),
 
+    #[error("album with the same catalog already exists: {0}")]
+    RepoAlbumExists(String),
+
     #[error("failed to load album {album:?} in repository: {err:?}")]
     RepoAlbumLoadError { album: String, err: anyhow::Error },
 

@@ -69,6 +69,9 @@ pub struct RepoAddAction {
     #[clap(about = ll ! ("repo-add-edit"))]
     open_editor: bool,
 
+    #[clap(short = 'D', long = "duplicate")]
+    allow_duplicate: bool,
+
     #[clap(required = true)]
     directories: Vec<PathBuf>,
 }
@@ -82,10 +85,6 @@ fn repo_add(me: &RepoAddAction, manager: &RepositoryManager) -> anyhow::Result<(
         }
 
         let (release_date, catalog, album_title, discs) = album_info(&last)?;
-        if manager.album_exists(&catalog) {
-            ball!("repo-album-exists", catalog = catalog);
-        }
-
         let mut album = Album::new(album_title.clone(), None, "UnknownArtist".to_string(), release_date, catalog.clone(), Default::default());
 
         let directories = fs::get_subdirectories(to_add)?;
@@ -140,7 +139,7 @@ fn repo_add(me: &RepoAddAction, manager: &RepositoryManager) -> anyhow::Result<(
         album.fmt(false);
         album.inherit();
 
-        manager.add_album(&catalog, album)?;
+        manager.add_album(&catalog, album, me.allow_duplicate)?;
         if me.open_editor {
             manager.edit_album(&catalog)?;
         }
@@ -180,9 +179,6 @@ pub struct RepoGetVGMdb {
 #[handler(RepoGetVGMdb)]
 fn repo_get_vgmdb(options: &RepoGetVGMdb, manager: &RepositoryManager, get: &RepoGetAction) -> anyhow::Result<()> {
     let catalog = &options.catalog;
-    if get.add && manager.album_exists(catalog) {
-        ball!("repo-album-exists", catalog = catalog.clone());
-    }
 
     let client = VGMClient::new(options.host.clone());
     let album_got = client.album(&options.keyword.as_deref().unwrap_or(catalog))?;
@@ -226,7 +222,7 @@ fn repo_get_vgmdb(options: &RepoGetVGMdb, manager: &RepositoryManager, get: &Rep
     }
 
     if get.add {
-        Ok(manager.add_album(&options.catalog, album)?)
+        Ok(manager.add_album(&options.catalog, album, false)?)
     } else {
         println!("{}", album.to_string());
         Ok(())
@@ -250,9 +246,6 @@ fn repo_edit(me: &RepoEditAction, manager: &RepositoryManager) -> anyhow::Result
 
         let (_, catalog, _, _) = album_info(&last)?;
         debug!(target: "repo|edit", "Catalog: {}", catalog);
-        if !manager.album_exists(&catalog) {
-            ball!("repo-album-not-found", catalog = catalog);
-        }
         manager.edit_album(&catalog)?;
         Ok(())
     }
@@ -283,12 +276,19 @@ fn repo_apply(me: &RepoApplyAction, manager: &RepositoryManager) -> anyhow::Resu
         // extract album info
         let (release_date, catalog, album_title, disc_count) = album_info(&last)?;
         debug!(target: "repo|apply", "Release date: {}, Catalog: {}, Title: {}", release_date, catalog, album_title);
-        if !manager.album_exists(&catalog) {
-            ball!("repo-album-not-found", catalog = catalog);
+
+        // load and pick album
+        let albums = manager.load_albums(&catalog)?;
+        let albums = if albums.len() > 1 {
+            albums.into_iter().filter(|a| a.title() == album_title).collect()
+        } else { albums };
+        if albums.len() > 1 {
+            // multiple albums exists
+            bail!("TODO: multiple albums exists!");
         }
 
         // get track metadata & compare with album folder
-        let album = manager.load_album(&catalog)?;
+        let album = albums.into_iter().nth(0).unwrap();
         if album.title() != album_title
             || album.catalog() != catalog
             || album.release_date() != &release_date {
@@ -389,13 +389,14 @@ pub struct RepoValidateAction {}
 fn repo_validate(_: &RepoValidateAction, manager: &RepositoryManager) -> anyhow::Result<()> {
     let mut has_error = false;
     info!(target: "anni", "{}", fl!("repo-validate-start"));
+
+    // initialize owned manager
+    let manager = manager.to_owned_manager()?;
+
     // check albums
-    for catalog in manager.catalogs()? {
-        let album = manager.load_album(&catalog)?;
-        if album.catalog() != catalog {
-            error!(target: &format!("repo|{}", catalog), "{}", fl!("repo-catalog-filename-mismatch", album_catalog = album.catalog()));
-            has_error = true;
-        }
+    for album in manager.albums() {
+        let catalog = album.catalog();
+
         if album.artist() == "[Unknown Artist]" || album.artist() == "UnknownArtist" {
             error!(target: &format!("repo|{}", catalog), "{}", fl!("repo-invalid-artist", artist = album.artist()));
             has_error = true;
@@ -460,14 +461,12 @@ fn repo_print(me: &RepoPrintAction, manager: &RepositoryManager) -> anyhow::Resu
     };
     let disc_id = if disc_id > 0 { disc_id - 1 } else { disc_id };
 
-    if !manager.album_exists(catalog) {
-        ball!("repo-album-not-found", catalog = catalog);
-    }
-
     let mut dst = me.output.to_writer()?;
     let mut dst = dst.lock();
 
-    let album = manager.load_album(catalog)?;
+    // FIXME: pick the correct album
+    let album = manager.load_albums(catalog)?;
+    let album = &album[0];
     match me.print_type {
         RepoPrintType::Title => writeln!(dst, "{}", album.title())?,
         RepoPrintType::Artist => writeln!(dst, "{}", album.artist())?,
@@ -552,6 +551,8 @@ fn repo_database_action(me: &RepoDatabaseAction, manager: &RepositoryManager) ->
     if !me.output.is_dir() {
         bail!("Output path must be a directory!");
     }
+
+    let manager = manager.to_owned_manager()?;
 
     let db_path = me.output.join("repo.db");
     let mut db = block_on(RepoDatabaseWrite::create(db_path))?;

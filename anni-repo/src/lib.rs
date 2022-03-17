@@ -13,4 +13,4 @@ pub mod prelude {
 #[cfg(feature = "db")]
 pub mod db;
 
-pub use manager::RepositoryManager;
+pub use manager::{RepositoryManager, OwnedRepositoryManager};
