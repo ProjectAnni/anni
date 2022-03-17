@@ -1,7 +1,8 @@
 use serde::{Serialize, Deserialize, Deserializer, Serializer};
 use std::str::FromStr;
-use anni_common::inherit::InheritableValue;
+use anni_common::inherit::{InheritableValue, default_some};
 use std::borrow::Cow;
+use std::collections::HashMap;
 use uuid::Uuid;
 use crate::prelude::*;
 
@@ -21,6 +22,8 @@ impl Album {
                 edition,
                 catalog,
                 artist: InheritableValue::own(artist),
+                // TODO: specify artists
+                artists: InheritableValue::own(Default::default()),
                 release_date,
                 tags,
                 album_type: TrackType::Normal, // TODO: custom album type
@@ -132,6 +135,7 @@ impl Album {
             disc.title.inherit_from(&self.info.title);
             disc.artist.inherit_from(&self.info.artist);
             disc.disc_type.inherit_from_owned(&self.info.album_type);
+            disc.artists.inherit_from(&self.info.artists);
             disc.inherit();
         }
     }
@@ -140,6 +144,7 @@ impl Album {
         disc.title.inherit_from(&self.info.title);
         disc.artist.inherit_from(&self.info.artist);
         disc.disc_type.inherit_from_owned(&self.info.album_type);
+        disc.artists.inherit_from(&self.info.artists);
         self.push_disc(disc);
     }
 
@@ -167,6 +172,9 @@ struct AlbumInfo {
     edition: Option<String>,
     /// Album artist
     artist: InheritableValue<String>,
+    /// Album artists
+    #[serde(default = "default_some")]
+    artists: InheritableValue<HashMap<String, String>>,
     /// Album release date
     #[serde(rename = "date")]
     release_date: AnniDate,
@@ -186,6 +194,8 @@ pub struct Disc {
     title: InheritableValue<String>,
     /// Disc artist
     artist: InheritableValue<String>,
+    /// Disc artists
+    artists: InheritableValue<HashMap<String, String>>,
     /// Disc catalog
     catalog: String,
     /// Disc type
@@ -206,6 +216,7 @@ impl Disc {
         Disc {
             title: title.into(),
             artist: artist.into(),
+            artists: Default::default(),
             catalog,
             tags,
             disc_type: disc_type.into(),
@@ -241,12 +252,14 @@ impl Disc {
         for track in self.tracks.iter_mut() {
             track.artist.inherit_from(&self.artist);
             track.track_type.inherit_from(&self.disc_type);
+            track.artists.inherit_from(&self.artists);
         }
     }
 
     pub fn add_track(&mut self, mut track: Track) {
         track.artist.inherit_from(&self.artist);
         track.track_type.inherit_from(&self.disc_type);
+        track.artists.inherit_from(&self.artists);
         self.push_track(track);
     }
 
@@ -305,6 +318,8 @@ pub struct Track {
     title: String,
     /// Track artist
     artist: InheritableValue<String>,
+    /// Track artists
+    artists: InheritableValue<HashMap<String, String>>,
     /// Track type
     #[serde(rename = "type")]
     track_type: InheritableValue<TrackType>,
@@ -321,6 +336,7 @@ impl Track {
         Track {
             title,
             artist: artist.into(),
+            artists: Default::default(),
             track_type: track_type.into(),
             tags,
         }

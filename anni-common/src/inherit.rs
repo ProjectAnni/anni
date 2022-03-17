@@ -156,3 +156,7 @@ impl<T> From<Option<T>> for InheritableValue<T> {
         }
     }
 }
+
+pub fn default_some<D: Default>() -> InheritableValue<D> {
+    InheritableValue::own(Default::default())
+}
