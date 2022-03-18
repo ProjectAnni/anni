@@ -40,6 +40,11 @@ jobs:
           path: target
           key: ${{ matrix.target }}-cargo-target
 
+      - name: Setup | Install dependency [-nix]
+        if: matrix.os != 'windows-latest'
+        run: |
+          sudo apt install openssl
+
       - name: Setup | Rust
         uses: actions-rs/toolchain@v1
         with:
