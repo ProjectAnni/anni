@@ -20,10 +20,14 @@ impl Config {
 
 #[derive(Serialize, Deserialize)]
 pub struct ServerConfig {
+    /// Server name
     pub name: String,
+    /// Port to listen on
     listen: Option<String>,
+    /// HMAC key for JWT
     #[serde(rename = "hmac-key")]
     key: String,
+    /// Password to reload data
     #[serde(rename = "reload-token")]
     reload_token: String,
 }

@@ -18,6 +18,12 @@ impl RepositoryManager {
         })
     }
 
+    #[cfg(feature = "git")]
+    pub fn clone<P: AsRef<Path>>(url: &str, root: P) -> RepoResult<Self> {
+        git2::Repository::clone(url, root.as_ref())?;
+        Self::new(root.as_ref())
+    }
+
     pub fn name(&self) -> &str {
         self.repo.name()
     }

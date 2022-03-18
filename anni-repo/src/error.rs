@@ -34,4 +34,8 @@ pub enum Error {
     #[cfg(feature = "db")]
     #[error(transparent)]
     SqliteError(#[from] sqlx::Error),
+
+    #[cfg(feature = "git")]
+    #[error(transparent)]
+    GitError(#[from] git2::Error),
 }

@@ -44,6 +44,7 @@ impl Handler for RepoSubcommand {
 
 #[derive(Parser, Handler, Debug, Clone)]
 pub enum RepoAction {
+    Clone(RepoCloneAction),
     #[clap(about = ll ! {"repo-add"})]
     Add(RepoAddAction),
     #[clap(about = ll ! {"repo-get"})]
@@ -61,6 +62,19 @@ pub enum RepoAction {
     Database(RepoDatabaseAction),
     #[clap(about = ll ! {"repo-migrate"})]
     Migrate(RepoMigrateAction),
+}
+
+#[derive(Parser, Debug, Clone)]
+pub struct RepoCloneAction {
+    #[clap(required = true)]
+    url: String,
+    root: Option<PathBuf>,
+}
+
+#[handler(RepoCloneAction)]
+fn repo_clone(me: RepoCloneAction) -> anyhow::Result<()> {
+    RepositoryManager::clone(&me.url, me.root.unwrap_or_else(|| std::env::current_dir().unwrap().join()))?;
+    Ok(())
 }
 
 #[derive(Parser, Debug, Clone)]

@@ -16,8 +16,10 @@ edit = "0.1.2"
 uuid = { version = "0.8", features = ["v4", "serde"] }
 sqlx = { version = "0.5", features = ["runtime-tokio-rustls", "sqlite", "uuid"], optional = true }
 log = "0.4.0"
+git2 = { version = "0.14", optional = true }
 
 [features]
 default = []
 arc = ["anni-common/arc"]
 db = ["sqlx"]
+git = ["git2"]
