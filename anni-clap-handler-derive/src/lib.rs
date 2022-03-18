@@ -1,7 +1,7 @@
 use proc_macro::TokenStream;
 use proc_macro_error::proc_macro_error;
 use quote::quote;
-use syn::{AttributeArgs, ItemFn, Meta, NestedMeta, DeriveInput, Data, parse_macro_input, DataStruct, DataEnum, Fields};
+use syn::{AttributeArgs, ItemFn, Meta, NestedMeta, DeriveInput, Data, parse_macro_input, DataStruct, DataEnum, Fields, Type};
 
 #[proc_macro_derive(Handler)]
 #[proc_macro_error]
@@ -102,10 +102,24 @@ pub fn handler(args: TokenStream, input: TokenStream) -> TokenStream {
     let func_output = &func_sig.output;
     let types: Vec<_> = func_inputs.iter().map(|i| {
         match i {
-            syn::FnArg::Typed(_) => quote! {
-                ctx.get().unwrap()
-            },
-            _ => unreachable!(""),
+            syn::FnArg::Typed(ty) => {
+                let ty: &Type = &ty.ty;
+                match ty {
+                    Type::Reference(r) => {
+                        if r.mutability.is_some() {
+                            quote! { ctx.get_mut().unwrap() }
+                        } else {
+                            quote! { ctx.get().unwrap() }
+                        }
+                    }
+                    _ => {
+                        // owned type
+                        // TODO: do not unwrap when ty is Option<T>
+                        quote! { ctx.take().unwrap() }
+                    }
+                }
+            }
+            _ => unreachable!("syntax error"),
         }
     }).collect();
 
