@@ -115,7 +115,8 @@ pub fn handler(args: TokenStream, input: TokenStream) -> TokenStream {
                     _ => {
                         // owned type
                         // TODO: do not unwrap when ty is Option<T>
-                        quote! { ctx.take().unwrap() }
+                        // TODO: do not deref when ty is Box<T>
+                        quote! { *ctx.take().unwrap() }
                     }
                 }
             }

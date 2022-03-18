@@ -386,7 +386,7 @@ DISCTOTAL={disc_total}
 pub struct RepoValidateAction {}
 
 #[handler(RepoValidateAction)]
-fn repo_validate(_: &RepoValidateAction, manager: &RepositoryManager) -> anyhow::Result<()> {
+fn repo_validate(manager: RepositoryManager, _: &RepoValidateAction) -> anyhow::Result<()> {
     let mut has_error = false;
     info!(target: "anni", "{}", fl!("repo-validate-start"));
 
