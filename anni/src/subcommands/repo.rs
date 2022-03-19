@@ -7,12 +7,10 @@ use clap::{Parser, ArgEnum, crate_version};
 use crate::{fl, ll, ball};
 use std::path::PathBuf;
 use std::str::FromStr;
-use std::time::{SystemTime, UNIX_EPOCH};
 use anni_vgmdb::VGMClient;
 use futures::executor::block_on;
 use anni_flac::blocks::{UserComment, UserCommentExt};
 use anni_clap_handler::{Context, Handler, handler};
-use anni_repo::db::RepoDatabaseWrite;
 
 #[derive(Parser, Debug, Clone)]
 #[clap(about = ll ! {"repo"})]
@@ -567,29 +565,8 @@ fn repo_database_action(me: &RepoDatabaseAction, manager: &RepositoryManager) ->
     }
 
     let manager = manager.to_owned_manager()?;
+    block_on(manager.to_database(&me.output.join("repo.db")))?;
 
-    let db_path = me.output.join("repo.db");
-    let mut db = block_on(RepoDatabaseWrite::create(db_path))?;
-    // TODO: get url / ref from repo
-    block_on(db.write_info(manager.repo.name(), manager.repo.edition(), "", ""))?;
-
-    // Write all tags
-    let tags = manager.tags().iter().filter_map(|t| match t {
-        RepoTag::Full(tag) => Some(tag),
-        _ => None,
-    });
-    block_on(db.add_tags(tags))?;
-
-    // Write all albums
-    for album in manager.albums() {
-        block_on(db.add_album(album))?;
-    }
-
-    // Create Index
-    block_on(db.create_index())?;
-
-    // Creation time
-    fs::write(me.output.join("repo.json"), &format!("{{\"last_modified\": {}}}", SystemTime::now().duration_since(UNIX_EPOCH)?.as_secs()))?;
     Ok(())
 }
 
