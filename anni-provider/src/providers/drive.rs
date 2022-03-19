@@ -1,5 +1,5 @@
 use std::borrow::Cow;
-use crate::{AnniProvider, ProviderError, AudioResourceReader, ResourceReader};
+use crate::{AnniProvider, ProviderError, AudioResourceReader, ResourceReader, Range, AudioInfo};
 use std::collections::{HashSet, HashMap};
 use async_trait::async_trait;
 use google_drive3::DriveHub;
@@ -17,7 +17,6 @@ use std::str::FromStr;
 use dashmap::DashMap;
 use tokio::sync::Semaphore;
 use anni_repo::db::RepoDatabaseRead;
-use crate::utils::does_range_contain_flac_header;
 
 pub enum DriveAuth {
     InstalledFlow { client_id: String, client_secret: String, project_id: Option<String> },
@@ -156,12 +155,12 @@ impl DriveBackend {
         }
     }
 
-    async fn get_file(&self, file_id: &str, range: Option<String>) -> Result<(ResourceReader, Option<String>), ProviderError> {
+    async fn get_file(&self, file_id: &str, range: &Range) -> Result<(ResourceReader, Range), ProviderError> {
         let permit = self.semaphore.acquire().await.unwrap();
         let (resp, _) = self.hub.files().get(file_id)
             .supports_all_drives(true)
             .param("alt", "media")
-            .range(range)
+            .range(range.to_range_header())
             .doit().await?;
         drop(permit);
         let content_range = resp.headers().get("Content-Range").map(|v| v.to_str().unwrap().to_string());
@@ -169,7 +168,7 @@ impl DriveBackend {
             .map_err(|_| std::io::Error::new(std::io::ErrorKind::Other, "Error!"))
             .into_async_read();
         let body = tokio_util::compat::FuturesAsyncReadCompatExt::compat(body);
-        Ok((Box::pin(body), content_range))
+        Ok((Box::pin(body), content_range_to_range(content_range.as_deref().unwrap_or(""))))
     }
 }
 
@@ -183,13 +182,18 @@ impl AnniProvider for DriveBackend {
             .collect())
     }
 
-    async fn get_audio(&self, album_id: &str, disc_id: u8, track_id: u8, range: Option<String>) -> Result<AudioResourceReader, ProviderError> {
+    async fn get_audio_info(&self, album_id: &str, disc_id: u8, track_id: u8) -> Result<AudioInfo, ProviderError> {
+        // TODO: cache audio size
+        Ok(self.get_audio(album_id, disc_id, track_id, Range::new(0, Some(42))).await?.info)
+    }
+
+    async fn get_audio(&self, album_id: &str, disc_id: u8, track_id: u8, range: Range) -> Result<AudioResourceReader, ProviderError> {
         // catalog not found
         if !self.folders.contains_key(album_id) {
             return Err(ProviderError::FileNotFound);
         }
 
-        let is_head = does_range_contain_flac_header(&range);
+        let is_head = range.contains_flac_header();
 
         let key = format!("{album_id}/{disc_id}/{track_id}");
         if !self.files.contains_key(&key) {
@@ -223,16 +227,18 @@ impl AnniProvider for DriveBackend {
             Some(id) => {
                 let id = id.value();
                 let metadata = self.audios.get(id).unwrap().value();
-                let (mut reader, range) = self.get_file(id, range).await?;
+                let (mut reader, range) = self.get_file(id, &range).await?;
                 let duration = if is_head {
                     let (info, _reader) = crate::utils::read_header(reader).await?;
                     reader = _reader;
                     info.total_samples / info.sample_rate as u64
                 } else { 0 };
                 Ok(AudioResourceReader {
-                    extension: metadata.0.to_string(),
-                    size: metadata.1,
-                    duration,
+                    info: AudioInfo {
+                        extension: metadata.0.to_string(),
+                        size: metadata.1,
+                        duration,
+                    },
                     range,
                     reader,
                 })
@@ -279,7 +285,7 @@ impl AnniProvider for DriveBackend {
             }
         };
 
-        Ok(self.get_file(id, None).await?.0)
+        Ok(self.get_file(id, &Range::full()).await?.0)
     }
 
     async fn reload(&mut self) -> Result<(), ProviderError> {
@@ -322,5 +328,25 @@ impl AnniProvider for DriveBackend {
             }
         }
         Ok(())
+    }
+}
+
+fn content_range_to_range(content_range: &str) -> Range {
+    // if content range header is invalid, return the full range
+    if content_range.len() <= 6 {
+        return Range::full();
+    }
+
+    // else, parse the range
+    // Content-Range: bytes 0-1023/10240
+    //                      | offset = 6
+    let content_range = &content_range[6..];
+    let (from, content_range) = content_range.split_once('-').unwrap_or((content_range, ""));
+    let (to, total) = content_range.split_once('/').unwrap_or((content_range, ""));
+
+    Range {
+        start: from.parse().unwrap_or(0),
+        end: to.parse().ok(),
+        total: total.parse().ok(),
     }
 }

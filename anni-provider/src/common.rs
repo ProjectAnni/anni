@@ -30,17 +30,18 @@ pub struct AudioResourceReader {
 pub struct Range {
     pub start: u64,
     pub end: Option<u64>,
+    pub total: Option<u64>,
 }
 
 impl Range {
     /// create a new range with given start and end offset
     pub fn new(start: u64, end: Option<u64>) -> Self {
-        Self { start, end }
+        Self { start, end, total: None }
     }
 
     /// create a full range
     pub fn full() -> Self {
-        Self { start: 0, end: None }
+        Self { start: 0, end: None, total: None }
     }
 
     /// get the length of the range
@@ -64,6 +65,7 @@ impl Range {
                 Some(e) => Some(e.min(end)),
                 None => Some(end),
             },
+            total: self.total,
         }
     }
 
@@ -73,6 +75,17 @@ impl Range {
 
     pub fn contains_flac_header(&self) -> bool {
         self.start == 0 && self.length() >= 42
+    }
+
+    pub fn to_range_header(&self) -> Option<String> {
+        if self.is_full() {
+            None
+        } else {
+            Some(match self.end {
+                Some(end) => format!("bytes={}-{}", self.start, end),
+                None => format!("bytes={}-", self.start),
+            })
+        }
     }
 }
 
