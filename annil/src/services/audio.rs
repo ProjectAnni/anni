@@ -29,6 +29,7 @@ pub async fn audio_head(claim: AnnilClaims, path: web::Path<(String, u8, u8)>, d
                         .append_header(("X-Origin-Size", info.size))
                         .append_header(("X-Duration-Seconds", info.duration))
                         .append_header(("Access-Control-Expose-Headers", "X-Origin-Type, X-Origin-Size, X-Duration-Seconds"))
+                        .append_header(("Accept-Ranges", "bytes"))
                         .content_type(if transcode {
                             "audio/aac".to_string()
                         } else {
@@ -64,7 +65,12 @@ pub async fn audio(claim: AnnilClaims, path: web::Path<(String, u8, u8)>, data: 
         let range = r.to_str().ok()?;
         let (_, right) = range.split_once('=')?;
         let (from, to) = right.split_once('-')?;
-        Some(Range::new(from.parse().ok()?, to.parse().ok()))
+        let range = Range::new(from.parse().ok()?, to.parse().ok());
+        Some(if range.is_full() {
+            Range::new(0, Some(1024))
+        } else {
+            range
+        })
     }).unwrap_or(Range::FULL);
 
     for provider in data.providers.read().await.iter() {
