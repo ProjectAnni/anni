@@ -37,9 +37,10 @@ pub struct AppState {
 
 async fn init_state(config: &Config) -> anyhow::Result<web::Data<AppState>> {
     log::info!("Fetching metadata repository...");
-    let repo = RepositoryManager::clone(&config.metadata.repo, "repo", &config.metadata.branch)?;
+    let repo = RepositoryManager::clone(&config.metadata.repo, config.metadata.base.join("repo"), &config.metadata.branch)?;
     let repo = repo.to_owned_manager()?;
-    repo.to_database("repo.db").await?;
+    let database_path = config.metadata.base.join("repo.db");
+    repo.to_database(&database_path).await?;
     log::info!("Metadata repository fetched.");
 
     log::info!("Start initializing providers...");
@@ -48,7 +49,7 @@ async fn init_state(config: &Config) -> anyhow::Result<web::Data<AppState>> {
     let mut caches = HashMap::new();
     for (provider_name, provider_config) in config.providers.iter() {
         log::debug!("Initializing provider: {}", provider_name);
-        let repo = RepoDatabaseRead::new("repo.db").await?;
+        let repo = RepoDatabaseRead::new(database_path.to_string_lossy().as_ref()).await?;
         let mut provider: Box<dyn AnniProvider + Send + Sync> = match &provider_config.item {
             ProviderItem::File { root } =>
                 Box::new(FileBackend::new(PathBuf::from(root), repo).await?),

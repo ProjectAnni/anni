@@ -1,5 +1,5 @@
 use serde::Deserialize;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::fs;
 use std::collections::HashMap;
 
@@ -55,6 +55,7 @@ impl ServerConfig {
 pub struct MetadataConfig {
     pub repo: String,
     pub branch: String,
+    pub base: PathBuf,
 }
 
 #[derive(Deserialize)]
