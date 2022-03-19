@@ -5,7 +5,7 @@ authors = ["Yesterday17 <mmf@mmf.moe>"]
 edition = "2018"
 
 [dependencies]
-tokio = { version = "1", features = ["full"] }
+tokio = { version = "1.17.0", features = ["full"] }
 futures = "0.3.17"
 clap = "=3.0.0-beta.5"
 regex = "1"
@@ -22,9 +22,9 @@ anni-flac = { path = "../anni-flac" }
 anni-repo = { path = "../anni-repo", features = ["db", "arc", "git"] }
 anni-clap-handler = { path = "../anni-clap-handler" }
 
-i18n-embed = { version = "0.12.1", features = ["fluent-system", "desktop-requester", "filesystem-assets"] }
-i18n-embed-fl = "0.5.0"
-rust-embed = "5"
+i18n-embed = { version = "0.13.4", features = ["fluent-system", "desktop-requester", "filesystem-assets"] }
+i18n-embed-fl = "0.6.4"
+rust-embed = "6.3.0"
 
 log = "0.4"
 env_logger = "0.9.0"

@@ -5,13 +5,13 @@ authors = ["Yesterday17 <mmf@mmf.moe>"]
 edition = "2018"
 
 [dependencies]
-actix-web = { version = "4.0.0-beta.14", features = ["rustls"] }
-actix-cors = "0.6.0-beta.6"
+actix-web = { version = "4.0.1", features = ["rustls"] }
+actix-cors = "0.6.1"
 anni-provider = { path = "../anni-provider" }
 actix-utils = "3.0.0"
 
-tokio = { version = "1", features = ["full"] }
-tokio-util = { version = "0.6.3", features = ["io"] }
+tokio = { version = "1.17.0", features = ["full"] }
+tokio-util = { version = "0.7.0", features = ["io"] }
 futures = "0.3"
 anyhow = "1.0"
 thiserror = "1.0"
