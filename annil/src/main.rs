@@ -10,7 +10,7 @@ use std::sync::Arc;
 use anni_provider::providers::{FileBackend, DriveBackend};
 use std::path::PathBuf;
 use crate::provider::AnnilProvider;
-use crate::config::{Config, ProviderItem};
+use crate::config::{Config, MetadataConfig, ProviderItem};
 use actix_web::middleware::Logger;
 use jwt_simple::prelude::HS256Key;
 use crate::auth::{AnnilAuth, AnnilClaims};
@@ -32,10 +32,11 @@ pub struct AppState {
     reload_token: String,
 
     version: String,
+    metadata: MetadataConfig,
     last_update: RwLock<u64>,
 }
 
-async fn init_state(config: &Config) -> anyhow::Result<web::Data<AppState>> {
+async fn init_state(config: Config) -> anyhow::Result<web::Data<AppState>> {
     log::info!("Fetching metadata repository...");
     let repo = RepositoryManager::clone(&config.metadata.repo, config.metadata.base.join("repo"), &config.metadata.branch)?;
     let repo = repo.to_owned_manager()?;
@@ -89,6 +90,7 @@ async fn init_state(config: &Config) -> anyhow::Result<web::Data<AppState>> {
         key,
         reload_token: config.server.reload_token().to_string(),
         version,
+        metadata: config.metadata,
         last_update: RwLock::new(last_update),
     }))
 }
@@ -100,7 +102,8 @@ async fn main() -> anyhow::Result<()> {
         .filter_module("sqlx::query", log::LevelFilter::Warn)
         .init();
     let config = Config::from_file(std::env::args().nth(1).unwrap_or_else(|| "config.toml".to_owned()))?;
-    let state = init_state(&config).await?;
+    let listen = config.server.listen("0.0.0.0:3614").to_string();
+    let state = init_state(config).await?;
 
     HttpServer::new(move || {
         App::new()
@@ -129,7 +132,7 @@ async fn main() -> anyhow::Result<()> {
             .service(albums)
             .service(share::share)
     })
-        .bind(config.server.listen("localhost:3614"))?
+        .bind(listen)?
         .run()
         .await?;
     Ok(())
