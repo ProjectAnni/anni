@@ -3,10 +3,13 @@ use crate::common::{AnniProvider, AudioResourceReader, ProviderError};
 use anni_repo::library::{album_info, disc_info};
 use async_trait::async_trait;
 use std::collections::{HashMap, HashSet};
+use std::io::SeekFrom;
+use std::os::unix::prelude::MetadataExt;
 use std::path::{Path, PathBuf};
 use tokio::fs::{read_dir, File};
+use tokio::io::{AsyncReadExt, AsyncSeekExt};
 use anni_repo::db::RepoDatabaseRead;
-use crate::ResourceReader;
+use crate::{AudioInfo, Range, ResourceReader};
 
 pub struct FileBackend {
     root: PathBuf,
@@ -112,13 +115,17 @@ impl AnniProvider for FileBackend {
         Ok(self.album_path.keys().map(|s| Cow::Borrowed(s.as_str())).collect())
     }
 
-    // TODO: support partial request for file backend
+    async fn get_audio_info(&self, album_id: &str, disc_id: u8, track_id: u8) -> Result<AudioInfo, ProviderError> {
+        let result = self.get_audio(album_id, disc_id, track_id, Range::new(0, Some(42))).await?;
+        Ok(result.info)
+    }
+
     async fn get_audio(
         &self,
         album_id: &str,
         disc_id: u8,
         track_id: u8,
-        _range: Option<String>,
+        range: Range,
     ) -> Result<AudioResourceReader, ProviderError> {
         let path = self.get_disc(album_id, disc_id)?;
         let mut dir = read_dir(path).await?;
@@ -129,14 +136,29 @@ impl AnniProvider for FileBackend {
                 .starts_with::<&str>(format!("{:02}.", track_id).as_ref())
             {
                 let path = entry.path();
-                let file = File::open(&path).await?;
-                let (info, reader) = crate::utils::read_header(file).await?;
+                let mut file = File::open(&path).await?;
+                let metadata = file.metadata().await?;
+                let file_size = metadata.size();
+
+                // limit in range
+                file.seek(SeekFrom::Start(range.start)).await?;
+                let file = file.take(range.length_limit(file_size));
+
+                // calculate audio duration only if it flac header is in range
+                let (duration, reader): (u64, ResourceReader) = if range.contains_flac_header() {
+                    let (info, reader) = crate::utils::read_header(file).await?;
+                    (info.total_samples / info.sample_rate as u64, reader)
+                } else {
+                    (0, Box::pin(file))
+                };
 
                 return Ok(AudioResourceReader {
-                    extension: path.extension().map(|s| s.to_string_lossy().to_string()).unwrap_or_default(),
-                    size: entry.metadata().await?.len() as usize,
-                    duration: info.total_samples / info.sample_rate as u64,
-                    range: None,
+                    info: AudioInfo {
+                        extension: path.extension().map(|s| s.to_string_lossy().to_string()).unwrap_or_default(),
+                        size: file_size as usize,
+                        duration,
+                    },
+                    range: range.end_with(file_size),
                     reader,
                 });
             }

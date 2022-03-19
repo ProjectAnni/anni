@@ -33,23 +33,46 @@ pub struct Range {
 }
 
 impl Range {
+    /// create a new range with given start and end offset
     pub fn new(start: u64, end: Option<u64>) -> Self {
         Self { start, end }
     }
 
+    /// create a full range
     pub fn full() -> Self {
         Self { start: 0, end: None }
     }
 
-    pub fn start(&self) -> u64 {
-        self.start
-    }
-
+    /// get the length of the range
     pub fn length(&self) -> u64 {
         match self.end {
             Some(end) => end - self.start + 1,
             None => 0,
         }
+    }
+
+    /// return length limited by a limit(usually actual file size)
+    pub fn length_limit(&self, limit: u64) -> u64 {
+        self.length().min(limit - self.start + 1)
+    }
+
+    /// return a new Range with updated end property
+    pub fn end_with(&self, end: u64) -> Self {
+        Self {
+            start: self.start,
+            end: match self.end {
+                Some(e) => Some(e.min(end)),
+                None => Some(end),
+            },
+        }
+    }
+
+    pub fn is_full(&self) -> bool {
+        self.start == 0 && self.end.is_none()
+    }
+
+    pub fn contains_flac_header(&self) -> bool {
+        self.start == 0 && self.length() >= 42
     }
 }
 
