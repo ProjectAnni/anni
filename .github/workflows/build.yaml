@@ -43,7 +43,7 @@ jobs:
       - name: Setup | Install dependency [Linux]
         if: matrix.os == 'ubuntu-latest'
         run: |
-          sudo apt install libssl-dev
+          sudo apt install libssl-dev pkg-config
 
       - name: Setup | Rust
         uses: actions-rs/toolchain@v1
