@@ -76,7 +76,6 @@ jobs:
       - name: Docker | Prepare Context
         if: matrix.target == 'x86_64-unknown-linux-musl'
         run: |
-          cp target/${{ matrix.target }}/release/anni ./docker/
           cp target/${{ matrix.target }}/release/annil ./docker/
 
       - name: Docker | Build and Publish
