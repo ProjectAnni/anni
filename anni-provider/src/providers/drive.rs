@@ -168,7 +168,7 @@ impl DriveBackend {
             .map_err(|_| std::io::Error::new(std::io::ErrorKind::Other, "Error!"))
             .into_async_read();
         let body = tokio_util::compat::FuturesAsyncReadCompatExt::compat(body);
-        Ok((Box::pin(body), content_range_to_range(content_range.as_deref().unwrap_or(""))))
+        Ok((Box::pin(body), content_range_to_range(content_range.as_deref())))
     }
 }
 
@@ -331,22 +331,27 @@ impl AnniProvider for DriveBackend {
     }
 }
 
-fn content_range_to_range(content_range: &str) -> Range {
-    // if content range header is invalid, return the full range
-    if content_range.len() <= 6 {
-        return Range::full();
-    }
+pub(crate) fn content_range_to_range(content_range: Option<&str>) -> Range {
+    match content_range {
+        Some(content_range) => {
+            // if content range header is invalid, return the full range
+            if content_range.len() <= 6 {
+                return Range::full();
+            }
 
-    // else, parse the range
-    // Content-Range: bytes 0-1023/10240
-    //                      | offset = 6
-    let content_range = &content_range[6..];
-    let (from, content_range) = content_range.split_once('-').unwrap_or((content_range, ""));
-    let (to, total) = content_range.split_once('/').unwrap_or((content_range, ""));
+            // else, parse the range
+            // Content-Range: bytes 0-1023/10240
+            //                      | offset = 6
+            let content_range = &content_range[6..];
+            let (from, content_range) = content_range.split_once('-').unwrap_or((content_range, ""));
+            let (to, total) = content_range.split_once('/').unwrap_or((content_range, ""));
 
-    Range {
-        start: from.parse().unwrap_or(0),
-        end: to.parse().ok(),
-        total: total.parse().ok(),
+            Range {
+                start: from.parse().unwrap_or(0),
+                end: to.parse().ok(),
+                total: total.parse().ok(),
+            }
+        }
+        None => Range::full(),
     }
 }

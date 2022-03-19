@@ -134,4 +134,7 @@ pub enum ProviderError {
 
     #[error(transparent)]
     FlacError(#[from] anni_flac::error::FlacError),
+
+    #[error("an error occurred")]
+    GeneralError,
 }
