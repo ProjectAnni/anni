@@ -74,7 +74,7 @@ jobs:
           cd -
 
       - name: Docker | Prepare Context
-        if: matrix.os == ''
+        if: matrix.os == 'x86_64-unknown-linux-musl'
         run: |
           cp target/${{ matrix.target }}/release/anni ./docker/
           cp target/${{ matrix.target }}/release/annil ./docker/
