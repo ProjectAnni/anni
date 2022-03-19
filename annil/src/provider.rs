@@ -1,7 +1,7 @@
 use std::borrow::Cow;
-use anni_provider::{ProviderError, AudioResourceReader, AnniProvider};
-use tokio::io::AsyncRead;
+use anni_provider::{ProviderError, AnniProvider};
 use std::collections::HashSet;
+use std::ops::Deref;
 
 pub struct AnnilProvider {
     name: String,
@@ -40,14 +40,12 @@ impl AnnilProvider {
         self.inner.reload().await?;
         Ok(())
     }
+}
 
-    pub async fn get_audio(&self, album_id: &str, disc_id: u8, track_id: u8, range: Option<String>) -> Result<AudioResourceReader, ProviderError> {
-        log::trace!("[{}] Getting audio: {}/{}", self.name(), album_id, track_id);
-        self.inner.get_audio(album_id, disc_id, track_id, range).await
-    }
+impl Deref for AnnilProvider {
+    type Target = Box<dyn AnniProvider + Send + Sync>;
 
-    pub async fn get_cover(&self, album_id: &str, disc_id: Option<u8>) -> Result<impl AsyncRead, ProviderError> {
-        log::trace!("[{}] Getting cover: {}", self.name(), album_id);
-        self.inner.get_cover(album_id, disc_id).await
+    fn deref(&self) -> &Self::Target {
+        &self.inner
     }
 }

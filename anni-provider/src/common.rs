@@ -94,6 +94,18 @@ impl Range {
             })
         }
     }
+
+    pub fn to_content_range_header(&self) -> String {
+        if self.is_full() {
+            "bytes */*".to_string()
+        } else {
+            match (self.end, self.total) {
+                (Some(end), Some(total)) => format!("bytes {}-{}/{}", self.start, end, total),
+                (Some(end), None) => format!("bytes {}-{}", self.start, end),
+                _ => format!("bytes {}-", self.start),
+            }
+        }
+    }
 }
 
 /// AnniProvider is a common trait for anni resource providers.

@@ -3,6 +3,7 @@ use actix_web::{HttpRequest, HttpResponse, Responder, ResponseError, web};
 use actix_web::web::Query;
 use tokio_util::io::ReaderStream;
 use serde::Deserialize;
+use anni_provider::Range;
 use crate::{AnnilClaims, AnnilError, AppState};
 
 #[derive(Deserialize)]
@@ -18,20 +19,20 @@ pub async fn audio_head(claim: AnnilClaims, path: web::Path<(String, u8, u8)>, d
 
     for provider in data.providers.read().await.iter() {
         if provider.has_album(&album_id).await {
-            let audio = provider.get_audio(&album_id, disc_id, track_id, Some("bytes=0-42".into())).await.map_err(|_| AnnilError::NotFound);
+            let audio = provider.get_audio_info(&album_id, disc_id, track_id).await.map_err(|_| AnnilError::NotFound);
             return match audio {
-                Ok(audio) => {
+                Ok(info) => {
                     let transcode = if claim.is_guest() { true } else { query.prefer_bitrate.as_deref().unwrap_or("medium") != "lossless" };
 
                     let mut resp = HttpResponse::Ok();
-                    resp.append_header(("X-Origin-Type", format!("audio/{}", audio.extension)))
-                        .append_header(("X-Origin-Size", audio.size))
-                        .append_header(("X-Duration-Seconds", audio.duration))
+                    resp.append_header(("X-Origin-Type", format!("audio/{}", info.extension)))
+                        .append_header(("X-Origin-Size", info.size))
+                        .append_header(("X-Duration-Seconds", info.duration))
                         .append_header(("Access-Control-Expose-Headers", "X-Origin-Type, X-Origin-Size, X-Duration-Seconds"))
                         .content_type(if transcode {
                             "audio/aac".to_string()
                         } else {
-                            format!("audio/{}", audio.extension)
+                            format!("audio/{}", info.extension)
                         });
                     resp.finish()
                 }
@@ -59,31 +60,36 @@ pub async fn audio(claim: AnnilClaims, path: web::Path<(String, u8, u8)>, data: 
         "lossless" => None,
         _ => Some("128k"),
     };
-    let range = req.headers().get("Range").map(|r| r.to_str().unwrap_or("0-42").to_string());
+    let range = req.headers().get("Range").and_then(|r| {
+        let range = r.to_str().ok()?;
+        let (_, right) = range.split_once('=')?;
+        let (from, to) = right.split_once('-')?;
+        Some(Range::new(from.parse().ok()?, to.parse().ok()))
+    }).unwrap_or(Range::FULL);
 
     for provider in data.providers.read().await.iter() {
         if provider.has_album(&album_id).await {
             // range is only supported on lossless
-            let range = if bitrate.is_some() { None } else { range };
+            let range = if bitrate.is_some() { Range::FULL } else { range };
             let audio = provider.get_audio(&album_id, disc_id, track_id, range).await.map_err(|_| AnnilError::NotFound);
             if let Err(e) = audio {
                 return e.error_response();
             }
 
             let mut audio = audio.unwrap();
-            let mut resp = if let Some(range) = &audio.range {
+            let mut resp = if !audio.range.is_full() {
                 let mut resp = HttpResponse::PartialContent();
-                resp.append_header(("Content-Range", range.to_string()));
+                resp.append_header(("Content-Range", audio.range.to_content_range_header()));
                 resp
             } else { HttpResponse::Ok() };
 
-            resp.append_header(("X-Origin-Type", format!("audio/{}", audio.extension)))
-                .append_header(("X-Origin-Size", audio.size))
-                .append_header(("X-Duration-Seconds", audio.duration))
+            resp.append_header(("X-Origin-Type", format!("audio/{}", audio.info.extension)))
+                .append_header(("X-Origin-Size", audio.info.size))
+                .append_header(("X-Duration-Seconds", audio.info.duration))
                 .append_header(("Access-Control-Expose-Headers", "X-Origin-Type, X-Origin-Size, X-Duration-Seconds"))
                 .content_type(match bitrate {
                     Some(_) => "audio/aac".to_string(),
-                    None => format!("audio/{}", audio.extension)
+                    None => format!("audio/{}", audio.info.extension)
                 });
 
             return match bitrate {
