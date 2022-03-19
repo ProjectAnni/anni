@@ -83,7 +83,7 @@ jobs:
         if: matrix.target == 'x86_64-unknown-linux-musl'
         uses: macbre/push-to-ghcr@master
         with:
-          image_name: project-anni/annil
+          image_name: projectanni/annil
           dockerfile: ./docker/Dockerfile
           context: ./docker
           github_token: ${{ secrets.GITHUB_TOKEN }}
