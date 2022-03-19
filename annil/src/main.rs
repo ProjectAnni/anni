@@ -53,12 +53,18 @@ async fn init_state(config: &Config) -> anyhow::Result<web::Data<AppState>> {
         let mut provider: Box<dyn AnniProvider + Send + Sync> = match &provider_config.item {
             ProviderItem::File { root } =>
                 Box::new(FileBackend::new(PathBuf::from(root), repo).await?),
-            ProviderItem::Drive { drive_id, corpora, token_path } =>
+            ProviderItem::Drive { drive_id, corpora, initial_token_path, token_path } => {
+                if let Some(initial_token_path) = initial_token_path {
+                    if initial_token_path.exists() && !token_path.exists() {
+                        let _ = std::fs::copy(initial_token_path, token_path.clone());
+                    }
+                }
                 Box::new(DriveBackend::new(Default::default(), DriveProviderSettings {
                     corpora: corpora.to_string(),
                     drive_id: drive_id.clone(),
-                    token_path: token_path.as_deref().unwrap_or("annil.token").to_string(),
-                }, repo).await?),
+                    token_path: token_path.clone(),
+                }, repo).await?)
+            }
         };
         if let Some(cache) = provider_config.cache() {
             log::debug!("Cache configuration detected: root = {}, max-size = {}", cache.root(), cache.max_size);

@@ -84,7 +84,8 @@ pub enum ProviderItem {
     Drive {
         corpora: String,
         drive_id: Option<String>,
-        token_path: Option<String>,
+        initial_token_path: Option<PathBuf>,
+        token_path: PathBuf,
     },
 }
 

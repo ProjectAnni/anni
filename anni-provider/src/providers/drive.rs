@@ -1,6 +1,7 @@
 use std::borrow::Cow;
 use crate::{AnniProvider, ProviderError, AudioResourceReader, ResourceReader, Range, AudioInfo};
 use std::collections::{HashSet, HashMap};
+use std::path::{Path, PathBuf};
 use async_trait::async_trait;
 use google_drive3::DriveHub;
 use hyper_rustls::HttpsConnector;
@@ -34,7 +35,8 @@ impl Default for DriveAuth {
 }
 
 impl DriveAuth {
-    pub async fn build(self, persist_path: &str) -> std::io::Result<Authenticator<HttpsConnector<HttpConnector>>> {
+    pub async fn build<P>(self, persist_path: P) -> std::io::Result<Authenticator<HttpsConnector<HttpConnector>>>
+        where P: AsRef<Path> {
         match self {
             DriveAuth::InstalledFlow { client_id, client_secret, project_id } => {
                 oauth2::InstalledFlowAuthenticator::builder(oauth2::ApplicationSecret {
@@ -48,12 +50,14 @@ impl DriveAuth {
                     client_email: None,
                     client_x509_cert_url: None,
                 }, oauth2::InstalledFlowReturnMethod::Interactive)
-                    .persist_tokens_to_disk(persist_path)
+                    .persist_tokens_to_disk(persist_path.as_ref())
                     .flow_delegate(Box::new(DefaultInstalledFlowDelegate))
                     .build().await
             }
             DriveAuth::ServiceAccount(sa) => {
-                oauth2::ServiceAccountAuthenticator::builder(sa).persist_tokens_to_disk(persist_path).build().await
+                oauth2::ServiceAccountAuthenticator::builder(sa)
+                    .persist_tokens_to_disk(persist_path.as_ref())
+                    .build().await
             }
         }
     }
@@ -62,7 +66,7 @@ impl DriveAuth {
 pub struct DriveProviderSettings {
     pub corpora: String,
     pub drive_id: Option<String>,
-    pub token_path: String,
+    pub token_path: PathBuf,
 }
 
 pub struct DriveBackend {
