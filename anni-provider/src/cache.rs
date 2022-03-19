@@ -1,16 +1,17 @@
-use crate::{AnniProvider, ProviderError, ResourceReader, AudioResourceReader};
+use crate::{AnniProvider, ProviderError, ResourceReader, AudioResourceReader, AudioInfo, Range};
 use async_trait::async_trait;
 use parking_lot::RwLock;
 use std::borrow::Cow;
-use std::collections::{BTreeMap, HashMap, HashSet};
+use std::collections::HashSet;
 use std::future::Future;
 use std::path::{Path, PathBuf};
 use std::pin::Pin;
 use std::sync::Arc;
 use std::task::{Context, Poll};
-use std::time::SystemTime;
+use dashmap::DashMap;
+use lru::LruCache;
 use tokio::fs::File;
-use tokio::io::{AsyncRead, ReadBuf};
+use tokio::io::{AsyncRead, AsyncReadExt, ReadBuf};
 use tokio::time::Duration;
 
 pub struct Cache {
@@ -38,26 +39,20 @@ impl AnniProvider for Cache {
         self.inner.albums().await
     }
 
-    async fn get_audio(
-        &self,
-        album_id: &str,
-        disc_id: u8,
-        track_id: u8,
-        range: Option<String>,
-    ) -> Result<AudioResourceReader, ProviderError> {
-        self.pool
-            .fetch(
-                do_hash(format!("{}/{:02}/{:02}", album_id, disc_id, track_id)),
-                self.inner.get_audio(album_id, disc_id, track_id, range),
-            )
-            .await
+    async fn get_audio_info(&self, album_id: &str, disc_id: u8, track_id: u8) -> Result<AudioInfo, ProviderError> {
+        // audio info request are passed to the inner provider directly
+        self.inner.get_audio_info(album_id, disc_id, track_id).await
     }
 
-    async fn get_cover(
-        &self,
-        album_id: &str,
-        disc_id: Option<u8>,
-    ) -> Result<ResourceReader, ProviderError> {
+    async fn get_audio(&self, album_id: &str, disc_id: u8, track_id: u8, range: Range) -> Result<AudioResourceReader, ProviderError> {
+        self.pool.fetch(
+            do_hash(format!("{}/{:02}/{:02}", album_id, disc_id, track_id)),
+            range,
+            self.inner.get_audio(album_id, disc_id, track_id, Range::full() /* cache does not pass range to the underlying provider */),
+        ).await
+    }
+
+    async fn get_cover(&self, album_id: &str, disc_id: Option<u8>) -> Result<ResourceReader, ProviderError> {
         // TODO: cache cover
         self.inner.get_cover(album_id, disc_id).await
     }
@@ -74,70 +69,55 @@ pub struct CachePool {
     /// Maximum space used by cache
     /// 0 means unlimited
     max_size: usize,
-    cache: RwLock<HashMap<String, Arc<CacheItem>>>,
-    last_used: RwLock<BTreeMap<String, u128>>,
+    cache: DashMap<String, Arc<CacheItem>>,
+    // https://github.com/xacrimon/dashmap/issues/189
+    last_used: RwLock<LruCache<String, u8>>,
 }
 
 impl CachePool {
     pub fn new<P: AsRef<Path>>(root: P, max_size: usize) -> Self {
         Self {
             root: PathBuf::from(root.as_ref()),
-            max_size,
+            max_size: if max_size == 0 { usize::MAX } else { max_size },
             cache: Default::default(),
-            last_used: Default::default(),
+            last_used: RwLock::new(LruCache::unbounded()),
         }
     }
 
     async fn fetch(
         &self,
         key: String,
+        range: Range,
         on_miss: impl Future<Output=Result<AudioResourceReader, ProviderError>>,
     ) -> Result<AudioResourceReader, ProviderError> {
-        let now = SystemTime::now()
-            .duration_since(SystemTime::UNIX_EPOCH)
-            .unwrap()
-            .as_millis();
         let item = if !self.has_cache(&key) {
-            // calculate current space used
-            let space_used = self.space_used();
+            // get data, return directly if it's a partial request
+            let result = on_miss.await?;
 
             // prepare for new item
             let path = self.root.join(&key);
             let mut file = tokio::fs::File::create(&path).await?;
 
-            // get data, return directly if it's a partial request
-            let result = on_miss.await?;
-            if result.range.is_some() {
-                return Ok(result);
-            }
-
             let AudioResourceReader {
-                extension,
-                size,
-                duration,
+                info,
                 mut reader,
                 ..
             } = result;
-            let item = Arc::new(CacheItem::new(path, extension, size, duration, false));
-
-            // write to map
-            self.cache.write().insert(key.clone(), item.clone());
-            self.last_used.write().insert(key.clone(), now);
+            let item = Arc::new(CacheItem::new(path, info, false));
 
             // remove old item if space is full
-            if self.max_size != 0 && space_used > self.max_size {
+            if self.space_used() > self.max_size {
                 // get the first item of BTreeMap
-                let read = self.last_used.read();
-                let key = read.keys().next().unwrap();
-                // remove it from last_used map
-                // if key does not exist, it means other futures has removed it yet
-                // so ignore here
-                if let Some((key, ..)) = self.last_used.write().remove_entry(key) {
-                    // remove it from cache map
-                    // drop would do the removal
-                    self.cache.write().remove(&key).unwrap().set_cached(false);
-                }
+                let mut write = self.last_used.write();
+                let key = write.pop_lru().unwrap();
+                // remove it from cache map
+                // drop would do the removal
+                self.remove(&key.0);
             }
+
+            // write to map
+            self.cache.insert(key.clone(), item.clone());
+            self.last_used.write().put(key.clone(), 0);
 
             // cache
             let item_spawn = item.clone();
@@ -151,27 +131,26 @@ impl CachePool {
             item
         } else {
             // update last_used time
-            self.last_used.write().insert(key.clone(), now);
-            self.cache.read().get(&key).unwrap().clone()
+            self.last_used.write().get(&key);
+            self.cache.get(&key).unwrap().clone()
         };
 
-        Ok(item.to_audio_resource_reader(tokio::fs::File::open(&item.path).await?))
+        Ok(item.to_audio_resource_reader(tokio::fs::File::open(&item.path).await?, range).await)
     }
 
     fn remove(&self, key: &str) {
-        self.cache.write().remove(key).map(|r| r.set_cached(false));
-        self.last_used.write().remove(key);
+        self.cache.remove(key).map(|r| r.1.set_cached(false));
+        self.last_used.write().pop(key);
     }
 
     fn has_cache(&self, key: &str) -> bool {
-        self.last_used.read().contains_key(key)
+        self.last_used.read().contains(key)
     }
 
     fn space_used(&self) -> usize {
         self.cache
-            .read()
-            .values()
-            .map(|a| a.size())
+            .iter()
+            .map(|i| i.size())
             .reduce(|a, b| a + b)
             .unwrap_or(0)
     }
@@ -194,7 +173,8 @@ struct CacheItem {
 }
 
 impl CacheItem {
-    fn new(path: PathBuf, ext: String, size: usize, duration: u64, cached: bool) -> Self {
+    fn new(path: PathBuf, info: AudioInfo, cached: bool) -> Self {
+        let AudioInfo { extension: ext, duration, size } = info;
         CacheItem {
             path,
             ext,
@@ -221,12 +201,14 @@ impl CacheItem {
     }
 }
 
+#[async_trait::async_trait]
 trait CacheReader {
     fn to_reader(&self, file: tokio::fs::File) -> CacheItemReader;
 
-    fn to_audio_resource_reader(&self, file: tokio::fs::File) -> AudioResourceReader;
+    async fn to_audio_resource_reader(&self, file: tokio::fs::File, range: Range) -> AudioResourceReader;
 }
 
+#[async_trait::async_trait]
 impl CacheReader for Arc<CacheItem> {
     fn to_reader(&self, file: tokio::fs::File) -> CacheItemReader {
         CacheItemReader {
@@ -237,13 +219,26 @@ impl CacheReader for Arc<CacheItem> {
         }
     }
 
-    fn to_audio_resource_reader(&self, file: File) -> AudioResourceReader {
+    async fn to_audio_resource_reader(&self, file: File, range: Range) -> AudioResourceReader {
+        let reader = self.to_reader(file);
+        if range.start > 0 {
+            let _ = tokio::io::copy(&mut reader.take(range.start), &mut tokio::io::sink()).await;
+        }
+        let length = range.length();
+        let reader: ResourceReader = if length == 0 {
+            Box::pin(reader)
+        } else {
+            Box::pin(reader.take(length))
+        };
+
         AudioResourceReader {
-            extension: self.ext.clone(),
-            size: self.size(),
-            duration: self.duration,
-            range: None,
-            reader: Box::pin(self.to_reader(file)),
+            info: AudioInfo {
+                extension: self.ext.clone(),
+                size: self.size(),
+                duration: self.duration,
+            },
+            range: range.clone(),
+            reader,
         }
     }
 }
