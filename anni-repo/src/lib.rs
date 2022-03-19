@@ -12,5 +12,6 @@ pub mod prelude {
 
 #[cfg(feature = "db")]
 pub mod db;
+pub(crate) mod utils;
 
 pub use manager::{RepositoryManager, OwnedRepositoryManager};

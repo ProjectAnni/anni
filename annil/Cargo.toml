@@ -17,6 +17,7 @@ anyhow = "1.0"
 thiserror = "1.0"
 async-trait = "0.1.45"
 anni-flac = { path = "../anni-flac", features = ["async"] }
+anni-repo = { path = "../anni-repo", features = ["git", "db"] }
 
 serde = { version = "1.0", features = ["derive"] }
 toml = "0.5"

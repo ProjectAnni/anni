@@ -73,7 +73,7 @@ pub struct RepoCloneAction {
 
 #[handler(RepoCloneAction)]
 fn repo_clone(me: RepoCloneAction) -> anyhow::Result<()> {
-    RepositoryManager::clone(&me.url, me.root.unwrap_or_else(|| std::env::current_dir().unwrap().join("repo")))?;
+    RepositoryManager::clone(&me.url, me.root.unwrap_or_else(|| std::env::current_dir().unwrap().join("repo")), "")?;
     Ok(())
 }
 

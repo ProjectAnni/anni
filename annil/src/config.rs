@@ -1,11 +1,12 @@
-use serde::{Serialize, Deserialize};
-use std::path::{Path, PathBuf};
+use serde::Deserialize;
+use std::path::Path;
 use std::fs;
 use std::collections::HashMap;
 
-#[derive(Serialize, Deserialize)]
+#[derive(Deserialize)]
 pub struct Config {
     pub server: ServerConfig,
+    pub metadata: MetadataConfig,
     #[serde(rename = "backends")]
     pub providers: HashMap<String, ProviderConfig>,
 }
@@ -18,7 +19,7 @@ impl Config {
     }
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Deserialize)]
 pub struct ServerConfig {
     /// Server name
     pub name: String,
@@ -50,10 +51,15 @@ impl ServerConfig {
     }
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Deserialize)]
+pub struct MetadataConfig {
+    pub repo: String,
+    pub branch: String,
+}
+
+#[derive(Deserialize)]
 pub struct ProviderConfig {
     pub enable: bool,
-    pub db: PathBuf,
     #[serde(flatten)]
     pub item: ProviderItem,
     cache: Option<CacheConfig>,
@@ -66,7 +72,7 @@ impl ProviderConfig {
     }
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Deserialize)]
 #[serde(tag = "type")]
 pub enum ProviderItem {
     #[serde(rename = "file")]
@@ -81,7 +87,7 @@ pub enum ProviderItem {
     },
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Deserialize)]
 pub struct CacheConfig {
     root: String,
     #[serde(default, rename = "max-size")]

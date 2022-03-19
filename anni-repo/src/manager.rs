@@ -19,8 +19,13 @@ impl RepositoryManager {
     }
 
     #[cfg(feature = "git")]
-    pub fn clone<P: AsRef<Path>>(url: &str, root: P) -> RepoResult<Self> {
-        git2::Repository::clone(url, root.as_ref())?;
+    pub fn clone<P: AsRef<Path>>(url: &str, root: P, branch: &str) -> RepoResult<Self> {
+        if root.as_ref().exists() {
+            // pull instead of clone
+            crate::utils::git::pull(root.as_ref(), branch)?;
+        } else {
+            git2::Repository::clone(url, root.as_ref())?;
+        }
         Self::new(root.as_ref())
     }
 
@@ -388,5 +393,38 @@ impl<'repo> OwnedRepositoryManager<'repo> {
         }
 
         None
+    }
+
+    #[cfg(feature = "db")]
+    pub async fn to_database<P>(&self, database_path: P) -> RepoResult<()>
+        where P: AsRef<Path> {
+        use std::time::{SystemTime, UNIX_EPOCH};
+
+        // remove database first
+        let _ = std::fs::remove_file(database_path.as_ref());
+
+        let mut db = crate::db::RepoDatabaseWrite::create(database_path.as_ref()).await?;
+        // TODO: get url / ref from repo
+        db.write_info(self.repo.name(), self.repo.edition(), "", "").await?;
+
+        // Write all tags
+        let tags = self.tags().iter().filter_map(|t| match t {
+            RepoTag::Full(tag) => Some(tag),
+            _ => None,
+        });
+        db.add_tags(tags).await?;
+
+        // Write all albums
+        for album in self.albums() {
+            db.add_album(album).await?;
+        }
+
+        // Create Index
+        db.create_index().await?;
+
+
+        // Creation time
+        fs::write(database_path.as_ref().with_file_name("repo.json"), &format!("{{\"last_modified\": {}}}", SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs()))?;
+        Ok(())
     }
 }

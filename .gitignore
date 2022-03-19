@@ -8,3 +8,5 @@
 perf.data
 *.db-shm
 *.db-wal
+repo
+repo.json

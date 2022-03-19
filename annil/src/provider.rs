@@ -34,12 +34,6 @@ impl AnnilProvider {
             HashSet::new()
         }
     }
-
-    pub async fn reload(&mut self) -> Result<(), ProviderError> {
-        log::debug!("[{}] Reloading provider albums", self.name());
-        self.inner.reload().await?;
-        Ok(())
-    }
 }
 
 impl Deref for AnnilProvider {

@@ -23,6 +23,7 @@ use crate::error::AnnilError;
 use std::time::{SystemTime, UNIX_EPOCH};
 use jwt_simple::reexports::serde_json::json;
 use tokio::sync::RwLock;
+use anni_repo::RepositoryManager;
 use crate::services::*;
 
 pub struct AppState {
@@ -35,13 +36,19 @@ pub struct AppState {
 }
 
 async fn init_state(config: &Config) -> anyhow::Result<web::Data<AppState>> {
+    log::info!("Fetching metadata repository...");
+    let repo = RepositoryManager::clone(&config.metadata.repo, "repo", &config.metadata.branch)?;
+    let repo = repo.to_owned_manager()?;
+    repo.to_database("repo.db").await?;
+    log::info!("Metadata repository fetched.");
+
     log::info!("Start initializing providers...");
     let now = SystemTime::now();
     let mut providers = Vec::with_capacity(config.providers.len());
     let mut caches = HashMap::new();
     for (provider_name, provider_config) in config.providers.iter() {
         log::debug!("Initializing provider: {}", provider_name);
-        let repo = RepoDatabaseRead::new(&provider_config.db.to_string_lossy()).await?;
+        let repo = RepoDatabaseRead::new("repo.db").await?;
         let mut provider: Box<dyn AnniProvider + Send + Sync> = match &provider_config.item {
             ProviderItem::File { root } =>
                 Box::new(FileBackend::new(PathBuf::from(root), repo).await?),
