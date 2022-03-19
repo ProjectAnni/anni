@@ -73,6 +73,23 @@ jobs:
           tar czvf ../../../${{ matrix.name }} anni annil
           cd -
 
+      - name: Docker | Prepare Context
+        if: matrix.os == ''
+        run: |
+          cp target/${{ matrix.target }}/release/anni ./docker/
+          cp target/${{ matrix.target }}/release/annil ./docker/
+
+      - name: Docker | Build and Publish
+        if: matrix.target == 'x86_64-unknown-linux-musl'
+        uses: macbre/push-to-ghcr@master
+        with:
+          image_name: project-anni/annil
+          dockerfile: ./docker/Dockerfile
+          context: ./docker
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+        env:
+          DOCKER_BUILDKIT: 1
+
       - name: Deploy | Upload artifacts
         uses: actions/upload-artifact@v2
         with:
