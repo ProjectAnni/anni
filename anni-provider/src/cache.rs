@@ -48,7 +48,7 @@ impl AnniProvider for Cache {
         self.pool.fetch(
             do_hash(format!("{}/{:02}/{:02}", album_id, disc_id, track_id)),
             range,
-            self.inner.get_audio(album_id, disc_id, track_id, Range::full() /* cache does not pass range to the underlying provider */),
+            self.inner.get_audio(album_id, disc_id, track_id, Range::FULL /* cache does not pass range to the underlying provider */),
         ).await
     }
 
@@ -220,8 +220,9 @@ impl CacheReader for Arc<CacheItem> {
     }
 
     async fn to_audio_resource_reader(&self, file: File, range: Range) -> AudioResourceReader {
-        let reader = self.to_reader(file);
+        let mut reader = self.to_reader(file);
         if range.start > 0 {
+            let reader = &mut reader;
             let _ = tokio::io::copy(&mut reader.take(range.start), &mut tokio::io::sink()).await;
         }
         let length = range.length();

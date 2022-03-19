@@ -116,8 +116,7 @@ impl AnniProvider for FileBackend {
     }
 
     async fn get_audio_info(&self, album_id: &str, disc_id: u8, track_id: u8) -> Result<AudioInfo, ProviderError> {
-        let result = self.get_audio(album_id, disc_id, track_id, Range::new(0, Some(42))).await?;
-        Ok(result.info)
+        Ok(self.get_audio(album_id, disc_id, track_id, Range::FLAC_HEADER).await?.info)
     }
 
     async fn get_audio(

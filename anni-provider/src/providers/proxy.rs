@@ -44,7 +44,7 @@ impl ProxyBackend {
 #[async_trait]
 impl AnniProvider for ProxyBackend {
     async fn albums(&self) -> Result<HashSet<Cow<str>>, ProviderError> {
-        let r = self.get("/albums", &Range::full()).await.map_err(|e| ProviderError::RequestError(e))?;
+        let r = self.get("/albums", &Range::FULL).await.map_err(|e| ProviderError::RequestError(e))?;
         Ok(r.json().await?)
     }
 
@@ -75,7 +75,7 @@ impl AnniProvider for ProxyBackend {
             Some(disc_id) => format!("/{}/{}/cover", album_id, disc_id),
             None => format!("/{}/cover", album_id),
         };
-        let resp = self.get(&path, &Range::full()).await.map_err(|e| ProviderError::RequestError(e))?;
+        let resp = self.get(&path, &Range::FULL).await.map_err(|e| ProviderError::RequestError(e))?;
         let body = resp
             .bytes_stream()
             .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e.to_string()))

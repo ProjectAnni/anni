@@ -34,14 +34,21 @@ pub struct Range {
 }
 
 impl Range {
+    pub const FULL: Range = Range {
+        start: 0,
+        end: None,
+        total: None,
+    };
+
+    pub const FLAC_HEADER: Range = Range {
+        start: 0,
+        end: Some(42),
+        total: None,
+    };
+
     /// create a new range with given start and end offset
     pub fn new(start: u64, end: Option<u64>) -> Self {
         Self { start, end, total: None }
-    }
-
-    /// create a full range
-    pub fn full() -> Self {
-        Self { start: 0, end: None, total: None }
     }
 
     /// get the length of the range

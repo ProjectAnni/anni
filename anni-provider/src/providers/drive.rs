@@ -184,7 +184,7 @@ impl AnniProvider for DriveBackend {
 
     async fn get_audio_info(&self, album_id: &str, disc_id: u8, track_id: u8) -> Result<AudioInfo, ProviderError> {
         // TODO: cache audio size
-        Ok(self.get_audio(album_id, disc_id, track_id, Range::new(0, Some(42))).await?.info)
+        Ok(self.get_audio(album_id, disc_id, track_id, Range::FLAC_HEADER).await?.info)
     }
 
     async fn get_audio(&self, album_id: &str, disc_id: u8, track_id: u8, range: Range) -> Result<AudioResourceReader, ProviderError> {
@@ -226,7 +226,8 @@ impl AnniProvider for DriveBackend {
         match self.files.get(&key) {
             Some(id) => {
                 let id = id.value();
-                let metadata = self.audios.get(id).unwrap().value();
+                let metadata = self.audios.get(id).unwrap();
+                let metadata = metadata.value();
                 let (mut reader, range) = self.get_file(id, &range).await?;
                 let duration = if is_head {
                     let (info, _reader) = crate::utils::read_header(reader).await?;
@@ -259,33 +260,29 @@ impl AnniProvider for DriveBackend {
             Some(disc_id) => format!("{album_id}/{disc_id}/cover"),
             None => format!("{album_id}/cover"),
         };
-        let id = match self.files.get(&key) {
-            Some(file) => {
-                file.value()
-            }
-            None => {
-                // get folder_id
-                self.cache_discs(album_id).await?;
-                let folder_id = self.get_parent_folder(album_id, disc_id);
+        if !self.files.contains_key(&key) {
+            // get folder_id
+            self.cache_discs(album_id).await?;
+            let folder_id = self.get_parent_folder(album_id, disc_id);
 
-                // get cover file id
-                let permit = self.semaphore.acquire().await.unwrap();
-                let (_, list) = self.prepare_list()
-                    .q(&format!("trashed = false and mimeType = 'image/jpeg' and name = 'cover.jpg' and '{}' in parents", folder_id))
-                    .param("fields", "nextPageToken, files(id,name)")
-                    .doit().await?;
-                drop(permit);
+            // get cover file id
+            let permit = self.semaphore.acquire().await.unwrap();
+            let (_, list) = self.prepare_list()
+                .q(&format!("trashed = false and mimeType = 'image/jpeg' and name = 'cover.jpg' and '{}' in parents", folder_id))
+                .param("fields", "nextPageToken, files(id,name)")
+                .doit().await?;
+            drop(permit);
 
-                // get cover file & return
-                let files = list.files.unwrap();
-                let file = files.get(0).ok_or(ProviderError::FileNotFound)?;
-                let id = file.id.as_ref().unwrap().to_string();
-                self.files.insert(key.to_string(), id);
-                self.files.get(&key).unwrap().value()
-            }
-        };
+            // get cover file & return
+            let files = list.files.unwrap();
+            let file = files.get(0).ok_or(ProviderError::FileNotFound)?;
+            let id = file.id.as_ref().unwrap().to_string();
+            self.files.insert(key.to_string(), id);
+        }
 
-        Ok(self.get_file(id, &Range::full()).await?.0)
+        let id = self.files.get(&key).unwrap();
+        let id = id.value();
+        Ok(self.get_file(id, &Range::FULL).await?.0)
     }
 
     async fn reload(&mut self) -> Result<(), ProviderError> {
@@ -336,7 +333,7 @@ pub(crate) fn content_range_to_range(content_range: Option<&str>) -> Range {
         Some(content_range) => {
             // if content range header is invalid, return the full range
             if content_range.len() <= 6 {
-                return Range::full();
+                return Range::FULL;
             }
 
             // else, parse the range
@@ -352,6 +349,6 @@ pub(crate) fn content_range_to_range(content_range: Option<&str>) -> Range {
                 total: total.parse().ok(),
             }
         }
-        None => Range::full(),
+        None => Range::FULL,
     }
 }
