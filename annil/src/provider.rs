@@ -1,7 +1,7 @@
 use std::borrow::Cow;
 use anni_provider::{ProviderError, AnniProvider};
 use std::collections::HashSet;
-use std::ops::Deref;
+use std::ops::{Deref, DerefMut};
 
 pub struct AnnilProvider {
     name: String,
@@ -41,5 +41,11 @@ impl Deref for AnnilProvider {
 
     fn deref(&self) -> &Self::Target {
         &self.inner
+    }
+}
+
+impl DerefMut for AnnilProvider {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.inner
     }
 }
