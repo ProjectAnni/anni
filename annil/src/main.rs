@@ -99,6 +99,7 @@ async fn init_state(config: Config) -> anyhow::Result<web::Data<AppState>> {
 async fn main() -> anyhow::Result<()> {
     env_logger::builder()
         .filter_level(log::LevelFilter::Info)
+        .parse_env("ANNI_LOG")
         .filter_module("sqlx::query", log::LevelFilter::Warn)
         .init();
     let config = Config::from_file(std::env::args().nth(1).unwrap_or_else(|| "config.toml".to_owned()))?;
