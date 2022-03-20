@@ -69,7 +69,7 @@ jobs:
         run: |
           cd target/${{ matrix.target }}/release
           strip anni || true
-          strip annil || true
+#          strip annil || true
           tar czvf ../../../${{ matrix.name }} anni annil
           cd -
 
