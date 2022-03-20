@@ -1,6 +1,7 @@
 FROM alpine
 VOLUME /app/data
 
+RUN apk add --no-cache ffmpeg
 COPY annil /app/
 
 WORKDIR /app/data
