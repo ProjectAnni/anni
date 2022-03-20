@@ -60,7 +60,6 @@ jobs:
         run: |
           cd target/${{ matrix.target }}/release
           strip anni.exe
-          strip annil.exe
           7z a ../../../${{ matrix.name }} anni.exe annil.exe
           cd -
 
@@ -69,7 +68,6 @@ jobs:
         run: |
           cd target/${{ matrix.target }}/release
           strip anni || true
-#          strip annil || true
           tar czvf ../../../${{ matrix.name }} anni annil
           cd -
 
