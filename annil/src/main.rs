@@ -22,7 +22,7 @@ use actix_cors::Cors;
 use crate::error::AnnilError;
 use std::time::{SystemTime, UNIX_EPOCH};
 use jwt_simple::reexports::serde_json::json;
-use tokio::sync::RwLock;
+use parking_lot::RwLock;
 use anni_repo::RepositoryManager;
 use crate::services::*;
 

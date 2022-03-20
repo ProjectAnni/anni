@@ -17,7 +17,7 @@ pub async fn audio_head(claim: AnnilClaims, path: web::Path<(String, u8, u8)>, d
         return AnnilError::Unauthorized.error_response();
     }
 
-    for provider in data.providers.read().await.iter() {
+    for provider in data.providers.read().iter() {
         if provider.has_album(&album_id).await {
             let audio = provider.get_audio_info(&album_id, disc_id, track_id).await.map_err(|_| AnnilError::NotFound);
             return match audio {
@@ -73,7 +73,7 @@ pub async fn audio(claim: AnnilClaims, path: web::Path<(String, u8, u8)>, data: 
         })
     }).unwrap_or(Range::FULL);
 
-    for provider in data.providers.read().await.iter() {
+    for provider in data.providers.read().iter() {
         if provider.has_album(&album_id).await {
             // range is only supported on lossless
             let range = if bitrate.is_some() { Range::FULL } else { range };

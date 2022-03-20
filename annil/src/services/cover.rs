@@ -12,7 +12,7 @@ pub struct CoverPath {
 /// Get audio cover of an album with {album_id} and optional {disc_id}
 pub async fn cover(path: web::Path<CoverPath>, data: web::Data<AppState>) -> impl Responder {
     let CoverPath { album_id, disc_id } = path.into_inner();
-    for provider in data.providers.read().await.iter() {
+    for provider in data.providers.read().iter() {
         if provider.has_album(&album_id).await {
             return match provider.get_cover(&album_id, disc_id).await {
                 Ok(cover) => {

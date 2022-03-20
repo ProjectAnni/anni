@@ -9,7 +9,7 @@ async fn albums(claims: AnnilClaims, data: web::Data<AppState>) -> impl Responde
     match claims {
         AnnilClaims::User(_) => {
             let mut albums: HashSet<Cow<str>> = HashSet::new();
-            let read = data.providers.read().await;
+            let read = data.providers.read();
 
             // users can get real album list
             for provider in read.iter() {

@@ -11,11 +11,11 @@ async fn reload(data: web::Data<AppState>) -> impl Responder {
     let database_path = data.metadata.base.join("repo.db");
     repo.to_database(&database_path).await.unwrap();
 
-    for provider in data.providers.write().await.iter_mut() {
+    for provider in data.providers.write().iter_mut() {
         if let Err(e) = provider.reload().await {
             log::error!("Failed to reload provider {}: {:?}", provider.name(), e);
         }
     }
-    *data.last_update.write().await = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs();
+    *data.last_update.write() = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs();
     HttpResponse::Ok().finish()
 }

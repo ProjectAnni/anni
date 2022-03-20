@@ -6,6 +6,6 @@ pub async fn info(data: web::Data<AppState>) -> impl Responder {
     HttpResponse::Ok().json(json!({
         "version": data.version,
         "protocol_version": "0.2.1",
-        "last_update": *data.last_update.read().await,
+        "last_update": *data.last_update.read(),
     }))
 }
