@@ -100,7 +100,11 @@ impl DriveBackend {
             "https://www.googleapis.com/auth/drive.metadata.readonly",
             "https://www.googleapis.com/auth/drive.readonly",
         ]).await?;
-        let hub = DriveHub::new(hyper::Client::builder().build(hyper_rustls::HttpsConnector::with_native_roots()), auth);
+        let hub = DriveHub::new(
+            hyper::Client::builder()
+                // https://github.com/hyperium/hyper/issues/2312
+                .pool_max_idle_per_host(0)
+                .build(hyper_rustls::HttpsConnector::with_native_roots()), auth);
         let mut this = Self {
             hub: Box::new(hub),
             folders: Default::default(),
