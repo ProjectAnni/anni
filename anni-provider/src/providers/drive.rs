@@ -113,7 +113,7 @@ impl DriveBackend {
             audios: Default::default(),
             settings,
             repo,
-            semaphore: Semaphore::new(100),
+            semaphore: Semaphore::new(200),
         };
         this.reload().await?;
         Ok(this)
@@ -163,9 +163,9 @@ impl DriveBackend {
         }
     }
 
-    async fn get_file(&self, file_id: &str, range: &Range) -> Result<(ResourceReader, Range), ProviderError> {
+    async fn get_file(&self, file_id: String, range: &Range) -> Result<(ResourceReader, Range), ProviderError> {
         let permit = self.semaphore.acquire().await.unwrap();
-        let (resp, _) = self.hub.files().get(file_id)
+        let (resp, _) = self.hub.files().get(&file_id)
             .supports_all_drives(true)
             .param("alt", "media")
             .range(range.to_range_header())
@@ -233,8 +233,8 @@ impl AnniProvider for DriveBackend {
 
         match self.files.get(&key) {
             Some(id) => {
-                let id = id.value();
-                let metadata = self.audios.get(id).unwrap();
+                let id = id.value().to_string();
+                let metadata = self.audios.get(&id).unwrap();
                 let metadata = metadata.value();
                 let (mut reader, range) = self.get_file(id, &range).await?;
                 let duration = if is_head {
@@ -268,28 +268,30 @@ impl AnniProvider for DriveBackend {
             Some(disc_id) => format!("{album_id}/{disc_id}/cover"),
             None => format!("{album_id}/cover"),
         };
-        if !self.files.contains_key(&key) {
-            // get folder_id
-            self.cache_discs(album_id).await?;
-            let folder_id = self.get_parent_folder(album_id, disc_id);
+        let id = match self.files.get(&key) {
+            Some(id) => id.to_string(),
+            None => {
+                // get folder_id
+                self.cache_discs(album_id).await?;
+                let folder_id = self.get_parent_folder(album_id, disc_id);
 
-            // get cover file id
-            let permit = self.semaphore.acquire().await.unwrap();
-            let (_, list) = self.prepare_list()
-                .q(&format!("trashed = false and mimeType = 'image/jpeg' and name = 'cover.jpg' and '{}' in parents", folder_id))
-                .param("fields", "nextPageToken, files(id,name)")
-                .doit().await?;
-            drop(permit);
+                // get cover file id
+                let permit = self.semaphore.acquire().await.unwrap();
+                let (_, list) = self.prepare_list()
+                    .q(&format!("trashed = false and mimeType = 'image/jpeg' and name = 'cover.jpg' and '{}' in parents", folder_id))
+                    .param("fields", "nextPageToken, files(id,name)")
+                    .doit().await?;
+                drop(permit);
 
-            // get cover file & return
-            let files = list.files.unwrap();
-            let file = files.get(0).ok_or(ProviderError::FileNotFound)?;
-            let id = file.id.as_ref().unwrap().to_string();
-            self.files.insert(key.to_string(), id);
-        }
+                // get cover file & return
+                let files = list.files.unwrap();
+                let file = files.get(0).ok_or(ProviderError::FileNotFound)?;
+                let id = file.id.as_ref().unwrap().to_string();
+                self.files.insert(key.to_string(), id.to_string());
+                id
+            }
+        };
 
-        let id = self.files.get(&key).unwrap();
-        let id = id.value();
         Ok(self.get_file(id, &Range::FULL).await?.0)
     }
 
