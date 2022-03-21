@@ -29,6 +29,10 @@ convention-check-fix = Apply fixes to audio files directly.
 repo = Anni metadata repository manager.
 repo-root = Root path of Anni metadata repository to manage.
 
+repo-clone = Clone metadata repository.
+repo-clone-start = Cloning metadata repository to {$path}...
+repo-clone-done = Metadata repository cloned.
+
 repo-add = Add new album to repository.
 repo-add-edit = Open text editor after album metadata file is crated.
 repo-invalid-album = Invalid album folder name format: {$name}

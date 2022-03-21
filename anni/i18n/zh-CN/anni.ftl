@@ -28,6 +28,10 @@ convention-check-fix = 对不符合约定的音频文件进行修复
 repo = 提供 Anni 元数据仓库的管理功能
 repo-root = 需要管理的 Anni 元数据仓库根路径
 
+repo-clone = 克隆元数据仓库
+repo-clone-start = 准备克隆元数据仓库至{$path}...
+repo-clone-done = 元数据仓库克隆完成
+
 repo-add = 向元数据仓库中导入专辑
 repo-add-edit = 在导入完成后打开文件编辑器
 repo-invalid-album = 专辑目录格式错误：{$name}
