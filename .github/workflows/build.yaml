@@ -39,19 +39,10 @@ jobs:
           profile: minimal
           target: ${{ matrix.target }}
 
-      - name: Setup | Cache Cargo
-        uses: actions/cache@v2.1.7
+      - name: Setup | Cache
+        uses: Swatinem/rust-cache@v1
         with:
-          path: |
-            ~/.cargo/registry
-            ~/.cargo/git
-          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
-
-      - name: Setup | Cache Cargo Target
-        uses: actions/cache@v2.1.7
-        with:
-          path: target
-          key: ${{ matrix.target }}-cargo-target
+          key: ${{ matrix.target }}-anni-cache
 
       - name: Build | Build
         uses: actions-rs/cargo@v1
