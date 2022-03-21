@@ -407,7 +407,7 @@ fn repo_validate(manager: RepositoryManager, _: &RepoValidateAction) -> anyhow::
     info!(target: "anni", "{}", fl!("repo-validate-start"));
 
     // initialize owned manager
-    let manager = manager.to_owned_manager()?;
+    let manager = manager.into_owned_manager()?;
 
     // check albums
     for album in manager.albums() {
@@ -563,12 +563,12 @@ pub struct RepoDatabaseAction {
 }
 
 #[handler(RepoDatabaseAction)]
-fn repo_database_action(me: &RepoDatabaseAction, manager: &RepositoryManager) -> anyhow::Result<()> {
+fn repo_database_action(me: RepoDatabaseAction, manager: RepositoryManager) -> anyhow::Result<()> {
     if !me.output.is_dir() {
         bail!("Output path must be a directory!");
     }
 
-    let manager = manager.to_owned_manager()?;
+    let manager = manager.into_owned_manager()?;
     block_on(manager.to_database(&me.output.join("repo.db")))?;
 
     Ok(())

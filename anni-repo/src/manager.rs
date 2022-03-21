@@ -167,7 +167,7 @@ impl RepositoryManager {
         Ok(())
     }
 
-    pub fn to_owned_manager(&self) -> RepoResult<OwnedRepositoryManager> {
+    pub fn into_owned_manager(self) -> RepoResult<OwnedRepositoryManager> {
         OwnedRepositoryManager::new(self)
     }
 }
@@ -176,8 +176,8 @@ impl RepositoryManager {
 ///
 /// This is helpful when you need to perform a full-repo operation,
 /// such as ring check on tags, full-repo validation, etc.
-pub struct OwnedRepositoryManager<'repo> {
-    pub repo: &'repo RepositoryManager,
+pub struct OwnedRepositoryManager {
+    pub repo: RepositoryManager,
 
     /// All available tags.
     tags: HashSet<RepoTag>,
@@ -189,8 +189,8 @@ pub struct OwnedRepositoryManager<'repo> {
     albums: HashMap<String, Album>,
 }
 
-impl<'repo> OwnedRepositoryManager<'repo> {
-    pub fn new(repo: &'repo RepositoryManager) -> RepoResult<Self> {
+impl<'repo> OwnedRepositoryManager {
+    pub fn new(repo: RepositoryManager) -> RepoResult<Self> {
         let mut repo = Self {
             repo,
             tags: Default::default(),
