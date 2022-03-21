@@ -52,6 +52,7 @@ impl Range {
     }
 
     /// get the length of the range
+    /// if the range is full, returns 0
     pub fn length(&self) -> u64 {
         match self.end {
             Some(end) => end - self.start + 1,
@@ -81,7 +82,7 @@ impl Range {
     }
 
     pub fn contains_flac_header(&self) -> bool {
-        self.start == 0 && self.length() >= 42
+        self.start == 0 && (self.length() == 0 || self.length() >= 42)
     }
 
     pub fn to_range_header(&self) -> Option<String> {
