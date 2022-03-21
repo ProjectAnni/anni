@@ -23,7 +23,7 @@ impl AudioQuery {
     }
 
     pub fn need_transcode(&self, is_guest: bool) -> bool {
-        self.quality(is_guest) == "lossless"
+        self.quality(is_guest) != "lossless"
     }
 }
 
