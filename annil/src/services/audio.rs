@@ -8,7 +8,23 @@ use crate::{AnnilClaims, AnnilError, AppState};
 
 #[derive(Deserialize)]
 pub struct AudioQuery {
-    prefer_bitrate: Option<String>,
+    #[serde(rename = "quality")]
+    quality_requested: Option<String>,
+}
+
+impl AudioQuery {
+    pub fn quality(&self, is_guest: bool) -> &str {
+        match (&self.quality_requested.as_deref(), is_guest) {
+            (Some("low"), false) => "low",
+            (Some("high"), false) => "high",
+            (Some("lossless"), false) => "lossless",
+            _ => "medium",
+        }
+    }
+
+    pub fn need_transcode(&self, is_guest: bool) -> bool {
+        self.quality(is_guest) == "lossless"
+    }
 }
 
 pub async fn audio_head(claim: AnnilClaims, path: web::Path<(String, u8, u8)>, data: web::Data<AppState>, query: Query<AudioQuery>) -> impl Responder {
@@ -20,21 +36,23 @@ pub async fn audio_head(claim: AnnilClaims, path: web::Path<(String, u8, u8)>, d
     for provider in data.providers.read().iter() {
         if provider.has_album(&album_id).await {
             let audio = provider.get_audio_info(&album_id, disc_id, track_id).await.map_err(|_| AnnilError::NotFound);
+            let transcode = query.need_transcode(claim.is_guest());
             return match audio {
                 Ok(info) => {
-                    let transcode = if claim.is_guest() { true } else { query.prefer_bitrate.as_deref().unwrap_or("medium") != "lossless" };
-
                     let mut resp = HttpResponse::Ok();
                     resp.append_header(("X-Origin-Type", format!("audio/{}", info.extension)))
                         .append_header(("X-Origin-Size", info.size))
                         .append_header(("X-Duration-Seconds", info.duration))
-                        .append_header(("Access-Control-Expose-Headers", "X-Origin-Type, X-Origin-Size, X-Duration-Seconds"))
-                        .append_header(("Accept-Ranges", "bytes"))
+                        .append_header(("X-Audio-Quality", query.quality(claim.is_guest())))
+                        .append_header(("Access-Control-Expose-Headers", "X-Origin-Type, X-Origin-Size, X-Duration-Seconds, X-Audio-Quality, Accept-Ranges"))
                         .content_type(if transcode {
                             "audio/aac".to_string()
                         } else {
                             format!("audio/{}", info.extension)
                         });
+                    if !transcode {
+                        resp.append_header(("Accept-Ranges", "bytes"));
+                    }
                     resp.finish()
                 }
                 Err(e) => {
@@ -53,8 +71,7 @@ pub async fn audio(claim: AnnilClaims, path: web::Path<(String, u8, u8)>, data: 
         return AnnilError::Unauthorized.error_response();
     }
 
-    let prefer_bitrate = if claim.is_guest() { "low" } else { query.prefer_bitrate.as_deref().unwrap_or("medium") };
-    let bitrate = match prefer_bitrate {
+    let bitrate = match query.quality(claim.is_guest()) {
         "low" => Some("128k"),
         "medium" => Some("192k"),
         "high" => Some("320k"),
@@ -92,7 +109,8 @@ pub async fn audio(claim: AnnilClaims, path: web::Path<(String, u8, u8)>, data: 
             resp.append_header(("X-Origin-Type", format!("audio/{}", audio.info.extension)))
                 .append_header(("X-Origin-Size", audio.info.size))
                 .append_header(("X-Duration-Seconds", audio.info.duration))
-                .append_header(("Access-Control-Expose-Headers", "X-Origin-Type, X-Origin-Size, X-Duration-Seconds"))
+                .append_header(("X-Audio-Quality", query.quality(claim.is_guest())))
+                .append_header(("Access-Control-Expose-Headers", "X-Origin-Type, X-Origin-Size, X-Duration-Seconds, X-Audio-Quality"))
                 .content_type(match bitrate {
                     Some(_) => "audio/aac".to_string(),
                     None => format!("audio/{}", audio.info.extension)

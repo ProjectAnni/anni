@@ -5,7 +5,7 @@ use crate::{AppState, json};
 pub async fn info(data: web::Data<AppState>) -> impl Responder {
     HttpResponse::Ok().json(json!({
         "version": data.version,
-        "protocol_version": "0.2.1",
+        "protocol_version": "0.3.0",
         "last_update": *data.last_update.read(),
     }))
 }
