@@ -203,7 +203,11 @@ impl<'repo> OwnedRepositoryManager {
         Ok(repo)
     }
 
-    pub fn albums(&self) -> impl Iterator<Item=&Album> {
+    pub fn albums(&self) -> &HashMap<String, Album> {
+        &self.albums
+    }
+
+    pub fn albums_iter(&self) -> impl Iterator<Item=&Album> {
         self.albums.values()
     }
 
@@ -415,7 +419,7 @@ impl<'repo> OwnedRepositoryManager {
         db.add_tags(tags).await?;
 
         // Write all albums
-        for album in self.albums() {
+        for album in self.albums_iter() {
             db.add_album(album).await?;
         }
 

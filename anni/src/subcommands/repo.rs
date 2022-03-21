@@ -410,7 +410,7 @@ fn repo_validate(manager: RepositoryManager, _: &RepoValidateAction) -> anyhow::
     let manager = manager.into_owned_manager()?;
 
     // check albums
-    for album in manager.albums() {
+    for album in manager.albums_iter() {
         let catalog = album.catalog();
 
         if album.artist() == "[Unknown Artist]" || album.artist() == "UnknownArtist" {
