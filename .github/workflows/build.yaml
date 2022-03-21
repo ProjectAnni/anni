@@ -26,6 +26,19 @@ jobs:
       - name: Setup | Checkout
         uses: actions/checkout@v2.4.0
 
+      - name: Setup | Dependencies
+        if: matrix.target == 'x86_64-unknown-linux-musl'
+        run: |
+          sudo apt install musl-tools
+
+      - name: Setup | Rust
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+          override: true
+          profile: minimal
+          target: ${{ matrix.target }}
+
       - name: Setup | Cache Cargo
         uses: actions/cache@v2.1.7
         with:
@@ -39,14 +52,6 @@ jobs:
         with:
           path: target
           key: ${{ matrix.target }}-cargo-target
-
-      - name: Setup | Rust
-        uses: actions-rs/toolchain@v1
-        with:
-          toolchain: stable
-          override: true
-          profile: minimal
-          target: ${{ matrix.target }}
 
       - name: Build | Build
         uses: actions-rs/cargo@v1
