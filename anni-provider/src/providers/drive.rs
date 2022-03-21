@@ -233,10 +233,11 @@ impl AnniProvider for DriveBackend {
 
         match self.files.get(&key) {
             Some(id) => {
-                let id = id.value().to_string();
-                let metadata = self.audios.get(&id).unwrap();
-                let metadata = metadata.value();
-                let (mut reader, range) = self.get_file(id, &range).await?;
+                let file_id = id.value().to_string();
+                drop(id); // drop lock immediately
+                let metadata = self.audios.get(&file_id).unwrap().value().clone(); // drop lock inline
+
+                let (mut reader, range) = self.get_file(file_id, &range).await?;
                 let duration = if is_head {
                     let (info, _reader) = crate::utils::read_header(reader).await?;
                     reader = _reader;
@@ -244,7 +245,7 @@ impl AnniProvider for DriveBackend {
                 } else { 0 };
                 Ok(AudioResourceReader {
                     info: AudioInfo {
-                        extension: metadata.0.to_string(),
+                        extension: metadata.0,
                         size: metadata.1,
                         duration,
                     },
