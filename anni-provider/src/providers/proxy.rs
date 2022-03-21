@@ -54,7 +54,7 @@ impl AnniProvider for ProxyBackend {
     }
 
     async fn get_audio(&self, album_id: &str, disc_id: u8, track_id: u8, range: Range) -> Result<AudioResourceReader, ProviderError> {
-        let response = self.get(&format!("/{}/{}/{}?prefer_bitrate=lossless", album_id, disc_id, track_id), &range).await.map_err(|e| ProviderError::RequestError(e))?;
+        let response = self.get(&format!("/{}/{}/{}?quality=lossless", album_id, disc_id, track_id), &range).await.map_err(|e| ProviderError::RequestError(e))?;
         let info = audio_info_from_response(&response)?;
 
         let range = response.headers().get("Content-Range").map(|s| s.to_str().unwrap().to_string());
