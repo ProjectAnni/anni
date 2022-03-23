@@ -28,7 +28,7 @@ impl FromStr for Validator {
             "date" => Ok(Self("date", date_validator)),
             "artist" => Ok(Self("artist", artist_validator)),
             "dot" => Ok(Self("dot", middle_dot_validator)),
-            "tidle" => Ok(Self("tidle", tidle_validator)),
+            "tidle" => Ok(Self("tidle", tidal_validator)),
             _ => Err(()),
         }
     }
@@ -148,12 +148,12 @@ pub fn middle_dot_replace(input: &str) -> String {
     DOTS.replace_all(input, "\u{30fb}").to_string()
 }
 
-pub fn tidle_validator(input: &str) -> ValidateResult {
-    let pass = !input.contains('\u{ff5e}');
+pub fn tidal_validator(input: &str) -> ValidateResult {
+    let pass = !input.contains('\u{301c}');
     ValidateResult::new(pass, false)
 }
 
-pub fn tidle_relace(input: &str) -> String {
+pub fn tidal_replace(input: &str) -> String {
     input.replace('\u{301c}', "\u{ff5e}")
 }
 
