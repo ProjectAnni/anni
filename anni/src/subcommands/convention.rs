@@ -10,8 +10,8 @@ use serde::de::Error;
 use serde::{Deserialize, Deserializer};
 use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
-use std::rc::Rc;
 use std::str::FromStr;
+use std::sync::Arc;
 
 #[derive(Parser, Debug, Clone)]
 #[clap(about = ll ! ("convention"))]
@@ -21,8 +21,9 @@ pub struct ConventionSubcommand {
     action: ConventionAction,
 }
 
+#[anni_clap_handler::async_trait]
 impl Handler for ConventionSubcommand {
-    fn handle_command(&mut self, ctx: &mut Context) -> anyhow::Result<()> {
+    async fn handle_command(&mut self, ctx: &mut Context) -> anyhow::Result<()> {
         // Initialize rules
         let config: ConventionConfig = read_config("convention")
             .map_err(|e| {
@@ -36,8 +37,8 @@ impl Handler for ConventionSubcommand {
         Ok(())
     }
 
-    fn handle_subcommand(&mut self, ctx: Context) -> anyhow::Result<()> {
-        self.action.execute(ctx)
+    async fn handle_subcommand(&mut self, ctx: Context) -> anyhow::Result<()> {
+        self.action.execute(ctx).await
     }
 }
 
@@ -81,9 +82,9 @@ struct ConventionRules {
     stream_info: ConventionStreamInfo,
     types: HashMap<String, Vec<Validator>>,
 
-    required: HashMap<String, Rc<ConventionTag>>,
-    optional: HashMap<String, Rc<ConventionTag>>,
-    unrecommended: HashMap<String, Rc<ConventionTag>>,
+    required: HashMap<String, Arc<ConventionTag>>,
+    optional: HashMap<String, Arc<ConventionTag>>,
+    unrecommended: HashMap<String, Arc<ConventionTag>>,
 }
 
 impl ConventionRules {
@@ -317,7 +318,7 @@ impl ConventionConfig {
             unrecommended: Default::default(),
         };
         for tag in self.tags.required {
-            let this = Rc::new(tag);
+            let this = Arc::new(tag);
             for key in this.alias.iter() {
                 rules.unrecommended.insert(key.clone(), this.clone());
             }
@@ -325,7 +326,7 @@ impl ConventionConfig {
         }
 
         for tag in self.tags.optional {
-            let this = Rc::new(tag);
+            let this = Arc::new(tag);
             for key in this.alias.iter() {
                 rules.optional.insert(key.clone(), this.clone());
             }

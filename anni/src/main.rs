@@ -44,5 +44,5 @@ async fn main() -> anyhow::Result<()> {
     // parse arguments
     let args = AnniArguments::parse();
     log::debug!("{:#?}", args);
-    args.run()
+    args.run().await
 }

@@ -23,8 +23,9 @@ pub struct RepoSubcommand {
     action: RepoAction,
 }
 
+#[anni_clap_handler::async_trait]
 impl Handler for RepoSubcommand {
-    fn handle_command(&mut self, ctx: &mut Context) -> anyhow::Result<()> {
+    async fn handle_command(&mut self, ctx: &mut Context) -> anyhow::Result<()> {
         // Skip manager initialization for migrate subcommands
         if matches!(self.action, RepoAction::Migrate(..)) {
             return Ok(());
@@ -35,8 +36,8 @@ impl Handler for RepoSubcommand {
         Ok(())
     }
 
-    fn handle_subcommand(&mut self, ctx: Context) -> anyhow::Result<()> {
-        self.action.execute(ctx)
+    async fn handle_subcommand(&mut self, ctx: Context) -> anyhow::Result<()> {
+        self.action.execute(ctx).await
     }
 }
 
@@ -197,7 +198,7 @@ fn repo_get_vgmdb(options: &RepoGetVGMdb, manager: &RepositoryManager, get: &Rep
     let catalog = &options.catalog;
 
     let client = VGMClient::new(options.host.clone());
-    let album_got = client.album(&options.keyword.as_deref().unwrap_or(catalog))?;
+    let album_got = client.album(&options.keyword.as_deref().unwrap_or(catalog)).await?;
 
     let date = match &album_got.release_date {
         Some(date) => {

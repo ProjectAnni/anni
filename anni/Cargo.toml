@@ -20,7 +20,7 @@ directories-next = "2.0.0"
 anni-common = { path = "../anni-common" }
 anni-flac = { path = "../anni-flac" }
 anni-repo = { path = "../anni-repo", features = ["db", "arc", "git"] }
-anni-clap-handler = { path = "../anni-clap-handler" }
+anni-clap-handler = { path = "../anni-clap-handler", features = ["async"] }
 
 i18n-embed = { version = "0.13.4", features = ["fluent-system", "desktop-requester", "filesystem-assets"] }
 i18n-embed-fl = "0.6.4"
@@ -33,7 +33,7 @@ anyhow = "1.0"
 
 cuna = "0.6.3"
 id3 = "0.6.6"
-anni-vgmdb = { git = "https://github.com/project-anni/anni-vgmdb", features = ["blocking"] }
+anni-vgmdb = { git = "https://github.com/project-anni/anni-vgmdb" }
 
 toml_edit = "0.10.1"
 uuid = { version = "0.8", features = ["v4"] }
