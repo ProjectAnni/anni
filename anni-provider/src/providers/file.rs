@@ -4,7 +4,6 @@ use anni_repo::library::{album_info, disc_info};
 use async_trait::async_trait;
 use std::collections::{HashMap, HashSet};
 use std::io::SeekFrom;
-use std::os::unix::prelude::MetadataExt;
 use std::path::{Path, PathBuf};
 use tokio::fs::{read_dir, File};
 use tokio::io::{AsyncReadExt, AsyncSeekExt};
@@ -137,7 +136,7 @@ impl AnniProvider for FileBackend {
                 let path = entry.path();
                 let mut file = File::open(&path).await?;
                 let metadata = file.metadata().await?;
-                let file_size = metadata.size();
+                let file_size = metadata.len();
 
                 // limit in range
                 file.seek(SeekFrom::Start(range.start)).await?;
