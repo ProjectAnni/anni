@@ -181,12 +181,7 @@ pub enum RepoGetSubcommand {
 
 #[derive(Parser, Debug, Clone)]
 pub struct RepoGetVGMdb {
-    #[clap(short = 'H', long, default_value = "https://vgmdb.info/")]
-    #[clap(about = ll ! {"vgmdb-api-host"})]
-    host: String,
-
-    #[clap(short = 'c',
-    long)]
+    #[clap(short = 'c', long)]
     catalog: String,
 
     #[clap(short = 'k', long)]
@@ -197,39 +192,36 @@ pub struct RepoGetVGMdb {
 fn repo_get_vgmdb(options: &RepoGetVGMdb, manager: &RepositoryManager, get: &RepoGetAction) -> anyhow::Result<()> {
     let catalog = &options.catalog;
 
-    let client = VGMClient::new(options.host.clone());
-    let album_got = client.album(&options.keyword.as_deref().unwrap_or(catalog)).await?;
+    let client = VGMClient::default();
+    let search = client.search_albums(&options.keyword.as_deref().unwrap_or(catalog)).await?;
+    let album_got = search.get_album(None).await?;
 
-    let date = match &album_got.release_date {
-        Some(date) => {
-            let split = date.split('-').collect::<Vec<_>>();
-            AnniDate::from_parts(split[0], split.get(1).unwrap_or(&"0"), split.get(2).unwrap_or(&"0"))
-        }
-        // TODO: use current year instead of fixed 2021
-        None => AnniDate::new(2021, 0, 0),
+    let date = {
+        let split = album_got.release_date.split('-').collect::<Vec<_>>();
+        AnniDate::from_parts(split[0], split.get(1).unwrap_or(&"0"), split.get(2).unwrap_or(&"0"))
     };
 
     let mut album = Album::new(
-        album_got.name().to_string(),
+        album_got.title.get().unwrap().to_string(),
         None,
         Default::default(),
         date,
-        album_got.catalog().to_string(),
+        album_got.catalog.as_deref().unwrap_or("").to_string(),
         Default::default(),
     );
 
-    for disc_got in album_got.discs() {
+    for disc_got in album_got.discs {
         let mut disc = Disc::new(
-            album_got.catalog().to_string(),
-            Some(disc_got.name().to_string()),
+            album_got.catalog.as_deref().unwrap_or("").to_string(),
+            Some(disc_got.title.to_string()),
             None,
             None,
             Default::default(),
         );
 
-        for track_got in disc_got.tracks() {
+        for track_got in disc_got.tracks {
             disc.push_track(Track::new(
-                track_got.name().to_string(),
+                track_got.get().unwrap().to_string(),
                 None,
                 None,
                 Default::default(),

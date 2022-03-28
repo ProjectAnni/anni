@@ -47,7 +47,6 @@ repo-catalog-filename-mismatch = Album catalog '{$album_catalog}' does not match
 repo-invalid-artist = Invalid artist: {$artist}
 
 repo-get = Get album metadata from remote data source and add to repo.
-vgmdb-api-host = VGMdb API host.
 
 repo-edit = Open text editor for an album if metadata exists.
 repo-apply = Apply metadata from repository to album.
