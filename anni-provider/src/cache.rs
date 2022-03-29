@@ -12,6 +12,7 @@ use dashmap::DashMap;
 use lru::LruCache;
 use tokio::fs::File;
 use tokio::io::{AsyncRead, AsyncReadExt, ReadBuf};
+use tokio::sync::Mutex;
 use tokio::time::Duration;
 
 pub struct Cache {
@@ -71,7 +72,8 @@ pub struct CachePool {
     max_size: usize,
     cache: DashMap<String, Arc<CacheItem>>,
     // https://github.com/xacrimon/dashmap/issues/189
-    last_used: RwLock<LruCache<String, u8>>,
+    // FIXME: this structure acts like Mutex for now, since there's no reader at all
+    last_used: RwLock<LruCache<String, Arc<Mutex<u8>>>>,
 }
 
 impl CachePool {
@@ -91,6 +93,11 @@ impl CachePool {
         on_miss: impl Future<Output=Result<AudioResourceReader, ProviderError>>,
     ) -> Result<AudioResourceReader, ProviderError> {
         let item = if !self.has_cache(&key) {
+            // on miss, set state to cached first
+            let mutex = Arc::new(Mutex::new(0));
+            let handle = mutex.clone().lock_owned().await;
+            self.last_used.write().put(key.clone(), mutex);
+
             // get data, return directly if it's a partial request
             let result = on_miss.await?;
 
@@ -117,7 +124,8 @@ impl CachePool {
 
             // write to map
             self.cache.insert(key.clone(), item.clone());
-            self.last_used.write().put(key.clone(), 0);
+            // item is set to cached, release lock
+            drop(handle);
 
             // cache
             let item_spawn = item.clone();
@@ -130,8 +138,17 @@ impl CachePool {
             });
             item
         } else {
+            // resource requested, but not added to cache map yet
+            if !self.cache.contains_key(&key) {
+                // await cache mutex
+                let mutex = {
+                    let mut map = self.last_used.write();
+                    map.get(&key).unwrap().clone()
+                };
+                mutex.lock().await;
+            }
             // update last_used time
-            self.last_used.write().get(&key);
+            self.last_used.write().get(&key).unwrap();
             self.cache.get(&key).unwrap().clone()
         };
 

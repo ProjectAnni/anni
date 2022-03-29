@@ -404,8 +404,9 @@ dependencies = [
 
 [[package]]
 name = "anni-vgmdb"
-version = "0.2.0"
-source = "git+https://github.com/project-anni/anni-vgmdb#0a0d97d364a67af8ac7175fbc0e400cb490aab9d"
+version = "0.2.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "bc0420162d8ba4a1b31d6ecf932b1cfb64775c0fc26000ec7cf01bbcef64daeb"
 dependencies = [
  "reqwest",
  "select",
