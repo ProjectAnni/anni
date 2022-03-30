@@ -167,8 +167,9 @@ fn repo_add(me: &RepoAddAction, manager: &RepositoryManager) -> anyhow::Result<(
 #[derive(Parser, Handler, Debug, Clone)]
 pub struct RepoGetAction {
     // TODO: i18n
-    #[clap(long = "no-add", parse(from_flag = std::ops::Not::not))]
-    add: bool,
+    #[clap(long)]
+    #[clap(about = ll ! {"repo-get-print"})]
+    print: bool,
     #[clap(subcommand)]
     subcommand: RepoGetSubcommand,
 }
@@ -230,12 +231,12 @@ fn repo_get_vgmdb(options: &RepoGetVGMdb, manager: &RepositoryManager, get: &Rep
         album.push_disc(disc);
     }
 
-    if get.add {
-        Ok(manager.add_album(&options.catalog, album, false)?)
-    } else {
+    if get.print {
         println!("{}", album.to_string());
-        Ok(())
+    } else {
+        manager.add_album(&options.catalog, album, false)?;
     }
+    Ok(())
 }
 
 #[derive(Parser, Debug, Clone)]

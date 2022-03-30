@@ -33,7 +33,7 @@ anyhow = "1.0"
 
 cuna = "0.6.3"
 id3 = "0.6.6"
-anni-vgmdb = "0.2.1"
+anni-vgmdb = "0.2.2"
 
 toml_edit = "0.10.1"
 uuid = { version = "0.8", features = ["v4"] }
