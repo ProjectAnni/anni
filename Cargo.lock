@@ -404,13 +404,12 @@ dependencies = [
 
 [[package]]
 name = "anni-vgmdb"
-version = "0.2.2"
+version = "0.2.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7322c3383cbb31befe60f847ca8da5dc152db5e94ee722554cb6e991fe4ebcce"
+checksum = "9850411b37c974494f31a01510e8944644a119a92c9b014139bac05bd963167f"
 dependencies = [
  "reqwest",
  "select",
- "serde",
  "thiserror",
 ]
 
