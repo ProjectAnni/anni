@@ -292,9 +292,9 @@ fn repo_apply(me: &RepoApplyAction, manager: &RepositoryManager) -> anyhow::Resu
         let albums = if albums.len() > 1 {
             albums.into_iter().filter(|a| a.title() == album_title).collect()
         } else { albums };
-        if albums.len() > 1 {
-            // multiple albums exists
-            bail!("TODO: multiple albums exists!");
+        if albums.is_empty() {
+            // no album found
+            ball!("repo-album-not-found", catalog = catalog);
         }
 
         // get track metadata & compare with album folder
