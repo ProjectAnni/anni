@@ -90,7 +90,7 @@ async fn init_state(config: Config) -> anyhow::Result<web::Data<AppState>> {
 
     // key
     let key = HS256Key::from_bytes(config.server.key().as_ref());
-    let version = format!("Anniv v{}", env!("CARGO_PKG_VERSION"));
+    let version = format!("Annil v{}", env!("CARGO_PKG_VERSION"));
     let last_update = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs();
     Ok(web::Data::new(AppState {
         providers: RwLock::new(providers),
