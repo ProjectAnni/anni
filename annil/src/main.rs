@@ -4,6 +4,7 @@ mod auth;
 mod share;
 mod error;
 mod services;
+mod utils;
 
 use actix_web::{HttpServer, App, web};
 use std::sync::Arc;
@@ -25,6 +26,7 @@ use jwt_simple::reexports::serde_json::json;
 use parking_lot::RwLock;
 use anni_repo::RepositoryManager;
 use crate::services::*;
+use crate::utils::compute_etag;
 
 pub struct AppState {
     providers: RwLock<Vec<AnnilProvider>>,
@@ -34,6 +36,7 @@ pub struct AppState {
     version: String,
     metadata: MetadataConfig,
     last_update: RwLock<u64>,
+    etag: RwLock<u128>,
 }
 
 async fn init_state(config: Config) -> anyhow::Result<web::Data<AppState>> {
@@ -48,6 +51,7 @@ async fn init_state(config: Config) -> anyhow::Result<web::Data<AppState>> {
     let now = SystemTime::now();
     let mut providers = Vec::with_capacity(config.providers.len());
     let mut caches = HashMap::new();
+
     for (provider_name, provider_config) in config.providers.iter() {
         log::debug!("Initializing provider: {}", provider_name);
         let repo = RepoDatabaseRead::new(database_path.to_string_lossy().as_ref()).await?;
@@ -81,6 +85,9 @@ async fn init_state(config: Config) -> anyhow::Result<web::Data<AppState>> {
     }
     log::info!("Provider initialization finished, used {:?}", now.elapsed().unwrap());
 
+    // etag
+    let etag = compute_etag(&providers).await;
+
     // key
     let key = HS256Key::from_bytes(config.server.key().as_ref());
     let version = format!("Anniv v{}", env!("CARGO_PKG_VERSION"));
@@ -92,6 +99,7 @@ async fn init_state(config: Config) -> anyhow::Result<web::Data<AppState>> {
         version,
         metadata: config.metadata,
         last_update: RwLock::new(last_update),
+        etag: RwLock::new(etag),
     }))
 }
 

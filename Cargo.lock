@@ -298,7 +298,7 @@ dependencies = [
  "tokio",
  "toml",
  "toml_edit",
- "uuid",
+ "uuid 0.8.2",
  "which 4.2.4",
 ]
 
@@ -399,7 +399,7 @@ dependencies = [
  "sqlx",
  "thiserror",
  "toml",
- "uuid",
+ "uuid 0.8.2",
 ]
 
 [[package]]
@@ -425,6 +425,7 @@ dependencies = [
  "anni-repo",
  "anyhow",
  "async-trait",
+ "base64",
  "env_logger 0.8.3",
  "futures",
  "jwt-simple",
@@ -435,6 +436,7 @@ dependencies = [
  "tokio",
  "tokio-util 0.6.3",
  "toml",
+ "uuid 1.0.0-alpha.1",
 ]
 
 [[package]]
@@ -3351,7 +3353,7 @@ dependencies = [
  "thiserror",
  "tokio-stream",
  "url 2.2.2",
- "uuid",
+ "uuid 0.8.2",
  "webpki 0.21.4",
  "webpki-roots 0.21.1",
  "whoami",
@@ -3898,6 +3900,12 @@ dependencies = [
  "getrandom 0.2.2",
  "serde",
 ]
+
+[[package]]
+name = "uuid"
+version = "1.0.0-alpha.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "bb3ab47baa004111b323696c6eaa2752e7356f7f77cf6b6dc7a2087368ce1ca4"
 
 [[package]]
 name = "vcpkg"
