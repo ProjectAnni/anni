@@ -151,6 +151,7 @@ pub enum TagType {
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Default)]
+#[serde(deny_unknown_fields)]
 pub struct TagChildren {
     #[serde(default)]
     artist: Vec<TagRef>,
