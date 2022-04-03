@@ -366,7 +366,9 @@ impl Track {
     }
 
     pub fn set_track_type(&mut self, track_type: TrackType) {
-        self.track_type = InheritableValue::own(track_type);
+        if self.track_type.as_ref() != &track_type {
+            self.track_type = InheritableValue::own(track_type);
+        }
     }
 
     pub fn tags(&self) -> &[TagRef] {
@@ -374,7 +376,7 @@ impl Track {
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub enum TrackType {
     Normal,
     Instrumental,
@@ -395,6 +397,25 @@ impl AsRef<str> for TrackType {
             TrackType::Radio => "radio",
             TrackType::Vocal => "vocal",
             TrackType::Other(s) => s.as_ref(),
+        }
+    }
+}
+
+impl TrackType {
+    pub fn guess(title: &str) -> TrackType {
+        let title_lowercase = title.to_lowercase();
+        if title_lowercase.contains("off vocal") ||
+            title_lowercase.contains("instrumental") ||
+            title_lowercase.contains("カラオケ") ||
+            title_lowercase.contains("offvocal") {
+            TrackType::Instrumental
+        } else if title_lowercase.contains("drama") || title_lowercase.contains("ドラマ") {
+            TrackType::Drama
+        } else if title_lowercase.contains("radio") || title_lowercase.contains("ラジオ") {
+            TrackType::Radio
+        } else {
+            // fallback: normal
+            TrackType::Normal
         }
     }
 }

@@ -136,17 +136,8 @@ fn repo_add(me: &RepoAddAction, manager: &RepositoryManager) -> anyhow::Result<(
                 }
 
                 // auto audio type for instrumental, drama and radio
-                let title_lowercase = track.title().to_lowercase();
-                if title_lowercase.contains("off vocal") ||
-                    title_lowercase.contains("instrumental") ||
-                    title_lowercase.contains("カラオケ") ||
-                    title_lowercase.contains("offvocal") {
-                    track.set_track_type(TrackType::Instrumental);
-                } else if title_lowercase.contains("drama") || title_lowercase.contains("ドラマ") {
-                    track.set_track_type(TrackType::Drama);
-                } else if title_lowercase.contains("radio") || title_lowercase.contains("ラジオ") {
-                    track.set_track_type(TrackType::Radio);
-                }
+                let track_type = TrackType::guess(track.title());
+                track.set_track_type(track_type);
 
                 disc.push_track(track); // use push_track here to avoid metadata inherit
             }
