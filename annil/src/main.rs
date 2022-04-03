@@ -36,7 +36,7 @@ pub struct AppState {
     version: String,
     metadata: MetadataConfig,
     last_update: RwLock<u64>,
-    etag: RwLock<u128>,
+    etag: RwLock<String>,
 }
 
 async fn init_state(config: Config) -> anyhow::Result<web::Data<AppState>> {

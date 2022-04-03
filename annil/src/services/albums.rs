@@ -10,10 +10,8 @@ async fn albums(claims: AnnilClaims, data: web::Data<AppState>, req: HttpRequest
     match claims {
         AnnilClaims::User(_) => {
             if let Some(Ok(etag)) = req.headers().get(IF_NONE_MATCH).map(|v| v.to_str()) {
-                if let Ok(etag) = etag.parse::<u128>() {
-                    if etag == *data.etag.read() {
-                        return HttpResponse::NotModified().finish();
-                    }
+                if etag == data.etag.read().as_str() {
+                    return HttpResponse::NotModified().finish();
                 }
             }
 
@@ -25,7 +23,7 @@ async fn albums(claims: AnnilClaims, data: web::Data<AppState>, req: HttpRequest
                 albums.extend(provider.albums().await);
             }
             HttpResponse::Ok()
-                .append_header((ETAG, format!("{}", data.etag.read())))
+                .append_header((ETAG, format!(r#"W/{}"#, data.etag.read())))
                 .json(albums)
         }
         AnnilClaims::Share(share) => {

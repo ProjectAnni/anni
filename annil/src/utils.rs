@@ -1,6 +1,6 @@
 use crate::AnnilProvider;
 
-pub(crate) async fn compute_etag(providers: &[AnnilProvider]) -> u128 {
+pub(crate) async fn compute_etag(providers: &[AnnilProvider]) -> String {
     let mut etag = 0;
     for provider in providers {
         for album in provider.albums().await {
@@ -11,5 +11,5 @@ pub(crate) async fn compute_etag(providers: &[AnnilProvider]) -> u128 {
             }
         }
     }
-    etag
+    format!(r#""{}""#, base64::encode(etag.to_be_bytes()))
 }
