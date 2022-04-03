@@ -252,9 +252,9 @@ impl<'repo> OwnedRepositoryManager {
                 }
 
                 // add children to set
-                for child in tag.children_raw() {
+                for (child, child_type) in tag.children_simple() {
                     if !self.tags.insert(RepoTag::Full(
-                        child.clone().extend_simple(vec![tag.get_ref()]),
+                        child.clone().extend_simple(vec![tag.get_ref()], child_type),
                     )) {
                         // duplicated simple tag
                         return Err(Error::RepoTagDuplicate {

@@ -73,12 +73,13 @@ impl TagRef {
     }
 
     /// Extend a simple TagRef to a full tag with name, edition and parents.
-    pub fn extend_simple(self, parents: Vec<TagRef>) -> Tag {
+    pub fn extend_simple(self, parents: Vec<TagRef>, tag_type: TagType) -> Tag {
         Tag {
             name: self.0,
             alias: vec![],
+            tag_type,
             parents,
-            children: vec![],
+            children: Default::default(),
         }
     }
 }
@@ -123,6 +124,8 @@ pub struct Tag {
     /// Tag alias
     #[serde(default)]
     alias: Vec<String>,
+    #[serde(rename = "type")]
+    tag_type: TagType,
     /// Tag parents
     #[serde(default)]
     #[serde(rename = "included-by")]
@@ -130,7 +133,43 @@ pub struct Tag {
     /// Tag children
     #[serde(default)]
     #[serde(rename = "includes")]
-    children: Vec<TagRef>,
+    children: TagChildren,
+}
+
+#[derive(Serialize, Deserialize, Debug, PartialEq, Eq)]
+#[serde(rename_all = "lowercase")]
+pub enum TagType {
+    Artist,
+    Group,
+    Animation,
+    Series,
+    Project,
+    Game,
+    Organization,
+    Default,
+    Category,
+}
+
+#[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Default)]
+pub struct TagChildren {
+    #[serde(default)]
+    artist: Vec<TagRef>,
+    #[serde(default)]
+    group: Vec<TagRef>,
+    #[serde(default)]
+    animation: Vec<TagRef>,
+    #[serde(default)]
+    series: Vec<TagRef>,
+    #[serde(default)]
+    project: Vec<TagRef>,
+    #[serde(default)]
+    game: Vec<TagRef>,
+    #[serde(default)]
+    organization: Vec<TagRef>,
+    #[serde(default)]
+    default: Vec<TagRef>,
+    #[serde(default)]
+    category: Vec<TagRef>,
 }
 
 impl Hash for Tag {
@@ -158,9 +197,16 @@ impl Tag {
         &self.parents
     }
 
-    #[doc(hidden)]
-    pub fn children_raw(&self) -> &[TagRef] {
-        &self.children
+    pub fn children_simple(&self) -> impl Iterator<Item=(&TagRef, TagType)> {
+        self.children.artist.iter().map(|t| (t, TagType::Artist))
+            .chain(self.children.group.iter().map(|t| (t, TagType::Group)))
+            .chain(self.children.animation.iter().map(|t| (t, TagType::Animation)))
+            .chain(self.children.series.iter().map(|t| (t, TagType::Series)))
+            .chain(self.children.project.iter().map(|t| (t, TagType::Project)))
+            .chain(self.children.game.iter().map(|t| (t, TagType::Game)))
+            .chain(self.children.organization.iter().map(|t| (t, TagType::Organization)))
+            .chain(self.children.default.iter().map(|t| (t, TagType::Default)))
+            .chain(self.children.category.iter().map(|t| (t, TagType::Category)))
     }
 
     pub fn get_ref(&self) -> TagRef {
