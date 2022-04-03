@@ -11,6 +11,7 @@ use anni_vgmdb::VGMClient;
 use futures::executor::block_on;
 use anni_flac::blocks::{UserComment, UserCommentExt};
 use anni_clap_handler::{Context, Handler, handler};
+use anni_common::inherit::InheritableValue;
 
 #[derive(Parser, Debug, Clone)]
 #[clap(about = ll ! {"repo"})]
@@ -212,10 +213,12 @@ fn repo_get_vgmdb(options: &RepoGetVGMdb, manager: &RepositoryManager, get: &Rep
         );
 
         for track_got in disc_got.tracks {
+            let title = track_got.get().unwrap().to_string();
+            let track_type = TrackType::guess(&title);
             disc.push_track(Track::new(
-                track_got.get().unwrap().to_string(),
-                None,
-                None,
+                title,
+                InheritableValue::own(String::new()),
+                InheritableValue::own(track_type),
                 Default::default(),
             ));
         }
