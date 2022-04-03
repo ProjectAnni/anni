@@ -1,7 +1,7 @@
 use std::borrow::Cow;
 use std::collections::HashSet;
 use actix_web::{HttpResponse, Responder, web, get, HttpRequest};
-use actix_web::http::header::IF_NONE_MATCH;
+use actix_web::http::header::{ETAG, IF_NONE_MATCH};
 use crate::{AnnilClaims, AppState};
 
 /// Get available albums of current annil server
@@ -24,7 +24,9 @@ async fn albums(claims: AnnilClaims, data: web::Data<AppState>, req: HttpRequest
             for provider in read.iter() {
                 albums.extend(provider.albums().await);
             }
-            HttpResponse::Ok().json(albums)
+            HttpResponse::Ok()
+                .append_header((ETAG, format!("{}", data.etag.read())))
+                .json(albums)
         }
         AnnilClaims::Share(share) => {
             // guests can only get album list defined in jwt
