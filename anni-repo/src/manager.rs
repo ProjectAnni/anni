@@ -19,13 +19,14 @@ impl RepositoryManager {
     }
 
     #[cfg(feature = "git")]
-    pub fn clone<P: AsRef<Path>>(url: &str, root: P, branch: &str) -> RepoResult<Self> {
-        if root.as_ref().exists() {
-            // pull instead of clone
-            crate::utils::git::pull(root.as_ref(), branch)?;
-        } else {
-            git2::Repository::clone(url, root.as_ref())?;
-        }
+    pub fn clone<P: AsRef<Path>>(url: &str, root: P) -> RepoResult<Self> {
+        git2::Repository::clone(url, root.as_ref())?;
+        Self::new(root.as_ref())
+    }
+
+    #[cfg(feature = "git")]
+    pub fn pull<P: AsRef<Path>>(root: P, branch: &str) -> RepoResult<Self> {
+        crate::utils::git::pull(root.as_ref(), branch)?;
         Self::new(root.as_ref())
     }
 

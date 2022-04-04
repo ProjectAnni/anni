@@ -56,6 +56,12 @@ pub struct MetadataConfig {
     pub repo: String,
     pub branch: String,
     pub base: PathBuf,
+    #[serde(default = "default_true")]
+    pub pull: bool,
+}
+
+fn default_true() -> bool {
+    true
 }
 
 #[derive(Deserialize)]

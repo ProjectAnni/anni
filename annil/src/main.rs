@@ -41,7 +41,18 @@ pub struct AppState {
 
 async fn init_state(config: Config) -> anyhow::Result<web::Data<AppState>> {
     log::info!("Fetching metadata repository...");
-    let repo = RepositoryManager::clone(&config.metadata.repo, config.metadata.base.join("repo"), &config.metadata.branch)?;
+    let repo_root = config.metadata.base.join("repo");
+    let repo = if !repo_root.exists() {
+        log::debug!("Cloning metadata repository from {}", config.metadata.repo);
+        RepositoryManager::clone(&config.metadata.repo, repo_root)?
+    } else if config.metadata.pull {
+        log::debug!("Updating metadata repository at branch: {}", config.metadata.branch);
+        RepositoryManager::pull(repo_root, &config.metadata.branch)?
+    } else {
+        log::debug!("Loading metadata repository at {}", repo_root.display());
+        RepositoryManager::new(repo_root)?
+    };
+    log::debug!("Generating metadata database...");
     let repo = repo.into_owned_manager()?;
     let database_path = config.metadata.base.join("repo.db");
     repo.to_database(&database_path).await?;

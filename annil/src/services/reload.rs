@@ -6,11 +6,13 @@ use crate::utils::compute_etag;
 
 #[post("/reload")]
 async fn reload(data: web::Data<AppState>) -> impl Responder {
-    let repo = RepositoryManager::clone(&data.metadata.repo, data.metadata.base.join("repo"), &data.metadata.branch).unwrap();
-    let repo = repo.into_owned_manager().unwrap();
+    if data.metadata.pull {
+        let repo = RepositoryManager::pull(data.metadata.base.join("repo"), &data.metadata.branch).unwrap();
+        let repo = repo.into_owned_manager().unwrap();
 
-    let database_path = data.metadata.base.join("repo.db");
-    repo.to_database(&database_path).await.unwrap();
+        let database_path = data.metadata.base.join("repo.db");
+        repo.to_database(&database_path).await.unwrap();
+    }
 
     for provider in data.providers.write().iter_mut() {
         if let Err(e) = provider.reload().await {
