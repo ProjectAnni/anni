@@ -76,7 +76,7 @@ pub struct RepoCloneAction {
 fn repo_clone(me: RepoCloneAction) -> anyhow::Result<()> {
     let root = me.root.unwrap_or_else(|| PathBuf::from(".")).join("repo");
     log::info!("{}", fl!("repo-clone-start", path = root.display().to_string()));
-    RepositoryManager::clone(&me.url, root, "")?;
+    RepositoryManager::clone(&me.url, root)?;
     log::info!("{}", fl!("repo-clone-done"));
     Ok(())
 }
