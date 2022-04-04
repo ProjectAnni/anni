@@ -23,15 +23,15 @@ impl RepoDatabaseRead {
         })
     }
 
-    pub async fn match_album(&self, catalog: &str, release_date: &crate::models::AnniDate, total_discs: u8, album_title: &str) -> RepoResult<Option<Uuid>> {
-        log::trace!("Catalog: {catalog}, Title: {album_title}, Release date: {release_date}, Discs: {total_discs}");
+    pub async fn match_album(&self, catalog: &str, release_date: &crate::models::AnniDate, disc_count: u8, album_title: &str) -> RepoResult<Option<Uuid>> {
+        log::trace!("Catalog: {catalog}, Title: {album_title}, Release date: {release_date}, Discs: {disc_count}");
         let albums: Vec<(Uuid, String)> = sqlx::query_as("
 SELECT album_id, title FROM repo_album
   WHERE catalog = ? AND release_date = ? AND disc_count = ?;
 ")
             .bind(catalog)
             .bind(release_date.to_string())
-            .bind(total_discs)
+            .bind(disc_count)
             .fetch_all(&self.pool)
             .await?;
         if albums.is_empty() {
