@@ -2,7 +2,7 @@ use serde::{Serialize, Deserialize, Deserializer, Serializer};
 use std::str::FromStr;
 use anni_common::inherit::{InheritableValue, default_some};
 use std::borrow::Cow;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use uuid::Uuid;
 use crate::prelude::*;
 
@@ -93,8 +93,20 @@ impl Album {
         self.info.catalog.as_ref()
     }
 
-    pub fn tags(&self) -> &[TagRef] {
-        &self.info.tags
+    pub fn tags(&self) -> Vec<&TagRef> {
+        let mut tags = Vec::new();
+        tags.append(&mut self.info.tags.iter().collect::<Vec<_>>());
+        for disc in self.discs.iter() {
+            if !disc.tags.is_empty() {
+                tags.append(&mut disc.tags.iter().collect::<Vec<_>>());
+            }
+            for track in disc.tracks.iter() {
+                if !track.tags.is_empty() {
+                    tags.append(&mut track.tags.iter().collect::<Vec<_>>());
+                }
+            }
+        };
+        tags.into_iter().collect::<HashSet<_>>().into_iter().collect()
     }
 
     pub fn discs(&self) -> &Vec<Disc> {
