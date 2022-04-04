@@ -1,5 +1,6 @@
 use sqlx::FromRow;
 use uuid::Uuid;
+use crate::models::TrackType;
 
 #[derive(FromRow, Debug)]
 pub struct AlbumRow {
@@ -38,5 +39,5 @@ pub struct TagRow {
     pub disc_id: Option<u8>,
     pub track_id: Option<u8>,
     pub name: String,
-    pub edition: Option<String>,
+    pub tag_type: TrackType,
 }

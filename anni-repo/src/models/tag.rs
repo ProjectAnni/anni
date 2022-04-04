@@ -150,6 +150,22 @@ pub enum TagType {
     Category,
 }
 
+impl ToString for TagType {
+    fn to_string(&self) -> String {
+        match self {
+            TagType::Artist => "artist".to_string(),
+            TagType::Group => "group".to_string(),
+            TagType::Animation => "animation".to_string(),
+            TagType::Series => "series".to_string(),
+            TagType::Project => "project".to_string(),
+            TagType::Game => "game".to_string(),
+            TagType::Organization => "organization".to_string(),
+            TagType::Default => "default".to_string(),
+            TagType::Category => "category".to_string(),
+        }
+    }
+}
+
 #[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Default)]
 #[serde(deny_unknown_fields)]
 pub struct TagChildren {
@@ -188,6 +204,10 @@ impl Display for Tag {
 impl Tag {
     pub fn name(&self) -> &str {
         &self.name
+    }
+
+    pub fn tag_type(&self) -> &TagType {
+        &self.tag_type
     }
 
     pub fn alias(&self) -> &[String] {

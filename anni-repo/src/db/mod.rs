@@ -3,6 +3,7 @@ use std::path::Path;
 use sqlx::ConnectOptions;
 use sqlx::sqlite::{SqliteConnectOptions, SqliteJournalMode, SqliteSynchronous};
 use uuid::Uuid;
+use crate::models::TagType;
 use crate::prelude::RepoResult;
 
 mod rows;
@@ -168,6 +169,7 @@ CREATE TABLE IF NOT EXISTS "repo_track" (
 CREATE TABLE IF NOT EXISTS "repo_tag" (
   "tag_id"      INTEGER NOT NULL UNIQUE,
   "name"        TEXT NOT NULL UNIQUE,
+  "tag_type"    TEXT NOT NULL DEFAULT 'default' CHECK("tag_type" IN ('artist', 'group', 'animation', 'series', 'project', 'game', 'organization', 'default')),
   PRIMARY KEY("tag_id" AUTOINCREMENT)
 );
 "#)
@@ -338,9 +340,10 @@ CREATE INDEX IF NOT EXISTS "repo_tag_detail_index" ON "repo_tag_detail" (
         Ok(())
     }
 
-    async fn add_tag(&mut self, name: &str) -> RepoResult<i32> {
-        let tag_result = sqlx::query("INSERT INTO repo_tag (name) VALUES (?)")
+    async fn add_tag(&mut self, name: &str, tag_type: &TagType) -> RepoResult<i32> {
+        let tag_result = sqlx::query("INSERT INTO repo_tag (name, tag_type) VALUES (?, ?)")
             .bind(name)
+            .bind(tag_type.to_string())
             .execute(&mut self.conn)
             .await?;
         // this is a hack to get the id of the tag we just inserted
@@ -374,7 +377,7 @@ CREATE INDEX IF NOT EXISTS "repo_tag_detail_index" ON "repo_tag_detail" (
         let mut relation_deferred = HashMap::new();
 
         for tag in tags {
-            let id = self.add_tag(tag.name()).await?;
+            let id = self.add_tag(tag.name(), tag.tag_type()).await?;
             tag_id.insert(tag.get_ref(), id);
 
             // add alias
