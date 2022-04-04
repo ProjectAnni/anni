@@ -156,7 +156,11 @@ impl AnniProvider for FileBackend {
                         size: file_size as usize,
                         duration,
                     },
-                    range: range.end_with(file_size),
+                    range: if range.is_full() {
+                        range
+                    } else {
+                        range.end_with(file_size)
+                    },
                     reader,
                 });
             }

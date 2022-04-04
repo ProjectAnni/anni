@@ -62,7 +62,10 @@ impl Range {
 
     /// return length limited by a limit(usually actual file size)
     pub fn length_limit(&self, limit: u64) -> u64 {
-        self.length().min(limit - self.start + 1)
+        match self.end {
+            Some(end) => std::cmp::min(end, limit),
+            None => limit
+        }
     }
 
     /// return a new Range with updated end property
