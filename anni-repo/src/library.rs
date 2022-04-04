@@ -52,7 +52,7 @@ pub fn disc_info(path: &str) -> Result<(String, String, usize), InfoParseError> 
 
 // Date, catalog, title, disc_count
 pub fn album_info(path: &str) -> Result<(AnniDate, String, String, usize), InfoParseError> {
-    let r = Regex::new(r"^\[(\d{2}|\d{4})-?(\d{2})-?(\d{2})]\[([^]]+)] (.+?)(?: \[(\d+) Discs])?$").unwrap();
+    let r = Regex::new(r"^\[(\d{4}|\d{2})-?(\d{2})-?(\d{2})]\[([^]]+)] (.+?)(?: \[(\d+) Discs])?$").unwrap();
     let r = r.captures(path).ok_or(InfoParseError::NotMatch)?;
     if r.len() == 0 {
         return Err(InfoParseError::NoCaptureGroup);
@@ -68,4 +68,22 @@ pub fn album_info(path: &str) -> Result<(AnniDate, String, String, usize), InfoP
         r.get(5).unwrap().as_str().replace('/', "／"),
         usize::from_str(r.get(6).map(|r| r.as_str()).unwrap_or("1")).unwrap(),
     ))
+}
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn test_album_info() {
+        let (date, catalog, title, disc_count) = super::album_info("[220302][SMCL-753] 彩色硝子").unwrap();
+        assert_eq!(date.to_string(), "2022-03-02");
+        assert_eq!(catalog, "SMCL-753");
+        assert_eq!(title, "彩色硝子");
+        assert_eq!(disc_count, 1);
+
+        let (date, catalog, title, disc_count) = super::album_info("[2022-03-02][SMCL-753] 彩色硝子 [1 Discs]").unwrap();
+        assert_eq!(date.to_string(), "2022-03-02");
+        assert_eq!(catalog, "SMCL-753");
+        assert_eq!(title, "彩色硝子");
+        assert_eq!(disc_count, 1);
+    }
 }

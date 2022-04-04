@@ -128,3 +128,21 @@ impl Display for AnniDate {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn test_date() {
+        use super::*;
+
+        let anni_date = AnniDate::from_parts("19", "01", "30");
+        assert_eq!(anni_date.year, 2019);
+        assert_eq!(anni_date.month, 1);
+        assert_eq!(anni_date.day, 30);
+
+        let anni_date = AnniDate::from_parts("2019", "01", "30");
+        assert_eq!(anni_date.year, 2019);
+        assert_eq!(anni_date.month, 1);
+        assert_eq!(anni_date.day, 30);
+    }
+}
