@@ -39,7 +39,7 @@ pub struct AppState {
     etag: RwLock<String>,
 }
 
-async fn init_state(config: Config) -> anyhow::Result<web::Data<AppState>> {
+async fn init_metadata(config: &Config) -> anyhow::Result<PathBuf> {
     log::info!("Fetching metadata repository...");
     let repo_root = config.metadata.base.join("repo");
     let repo = if !repo_root.exists() {
@@ -57,6 +57,13 @@ async fn init_state(config: Config) -> anyhow::Result<web::Data<AppState>> {
     let database_path = config.metadata.base.join("repo.db");
     repo.to_database(&database_path).await?;
     log::info!("Metadata repository fetched.");
+
+    Ok(database_path)
+}
+
+async fn init_state(config: Config) -> anyhow::Result<web::Data<AppState>> {
+    // init metadata
+    let database_path = init_metadata(&config).await?;
 
     log::info!("Start initializing providers...");
     let now = SystemTime::now();
