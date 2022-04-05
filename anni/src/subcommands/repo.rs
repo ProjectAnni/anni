@@ -136,8 +136,9 @@ fn repo_add(me: &RepoAddAction, manager: &RepositoryManager) -> anyhow::Result<(
                 }
 
                 // auto audio type for instrumental, drama and radio
-                let track_type = TrackType::guess(track.title());
-                track.set_track_type(track_type);
+                if let Some(track_type) = TrackType::guess(track.title()) {
+                    track.set_track_type(track_type);
+                }
 
                 disc.push_track(track); // use push_track here to avoid metadata inherit
             }
@@ -219,7 +220,10 @@ fn repo_get_vgmdb(options: &RepoGetVGMdb, manager: &RepositoryManager, get: &Rep
             disc.push_track(Track::new(
                 title,
                 InheritableValue::own(String::new()),
-                InheritableValue::own(track_type),
+                match track_type {
+                    Some(track_type) => InheritableValue::own(track_type),
+                    None => InheritableValue::default(),
+                },
                 Default::default(),
             ));
         }
