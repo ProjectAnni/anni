@@ -392,32 +392,32 @@ impl<'repo> OwnedRepositoryManager {
         None
     }
 
-    #[cfg(feature = "db")]
-    pub async fn to_database<P>(&self, database_path: P) -> RepoResult<()>
+    #[cfg(feature = "db-write")]
+    pub fn to_database<P>(&self, database_path: P) -> RepoResult<()>
         where P: AsRef<Path> {
         use std::time::{SystemTime, UNIX_EPOCH};
 
         // remove database first
         let _ = std::fs::remove_file(database_path.as_ref());
 
-        let mut db = crate::db::RepoDatabaseWrite::create(database_path.as_ref()).await?;
+        let db = crate::db::RepoDatabaseWrite::create(database_path.as_ref())?;
         // TODO: get url / ref from repo
-        db.write_info(self.repo.name(), self.repo.edition(), "", "").await?;
+        db.write_info(self.repo.name(), self.repo.edition(), "", "")?;
 
         // Write all tags
         let tags = self.tags().iter().filter_map(|t| match t {
             RepoTag::Full(tag) => Some(tag),
             _ => None,
         });
-        db.add_tags(tags).await?;
+        db.add_tags(tags)?;
 
         // Write all albums
         for album in self.albums_iter() {
-            db.add_album(album).await?;
+            db.add_album(album)?;
         }
 
         // Create Index
-        db.create_index().await?;
+        db.create_index()?;
 
 
         // Creation time

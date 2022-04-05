@@ -10,7 +10,6 @@ pub mod prelude {
     pub type RepoResult<R> = std::result::Result<R, Error>;
 }
 
-#[cfg(feature = "db")]
 pub mod db;
 pub(crate) mod utils;
 

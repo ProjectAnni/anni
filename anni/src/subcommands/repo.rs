@@ -8,7 +8,6 @@ use crate::{fl, ll, ball};
 use std::path::PathBuf;
 use std::str::FromStr;
 use anni_vgmdb::VGMClient;
-use futures::executor::block_on;
 use anni_flac::blocks::{UserComment, UserCommentExt};
 use anni_clap_handler::{Context, Handler, handler};
 use anni_common::inherit::InheritableValue;
@@ -561,7 +560,7 @@ fn repo_database_action(me: RepoDatabaseAction, manager: RepositoryManager) -> a
     }
 
     let manager = manager.into_owned_manager()?;
-    block_on(manager.to_database(&me.output.join("repo.db")))?;
+    manager.to_database(&me.output.join("repo.db"))?;
 
     Ok(())
 }

@@ -16,6 +16,7 @@ use futures::TryStreamExt;
 use google_drive3::api::FileListCall;
 use std::str::FromStr;
 use dashmap::DashMap;
+use parking_lot::Mutex;
 use tokio::sync::Semaphore;
 use anni_repo::db::RepoDatabaseRead;
 
@@ -88,7 +89,7 @@ pub struct DriveBackend {
     audios: DashMap<String, (String, usize)>,
     /// Settings
     settings: DriveProviderSettings,
-    repo: RepoDatabaseRead,
+    repo: Mutex<RepoDatabaseRead>,
     /// Semaphore for rate limiting
     semaphore: Semaphore,
 }
@@ -112,7 +113,7 @@ impl DriveBackend {
             files: Default::default(),
             audios: Default::default(),
             settings,
-            repo,
+            repo: Mutex::new(repo),
             semaphore: Semaphore::new(200),
         };
         this.reload().await?;
@@ -301,7 +302,7 @@ impl AnniProvider for DriveBackend {
         self.discs.clear();
         self.files.clear();
         self.audios.clear();
-        self.repo.reload().await?;
+        self.repo.lock().reload()?;
 
         let mut page_token = String::new();
         loop {
@@ -315,7 +316,7 @@ impl AnniProvider for DriveBackend {
             for file in list.files.unwrap() {
                 let name = file.name.unwrap();
                 if let Ok((release_date, catalog, title, disc_count)) = album_info(&name) {
-                    let album_id = self.repo.match_album(&catalog, &release_date, disc_count as u8, &title).await?;
+                    let album_id = self.repo.lock().match_album(&catalog, &release_date, disc_count as u8, &title)?;
                     match album_id {
                         Some(album_id) => {
                             self.folders.insert(album_id.to_string(), file.id.unwrap());

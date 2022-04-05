@@ -1,8 +1,8 @@
-use sqlx::FromRow;
 use uuid::Uuid;
 use crate::models::TrackType;
+use serde::Deserialize;
 
-#[derive(FromRow, Debug)]
+#[derive(Debug, Deserialize)]
 pub struct AlbumRow {
     pub album_id: Uuid,
     pub title: String,
@@ -13,7 +13,7 @@ pub struct AlbumRow {
     pub album_type: String,
 }
 
-#[derive(FromRow, Debug)]
+#[derive(Debug, Deserialize)]
 pub struct DiscRow {
     pub album_id: Uuid,
     pub disc_id: u8,
@@ -23,7 +23,7 @@ pub struct DiscRow {
     pub disc_type: String,
 }
 
-#[derive(FromRow, Debug)]
+#[derive(Debug, Deserialize)]
 pub struct TrackRow {
     pub album_id: Uuid,
     pub disc_id: u8,
@@ -33,7 +33,7 @@ pub struct TrackRow {
     pub track_type: String,
 }
 
-#[derive(FromRow, Debug)]
+#[derive(Debug, Deserialize)]
 pub struct TagRow {
     pub album_id: Uuid,
     pub disc_id: Option<u8>,

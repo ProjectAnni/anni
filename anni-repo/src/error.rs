@@ -31,9 +31,13 @@ pub enum Error {
     #[error(transparent)]
     IOError(#[from] std::io::Error),
 
-    #[cfg(feature = "db")]
+    #[cfg(any(feature = "db-read", feature = "db-write"))]
     #[error(transparent)]
-    SqliteError(#[from] sqlx::Error),
+    SqliteError(#[from] rusqlite::Error),
+
+    #[cfg(feature = "db-read")]
+    #[error(transparent)]
+    SqliteDeserializeError(#[from] serde_rusqlite::Error),
 
     #[cfg(feature = "git")]
     #[error(transparent)]

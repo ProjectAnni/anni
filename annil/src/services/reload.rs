@@ -11,7 +11,7 @@ async fn reload(data: web::Data<AppState>) -> impl Responder {
         let repo = repo.into_owned_manager().unwrap();
 
         let database_path = data.metadata.base.join("repo.db");
-        repo.to_database(&database_path).await.unwrap();
+        repo.to_database(&database_path).unwrap();
     }
 
     for provider in data.providers.write().iter_mut() {

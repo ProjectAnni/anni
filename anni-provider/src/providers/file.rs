@@ -5,6 +5,7 @@ use async_trait::async_trait;
 use std::collections::{HashMap, HashSet};
 use std::io::SeekFrom;
 use std::path::{Path, PathBuf};
+use parking_lot::Mutex;
 use tokio::fs::{read_dir, File};
 use tokio::io::{AsyncReadExt, AsyncSeekExt};
 use anni_repo::db::RepoDatabaseRead;
@@ -12,7 +13,7 @@ use crate::{AudioInfo, Range, ResourceReader};
 
 pub struct FileBackend {
     root: PathBuf,
-    repo: RepoDatabaseRead,
+    repo: Mutex<RepoDatabaseRead>,
     album_path: HashMap<String, PathBuf>,
     album_discs: HashMap<String, Vec<PathBuf>>,
 }
@@ -21,7 +22,7 @@ impl FileBackend {
     pub async fn new(root: PathBuf, repo: RepoDatabaseRead) -> Result<Self, ProviderError> {
         let mut this = Self {
             root,
-            repo,
+            repo: Mutex::new(repo),
             album_path: Default::default(),
             album_discs: Default::default(),
         };
@@ -47,7 +48,7 @@ impl FileBackend {
                         .ok_or(ProviderError::InvalidPath)?,
                 ) {
                     log::debug!("Found album {} at: {:?}", catalog, path);
-                    let album_id = self.repo.match_album(&catalog, &release_date, disc_count as u8, &title).await?;
+                    let album_id = self.repo.lock().match_album(&catalog, &release_date, disc_count as u8, &title)?;
                     match album_id {
                         Some(album_id) => {
                             if disc_count > 1 {
@@ -181,7 +182,7 @@ impl AnniProvider for FileBackend {
     async fn reload(&mut self) -> Result<(), ProviderError> {
         self.album_discs.clear();
         self.album_path.clear();
-        self.repo.reload().await?;
+        self.repo.lock().reload()?;
 
         let mut to_visit = Vec::new();
         self.walk_dir(&self.root.clone(), &mut to_visit).await?;

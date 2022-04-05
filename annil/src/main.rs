@@ -55,7 +55,7 @@ async fn init_metadata(config: &Config) -> anyhow::Result<PathBuf> {
     log::debug!("Generating metadata database...");
     let repo = repo.into_owned_manager()?;
     let database_path = config.metadata.base.join("repo.db");
-    repo.to_database(&database_path).await?;
+    repo.to_database(&database_path)?;
     log::info!("Metadata repository fetched.");
 
     Ok(database_path)
@@ -72,7 +72,7 @@ async fn init_state(config: Config) -> anyhow::Result<web::Data<AppState>> {
 
     for (provider_name, provider_config) in config.providers.iter() {
         log::debug!("Initializing provider: {}", provider_name);
-        let repo = RepoDatabaseRead::new(database_path.to_string_lossy().as_ref()).await?;
+        let repo = RepoDatabaseRead::new(database_path.to_string_lossy().as_ref())?;
         let mut provider: Box<dyn AnniProvider + Send + Sync> = match &provider_config.item {
             ProviderItem::File { root } =>
                 Box::new(FileBackend::new(PathBuf::from(root), repo).await?),
