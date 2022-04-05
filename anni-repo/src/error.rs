@@ -1,7 +1,6 @@
-use thiserror::Error;
 use crate::prelude::TagRef;
 
-#[derive(Error, Debug)]
+#[derive(thiserror::Error, Debug)]
 pub enum Error {
     #[error("invalid {target} toml: {err:?}\n{input}")]
     TomlParseError {

@@ -14,6 +14,5 @@ mod write;
 #[cfg(feature = "db-write")]
 pub use write::RepoDatabaseWrite;
 
-
-
-
+#[cfg(target_arch = "wasm32")]
+pub(crate) mod fs;

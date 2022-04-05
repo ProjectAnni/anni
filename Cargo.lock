@@ -396,11 +396,14 @@ dependencies = [
  "regex",
  "rusqlite",
  "serde",
+ "serde-wasm-bindgen",
  "serde_rusqlite",
  "serde_with",
+ "sqlite-vfs",
  "thiserror",
  "toml",
  "uuid 0.8.2",
+ "wasm-bindgen",
 ]
 
 [[package]]
@@ -1774,9 +1777,9 @@ dependencies = [
 
 [[package]]
 name = "js-sys"
-version = "0.3.47"
+version = "0.3.56"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5cfb73131c35423a367daf8cbd24100af0d077668c8c2943f0e7dd775fef0f65"
+checksum = "a38fc24e30fd564ce974c02bf1d337caddff65be6cc4735a1f7eab22a7440f04"
 dependencies = [
  "wasm-bindgen",
 ]
@@ -3080,6 +3083,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "serde-wasm-bindgen"
+version = "0.4.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d5d0927d4115e78b52dfd4cabcb3cc79bd56b94a53cf27c074bf8b83af1765d1"
+dependencies = [
+ "fnv",
+ "js-sys",
+ "serde",
+ "wasm-bindgen",
+]
+
+[[package]]
 name = "serde_derive"
 version = "1.0.123"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3256,6 +3271,18 @@ name = "spin"
 version = "0.5.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6e63cff320ae2c57904679ba7cb63280a3dc4613885beafb148ee7bf9aa9042d"
+
+[[package]]
+name = "sqlite-vfs"
+version = "0.1.0"
+source = "git+https://github.com/rklaehn/sqlite-vfs#d0ed190231966dfbd9ed6132d7f17f6cc8cf2b21"
+dependencies = [
+ "getrandom 0.2.6",
+ "libsqlite3-sys",
+ "log 0.4.14",
+ "rand 0.8.3",
+ "time 0.3.5",
+]
 
 [[package]]
 name = "stable_deref_trait"
@@ -3811,6 +3838,8 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "25f1af7423d8588a3d840681122e72e6a24ddbcb3f0ec385cac0d12d24256c06"
 dependencies = [
  "cfg-if",
+ "serde",
+ "serde_json",
  "wasm-bindgen-macro",
 ]
 
