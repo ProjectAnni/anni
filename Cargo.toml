@@ -8,6 +8,9 @@ members = [
     "anni-clap-handler-derive",
     "anni-flac",
     "anni-repo",
-
     "third_party/google-drive3"
 ]
+
+# Remove this patch after https://github.com/rusqlite/rusqlite/pull/1010 was merged
+[patch.crates-io]
+rusqlite = { git = "https://github.com/trevyn/rusqlite", branch = "wasm32-unknown-unknown" }
