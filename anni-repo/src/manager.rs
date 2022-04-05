@@ -160,14 +160,6 @@ impl RepositoryManager {
         Ok(())
     }
 
-    /// Open editor for album with given catalog.
-    pub fn edit_album(&self, catalog: &str) -> RepoResult<()> {
-        for file in self.album_paths(catalog)? {
-            edit::edit_file(&file)?;
-        }
-        Ok(())
-    }
-
     pub fn into_owned_manager(self) -> RepoResult<OwnedRepositoryManager> {
         OwnedRepositoryManager::new(self)
     }

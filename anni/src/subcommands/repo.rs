@@ -150,7 +150,9 @@ fn repo_add(me: &RepoAddAction, manager: &RepositoryManager) -> anyhow::Result<(
 
         manager.add_album(&catalog, album, me.allow_duplicate)?;
         if me.open_editor {
-            manager.edit_album(&catalog)?;
+            for file in manager.album_paths(&catalog)? {
+                edit::edit_file(&file)?;
+            }
         }
     }
     Ok(())
@@ -250,7 +252,9 @@ fn repo_edit(me: &RepoEditAction, manager: &RepositoryManager) -> anyhow::Result
 
         let (_, catalog, _, _) = album_info(&last)?;
         debug!(target: "repo|edit", "Catalog: {}", catalog);
-        manager.edit_album(&catalog)?;
+        for file in manager.album_paths(&catalog)? {
+            edit::edit_file(&file)?;
+        }
         Ok(())
     }
 

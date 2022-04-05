@@ -150,6 +150,7 @@ pub fn read_to_string<P: AsRef<Path>>(input: P) -> io::Result<String> {
     Ok(raw_to_string(&r))
 }
 
+#[cfg(feature = "trash")]
 pub fn remove_file<P: AsRef<Path>>(input: P, trashcan: bool) -> io::Result<()> {
     if trashcan {
         trash::delete(input.as_ref()).map_err(|e| io::Error::new(io::ErrorKind::Other, e))

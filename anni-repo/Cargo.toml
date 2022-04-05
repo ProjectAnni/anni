@@ -4,6 +4,9 @@ version = "0.1.0"
 authors = ["Yesterday17 <mmf@mmf.moe>"]
 edition = "2018"
 
+[lib]
+crate-type = ["cdylib", "rlib"]
+
 [dependencies]
 toml = "0.5"
 serde = { version = "1.0", features = ["derive"] }
@@ -11,15 +14,21 @@ serde_with = "1.10.0"
 regex = "1"
 anyhow = "1.0"
 thiserror = "1.0"
-anni-common = { path = "../anni-common" }
-edit = "0.1.2"
+anni-common = { path = "../anni-common", default-features = false }
 uuid = { version = "0.8", features = ["v4", "serde"] }
 sqlx = { version = "0.5", features = ["runtime-tokio-rustls", "sqlite", "uuid"], optional = true }
 log = "0.4.0"
 git2 = { version = "0.14", optional = true, features = ["vendored-openssl", "vendored-libgit2"] }
+getrandom = { version = "0.2", optional = true }
 
 [features]
 default = []
 arc = ["anni-common/arc"]
 db = ["sqlx"]
 git = ["git2"]
+wasm = [
+    # features
+    "db",
+    # dependencies
+    "getrandom", "getrandom/js", "uuid/wasm-bindgen"
+]
