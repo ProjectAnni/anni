@@ -62,10 +62,11 @@ impl Range {
 
     /// return length limited by a limit(usually actual file size)
     pub fn length_limit(&self, limit: u64) -> u64 {
-        match self.end {
+        let end = match self.end {
             Some(end) => std::cmp::min(end, limit),
             None => limit
-        }
+        };
+        end - self.start + 1
     }
 
     /// return a new Range with updated end property
@@ -73,10 +74,13 @@ impl Range {
         Self {
             start: self.start,
             end: match self.end {
-                Some(e) => Some(e.min(end)),
+                Some(e) => Some(e.min(end - 1)),
+                None => Some(end - 1),
+            },
+            total: match self.total {
+                Some(total) => Some(total.min(end)),
                 None => Some(end),
             },
-            total: self.total,
         }
     }
 
