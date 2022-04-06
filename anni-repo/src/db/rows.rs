@@ -1,5 +1,4 @@
 use serde::{Serialize, Deserialize, Serializer, Deserializer};
-use serde::de::DeserializeOwned;
 use uuid::Uuid;
 
 #[derive(Debug)]
@@ -26,6 +25,7 @@ pub struct AlbumRow {
     pub catalog: String,
     pub artist: String,
     pub release_date: String,
+    #[serde(rename(serialize = "type"))]
     pub album_type: String,
 }
 
@@ -36,6 +36,7 @@ pub struct DiscRow {
     pub title: String,
     pub artist: String,
     pub catalog: String,
+    #[serde(rename(serialize = "type"))]
     pub disc_type: String,
 }
 
@@ -46,6 +47,7 @@ pub struct TrackRow {
     pub track_id: u8,
     pub title: String,
     pub artist: String,
+    #[serde(rename(serialize = "type"))]
     pub track_type: String,
 }
 
@@ -55,5 +57,29 @@ pub struct TagRow {
     pub disc_id: Option<u8>,
     pub track_id: Option<u8>,
     pub name: String,
+    #[serde(rename(serialize = "type"))]
     pub tag_type: String,
+}
+
+#[cfg(target_arch = "wasm32")]
+pub mod wasm {
+    use wasm_bindgen::prelude::*;
+
+    #[wasm_bindgen(typescript_custom_section)]
+    const ALBUM_ROW: &'static str = r#"
+interface AlbumRow {
+    album_id: string;
+    title: string;
+    edition?: string;
+    catalog: string;
+    artist: string;
+    release_date: string;
+    type: string;
+}
+"#;
+    #[wasm_bindgen]
+    extern "C" {
+        #[wasm_bindgen(typescript_type = "AlbumRow")]
+        pub type IAlbumRow;
+    }
 }

@@ -116,9 +116,11 @@ impl RepoDatabaseRead {
 
 #[cfg(target_arch = "wasm32")]
 mod wasm {
+    use wasm_bindgen::JsCast;
     use super::*;
     use super::super::fs;
     use wasm_bindgen::prelude::*;
+    use super::rows::wasm::*;
 
     #[cfg(target_arch = "wasm32")]
     #[wasm_bindgen]
@@ -138,9 +140,9 @@ mod wasm {
             }
         }
 
-        pub fn album(&self, album_id: String) -> Result<JsValue, JsValue> {
+        pub fn album(&self, album_id: String) -> Result<IAlbumRow, JsValue> {
             let album = self.db.album(Uuid::parse_str(&album_id).map_err(js_err)?).map_err(js_err)?;
-            Ok(serde_wasm_bindgen::to_value(&album)?)
+            Ok(serde_wasm_bindgen::to_value(&album)?.unchecked_into())
         }
 
         pub fn tracks(&self, album_id: String, disc_id: u8) -> Result<JsValue, JsValue> {
