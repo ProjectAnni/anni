@@ -109,6 +109,10 @@ impl Album {
         tags.into_iter().collect::<HashSet<_>>().into_iter().collect()
     }
 
+    pub fn tags_raw(&self) -> &[TagRef] {
+        &self.info.tags
+    }
+
     pub fn discs(&self) -> &Vec<Disc> {
         &self.discs
     }

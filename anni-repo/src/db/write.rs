@@ -144,7 +144,7 @@ COMMIT;
         )?;
 
         // add album tags
-        for tag in album.tags() {
+        for tag in album.tags_raw() {
             self.conn.execute(
                 "INSERT INTO repo_tag_detail (album_id, tag_id) SELECT ?, tag_id FROM repo_tag WHERE name = ?",
                 params![

@@ -57,7 +57,7 @@ fn deserialize_album_toml() {
     assert_eq!(album.track_type().as_ref(), "normal");
     assert_eq!(album.catalog(), "KSLA-0178");
 
-    let tags = album.tags();
+    let tags = album.tags_raw();
     assert_eq!(tags[0].name(), "tag1");
     assert_eq!(tags[1].name(), "tag2");
 
