@@ -131,6 +131,7 @@ mod wasm {
     #[cfg(target_arch = "wasm32")]
     #[wasm_bindgen]
     impl WasmDatabaseRead {
+        #[wasm_bindgen(constructor)]
         pub fn new(filename: String, vfs: Option<fs::MemVfs>) -> WasmDatabaseRead {
             let vfs = vfs.unwrap_or(fs::MemVfs::new());
             sqlite_vfs::register("mem", vfs).unwrap();
@@ -145,9 +146,24 @@ mod wasm {
             Ok(serde_wasm_bindgen::to_value(&album)?.unchecked_into())
         }
 
-        pub fn tracks(&self, album_id: String, disc_id: u8) -> Result<JsValue, JsValue> {
+        pub fn disc(&self, album_id: String, disc_id: u8) -> Result<IDiscRow, JsValue> {
+            let album = self.db.disc(Uuid::parse_str(&album_id).map_err(js_err)?, disc_id).map_err(js_err)?;
+            Ok(serde_wasm_bindgen::to_value(&album)?.unchecked_into())
+        }
+
+        pub fn discs(&self, album_id: String) -> Result<IDiscRowArray, JsValue> {
+            let album = self.db.discs(Uuid::parse_str(&album_id).map_err(js_err)?).map_err(js_err)?;
+            Ok(serde_wasm_bindgen::to_value(&album)?.unchecked_into())
+        }
+
+        pub fn track(&self, album_id: String, disc_id: u8, track_id: u8) -> Result<ITrackRow, JsValue> {
+            let tracks = self.db.track(Uuid::parse_str(&album_id).map_err(js_err)?, disc_id, track_id).map_err(js_err)?;
+            Ok(serde_wasm_bindgen::to_value(&tracks)?.unchecked_into())
+        }
+
+        pub fn tracks(&self, album_id: String, disc_id: u8) -> Result<ITrackRowArray, JsValue> {
             let tracks = self.db.tracks(Uuid::parse_str(&album_id).map_err(js_err)?, disc_id).map_err(js_err)?;
-            Ok(serde_wasm_bindgen::to_value(&tracks)?)
+            Ok(serde_wasm_bindgen::to_value(&tracks)?.unchecked_into())
         }
     }
 

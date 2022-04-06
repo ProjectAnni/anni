@@ -66,7 +66,9 @@ pub mod wasm {
     use wasm_bindgen::prelude::*;
 
     #[wasm_bindgen(typescript_custom_section)]
-    const ALBUM_ROW: &'static str = r#"
+    const DB_TYPES: &'static str = r#"
+type TrackType = "normal" | "instrumental" | "absolute" | "drama" | "radio" | "vocal";
+
 interface AlbumRow {
     album_id: string;
     title: string;
@@ -74,12 +76,47 @@ interface AlbumRow {
     catalog: string;
     artist: string;
     release_date: string;
-    type: string;
+    type: TrackType;
 }
+
+interface DiscRow {
+    album_id: string;
+    disc_id: number;
+    title: string;
+    artist: string;
+    catalog: string;
+    type: TrackType;
+}
+
+type DiscRowArray = DiscRow[];
+
+interface TrackRow {
+    album_id: string;
+    disc_id: number;
+    track_id: number;
+    title: string;
+    artist: string;
+    type: TrackType;
+}
+
+type TrackRowArray = TrackRow[];
 "#;
+
     #[wasm_bindgen]
     extern "C" {
         #[wasm_bindgen(typescript_type = "AlbumRow")]
         pub type IAlbumRow;
+
+        #[wasm_bindgen(typescript_type = "DiscRow")]
+        pub type IDiscRow;
+
+        #[wasm_bindgen(typescript_type = "DiscRowArray")]
+        pub type IDiscRowArray;
+
+        #[wasm_bindgen(typescript_type = "TrackRow")]
+        pub type ITrackRow;
+
+        #[wasm_bindgen(typescript_type = "TrackRowArray")]
+        pub type ITrackRowArray;
     }
 }
