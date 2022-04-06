@@ -79,6 +79,8 @@ interface AlbumRow {
     type: TrackType;
 }
 
+type AlbumRowArray = AlbumRow[];
+
 interface DiscRow {
     album_id: string;
     disc_id: number;
@@ -106,6 +108,9 @@ type TrackRowArray = TrackRow[];
     extern "C" {
         #[wasm_bindgen(typescript_type = "AlbumRow")]
         pub type IAlbumRow;
+
+        #[wasm_bindgen(typescript_type = "AlbumRowArray")]
+        pub type IAlbumRowArray;
 
         #[wasm_bindgen(typescript_type = "DiscRow")]
         pub type IDiscRow;
