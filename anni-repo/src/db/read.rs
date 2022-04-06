@@ -108,13 +108,30 @@ impl RepoDatabaseRead {
         self.query_list("SELECT * FROM repo_track WHERE album_id = ? AND disc_id = ? ORDER BY track_id", params![album_id, disc_id])
     }
 
-    pub fn get_albums_by_tag(&self, tag: &str) -> RepoResult<Vec<rows::AlbumRow>> {
-        self.query_list(r#"
+    pub fn get_albums_by_tag(&self, tag: &str, recursive: bool) -> RepoResult<Vec<rows::AlbumRow>> {
+        if !recursive {
+            self.query_list(r#"
 SELECT * FROM repo_album WHERE album_id IN (
     SELECT DISTINCT album_id FROM repo_tag_detail WHERE tag_id = (
-        SELECT tag_id FROM repo_tag WHERE tag_name = ?
+        SELECT tag_id FROM repo_tag WHERE name = ?
     )
 )"#, params![tag])
+        } else {
+            self.query_list(r#"
+WITH RECURSIVE recursive_tags(tag_id) AS (
+  SELECT tag_id FROM repo_tag WHERE name = ?
+
+  UNION ALL
+
+  SELECT rl.tag_id FROM repo_tag_relation rl, recursive_tags rt WHERE rl.parent_id = rt.tag_id
+)
+
+SELECT * FROM repo_album WHERE album_id IN (
+    SELECT DISTINCT album_id FROM repo_tag_detail WHERE tag_id IN (
+        SELECT * FROM recursive_tags
+    )
+)"#, params![tag])
+        }
     }
 
     pub fn reload(&mut self) -> RepoResult<()> {
@@ -174,8 +191,8 @@ mod wasm {
             Ok(serde_wasm_bindgen::to_value(&tracks)?.unchecked_into())
         }
 
-        pub fn get_albums_by_tag(&self, tag: String) -> Result<IAlbumRowArray, JsValue> {
-            let tracks = self.db.get_albums_by_tag(&tag).map_err(js_err)?;
+        pub fn get_albums_by_tag(&self, tag: String, recursive: bool) -> Result<IAlbumRowArray, JsValue> {
+            let tracks = self.db.get_albums_by_tag(&tag, recursive).map_err(js_err)?;
             Ok(serde_wasm_bindgen::to_value(&tracks)?.unchecked_into())
         }
     }
