@@ -4,6 +4,10 @@ version = "0.1.0"
 authors = ["Yesterday17 <mmf@mmf.moe>"]
 edition = "2018"
 
+description = "Operate on anni metadata repository."
+repository = "https://github.com/ProjectAnni/anni"
+license = "Apache-2.0"
+
 [lib]
 crate-type = ["cdylib", "rlib"]
 
