@@ -118,7 +118,6 @@ impl RepoDatabaseRead {
 mod wasm {
     use wasm_bindgen::JsCast;
     use super::*;
-    use super::super::fs;
     use wasm_bindgen::prelude::*;
     use super::rows::wasm::*;
 
@@ -132,13 +131,13 @@ mod wasm {
     #[wasm_bindgen]
     impl WasmDatabaseRead {
         #[wasm_bindgen(constructor)]
-        pub fn new(filename: String, vfs: Option<fs::MemVfs>) -> WasmDatabaseRead {
-            let vfs = vfs.unwrap_or(fs::MemVfs::new());
-            sqlite_vfs::register("mem", vfs).unwrap();
+        pub fn new(path: String, vfs: Option<String>) -> WasmDatabaseRead {
+            let db = match vfs {
+                Some(name) => RepoDatabaseRead::new_with_vfs(&path, &name).unwrap(),
+                None => RepoDatabaseRead::new(&path).unwrap(),
+            };
 
-            WasmDatabaseRead {
-                db: RepoDatabaseRead::new_with_vfs(&filename, "mem").unwrap(),
-            }
+            WasmDatabaseRead { db }
         }
 
         pub fn album(&self, album_id: String) -> Result<IAlbumRow, JsValue> {

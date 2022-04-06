@@ -26,8 +26,13 @@ impl MemVfs {
         }
     }
 
-    pub fn add_file(&mut self, filename: String, content: Vec<u8>) {
+    pub fn add_file(mut self, filename: String, content: Vec<u8>) -> Self {
         self.files.insert(filename, Some(content));
+        self
+    }
+
+    pub fn build(self, name: String) {
+        sqlite_vfs::register(&name, self).unwrap();
     }
 }
 
