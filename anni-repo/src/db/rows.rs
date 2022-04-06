@@ -106,19 +106,19 @@ type TrackRowArray = TrackRow[];
 
     #[wasm_bindgen]
     extern "C" {
-        #[wasm_bindgen(typescript_type = "AlbumRow")]
+        #[wasm_bindgen(typescript_type = "AlbumRow | undefined")]
         pub type IAlbumRow;
 
         #[wasm_bindgen(typescript_type = "AlbumRowArray")]
         pub type IAlbumRowArray;
 
-        #[wasm_bindgen(typescript_type = "DiscRow")]
+        #[wasm_bindgen(typescript_type = "DiscRow | undefined")]
         pub type IDiscRow;
 
         #[wasm_bindgen(typescript_type = "DiscRowArray")]
         pub type IDiscRowArray;
 
-        #[wasm_bindgen(typescript_type = "TrackRow")]
+        #[wasm_bindgen(typescript_type = "TrackRow | undefined")]
         pub type ITrackRow;
 
         #[wasm_bindgen(typescript_type = "TrackRowArray")]
