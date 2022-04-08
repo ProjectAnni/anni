@@ -118,6 +118,7 @@ impl Hash for TagRef {
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
 pub struct Tag {
     /// Tag name
     name: String,
