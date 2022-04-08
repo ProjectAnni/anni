@@ -24,13 +24,13 @@ pub async fn cover(path: web::Path<CoverPath>, data: web::Data<AppState>) -> imp
                 }
                 Err(_) => {
                     HttpResponse::NotFound()
-                        .append_header((CACHE_CONTROL, "no-cache"))
+                        .append_header((CACHE_CONTROL, "private"))
                         .finish()
                 }
             };
         }
     }
     HttpResponse::NotFound()
-        .append_header((CACHE_CONTROL, "no-cache"))
+        .append_header((CACHE_CONTROL, "private"))
         .finish()
 }

@@ -63,7 +63,7 @@ pub async fn audio_head(claim: AnnilClaims, path: web::Path<(String, u8, u8)>, d
         }
     }
     HttpResponse::NotFound()
-        .append_header((CACHE_CONTROL, "no-cache"))
+        .append_header((CACHE_CONTROL, "private"))
         .finish()
 }
 
@@ -148,6 +148,6 @@ pub async fn audio(claim: AnnilClaims, path: web::Path<(String, u8, u8)>, data: 
         }
     }
     HttpResponse::NotFound()
-        .append_header((CACHE_CONTROL, "no-cache"))
+        .append_header((CACHE_CONTROL, "private"))
         .finish()
 }
