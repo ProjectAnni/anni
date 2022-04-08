@@ -1,4 +1,5 @@
 use actix_web::{HttpResponse, Responder, web};
+use actix_web::http::header::CACHE_CONTROL;
 use tokio_util::io::ReaderStream;
 use serde::Deserialize;
 use crate::AppState;
@@ -18,14 +19,18 @@ pub async fn cover(path: web::Path<CoverPath>, data: web::Data<AppState>) -> imp
                 Ok(cover) => {
                     HttpResponse::Ok()
                         .content_type("image/jpeg")
-                        .append_header(("Cache-Control", "public, max-age=31536000"))
+                        .append_header((CACHE_CONTROL, "public, max-age=31536000"))
                         .streaming(ReaderStream::new(cover))
                 }
                 Err(_) => {
-                    HttpResponse::NotFound().finish()
+                    HttpResponse::NotFound()
+                        .append_header((CACHE_CONTROL, "no-cache"))
+                        .finish()
                 }
             };
         }
     }
-    HttpResponse::NotFound().finish()
+    HttpResponse::NotFound()
+        .append_header((CACHE_CONTROL, "no-cache"))
+        .finish()
 }

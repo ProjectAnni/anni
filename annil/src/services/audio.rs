@@ -1,5 +1,6 @@
 use std::process::Stdio;
 use actix_web::{HttpRequest, HttpResponse, Responder, ResponseError, web};
+use actix_web::http::header::{ACCEPT_RANGES, ACCESS_CONTROL_EXPOSE_HEADERS, CACHE_CONTROL};
 use actix_web::web::Query;
 use tokio_util::io::ReaderStream;
 use serde::Deserialize;
@@ -44,14 +45,14 @@ pub async fn audio_head(claim: AnnilClaims, path: web::Path<(String, u8, u8)>, d
                         .append_header(("X-Origin-Size", info.size))
                         .append_header(("X-Duration-Seconds", info.duration))
                         .append_header(("X-Audio-Quality", query.quality(claim.is_guest())))
-                        .append_header(("Access-Control-Expose-Headers", "X-Origin-Type, X-Origin-Size, X-Duration-Seconds, X-Audio-Quality, Accept-Ranges"))
+                        .append_header((ACCESS_CONTROL_EXPOSE_HEADERS, "X-Origin-Type, X-Origin-Size, X-Duration-Seconds, X-Audio-Quality, Accept-Ranges"))
                         .content_type(if transcode {
                             "audio/aac".to_string()
                         } else {
                             format!("audio/{}", info.extension)
                         });
                     if !transcode {
-                        resp.append_header(("Accept-Ranges", "bytes"));
+                        resp.append_header((ACCEPT_RANGES, "bytes"));
                     }
                     resp.finish()
                 }
@@ -61,7 +62,9 @@ pub async fn audio_head(claim: AnnilClaims, path: web::Path<(String, u8, u8)>, d
             };
         }
     }
-    HttpResponse::NotFound().finish()
+    HttpResponse::NotFound()
+        .append_header((CACHE_CONTROL, "no-cache"))
+        .finish()
 }
 
 /// Get audio in an album with {album_id}, {disc_id} and {track_id}
@@ -110,7 +113,7 @@ pub async fn audio(claim: AnnilClaims, path: web::Path<(String, u8, u8)>, data: 
                 .append_header(("X-Origin-Size", audio.info.size))
                 .append_header(("X-Duration-Seconds", audio.info.duration))
                 .append_header(("X-Audio-Quality", query.quality(claim.is_guest())))
-                .append_header(("Access-Control-Expose-Headers", "X-Origin-Type, X-Origin-Size, X-Duration-Seconds, X-Audio-Quality"))
+                .append_header((ACCESS_CONTROL_EXPOSE_HEADERS, "X-Origin-Type, X-Origin-Size, X-Duration-Seconds, X-Audio-Quality"))
                 .content_type(match bitrate {
                     Some(_) => "audio/aac".to_string(),
                     None => format!("audio/{}", audio.info.extension)
@@ -144,5 +147,7 @@ pub async fn audio(claim: AnnilClaims, path: web::Path<(String, u8, u8)>, data: 
             };
         }
     }
-    HttpResponse::NotFound().finish()
+    HttpResponse::NotFound()
+        .append_header((CACHE_CONTROL, "no-cache"))
+        .finish()
 }
