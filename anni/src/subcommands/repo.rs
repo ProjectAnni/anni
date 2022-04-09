@@ -284,7 +284,11 @@ fn repo_get_cue(
         },
     };
 
-    // set title if exists
+    if (album.catalog().is_empty()) {
+        ball!("repo-missing-metadata", path = path.display().to_string())
+    }
+
+    // set artist if performer exists
     for (file, disc) in cue.files().iter().zip(album.discs_mut()) {
         for (cue_track, track) in file.tracks.iter().zip(disc.tracks_mut()) {
             match cue_track.performer().first() {
