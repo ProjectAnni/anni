@@ -249,9 +249,8 @@ fn repo_get_vgmdb(options: &RepoGetVGMdb, manager: &RepositoryManager, get: &Rep
 #[derive(Parser, Debug, Clone)]
 pub struct RepoGetCue {
     #[clap(short = 'p', long)]
-    path: String,
-    /// if metadata is not enough, search vgmdb with keyword
-    #[clap(short = 'k', long)]
+    path: PathBuf,
+    #[clap(short = 'k', long, about = ll ! {"repo-get-cue-keyword"})]
     keyword: Option<String>,
 }
 
@@ -281,7 +280,7 @@ fn repo_get_cue(
                 warn!("catalog is unavailable, trying to search vgmdb with title `{}`, which may be inaccurate", title);
                 search_album(&title.to_string()).await?
             }
-            None => bail!("failed to get metadata from {}", path),
+            None => ball!("repo-missing-metadata", path = path.display().to_string()),
         },
     };
 

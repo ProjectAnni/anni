@@ -48,6 +48,8 @@ repo-invalid-artist = Invalid artist: {$artist}
 
 repo-get = Get album metadata from remote data source and add to repo.
 repo-get-print = Print album metadata to stdout.
+repo-get-cue-keyword = If metadata is not enough, search vgmdb with keyword.
+repo-missing-metadata = Failed to get metadata from '{$path}'
 
 repo-edit = Open text editor for an album if metadata exists.
 repo-apply = Apply metadata from repository to album.
