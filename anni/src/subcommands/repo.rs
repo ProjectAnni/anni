@@ -264,7 +264,7 @@ fn repo_get_cue(
     let path = &options.path;
 
     let cue = Cuna::open(path)?;
-    let album = match (cue.catalog(), options.keyword.as_ref()) {
+    let mut album = match (cue.catalog(), options.keyword.as_ref()) {
         // if catalog is found, fetch metadata from vgmdb
         (Some(catalog), _) => search_album(&catalog.to_string()).await?,
         // otherwise try to search with keyword
@@ -284,6 +284,16 @@ fn repo_get_cue(
             None => bail!("failed to get metadata from {}", path),
         },
     };
+
+    // set title if exists
+    for (file, disc) in cue.files().iter().zip(album.discs_mut()) {
+        for (cue_track, track) in file.tracks.iter().zip(disc.tracks_mut()) {
+            match cue_track.performer().first() {
+                Some(performer) if track.artist().is_empty() => track.set_artist(Some(performer.clone())),
+                _ => {}
+            }
+        }
+    }
 
     if get.print {
         println!("{}", album.to_string());

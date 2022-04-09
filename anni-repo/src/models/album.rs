@@ -117,6 +117,10 @@ impl Album {
         &self.discs
     }
 
+    pub fn discs_mut(&mut self) -> &mut Vec<Disc> {
+        &mut self.discs
+    }
+
     // TODO: tests
     pub fn fmt(&mut self, inherit: bool) {
         let mut owned_artist = None;
@@ -266,6 +270,10 @@ impl Disc {
         self.tracks.as_ref()
     }
 
+    pub fn tracks_mut(&mut self) -> &mut Vec<Track> {
+        &mut self.tracks
+    }
+
     pub fn inherit(&mut self) {
         for track in self.tracks.iter_mut() {
             track.artist.inherit_from(&self.artist);
@@ -375,6 +383,10 @@ impl Track {
 
     pub fn artist(&self) -> &str {
         self.artist.as_ref()
+    }
+    
+    pub fn set_artist<T: Into<InheritableValue<String>>>(&mut self, artist: T) {
+        self.artist = artist.into();
     }
 
     pub fn track_type(&self) -> TrackType {
