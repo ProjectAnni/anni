@@ -262,7 +262,8 @@ fn repo_get_cue(
 ) -> anyhow::Result<()> {
     let path = &options.path;
 
-    let cue = Cuna::open(path)?;
+    let s = fs::read_to_string(path)?;
+    let cue = Cuna::new(&s)?;
     let mut album = match (cue.catalog(), options.keyword.as_ref()) {
         // if catalog is found, fetch metadata from vgmdb
         (Some(catalog), _) => search_album(&catalog.to_string()).await?,
