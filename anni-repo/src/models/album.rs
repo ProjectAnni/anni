@@ -81,6 +81,10 @@ impl Album {
         self.info.artist.as_ref()
     }
 
+    pub fn set_artist<T: Into<InheritableValue<String>>>(&mut self, artist: T) {
+        self.info.artist = artist.into();
+    }
+
     pub fn release_date(&self) -> &AnniDate {
         &self.info.release_date
     }
