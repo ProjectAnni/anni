@@ -40,6 +40,9 @@ repo-album-exists = Album with catalog {$catalog} already exists in repo.
 repo-album-not-found = Album with catalog {$catalog} was not found in repo.
 repo-album-info-mismatch = Album info mismatch with folder.
 
+repo-import = Import album to repository.
+repo-import-format = Format of album metadata file.
+
 repo-validate-start = Start validating repository.
 repo-validate-end = End validating repository.
 repo-validate-failed = Validation failed.

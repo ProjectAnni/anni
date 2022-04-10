@@ -39,6 +39,9 @@ repo-album-exists = 专辑 {$catalog} 已存在
 repo-album-not-found = 不存在品番为 {$catalog} 的专辑
 repo-album-info-mismatch = 专辑信息与专辑目录不一致
 
+repo-import = 导入专辑
+repo-import-format = 导入专辑的数据格式
+
 repo-validate-start = 仓库校验开始
 repo-validate-end = 仓库校验结束
 repo-validate-failed = 仓库校验失败

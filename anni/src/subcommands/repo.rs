@@ -1,3 +1,4 @@
+use std::io::Read;
 use anni_flac::FlacHeader;
 use anni_repo::prelude::*;
 use anni_repo::library::{album_info, disc_info, file_name};
@@ -11,6 +12,7 @@ use anni_vgmdb::VGMClient;
 use anni_flac::blocks::{UserComment, UserCommentExt};
 use anni_clap_handler::{Context, Handler, handler};
 use anni_common::inherit::InheritableValue;
+use crate::args::ActionFile;
 
 #[derive(Parser, Debug, Clone)]
 #[clap(about = ll ! {"repo"})]
@@ -47,6 +49,8 @@ pub enum RepoAction {
     Clone(RepoCloneAction),
     #[clap(about = ll ! {"repo-add"})]
     Add(RepoAddAction),
+    #[clap(about = ll ! {"repo-import"})]
+    Import(RepoImportAction),
     #[clap(about = ll ! {"repo-get"})]
     Get(RepoGetAction),
     #[clap(about = ll ! {"repo-edit"})]
@@ -148,7 +152,7 @@ fn repo_add(me: &RepoAddAction, manager: &RepositoryManager) -> anyhow::Result<(
         album.fmt(false);
         album.inherit();
 
-        manager.add_album(&catalog, album, me.allow_duplicate)?;
+        manager.add_album(&catalog, &album, me.allow_duplicate)?;
         if me.open_editor {
             for file in manager.album_paths(&catalog)? {
                 edit::edit_file(&file)?;
@@ -158,9 +162,42 @@ fn repo_add(me: &RepoAddAction, manager: &RepositoryManager) -> anyhow::Result<(
     Ok(())
 }
 
+#[derive(Parser, Debug, Clone)]
+pub struct RepoImportAction {
+    #[clap(short = 'D', long = "duplicate")]
+    allow_duplicate: bool,
+
+    #[clap(arg_enum)]
+    #[clap(short = 'f', long, default_value = "toml")]
+    format: RepoImportFormat,
+
+    file: ActionFile,
+}
+
+#[derive(ArgEnum, Debug, Clone)]
+pub enum RepoImportFormat {
+    // Json,
+    Toml,
+}
+
+#[handler(RepoImportAction)]
+fn repo_import(me: &RepoImportAction, manager: &RepositoryManager) -> anyhow::Result<()> {
+    let mut reader = me.file.to_reader()?;
+    let mut handle = reader.lock();
+    let mut result = String::new();
+    handle.read_to_string(&mut result)?;
+
+    match me.format {
+        RepoImportFormat::Toml => {
+            let album = Album::from_str(&result)?;
+            manager.add_album(album.catalog(), &album, me.allow_duplicate)?;
+        }
+    }
+    Ok(())
+}
+
 #[derive(Parser, Handler, Debug, Clone)]
 pub struct RepoGetAction {
-    // TODO: i18n
     #[clap(long)]
     #[clap(about = ll ! {"repo-get-print"})]
     print: bool,
@@ -233,7 +270,7 @@ fn repo_get_vgmdb(options: &RepoGetVGMdb, manager: &RepositoryManager, get: &Rep
     if get.print {
         println!("{}", album.to_string());
     } else {
-        manager.add_album(&options.catalog, album, false)?;
+        manager.add_album(&options.catalog, &album, false)?;
     }
     Ok(())
 }
