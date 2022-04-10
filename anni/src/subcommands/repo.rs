@@ -58,7 +58,7 @@ pub enum RepoAction {
     #[clap(about = ll ! {"repo-print"})]
     Print(RepoPrintAction),
     #[clap(name = "db")]
-    // TODO: repo-database help message
+    #[clap(about = ll ! {"repo-db"})]
     Database(RepoDatabaseAction),
     #[clap(about = ll ! {"repo-migrate"})]
     Migrate(RepoMigrateAction),
