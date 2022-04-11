@@ -262,11 +262,10 @@ async fn search_album(keyword: &str) -> anyhow::Result<Album> {
 
 #[derive(Parser, Debug, Clone)]
 pub struct RepoGetVGMdb {
-    #[clap(short = 'c', long)]
-    catalog: String,
-
     #[clap(short = 'k', long)]
     keyword: Option<String>,
+
+    catalog: String,
 }
 
 #[handler(RepoGetVGMdb)]
@@ -285,12 +284,12 @@ fn repo_get_vgmdb(options: &RepoGetVGMdb, manager: &RepositoryManager, get: &Rep
 
 #[derive(Parser, Debug, Clone)]
 pub struct RepoGetCue {
-    #[clap()]
-    path: PathBuf,
     #[clap(short = 'k', long, about = ll ! {"repo-get-cue-keyword"})]
     keyword: Option<String>,
     #[clap(short = 'c', long, about = ll ! {"repo-get-cue-catalog"})]
     catalog: Option<String>,
+
+    path: PathBuf,
 }
 
 #[handler(RepoGetCue)]
