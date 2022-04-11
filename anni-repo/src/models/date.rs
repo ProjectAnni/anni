@@ -41,33 +41,6 @@ impl<'de> Deserialize<'de> for AnniDate {
                 let split = date.split('-').collect::<Vec<_>>();
                 Self::from_parts(split[0], split[1], split[2])
             }
-            Value::Table(table) => {
-                let year = table.get("year")
-                    .ok_or_else(|| de::Error::custom("Missing field `year`"))?
-                    .as_integer()
-                    .map(|y| y as u32)
-                    .ok_or_else(|| de::Error::custom("Invalid type for field `date.year`"))?;
-                let month = table.get("month")
-                    .map_or_else(
-                        || Ok(0),
-                        |m| m.as_integer()
-                            .map(|i| i as u8)
-                            .ok_or_else(|| de::Error::custom("Invalid type for field `date.month`")),
-                    )?;
-                let day = table.get("day")
-                    .map_or_else(
-                        || Ok(0),
-                        |m| m.as_integer()
-                            .map(|i| i as u8)
-                            .ok_or_else(|| de::Error::custom("Invalid type for field `date.day`")),
-                    )?;
-                if day > 0 && month == 0 {
-                    // yy00dd is invalid
-                    return Err(de::Error::custom("Invalid date format `yy00dd`!"));
-                }
-
-                Self::new(year, month, day)
-            }
             Value::String(date) => {
                 // yyyy-mm-dd
                 let parts = date.split('-').collect::<Vec<_>>();
