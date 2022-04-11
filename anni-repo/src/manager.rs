@@ -130,7 +130,7 @@ impl RepositoryManager {
     }
 
     /// Add new album to the repository.
-    pub fn add_album(&self, catalog: &str, album: Album, allow_duplicate: bool) -> RepoResult<()> {
+    pub fn add_album(&self, catalog: &str, album: &Album, allow_duplicate: bool) -> RepoResult<()> {
         let folder = self.default_album_root().join(catalog);
         let file = folder.with_extension("toml");
 

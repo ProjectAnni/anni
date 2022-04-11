@@ -7,6 +7,7 @@ use uuid::Uuid;
 use crate::prelude::*;
 
 #[derive(Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct Album {
     #[serde(rename = "album")]
     info: AlbumInfo,
@@ -186,6 +187,7 @@ impl Album {
 }
 
 #[derive(Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 struct AlbumInfo {
     /// Album ID(uuid)
     album_id: Uuid,
@@ -218,6 +220,7 @@ struct AlbumInfo {
 }
 
 #[derive(Serialize, Deserialize, Clone)]
+#[serde(deny_unknown_fields)]
 pub struct Disc {
     /// Disc title
     title: InheritableValue<String>,
@@ -347,6 +350,7 @@ impl Disc {
 }
 
 #[derive(Serialize, Deserialize, Clone)]
+#[serde(deny_unknown_fields)]
 pub struct Track {
     /// Track title
     title: String,
