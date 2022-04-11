@@ -97,6 +97,10 @@ impl Album {
         self.info.catalog.as_ref()
     }
 
+    pub fn set_catalog(&mut self, catalog: String) {
+        self.info.catalog = catalog;
+    }
+
     pub fn tags(&self) -> Vec<&TagRef> {
         let mut tags = Vec::new();
         tags.append(&mut self.info.tags.iter().collect::<Vec<_>>());

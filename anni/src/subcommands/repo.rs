@@ -252,6 +252,8 @@ pub struct RepoGetCue {
     path: PathBuf,
     #[clap(short = 'k', long, about = ll ! {"repo-get-cue-keyword"})]
     keyword: Option<String>,
+    #[clap(short = 'c', long, about = ll ! {"repo-get-cue-catalog"})]
+    catalog: Option<String>,
 }
 
 #[handler(RepoGetCue)]
@@ -281,12 +283,15 @@ fn repo_get_cue(
                 warn!("catalog is unavailable, trying to search vgmdb with title `{}`, which may be inaccurate", title);
                 search_album(&title.to_string()).await?
             }
-            None => ball!("repo-missing-metadata", path = path.display().to_string()),
+            None => ball!("repo-cue-insufficient-information"),
         },
     };
 
     if album.catalog().is_empty() {
-        ball!("repo-missing-metadata", path = path.display().to_string())
+        match &options.catalog {
+            Some(catalog) => album.set_catalog(catalog.to_string()),
+            None => ball!("repo-cue-insufficient-information")
+        }
     }
 
     // set artist if performer exists
