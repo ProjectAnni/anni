@@ -67,3 +67,7 @@ repo-db = 生成元数据仓库对应的数据库文件
 
 repo-migrate = 迁移旧版本元数据仓库到新版本
 repo-migrate-album-id = 为缺少 album_id 字段的专辑添加这一字段
+
+
+## Library
+library = 提供音频仓库的管理功能

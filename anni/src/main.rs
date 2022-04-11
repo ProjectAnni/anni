@@ -1,5 +1,5 @@
 use log::LevelFilter;
-use clap::Parser;
+use clap::{Parser, AppSettings};
 use anni_clap_handler::Handler;
 use crate::subcommands::*;
 
@@ -17,6 +17,7 @@ extern crate log;
 #[derive(Parser, Handler, Debug, Clone)]
 #[clap(name = "Project Anni", version, author)]
 #[clap(about = ll ! {"anni-about"})]
+#[clap(global_setting = AppSettings::DeriveDisplayOrder)]
 pub struct AnniArguments {
     #[clap(subcommand)]
     subcommand: AnniSubcommand,
@@ -28,6 +29,7 @@ pub enum AnniSubcommand {
     Split(SplitSubcommand),
     Convention(ConventionSubcommand),
     Repo(RepoSubcommand),
+    Library(LibrarySubcommand),
 }
 
 #[tokio::main]

@@ -68,3 +68,7 @@ repo-db = Generate metadata database from repository.
 
 repo-migrate = Migrate metadata repository to new version.
 repo-migrate-album-id = Add album_id field to album metadata.
+
+
+## Library
+library = Anni Audio library manager.
