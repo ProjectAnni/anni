@@ -217,32 +217,32 @@ pub enum RepoGetSubcommand {
 async fn search_album(keyword: &str) -> anyhow::Result<Album> {
     let client = VGMClient::default();
     let search = client.search_albums(keyword).await?;
-    let album_got = search.get_album(None).await?;
+    let album_got = search.into_album(None).await?;
 
     let date = {
-        let split = album_got.release_date.split('-').collect::<Vec<_>>();
+        let split = album_got.release_date().split('-').collect::<Vec<_>>();
         AnniDate::from_parts(split[0], split.get(1).unwrap_or(&"0"), split.get(2).unwrap_or(&"0"))
     };
 
     let mut album = Album::new(
-        album_got.title.get().unwrap().to_string(),
+        album_got.title().unwrap().to_string(),
         None,
         Default::default(),
         date,
-        album_got.catalog.as_deref().unwrap_or("").to_string(),
+        album_got.catalog().unwrap_or("").to_string(),
         Default::default(),
     );
 
-    for disc_got in album_got.discs {
+    for disc_got in &album_got.discs {
         let mut disc = Disc::new(
-            album_got.catalog.as_deref().unwrap_or("").to_string(),
+            album_got.catalog().unwrap_or("").to_string(),
             Some(disc_got.title.to_string()),
             None,
             None,
             Default::default(),
         );
 
-        for track_got in disc_got.tracks {
+        for track_got in &disc_got.tracks {
             let title = track_got.get().unwrap().to_string();
             let track_type = TrackType::guess(&title);
             disc.push_track(Track::new(
@@ -350,7 +350,7 @@ fn repo_get_cue(
         println!("{}", album.to_string());
     } else {
         let catalog = album.catalog().to_owned();
-        manager.add_album(&catalog, album, false)?;
+        manager.add_album(&catalog, &album, false)?;
     }
     Ok(())
 }
