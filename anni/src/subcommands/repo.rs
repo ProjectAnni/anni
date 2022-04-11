@@ -12,6 +12,7 @@ use anni_vgmdb::VGMClient;
 use anni_flac::blocks::{UserComment, UserCommentExt};
 use anni_clap_handler::{Context, Handler, handler};
 use anni_common::inherit::InheritableValue;
+use cuna::Cuna;
 use crate::args::ActionFile;
 
 #[derive(Parser, Debug, Clone)]
@@ -209,23 +210,13 @@ pub struct RepoGetAction {
 pub enum RepoGetSubcommand {
     #[clap(name = "vgmdb")]
     VGMdb(RepoGetVGMdb),
+    #[clap(name = "cue")]
+    Cue(RepoGetCue),
 }
 
-#[derive(Parser, Debug, Clone)]
-pub struct RepoGetVGMdb {
-    #[clap(short = 'c', long)]
-    catalog: String,
-
-    #[clap(short = 'k', long)]
-    keyword: Option<String>,
-}
-
-#[handler(RepoGetVGMdb)]
-fn repo_get_vgmdb(options: &RepoGetVGMdb, manager: &RepositoryManager, get: &RepoGetAction) -> anyhow::Result<()> {
-    let catalog = &options.catalog;
-
+async fn search_album(keyword: &str) -> anyhow::Result<Album> {
     let client = VGMClient::default();
-    let search = client.search_albums(&options.keyword.as_deref().unwrap_or(catalog)).await?;
+    let search = client.search_albums(keyword).await?;
     let album_got = search.get_album(None).await?;
 
     let date = {
@@ -266,11 +257,100 @@ fn repo_get_vgmdb(options: &RepoGetVGMdb, manager: &RepositoryManager, get: &Rep
         }
         album.push_disc(disc);
     }
+    Ok(album)
+}
+
+#[derive(Parser, Debug, Clone)]
+pub struct RepoGetVGMdb {
+    #[clap(short = 'c', long)]
+    catalog: String,
+
+    #[clap(short = 'k', long)]
+    keyword: Option<String>,
+}
+
+#[handler(RepoGetVGMdb)]
+fn repo_get_vgmdb(options: &RepoGetVGMdb, manager: &RepositoryManager, get: &RepoGetAction) -> anyhow::Result<()> {
+    let catalog = &options.catalog;
+
+    let album = search_album(&options.keyword.as_deref().unwrap_or(catalog)).await?;
 
     if get.print {
         println!("{}", album.to_string());
     } else {
         manager.add_album(&options.catalog, &album, false)?;
+    }
+    Ok(())
+}
+
+#[derive(Parser, Debug, Clone)]
+pub struct RepoGetCue {
+    #[clap()]
+    path: PathBuf,
+    #[clap(short = 'k', long, about = ll ! {"repo-get-cue-keyword"})]
+    keyword: Option<String>,
+    #[clap(short = 'c', long, about = ll ! {"repo-get-cue-catalog"})]
+    catalog: Option<String>,
+}
+
+#[handler(RepoGetCue)]
+fn repo_get_cue(
+    options: &RepoGetCue,
+    manager: &RepositoryManager,
+    get: &RepoGetAction,
+) -> anyhow::Result<()> {
+    let path = &options.path;
+
+    let s = fs::read_to_string(path)?;
+    let cue = Cuna::new(&s)?;
+    let mut album = match (cue.catalog(), options.keyword.as_ref()) {
+        // if catalog is found, fetch metadata from vgmdb
+        (Some(catalog), _) => search_album(&catalog.to_string()).await?,
+        // otherwise try to search with keyword
+        (None, Some(keyword)) => {
+            warn!(
+                "catalog is unavailable, trying to search vgmdb with keyword `{}`",
+                keyword
+            );
+            search_album(&keyword.to_string()).await?
+        }
+        // if none is available, try to search with `TITLE` filed in the cue file
+        (None, None) => match cue.title().first() {
+            Some(title) => {
+                warn!("catalog is unavailable, trying to search vgmdb with title `{}`, which may be inaccurate", title);
+                search_album(&title.to_string()).await?
+            }
+            None => ball!("repo-cue-insufficient-information"),
+        },
+    };
+
+    if album.catalog().is_empty() {
+        match &options.catalog {
+            Some(catalog) => album.set_catalog(catalog.to_string()),
+            None => ball!("repo-cue-insufficient-information")
+        }
+    }
+
+    // set artist if performer exists
+    let performer = cue.performer().first();
+    if performer.is_some() && album.artist().is_empty() {
+        album.set_artist(performer.cloned())
+    }
+
+    for (file, disc) in cue.files().iter().zip(album.discs_mut()) {
+        for (cue_track, track) in file.tracks.iter().zip(disc.tracks_mut()) {
+            let performer = cue_track.performer().first();
+            if performer.is_some() && track.artist().is_empty() {
+                track.set_artist(performer.cloned())
+            }
+        }
+    }
+
+    if get.print {
+        println!("{}", album.to_string());
+    } else {
+        let catalog = album.catalog().to_owned();
+        manager.add_album(&catalog, album, false)?;
     }
     Ok(())
 }

@@ -82,6 +82,10 @@ impl Album {
         self.info.artist.as_ref()
     }
 
+    pub fn set_artist<T: Into<InheritableValue<String>>>(&mut self, artist: T) {
+        self.info.artist = artist.into();
+    }
+
     pub fn release_date(&self) -> &AnniDate {
         &self.info.release_date
     }
@@ -92,6 +96,10 @@ impl Album {
 
     pub fn catalog(&self) -> &str {
         self.info.catalog.as_ref()
+    }
+
+    pub fn set_catalog(&mut self, catalog: String) {
+        self.info.catalog = catalog;
     }
 
     pub fn tags(&self) -> Vec<&TagRef> {
@@ -116,6 +124,10 @@ impl Album {
 
     pub fn discs(&self) -> &Vec<Disc> {
         &self.discs
+    }
+
+    pub fn discs_mut(&mut self) -> &mut Vec<Disc> {
+        &mut self.discs
     }
 
     // TODO: tests
@@ -269,6 +281,10 @@ impl Disc {
         self.tracks.as_ref()
     }
 
+    pub fn tracks_mut(&mut self) -> &mut Vec<Track> {
+        &mut self.tracks
+    }
+
     pub fn inherit(&mut self) {
         for track in self.tracks.iter_mut() {
             track.artist.inherit_from(&self.artist);
@@ -379,6 +395,10 @@ impl Track {
 
     pub fn artist(&self) -> &str {
         self.artist.as_ref()
+    }
+    
+    pub fn set_artist<T: Into<InheritableValue<String>>>(&mut self, artist: T) {
+        self.artist = artist.into();
     }
 
     pub fn track_type(&self) -> TrackType {

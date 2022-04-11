@@ -50,6 +50,9 @@ repo-invalid-artist = 艺术家名称不可用：{$artist}
 
 repo-get = 从远程数据源获取专辑信息并导入
 repo-get-print = 将获取的专辑信息输出到控制台而非导入
+repo-get-cue-keyword = 当元数据缺失时，使用该关键字搜索 VGMdb
+repo-get-cue-catalog = 当 catalog 不存在时，手动指定
+repo-cue-insufficient-information = CUE 文件未能提供足够的信息
 
 repo-edit = 当元数据仓库中存在该专辑时，打开仓库中对应的文件
 repo-apply = 将元数据仓库中的数据应用到专辑
