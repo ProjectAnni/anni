@@ -248,7 +248,7 @@ fn repo_get_vgmdb(options: &RepoGetVGMdb, manager: &RepositoryManager, get: &Rep
 
 #[derive(Parser, Debug, Clone)]
 pub struct RepoGetCue {
-    #[clap(short = 'p', long)]
+    #[clap()]
     path: PathBuf,
     #[clap(short = 'k', long, about = ll ! {"repo-get-cue-keyword"})]
     keyword: Option<String>,
