@@ -295,16 +295,16 @@ fn repo_get_cue(
     }
 
     // set artist if performer exists
-    match cue.performer().first() {
-        Some(performer) if album.artist().is_empty() => album.set_artist(Some(performer.clone())),
-        _ => {}
+    let performer = cue.performer().first();
+    if performer.is_some() && album.artist().is_empty() {
+        album.set_artist(performer.cloned())
     }
 
     for (file, disc) in cue.files().iter().zip(album.discs_mut()) {
         for (cue_track, track) in file.tracks.iter().zip(disc.tracks_mut()) {
-            match cue_track.performer().first() {
-                Some(performer) if track.artist().is_empty() => track.set_artist(Some(performer.clone())),
-                _ => {}
+            let performer = cue_track.performer().first();
+            if performer.is_some() && track.artist().is_empty() {
+                track.set_artist(performer.cloned())
             }
         }
     }
