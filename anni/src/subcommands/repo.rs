@@ -15,8 +15,9 @@ use anni_common::inherit::InheritableValue;
 use cuna::Cuna;
 use crate::args::ActionFile;
 
-#[derive(Parser, Debug, Clone)]
+#[derive(Parser, Debug, Clone, Handler)]
 #[clap(about = ll ! {"repo"})]
+#[handler_inject(repo_fields)]
 pub struct RepoSubcommand {
     #[clap(long, env = "ANNI_REPO")]
     #[clap(about = ll ! {"repo-root"})]
@@ -26,9 +27,8 @@ pub struct RepoSubcommand {
     action: RepoAction,
 }
 
-#[anni_clap_handler::async_trait]
-impl Handler for RepoSubcommand {
-    async fn handle_command(&mut self, ctx: &mut Context) -> anyhow::Result<()> {
+impl RepoSubcommand {
+    async fn repo_fields(&self, ctx: &mut Context) -> anyhow::Result<()> {
         // Skip manager initialization for migrate subcommands
         if matches!(self.action, RepoAction::Migrate(..)) {
             return Ok(());
@@ -37,10 +37,6 @@ impl Handler for RepoSubcommand {
         let manager = RepositoryManager::new(self.root.as_path())?;
         ctx.insert(manager);
         Ok(())
-    }
-
-    async fn handle_subcommand(&mut self, ctx: Context) -> anyhow::Result<()> {
-        self.action.execute(ctx).await
     }
 }
 
