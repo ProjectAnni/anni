@@ -36,6 +36,7 @@ anni-vgmdb = "0.3.0"
 
 toml_edit = "0.10.1"
 uuid = { version = "0.8", features = ["v4"] }
+alphanumeric-sort = "1.4.4"
 
 [dependencies.reqwest]
 version = "0.11"
