@@ -4,7 +4,7 @@ use anni_clap_handler::{Context, Handler, handler};
 use anni_common::fs;
 use anni_flac::blocks::{UserComment, UserCommentExt};
 use anni_flac::FlacHeader;
-use anni_repo::library::album_info;
+use anni_repo::library::{album_info, file_name};
 use anni_repo::prelude::*;
 use anni_repo::RepositoryManager;
 use crate::ll;
@@ -51,9 +51,15 @@ pub fn library_new_album(me: &LibraryNewAlbumAction) -> anyhow::Result<()> {
         anyhow::bail!("disc_num must be > 0");
     }
 
-    let album_id = uuid::Uuid::new_v4().to_string();
-    let album_path = me.path.join(album_id);
-    fs::create_dir(&album_path)?;
+    let basename = file_name(me.path.as_path())?;
+    let album_path = if is_uuid(&basename) {
+        me.path.to_path_buf()
+    } else {
+        let album_id = uuid::Uuid::new_v4().to_string();
+        let album_path = me.path.join(album_id);
+        fs::create_dir(&album_path)?;
+        album_path
+    };
 
     for i in 1..=me.disc_num {
         let disc_path = album_path.join(format!("{}", i));
