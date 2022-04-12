@@ -156,6 +156,7 @@ pub enum SplitFormat {
     Flac,
     Ape,
     Tak,
+    Tta,
 }
 
 impl SplitFormat {
@@ -165,6 +166,7 @@ impl SplitFormat {
             SplitFormat::Flac => "flac",
             SplitFormat::Ape => "ape",
             SplitFormat::Tak => "tak",
+            SplitFormat::Tta => "tta",
         }
     }
 
@@ -202,6 +204,14 @@ impl SplitFormat {
                     .spawn()?;
                 Ok(FileProcess::Process(process))
             }
+            SplitFormat::Tta => {
+                let process = Command::new(self.get_encoder()?)
+                    .args(&["-d", "-o", "-"])
+                    .arg(path.as_ref().as_os_str())
+                    .stdout(Stdio::piped())
+                    .spawn()?;
+                Ok(FileProcess::Process(process))
+            }
         }
     }
 
@@ -225,6 +235,13 @@ impl SplitFormat {
             SplitFormat::Tak => match which::which("takc") {
                 Ok(path) => {
                     debug!(target: "split", "TAK decoder detected at: {}", path.display());
+                    true
+                }
+                _ => false,
+            }
+            SplitFormat::Tta => match which::which("ttaenc") {
+                Ok(path) => {
+                    debug!(target: "split", "TTA decoder detected at: {}", path.display());
                     true
                 }
                 _ => false,
@@ -328,6 +345,7 @@ fn encoder_of(format: &str) -> anyhow::Result<PathBuf> {
         "flac" => "flac",
         "ape" => "mac",
         "tak" => "takc",
+        "tta" => "ttaenc",
         "wav" => return Ok(PathBuf::new()),
         _ => bail!("unsupported format"),
     };
