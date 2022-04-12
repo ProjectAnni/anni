@@ -1,13 +1,28 @@
-use proc_macro::TokenStream;
+use proc_macro::{TokenStream};
 use proc_macro_error::proc_macro_error;
 use quote::quote;
-use syn::{AttributeArgs, ItemFn, Meta, NestedMeta, DeriveInput, Data, parse_macro_input, DataStruct, DataEnum, Fields, Type};
+use syn::{AttributeArgs, ItemFn, Meta, NestedMeta, DeriveInput, Data, parse_macro_input, DataStruct, DataEnum, Fields, Type, Ident};
 
-#[proc_macro_derive(Handler)]
+#[proc_macro_derive(Handler, attributes(handler_inject))]
 #[proc_macro_error]
 pub fn derive_handler(item: TokenStream) -> TokenStream {
     let input = parse_macro_input!(item as DeriveInput);
     let name = &input.ident;
+
+    let context_injector = match input.attrs.iter()
+        .find(|attr| attr.path.is_ident("handler_inject"))
+        .and_then(|a| a.parse_args::<Ident>().ok()) {
+        Some(ident) => {
+            cfg_if::cfg_if! {
+                if #[cfg(feature = "async")] {
+                    quote! { self.#ident(ctx).await?; }
+                } else {
+                    quote! { self.#ident(ctx)?; }
+                }
+            }
+        }
+        None => quote! {},
+    };
 
     let expanded = match input.data {
         Data::Struct(DataStruct { fields, .. }) => {
@@ -30,6 +45,11 @@ pub fn derive_handler(item: TokenStream) -> TokenStream {
                             #[cfg(not(feature = "async"))]
                             quote! {
                                 impl anni_clap_handler::Handler for #name {
+                                    fn handle_command(&mut self, ctx: &mut anni_clap_handler::Context) -> anyhow::Result<()> {
+                                        #context_injector
+                                        Ok(())
+                                    }
+
                                     fn handle_subcommand(&mut self, ctx: anni_clap_handler::Context) -> anyhow::Result<()> {
                                         anni_clap_handler::Handler::execute(&mut self.#subcommand_field, ctx)
                                     }
@@ -40,6 +60,11 @@ pub fn derive_handler(item: TokenStream) -> TokenStream {
                             quote! {
                                 #[anni_clap_handler::async_trait]
                                 impl anni_clap_handler::Handler for #name {
+                                    async fn handle_command(&mut self, ctx: &mut anni_clap_handler::Context) -> anyhow::Result<()> {
+                                        #context_injector
+                                        Ok(())
+                                    }
+
                                     async fn handle_subcommand(&mut self, ctx: anni_clap_handler::Context) -> anyhow::Result<()> {
                                         anni_clap_handler::Handler::execute(&mut self.#subcommand_field, ctx).await
                                     }
@@ -124,30 +149,34 @@ pub fn handler(args: TokenStream, input: TokenStream) -> TokenStream {
         }
     }).collect();
 
-    #[cfg(not(feature = "async"))]
-    let expanded = quote! {
-        impl anni_clap_handler::Handler for #attr {
-            fn handle_command(&mut self, ctx: &mut anni_clap_handler::Context) -> anyhow::Result<()> {
-                fn #func_name #func_generics(#func_inputs)#func_output {
-                    #func_block
+    cfg_if::cfg_if! {
+        if #[cfg(feature = "async")] {
+            let expanded = quote! {
+                #[anni_clap_handler::async_trait]
+                impl anni_clap_handler::Handler for #attr {
+                    async fn handle_command(&mut self, ctx: &mut anni_clap_handler::Context) -> anyhow::Result<()> {
+                        async fn #func_name #func_generics(#func_inputs)#func_output {
+                            #func_block
+                        }
+                        let result = #func_name(#(#types,)*);
+                        Ok(result.await?)
+                    }
                 }
-                let result = #func_name(#(#types,)*);
-                Ok(result?)
-            }
-        }
-    };
-    #[cfg(feature = "async")]
-    let expanded = quote! {
-        #[anni_clap_handler::async_trait]
-        impl anni_clap_handler::Handler for #attr {
-            async fn handle_command(&mut self, ctx: &mut anni_clap_handler::Context) -> anyhow::Result<()> {
-                async fn #func_name #func_generics(#func_inputs)#func_output {
-                    #func_block
+            };
+        } else {
+            let expanded = quote! {
+                impl anni_clap_handler::Handler for #attr {
+                    fn handle_command(&mut self, ctx: &mut anni_clap_handler::Context) -> anyhow::Result<()> {
+                        fn #func_name #func_generics(#func_inputs)#func_output {
+                            #func_block
+                        }
+                        let result = #func_name(#(#types,)*);
+                        Ok(result?)
+                    }
                 }
-                let result = #func_name(#(#types,)*);
-                Ok(result.await?)
-            }
+            };
         }
-    };
+    }
+
     expanded.into()
 }

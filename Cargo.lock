@@ -319,6 +319,7 @@ dependencies = [
 name = "anni-clap-handler-derive"
 version = "0.1.0"
 dependencies = [
+ "cfg-if",
  "proc-macro-error",
  "proc-macro2",
  "quote",
