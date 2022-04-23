@@ -321,10 +321,17 @@ fn handle_split(me: &SplitSubcommand) -> anyhow::Result<()> {
             continue;
         }
 
-        let cue = fs::get_ext_file(directory.as_path(), "cue", false)?
-            .ok_or_else(|| anyhow!("Failed to find CUE sheet from directory {}", directory.display()))?;
         let audio = fs::get_ext_file(directory.as_path(), me.input_format.as_str(), false)?
             .ok_or_else(|| anyhow!("Failed to find audio file from directory {}", directory.display()))?;
+        let cue = {
+            let audio_cue = audio.with_extension("cue");
+            if audio_cue.is_file() {
+                audio_cue
+            } else {
+                fs::get_ext_file(directory.as_path(), "cue", false)?
+                    .ok_or_else(|| anyhow!("Failed to find cue file from directory {}", directory.display()))?
+            }
+        };
 
         // try to get cover
         let cover = if me.import_cover { fs::get_ext_file(directory.as_path(), "jpg", false)? } else { None };
