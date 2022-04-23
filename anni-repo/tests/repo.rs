@@ -26,6 +26,7 @@ fn serialize_repo() {
         r#"[repo]
 name = "Yesterday17's Metadata Repo"
 edition = "1.3"
+albums = ["album"]
 "#
     );
 }
