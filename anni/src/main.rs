@@ -15,7 +15,7 @@ extern crate anyhow;
 extern crate log;
 
 #[derive(Parser, Handler, Debug, Clone)]
-#[clap(name = "Project Anni", version, author)]
+#[clap(name = "Project Anni", version = env ! ("ANNI_VERSION"), author)]
 #[clap(about = ll ! {"anni-about"})]
 #[clap(global_setting = AppSettings::DeriveDisplayOrder)]
 pub struct AnniArguments {
