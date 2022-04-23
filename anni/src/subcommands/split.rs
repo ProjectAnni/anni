@@ -309,6 +309,20 @@ impl Display for SplitOutputFormat {
     }
 }
 
+fn get_cover(root: &PathBuf) -> anyhow::Result<Option<PathBuf>> {
+    if let Some(cover) = fs::get_ext_file(root.as_path(), "jpg", false)? {
+        let mut file = fs::File::open(&cover)?;
+        let mut buffer = [0u8; 3];
+        file.read_exact(&mut buffer)?;
+        if buffer == [255, 216, 255] {
+            return Ok(Some(cover));
+        } else {
+            log::warn!("Cover file {} is not a JPEG file: Expected FF D8 FF, got {:2X} {:2X} {:2X}", cover.display(), buffer[0], buffer[1], buffer[2]);
+        }
+    }
+    Ok(None)
+}
+
 #[handler(SplitSubcommand)]
 fn handle_split(me: &SplitSubcommand) -> anyhow::Result<()> {
     if !me.input_format.check_decoder() || !me.output_format.check_encoder() {
@@ -334,7 +348,7 @@ fn handle_split(me: &SplitSubcommand) -> anyhow::Result<()> {
         };
 
         // try to get cover
-        let cover = if me.import_cover { fs::get_ext_file(directory.as_path(), "jpg", false)? } else { None };
+        let cover = if me.import_cover { get_cover(directory)? } else { None };
         if me.import_cover && cover.is_none() {
             warn!(target: "split", "Cover not found in directory {}", directory.display());
         }
