@@ -3,7 +3,7 @@ use std::io::{Read, Write};
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
 
-use clap::{Parser, ArgEnum};
+use clap::{Args, ArgEnum};
 
 use anni_common::fs;
 use anni_common::decode::{DecodeError, u16_le, u32_le, token};
@@ -17,25 +17,25 @@ use crate::{ll, ball};
 use std::fmt::{Display, Formatter};
 use cuna::Cuna;
 
-#[derive(Parser, Debug, Clone)]
+#[derive(Args, Debug, Clone)]
 #[clap(about = ll ! ("split"))]
 pub struct SplitSubcommand {
     #[clap(arg_enum)]
     #[clap(short, long, default_value = "wav")]
-    #[clap(about = ll ! {"split-format-input"})]
+    #[clap(help = ll ! {"split-format-input"})]
     input_format: SplitFormat,
 
     #[clap(arg_enum)]
     #[clap(short, long, default_value = "flac")]
-    #[clap(about = ll ! {"split-format-output"})]
+    #[clap(help = ll ! {"split-format-output"})]
     output_format: SplitOutputFormat,
 
     #[clap(long = "no-apply-tags", parse(from_flag = std::ops::Not::not))]
-    #[clap(about = ll ! {"split-no-apply-tags"})]
+    #[clap(help = ll ! {"split-no-apply-tags"})]
     apply_tags: bool,
 
     #[clap(long = "no-import-cover", parse(from_flag = std::ops::Not::not))]
-    #[clap(about = ll ! {"split-no-import-cover"})]
+    #[clap(help = ll ! {"split-no-import-cover"})]
     import_cover: bool,
 
     #[clap(long = "keep", parse(from_flag = std::ops::Not::not))]
@@ -160,7 +160,7 @@ pub enum SplitFormat {
 }
 
 impl SplitFormat {
-    fn as_str(&self) -> &'static str {
+    fn as_str(&self) -> &str {
         match self {
             SplitFormat::Wav => "wav",
             SplitFormat::Flac => "flac",

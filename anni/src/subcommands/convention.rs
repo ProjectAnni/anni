@@ -5,7 +5,7 @@ use anni_clap_handler::{handler, Context, Handler};
 use anni_common::validator::*;
 use anni_flac::blocks::{BlockStreamInfo, BlockVorbisComment, PictureType};
 use anni_flac::{FlacHeader, MetadataBlockData};
-use clap::Parser;
+use clap::{Args, Subcommand};
 use serde::de::Error;
 use serde::{Deserialize, Deserializer};
 use std::collections::{HashMap, HashSet};
@@ -13,7 +13,7 @@ use std::path::{Path, PathBuf};
 use std::str::FromStr;
 use std::sync::Arc;
 
-#[derive(Parser, Debug, Clone)]
+#[derive(Args, Debug, Clone)]
 #[clap(about = ll ! ("convention"))]
 #[clap(alias = "conv")]
 pub struct ConventionSubcommand {
@@ -42,16 +42,16 @@ impl Handler for ConventionSubcommand {
     }
 }
 
-#[derive(Parser, Handler, Debug, Clone)]
+#[derive(Subcommand, Handler, Debug, Clone)]
 pub enum ConventionAction {
     #[clap(about = ll ! ("convention-check"))]
     Check(ConventionCheckAction),
 }
 
-#[derive(Parser, Debug, Clone)]
+#[derive(Args, Debug, Clone)]
 pub struct ConventionCheckAction {
     #[clap(short, long)]
-    #[clap(about = ll ! ("convention-check-fix"))]
+    #[clap(help = ll ! ("convention-check-fix"))]
     fix: bool,
 
     #[clap(required = true)]

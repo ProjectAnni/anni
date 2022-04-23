@@ -1,32 +1,31 @@
 use std::io::Write;
 use anni_flac::blocks::PictureType;
 use anni_flac::{MetadataBlockData, FlacHeader};
-use clap::{Parser, ArgEnum};
+use clap::{Args, Subcommand, ArgEnum};
 use crate::ll;
 use crate::args::{InputPath, FlacInputFile};
 use anni_clap_handler::{Handler, handler};
 
-#[derive(Parser, Handler, Debug, Clone)]
+#[derive(Args, Handler, Debug, Clone)]
 #[clap(about = ll ! ("flac"))]
 pub struct FlacSubcommand {
     #[clap(subcommand)]
     action: FlacAction,
 }
 
-#[derive(Parser, Handler, Debug, Clone)]
+#[derive(Subcommand, Handler, Debug, Clone)]
 pub enum FlacAction {
     #[clap(about = ll ! ("flac-export"))]
     Export(FlacExportAction),
-    #[clap(setting = clap::AppSettings::Hidden)]
     Fix(FlacFixAction),
     RemoveID3(FlacRemoveID3Action),
 }
 
-#[derive(Parser, Debug, Clone)]
+#[derive(Args, Debug, Clone)]
 pub struct FlacExportAction {
     #[clap(arg_enum)]
     #[clap(short = 't', long = "type", default_value = "tag")]
-    #[clap(about = ll ! {"flac-export-type"})]
+    #[clap(help = ll ! {"flac-export-type"})]
     export_type: FlacExportType,
 
     #[clap(short = 'n', long)]
@@ -37,7 +36,7 @@ pub struct FlacExportAction {
     picture_type: PictureType,
 
     #[clap(short, long, default_value = "-")]
-    #[clap(about = ll ! {"export-to"})]
+    #[clap(help = ll ! {"export-to"})]
     output: crate::args::ActionFile,
 
     #[clap(required = true)]
@@ -128,7 +127,7 @@ pub enum FlacExportType {
     List,
 }
 
-#[derive(Parser, Debug, Clone)]
+#[derive(Args, Debug, Clone)]
 pub struct FlacFixAction {
     #[clap(required = true)]
     filename: Vec<InputPath<FlacInputFile>>,
@@ -145,7 +144,7 @@ fn flac_fix(me: &FlacFixAction) -> anyhow::Result<()> {
     Ok(())
 }
 
-#[derive(Parser, Debug, Clone)]
+#[derive(Args, Debug, Clone)]
 pub struct FlacRemoveID3Action {
     #[clap(required = true)]
     filename: Vec<InputPath<FlacInputFile>>,

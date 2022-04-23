@@ -1,5 +1,5 @@
 use std::path::PathBuf;
-use clap::Parser;
+use clap::{Args, Subcommand};
 use anni_clap_handler::{Context, Handler, handler};
 use anni_common::fs;
 use anni_flac::blocks::{UserComment, UserCommentExt};
@@ -9,7 +9,7 @@ use anni_repo::prelude::*;
 use anni_repo::RepositoryManager;
 use crate::ll;
 
-#[derive(Parser, Debug, Clone, Handler)]
+#[derive(Args, Debug, Clone, Handler)]
 #[clap(about = ll ! ("library"))]
 #[clap(alias = "lib")]
 #[handler_inject(library_fields)]
@@ -30,13 +30,13 @@ impl LibrarySubcommand {
 }
 
 
-#[derive(Parser, Debug, Clone, Handler)]
+#[derive(Subcommand, Debug, Clone, Handler)]
 pub enum LibraryAction {
     New(LibraryNewAlbumAction),
     Tag(LibraryApplyTagAction),
 }
 
-#[derive(Parser, Debug, Clone)]
+#[derive(Args, Debug, Clone)]
 pub struct LibraryNewAlbumAction {
     #[clap(short = 'n', long, default_value = "1")]
     disc_num: u8,
@@ -69,7 +69,7 @@ pub fn library_new_album(me: &LibraryNewAlbumAction) -> anyhow::Result<()> {
     Ok(())
 }
 
-#[derive(Parser, Debug, Clone)]
+#[derive(Args, Debug, Clone)]
 pub struct LibraryApplyTagAction {
     #[clap(required = true)]
     directories: Vec<PathBuf>,
