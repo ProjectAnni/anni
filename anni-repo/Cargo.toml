@@ -23,8 +23,8 @@ uuid = { version = "0.8", features = ["v4", "serde"] }
 log = "0.4.0"
 git2 = { version = "0.14", optional = true, features = ["vendored-openssl", "vendored-libgit2"] }
 
-rusqlite = { version = "0.26.3", optional = true, features = ["uuid", "bundled", "serde_json"] }
-serde_rusqlite = { version = "0.29.0", optional = true }
+rusqlite = { version = "=0.26.3", optional = true, features = ["uuid", "bundled", "serde_json"] }
+serde_rusqlite = { version = "=0.29.0", optional = true }
 
 # WASM dependencies
 [target.wasm32-unknown-unknown.dependencies]
@@ -33,7 +33,7 @@ js-sys = "0.3.56"
 uuid = { version = "0.8", features = ["v4", "serde", "wasm-bindgen"] }
 wasm-bindgen = { version = "0.2.79", features = ["serde-serialize"] }
 serde-wasm-bindgen = "0.4.2"
-sqlite-vfs = { git = "https://github.com/rklaehn/sqlite-vfs" }
+sqlite-vfs = { git = "https://github.com/ProjectAnni/sqlite-vfs" }
 
 [features]
 default = []

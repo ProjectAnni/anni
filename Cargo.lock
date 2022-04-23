@@ -2569,7 +2569,7 @@ checksum = "925383efa346730478fb4838dbe9137d2a47675ad789c546d150a6e1dd4ab31c"
 [[package]]
 name = "pretty_env_logger"
 version = "0.5.0"
-source = "git+https://github.com/project-anni/pretty-env-logger#a2cf8f29dce9d45609cb339e32190b1ec213a98d"
+source = "git+https://github.com/ProjectAnni/pretty-env-logger#d002cf18d588cde306cb62b3fffe9a1443a4f094"
 dependencies = [
  "env_logger 0.9.0",
  "log 0.4.14",
@@ -3285,7 +3285,7 @@ checksum = "6e63cff320ae2c57904679ba7cb63280a3dc4613885beafb148ee7bf9aa9042d"
 [[package]]
 name = "sqlite-vfs"
 version = "0.1.0"
-source = "git+https://github.com/rklaehn/sqlite-vfs#d0ed190231966dfbd9ed6132d7f17f6cc8cf2b21"
+source = "git+https://github.com/ProjectAnni/sqlite-vfs#d0ed190231966dfbd9ed6132d7f17f6cc8cf2b21"
 dependencies = [
  "getrandom 0.2.6",
  "libsqlite3-sys",

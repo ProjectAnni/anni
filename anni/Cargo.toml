@@ -27,7 +27,7 @@ rust-embed = "6.3.0"
 
 log = "0.4"
 env_logger = "0.9.0"
-pretty_env_logger = { git = "https://github.com/project-anni/pretty-env-logger" }
+pretty_env_logger = { git = "https://github.com/ProjectAnni/pretty-env-logger" }
 anyhow = "1.0"
 
 cuna = "0.6.3"
