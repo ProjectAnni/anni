@@ -6,7 +6,7 @@ fn get_hash() -> Result<String, Box<dyn Error>> {
         .args(&["rev-parse", "--short", "HEAD"])
         .output()?;
     let hash = String::from_utf8(output.stdout)?;
-    Ok(hash.trim()[0..7].to_string())
+    Ok(hash.trim().to_string())
 }
 
 fn main() {
