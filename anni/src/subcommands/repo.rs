@@ -195,7 +195,7 @@ fn repo_import(me: &RepoImportAction, manager: &RepositoryManager) -> anyhow::Re
 
 #[derive(Args, Handler, Debug, Clone)]
 pub struct RepoGetAction {
-    #[clap(long)]
+    #[clap(long, global = true)]
     #[clap(help = ll ! {"repo-get-print"})]
     print: bool,
     #[clap(subcommand)]
