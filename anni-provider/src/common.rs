@@ -151,7 +151,7 @@ pub enum ProviderError {
     RepoError(#[from] anni_repo::error::Error),
 
     #[error(transparent)]
-    OAuthError(#[from] yup_oauth2::Error),
+    OAuthError(#[from] google_drive3::oauth2::Error),
 
     #[error(transparent)]
     DriveError(#[from] google_drive3::Error),

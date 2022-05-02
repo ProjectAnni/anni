@@ -3,22 +3,19 @@ use crate::{AnniProvider, ProviderError, AudioResourceReader, ResourceReader, Ra
 use std::collections::{HashSet, HashMap};
 use std::path::{Path, PathBuf};
 use async_trait::async_trait;
-use google_drive3::DriveHub;
-use hyper_rustls::HttpsConnector;
-use hyper::client::HttpConnector;
-
-extern crate yup_oauth2 as oauth2;
+use google_drive3::{DriveHub, hyper, oauth2, hyper_rustls::HttpsConnector, hyper::client::HttpConnector};
 
 use self::oauth2::authenticator::Authenticator;
 use self::oauth2::authenticator_delegate::DefaultInstalledFlowDelegate;
 use anni_repo::library::{album_info, disc_info};
-use futures::TryStreamExt;
 use google_drive3::api::FileListCall;
 use std::str::FromStr;
 use dashmap::DashMap;
+use futures::TryStreamExt;
 use parking_lot::Mutex;
 use tokio::sync::Semaphore;
 use anni_repo::db::RepoDatabaseRead;
+use google_drive3::hyper_rustls::HttpsConnectorBuilder;
 
 pub enum DriveAuth {
     InstalledFlow { client_id: String, client_secret: String, project_id: Option<String> },
@@ -105,7 +102,13 @@ impl DriveBackend {
             hyper::Client::builder()
                 // https://github.com/hyperium/hyper/issues/2312
                 .pool_max_idle_per_host(0)
-                .build(hyper_rustls::HttpsConnector::with_native_roots()), auth);
+                .build(HttpsConnectorBuilder::new()
+                    .with_native_roots()
+                    .https_or_http()
+                    .enable_http1()
+                    .enable_http2()
+                    .build()
+                ), auth);
         let mut this = Self {
             hub: Box::new(hub),
             folders: Default::default(),
