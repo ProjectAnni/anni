@@ -12,6 +12,12 @@ pub struct RepositoryManager {
 impl RepositoryManager {
     pub fn new<P: AsRef<Path>>(root: P) -> RepoResult<Self> {
         let repo = root.as_ref().join("repo.toml");
+
+        #[cfg(feature = "git")]
+        unsafe {
+            git2_ureq::register();
+        }
+
         Ok(Self {
             root: root.as_ref().to_owned(),
             repo: Repository::from_str(&fs::read_to_string(repo)?)?,
