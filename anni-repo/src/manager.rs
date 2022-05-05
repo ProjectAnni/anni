@@ -335,7 +335,10 @@ impl<'repo> OwnedRepositoryManager {
                         .push(catalog.to_string());
                 }
             }
-            self.albums.insert(album.album_id().to_string(), album);
+            if let Some(album_with_same_id) = self.albums.insert(album.album_id().to_string(), album) {
+                log::error!("Duplicated album id detected: {}", album_with_same_id.album_id());
+                has_problem = true;
+            }
         }
 
         if !has_problem {
