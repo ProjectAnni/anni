@@ -89,8 +89,8 @@ struct ConventionRules {
 
 impl ConventionRules {
     pub(crate) fn validate<P>(&self, filename: P, flac: &mut FlacHeader, fix: bool)
-    where
-        P: AsRef<Path>,
+        where
+            P: AsRef<Path>,
     {
         let mut fixed = false;
 
@@ -134,8 +134,8 @@ impl ConventionRules {
     }
 
     fn validate_stream_info<P>(&self, filename: P, info: &BlockStreamInfo)
-    where
-        P: AsRef<Path>,
+        where
+            P: AsRef<Path>,
     {
         let filename = filename.as_ref().to_string_lossy();
         self.stream_info.sample_rate.iter().for_each(|expected| {
@@ -153,6 +153,9 @@ impl ConventionRules {
                 error!(target: "convention/channel-num", "Stream channel num mismatch in file {}: expected {}, got {}", filename, expected, info.channels);
             }
         });
+        if self.stream_info.require_checksum && u128::from_be_bytes(info.md5_signature) == 0 {
+            error!(target: "convention/checksum", "Empty checksum detected in file: {filename}");
+        }
     }
 
     fn validate_tags<P>(
@@ -161,8 +164,8 @@ impl ConventionRules {
         comment: &mut BlockVorbisComment,
         fix: bool,
     ) -> (bool, Option<PathBuf>)
-    where
-        P: AsRef<Path>,
+        where
+            P: AsRef<Path>,
     {
         let mut fixed = false;
         let mut new_path = None;
@@ -355,8 +358,8 @@ impl Default for ConventionConfig {
                     vec![Validator::from_str("number").unwrap()],
                 ),
             ]
-            .into_iter()
-            .collect(),
+                .into_iter()
+                .collect(),
             tags: ConventionTagConfig {
                 required: vec![
                     ConventionTag {
@@ -427,6 +430,7 @@ struct ConventionStreamInfo {
     sample_rate: Option<Vec<u32>>,
     channels: Option<u8>,
     bit_per_sample: Option<u8>,
+    require_checksum: bool,
 }
 
 impl Default for ConventionStreamInfo {
@@ -435,6 +439,7 @@ impl Default for ConventionStreamInfo {
             sample_rate: Some(vec![44100, 48000]),
             channels: Some(2),
             bit_per_sample: Some(16),
+            require_checksum: true,
         }
     }
 }
@@ -495,8 +500,8 @@ impl ValueType {
 
 impl<'de> Deserialize<'de> for ValueType {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where
-        D: Deserializer<'de>,
+        where
+            D: Deserializer<'de>,
     {
         let s = String::deserialize(deserializer)?;
         match s.as_str() {
