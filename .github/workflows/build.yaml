@@ -66,12 +66,12 @@ jobs:
           cd -
 
       - name: Docker | Prepare Context
-        if: matrix.target == 'x86_64-unknown-linux-musl'
+        if: matrix.target == 'x86_64-unknown-linux-musl' && github.ref == 'refs/heads/master'
         run: |
           cp target/${{ matrix.target }}/release/annil ./docker/
 
       - name: Docker | Build and Publish
-        if: matrix.target == 'x86_64-unknown-linux-musl'
+        if: matrix.target == 'x86_64-unknown-linux-musl' && github.ref == 'refs/heads/master'
         uses: macbre/push-to-ghcr@master
         with:
           image_name: projectanni/annil
