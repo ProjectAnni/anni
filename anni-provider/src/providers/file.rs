@@ -10,6 +10,7 @@ use tokio::fs::{read_dir, File};
 use tokio::io::{AsyncReadExt, AsyncSeekExt};
 use anni_repo::db::RepoDatabaseRead;
 use crate::{AudioInfo, Range, ResourceReader};
+use uuid::Uuid;
 
 pub struct FileBackend {
     root: PathBuf,
@@ -64,6 +65,39 @@ impl FileBackend {
                     }
                 } else {
                     to_visit.push(path);
+                }
+            }
+        }
+        Ok(())
+    }
+
+    async fn walk_dir_strict<P: AsRef<Path> + Send>(
+        &mut self,
+        dir: P,
+        to_visit: &mut Vec<PathBuf>,
+    ) -> Result<(), ProviderError> {
+        log::debug!("Walking dir: {:?}", dir.as_ref());
+        let mut dir = read_dir(dir).await?;
+        while let Some(entry) = dir.next_entry().await? {
+            if entry.metadata().await?.is_dir() {
+                let path = entry.path();
+                match Uuid::parse_str(entry.file_name().to_str().ok_or(ProviderError::InvalidPath)?) {
+                    Ok(album_id) => {
+                        let mut discs = Vec::new();
+                        let mut dir = read_dir(&path).await?;
+                        while let Some(entry) = dir.next_entry().await? {
+                            if entry.metadata().await?.is_dir() {
+                                let p = entry.path();
+                                log::debug!("Found disc {:?} at: {:?}", entry.file_name(), p);
+                                discs.push(p);
+                            }
+                        }
+                        if discs.len() > 1 {
+                            self.album_discs.insert(album_id.to_string(), discs);
+                        }
+                        self.album_path.insert(album_id.to_string(), path);
+                    },
+                    _ => to_visit.push(path),
                 }
             }
         }
