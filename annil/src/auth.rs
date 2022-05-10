@@ -28,7 +28,6 @@ pub struct UserShare {
 
 #[derive(Serialize, Deserialize, Clone)]
 pub struct ShareClaim {
-    pub(crate) key_id: String,
     pub(crate) audios: HashMap<String, HashMap<String, Vec<u8>>>,
 }
 
