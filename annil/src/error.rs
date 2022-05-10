@@ -6,8 +6,6 @@ use actix_web::http::StatusCode;
 pub enum AnnilError {
     #[error("unauthorized")]
     Unauthorized,
-    #[error("no permission")]
-    NoPermission,
     #[error("not found")]
     NotFound,
 }
@@ -15,8 +13,7 @@ pub enum AnnilError {
 impl ResponseError for AnnilError {
     fn status_code(&self) -> StatusCode {
         match self {
-            AnnilError::Unauthorized => StatusCode::UNAUTHORIZED,
-            AnnilError::NoPermission => StatusCode::FORBIDDEN,
+            AnnilError::Unauthorized => StatusCode::FORBIDDEN,
             AnnilError::NotFound => StatusCode::NOT_FOUND,
         }
     }
