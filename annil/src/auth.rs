@@ -17,6 +17,7 @@ use std::collections::HashMap;
 #[derive(Serialize, Deserialize, Clone)]
 pub struct UserClaim {
     pub(crate) user_id: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub(crate) share: Option<UserShare>,
 }
 

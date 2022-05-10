@@ -6,6 +6,7 @@ use crate::auth::{UserClaim, UserShare};
 #[derive(Deserialize, Clone)]
 pub(crate) struct SignPayload {
     user_id: String,
+    #[serde(default)]
     share: bool,
 }
 
