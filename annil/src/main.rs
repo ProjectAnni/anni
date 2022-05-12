@@ -74,8 +74,8 @@ async fn init_state(config: Config) -> anyhow::Result<web::Data<AppState>> {
         log::debug!("Initializing provider: {}", provider_name);
         let repo = RepoDatabaseRead::new(database_path.to_string_lossy().as_ref())?;
         let mut provider: Box<dyn AnniProvider + Send + Sync> = match &provider_config.item {
-            ProviderItem::File { root } =>
-                Box::new(FileBackend::new(PathBuf::from(root), repo).await?),
+            ProviderItem::File { root, strict } =>
+                Box::new(FileBackend::new(PathBuf::from(root), repo, *strict).await?),
             ProviderItem::Drive { drive_id, corpora, initial_token_path, token_path } => {
                 if let Some(initial_token_path) = initial_token_path {
                     if initial_token_path.exists() && !token_path.exists() {

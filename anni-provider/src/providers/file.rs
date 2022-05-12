@@ -17,15 +17,17 @@ pub struct FileBackend {
     repo: Mutex<RepoDatabaseRead>,
     album_path: HashMap<String, PathBuf>,
     album_discs: HashMap<String, Vec<PathBuf>>,
+    strict: bool,
 }
 
 impl FileBackend {
-    pub async fn new(root: PathBuf, repo: RepoDatabaseRead) -> Result<Self, ProviderError> {
+    pub async fn new(root: PathBuf, repo: RepoDatabaseRead, strict: bool) -> Result<Self, ProviderError> {
         let mut this = Self {
             root,
             repo: Mutex::new(repo),
             album_path: Default::default(),
             album_discs: Default::default(),
+            strict,
         };
 
         this.reload().await?;
@@ -33,6 +35,18 @@ impl FileBackend {
     }
 
     async fn walk_dir<P: AsRef<Path> + Send>(
+        &mut self,
+        dir: P,
+        to_visit: &mut Vec<PathBuf>,
+    ) -> Result<(), ProviderError> {
+        if self.strict {
+            self.walk_dir_strict(dir, to_visit).await
+        } else {
+            self.walk_dir_instrict(dir, to_visit).await
+        }
+    }
+
+    async fn walk_dir_instrict<P: AsRef<Path> + Send>(
         &mut self,
         dir: P,
         to_visit: &mut Vec<PathBuf>,
