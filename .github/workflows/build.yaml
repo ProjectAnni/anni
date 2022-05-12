@@ -69,6 +69,7 @@ jobs:
         if: matrix.target == 'x86_64-unknown-linux-musl' && github.ref == 'refs/heads/master'
         run: |
           cp target/${{ matrix.target }}/release/annil ./docker/
+          cp target/${{ matrix.target }}/release/anni ./docker/
 
       - name: Docker | Build and Publish
         if: matrix.target == 'x86_64-unknown-linux-musl' && github.ref == 'refs/heads/master'
