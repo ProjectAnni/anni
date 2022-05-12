@@ -21,7 +21,11 @@ pub struct FileBackend {
 }
 
 impl FileBackend {
-    pub async fn new(root: PathBuf, repo: RepoDatabaseRead, strict: bool) -> Result<Self, ProviderError> {
+    pub async fn new(
+        root: PathBuf,
+        repo: RepoDatabaseRead,
+        strict: bool,
+    ) -> Result<Self, ProviderError> {
         let mut this = Self {
             root,
             repo: Mutex::new(repo),
@@ -95,7 +99,13 @@ impl FileBackend {
         while let Some(entry) = dir.next_entry().await? {
             if entry.metadata().await?.is_dir() {
                 let path = entry.path();
-                match Uuid::parse_str(entry.file_name().to_str().ok_or(ProviderError::InvalidPath)?) {
+                log::debug!("Walking disc: {:?}", &path);
+                match Uuid::parse_str(
+                    entry
+                        .file_name()
+                        .to_str()
+                        .ok_or(ProviderError::InvalidPath)?,
+                ) {
                     Ok(album_id) => {
                         let mut discs = Vec::new();
                         let mut dir = read_dir(&path).await?;
@@ -106,11 +116,9 @@ impl FileBackend {
                                 discs.push(p);
                             }
                         }
-                        if discs.len() > 1 {
-                            self.album_discs.insert(album_id.to_string(), discs);
-                        }
+                        self.album_discs.insert(album_id.to_string(), discs);
                         self.album_path.insert(album_id.to_string(), path);
-                    },
+                    }
                     _ => to_visit.push(path),
                 }
             }
@@ -118,7 +126,11 @@ impl FileBackend {
         Ok(())
     }
 
-    async fn walk_discs<P: AsRef<Path> + Send>(&mut self, album: P, size: usize) -> Result<Vec<PathBuf>, ProviderError> {
+    async fn walk_discs<P: AsRef<Path> + Send>(
+        &mut self,
+        album: P,
+        size: usize,
+    ) -> Result<Vec<PathBuf>, ProviderError> {
         let mut discs = vec![PathBuf::new(); size];
         let mut dir = read_dir(album).await?;
         while let Some(entry) = dir.next_entry().await? {
@@ -139,6 +151,7 @@ impl FileBackend {
     }
 
     fn get_disc(&self, album_id: &str, disc_id: u8) -> Result<&PathBuf, ProviderError> {
+        log::debug!("getting disc: {album_id}/{disc_id}");
         if self.album_discs.contains_key(album_id) {
             // has multiple discs
             Ok(&self.album_discs[album_id][(disc_id - 1) as usize])
@@ -178,9 +191,13 @@ impl AnniProvider for FileBackend {
         let mut dir = read_dir(path).await?;
         while let Some(entry) = dir.next_entry().await? {
             let filename = entry.file_name();
-            if filename
-                .to_string_lossy()
-                .starts_with::<&str>(format!("{:02}.", track_id).as_ref())
+            if (self.strict
+                && filename
+                    .to_string_lossy()
+                    .starts_with(&track_id.to_string()))
+                || filename
+                    .to_string_lossy()
+                    .starts_with::<&str>(format!("{:02}.", track_id).as_ref())
             {
                 let path = entry.path();
                 let mut file = File::open(&path).await?;
