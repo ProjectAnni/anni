@@ -1,6 +1,6 @@
 use actix_web::{HttpResponse, Responder, web, post};
 use jwt_simple::prelude::*;
-use crate::AppState;
+use crate::{AnnilClaims, AppState};
 use crate::auth::{UserClaim, UserShare};
 
 #[derive(Deserialize, Clone)]
@@ -13,7 +13,7 @@ pub(crate) struct SignPayload {
 #[post("/admin/sign")]
 async fn sign(data: web::Data<AppState>, info: web::Json<SignPayload>) -> impl Responder {
     let info = info.into_inner();
-    let custom = UserClaim {
+    let custom = AnnilClaims::User(UserClaim {
         user_id: info.user_id,
         share: if info.share {
             Some(UserShare {
@@ -21,7 +21,7 @@ async fn sign(data: web::Data<AppState>, info: web::Json<SignPayload>) -> impl R
                 secret: unsafe { String::from_utf8_unchecked(data.share_key.to_bytes().to_vec()) },
             })
         } else { None },
-    };
+    });
 
     let now = Some(Clock::now_since_epoch());
     let claim = JWTClaims {
