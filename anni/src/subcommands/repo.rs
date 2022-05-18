@@ -29,11 +29,6 @@ pub struct RepoSubcommand {
 
 impl RepoSubcommand {
     async fn repo_fields(&self, ctx: &mut Context) -> anyhow::Result<()> {
-        // Skip manager initialization for migrate subcommands
-        if matches!(self.action, RepoAction::Migrate(..)) {
-            return Ok(());
-        }
-
         let manager = RepositoryManager::new(self.root.as_path())?;
         ctx.insert(manager);
         Ok(())
