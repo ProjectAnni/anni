@@ -42,12 +42,13 @@ pub struct AppState {
 async fn init_metadata(config: &Config) -> anyhow::Result<PathBuf> {
     log::info!("Fetching metadata repository...");
     let repo_root = config.metadata.base.join("repo");
+    let proxy = config.metadata.proxy.clone();
     let repo = if !repo_root.exists() {
         log::debug!("Cloning metadata repository from {}", config.metadata.repo);
-        RepositoryManager::clone(&config.metadata.repo, repo_root)?
+        RepositoryManager::clone_with_proxy(&config.metadata.repo, repo_root, proxy)?
     } else if config.metadata.pull {
         log::debug!("Updating metadata repository at branch: {}", config.metadata.branch);
-        RepositoryManager::pull(repo_root, &config.metadata.branch)?
+        RepositoryManager::pull_with_proxy(repo_root, &config.metadata.branch, proxy)?
     } else {
         log::debug!("Loading metadata repository at {}", repo_root.display());
         RepositoryManager::new(repo_root)?

@@ -10,9 +10,9 @@ pub struct RepositoryManager {
 }
 
 #[cfg(feature = "git")]
-fn prepare_git2() {
+fn prepare_git2(proxy: Option<String>) {
     unsafe {
-        git2_ureq::register();
+        git2_ureq::register(proxy);
     }
 }
 
@@ -21,7 +21,7 @@ impl RepositoryManager {
         let repo = root.as_ref().join("repo.toml");
 
         #[cfg(feature = "git")]
-        prepare_git2();
+        prepare_git2(None);
 
         Ok(Self {
             root: root.as_ref().to_owned(),
@@ -30,15 +30,35 @@ impl RepositoryManager {
     }
 
     #[cfg(feature = "git")]
+    pub fn new_with_proxy<P: AsRef<Path>>(root: P, proxy: Option<String>) -> RepoResult<Self> {
+        let repo = root.as_ref().join("repo.toml");
+        prepare_git2(proxy);
+        Ok(Self {
+            root: root.as_ref().to_owned(),
+            repo: Repository::from_str(&fs::read_to_string(repo)?)?,
+        })
+    }
+
+    #[cfg(feature = "git")]
     pub fn clone<P: AsRef<Path>>(url: &str, root: P) -> RepoResult<Self> {
-        prepare_git2();
+        Self::clone_with_proxy(url, root, None)
+    }
+
+    #[cfg(feature = "git")]
+    pub fn clone_with_proxy<P: AsRef<Path>>(url: &str, root: P, proxy: Option<String>) -> RepoResult<Self> {
+        prepare_git2(proxy);
         git2::Repository::clone(url, root.as_ref())?;
         Self::new(root.as_ref())
     }
 
     #[cfg(feature = "git")]
     pub fn pull<P: AsRef<Path>>(root: P, branch: &str) -> RepoResult<Self> {
-        prepare_git2();
+        Self::pull_with_proxy(root, branch, None)
+    }
+
+    #[cfg(feature = "git")]
+    pub fn pull_with_proxy<P: AsRef<Path>>(root: P, branch: &str, proxy: Option<String>) -> RepoResult<Self> {
+        prepare_git2(proxy);
         crate::utils::git::pull(root.as_ref(), branch)?;
         Self::new(root.as_ref())
     }

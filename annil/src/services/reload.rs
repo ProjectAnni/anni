@@ -7,7 +7,7 @@ use crate::utils::compute_etag;
 #[post("/reload")]
 async fn reload(data: web::Data<AppState>) -> impl Responder {
     if data.metadata.pull {
-        let repo = RepositoryManager::pull(data.metadata.base.join("repo"), &data.metadata.branch).unwrap();
+        let repo = RepositoryManager::pull_with_proxy(data.metadata.base.join("repo"), &data.metadata.branch, data.metadata.proxy.clone()).unwrap();
         let repo = repo.into_owned_manager().unwrap();
 
         let database_path = data.metadata.base.join("repo.db");

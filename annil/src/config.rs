@@ -58,6 +58,7 @@ pub struct MetadataConfig {
     pub base: PathBuf,
     #[serde(default = "default_true")]
     pub pull: bool,
+    pub proxy: Option<String>,
 }
 
 fn default_true() -> bool {
