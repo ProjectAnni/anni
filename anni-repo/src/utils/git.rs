@@ -2,6 +2,20 @@ use git2::Repository;
 use std::io::{self, Write};
 use std::path::Path;
 
+#[cfg(feature = "git")]
+pub fn setup_git2(proxy: Option<String>) {
+    unsafe {
+        git2_ureq::register(proxy);
+    }
+}
+
+#[cfg(feature = "git")]
+pub(crate) fn setup_git2_internal() {
+    unsafe {
+        git2_ureq::register(std::env::var("HTTP_PROXY").ok());
+    }
+}
+
 fn do_fetch<'a>(
     repo: &'a git2::Repository,
     refs: &[&str],
@@ -165,7 +179,7 @@ fn do_merge<'a>(
     Ok(())
 }
 
-pub fn pull<P: AsRef<Path>>(root: P, remote_branch: &str) -> Result<(), git2::Error> {
+pub(crate) fn pull<P: AsRef<Path>>(root: P, remote_branch: &str) -> Result<(), git2::Error> {
     let repo = Repository::open(root.as_ref())?;
     let mut remote = repo.find_remote("origin")?;
     let fetch_commit = do_fetch(&repo, &[remote_branch], &mut remote)?;

@@ -9,19 +9,12 @@ pub struct RepositoryManager {
     pub repo: Repository,
 }
 
-#[cfg(feature = "git")]
-fn prepare_git2() {
-    unsafe {
-        git2_ureq::register();
-    }
-}
-
 impl RepositoryManager {
     pub fn new<P: AsRef<Path>>(root: P) -> RepoResult<Self> {
         let repo = root.as_ref().join("repo.toml");
 
         #[cfg(feature = "git")]
-        prepare_git2();
+        crate::utils::git::setup_git2_internal();
 
         Ok(Self {
             root: root.as_ref().to_owned(),
@@ -31,14 +24,14 @@ impl RepositoryManager {
 
     #[cfg(feature = "git")]
     pub fn clone<P: AsRef<Path>>(url: &str, root: P) -> RepoResult<Self> {
-        prepare_git2();
+        crate::utils::git::setup_git2_internal();
         git2::Repository::clone(url, root.as_ref())?;
         Self::new(root.as_ref())
     }
 
     #[cfg(feature = "git")]
     pub fn pull<P: AsRef<Path>>(root: P, branch: &str) -> RepoResult<Self> {
-        prepare_git2();
+        crate::utils::git::setup_git2_internal();
         crate::utils::git::pull(root.as_ref(), branch)?;
         Self::new(root.as_ref())
     }
