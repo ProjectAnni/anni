@@ -61,8 +61,6 @@ pub enum RepoAction {
     #[clap(name = "db")]
     #[clap(about = ll ! {"repo-db"})]
     Database(RepoDatabaseAction),
-    #[clap(about = ll ! {"repo-migrate"})]
-    Migrate(RepoMigrateAction),
 }
 
 #[derive(Args, Debug, Clone)]
@@ -678,50 +676,5 @@ fn repo_database_action(me: RepoDatabaseAction, manager: RepositoryManager) -> a
     let manager = manager.into_owned_manager()?;
     manager.to_database(&me.output.join("repo.db"))?;
 
-    Ok(())
-}
-
-////////////////////////////////////////////////////////////////////////
-// Repo migration
-#[derive(Args, Handler, Debug, Clone)]
-pub struct RepoMigrateAction {
-    #[clap(subcommand)]
-    subcommand: RepoMigrateSubcommand,
-}
-
-#[derive(Subcommand, Handler, Debug, Clone)]
-pub enum RepoMigrateSubcommand {
-    #[clap(about = ll ! ("repo-migrate-album-id"))]
-    #[clap(name = "album_id")]
-    AlbumId(RepoMigrateAlbumIdAction),
-}
-
-#[derive(Args, Debug, Clone)]
-pub struct RepoMigrateAlbumIdAction;
-
-#[handler(RepoMigrateAlbumIdAction)]
-fn repo_migrate_album_id(repo: &RepoSubcommand) -> anyhow::Result<()> {
-    let album_root = repo.root.join("album");
-
-    use toml_edit::{Document, Item, Key, Table, value};
-    for toml_path in fs::PathWalker::new(album_root, false)
-        .filter(|p| p.is_file() && p.extension().unwrap_or_default() == "toml") {
-        let mut doc = fs::read_to_string(&toml_path)
-            .expect("Failed to read toml to string")
-            .parse::<Document>()
-            .expect("Invalid toml document");
-        if !doc["album"].as_table().unwrap().contains_key("album_id") {
-            let mut album = Table::new();
-            album.set_position(0);
-            album["album_id"] = value(uuid::Uuid::new_v4().to_string());
-            for (k, v) in doc["album"].as_table().unwrap().clone().into_iter() {
-                album.insert_formatted(&Key::new(k), v);
-            }
-            doc["album"] = Item::Table(album);
-            // remove prefix \n, append \n
-            let result = format!("{}\n", doc.to_string().trim());
-            fs::write(toml_path, result).expect("Failed to write toml");
-        }
-    }
     Ok(())
 }
