@@ -13,17 +13,17 @@ use std::path::{Path, PathBuf};
 use std::str::FromStr;
 use std::sync::Arc;
 
-#[derive(Args, Debug, Clone)]
+#[derive(Args, Debug, Clone, Handler)]
 #[clap(about = ll ! ("convention"))]
 #[clap(alias = "conv")]
+#[handler_inject(convention_rules)]
 pub struct ConventionSubcommand {
     #[clap(subcommand)]
     action: ConventionAction,
 }
 
-#[anni_clap_handler::async_trait]
-impl Handler for ConventionSubcommand {
-    async fn handle_command(&mut self, ctx: &mut Context) -> anyhow::Result<()> {
+impl ConventionSubcommand {
+    async fn convention_rules(&self, ctx: &mut Context) -> anyhow::Result<()> {
         // Initialize rules
         let config: ConventionConfig = read_config("convention")
             .map_err(|e| {
@@ -35,10 +35,6 @@ impl Handler for ConventionSubcommand {
         let rules = config.into_rules();
         ctx.insert(rules);
         Ok(())
-    }
-
-    async fn handle_subcommand(&mut self, ctx: Context) -> anyhow::Result<()> {
-        self.action.execute(ctx).await
     }
 }
 
