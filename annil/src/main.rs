@@ -23,7 +23,7 @@ use crate::error::AnnilError;
 use std::time::{SystemTime, UNIX_EPOCH};
 use jwt_simple::reexports::serde_json::json;
 use parking_lot::RwLock;
-use anni_repo::RepositoryManager;
+use anni_repo::{RepositoryManager, setup_git2};
 use crate::services::*;
 use crate::utils::compute_etag;
 
@@ -69,6 +69,18 @@ async fn init_state(config: Config) -> anyhow::Result<web::Data<AppState>> {
     let now = SystemTime::now();
     let mut providers = Vec::with_capacity(config.providers.len());
     let mut caches = HashMap::new();
+
+    // proxy settings
+    if let Some(proxy) = &config.metadata.proxy {
+        // if metadata.proxy is an empty string, do not use proxy
+        if proxy.is_empty() {
+            setup_git2(None);
+        } else {
+            // otherwise, set proxy in config file
+            setup_git2(Some(proxy.clone()));
+        }
+        // if no proxy was provided, use default behavior (http_proxy)
+    }
 
     for (provider_name, provider_config) in config.providers.iter() {
         log::debug!("Initializing provider: {}", provider_name);
