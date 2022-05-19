@@ -230,7 +230,10 @@ impl StrictFileBackend {
     pub fn get_album_path(&self, album_id: &str) -> PathBuf {
         let mut res = self.root.clone();
         for i in 0..self.layer {
-            res.push(&album_id[i * 2..=i * 2 + 1].trim_start_matches('0'));
+            res.push(match &album_id[i * 2..=i * 2 + 1].trim_start_matches('0') {
+                &"" => "0",
+                s @ _ => s,
+            });
         }
         res.join(album_id)
     }
