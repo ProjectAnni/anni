@@ -1,7 +1,6 @@
 mod provider;
 mod config;
 mod auth;
-mod share;
 mod error;
 mod services;
 mod utils;
@@ -24,14 +23,15 @@ use crate::error::AnnilError;
 use std::time::{SystemTime, UNIX_EPOCH};
 use jwt_simple::reexports::serde_json::json;
 use parking_lot::RwLock;
-use anni_repo::RepositoryManager;
+use anni_repo::{RepositoryManager, setup_git2};
 use crate::services::*;
 use crate::utils::compute_etag;
 
 pub struct AppState {
     providers: RwLock<Vec<AnnilProvider>>,
     key: HS256Key,
-    reload_token: String,
+    share_key: HS256Key,
+    admin_token: String,
 
     version: String,
     metadata: MetadataConfig,
@@ -69,6 +69,18 @@ async fn init_state(config: Config) -> anyhow::Result<web::Data<AppState>> {
     let now = SystemTime::now();
     let mut providers = Vec::with_capacity(config.providers.len());
     let mut caches = HashMap::new();
+
+    // proxy settings
+    if let Some(proxy) = &config.metadata.proxy {
+        // if metadata.proxy is an empty string, do not use proxy
+        if proxy.is_empty() {
+            setup_git2(None);
+        } else {
+            // otherwise, set proxy in config file
+            setup_git2(Some(proxy.clone()));
+        }
+        // if no proxy was provided, use default behavior (http_proxy)
+    }
 
     for (provider_name, provider_config) in config.providers.iter() {
         log::debug!("Initializing provider: {}", provider_name);
@@ -108,12 +120,14 @@ async fn init_state(config: Config) -> anyhow::Result<web::Data<AppState>> {
 
     // key
     let key = HS256Key::from_bytes(config.server.key().as_ref());
+    let share_key = HS256Key::from_bytes(config.server.share_key().as_ref()).with_key_id(config.server.share_key_id());
     let version = format!("Annil v{}", env!("CARGO_PKG_VERSION"));
     let last_update = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs();
     Ok(web::Data::new(AppState {
         providers: RwLock::new(providers),
         key,
-        reload_token: config.server.reload_token().to_string(),
+        share_key,
+        admin_token: config.server.admin_token().to_string(),
         version,
         metadata: config.metadata,
         last_update: RwLock::new(last_update),
@@ -144,7 +158,8 @@ async fn main() -> anyhow::Result<()> {
             )
             .wrap(Logger::default())
             .service(info)
-            .service(reload)
+            .service(admin::reload)
+            .service(admin::sign)
             .service(
                 web::resource([
                     "/{album_id}/cover",
@@ -157,7 +172,6 @@ async fn main() -> anyhow::Result<()> {
                 .route(web::head().to(audio_head))
             )
             .service(albums)
-            .service(share::share)
     })
         .bind(listen)?
         .run()

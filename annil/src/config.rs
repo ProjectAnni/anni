@@ -20,6 +20,7 @@ impl Config {
 }
 
 #[derive(Deserialize)]
+#[serde(rename_all = "kebab-case")]
 pub struct ServerConfig {
     /// Server name
     pub name: String,
@@ -28,9 +29,10 @@ pub struct ServerConfig {
     /// HMAC key for JWT
     #[serde(rename = "hmac-key")]
     key: String,
+    share_key: String,
+    share_key_id: String,
     /// Password to reload data
-    #[serde(rename = "reload-token")]
-    reload_token: String,
+    admin_token: String,
 }
 
 impl ServerConfig {
@@ -46,8 +48,16 @@ impl ServerConfig {
         self.key.as_str()
     }
 
-    pub fn reload_token(&self) -> &str {
-        self.reload_token.as_str()
+    pub fn share_key(&self) -> &str {
+        self.share_key.as_str()
+    }
+
+    pub fn share_key_id(&self) -> &str {
+        self.share_key_id.as_str()
+    }
+
+    pub fn admin_token(&self) -> &str {
+        self.admin_token.as_str()
     }
 }
 
@@ -58,6 +68,7 @@ pub struct MetadataConfig {
     pub base: PathBuf,
     #[serde(default = "default_true")]
     pub pull: bool,
+    pub proxy: Option<String>,
 }
 
 fn default_true() -> bool {

@@ -1,2 +1,2 @@
 #[cfg(feature = "git")]
-pub mod git;
+pub(crate) mod git;

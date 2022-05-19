@@ -16,14 +16,19 @@ use std::collections::HashMap;
 
 #[derive(Serialize, Deserialize, Clone)]
 pub struct UserClaim {
-    pub(crate) username: String,
-    #[serde(rename = "allowShare")]
-    pub(crate) allow_share: bool,
+    pub(crate) user_id: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(crate) share: Option<UserShare>,
+}
+
+#[derive(Serialize, Deserialize, Clone)]
+pub struct UserShare {
+    pub(crate) key_id: String,
+    pub(crate) secret: String,
 }
 
 #[derive(Serialize, Deserialize, Clone)]
 pub struct ShareClaim {
-    pub(crate) username: String,
     pub(crate) audios: HashMap<String, HashMap<String, Vec<u8>>>,
 }
 
@@ -78,9 +83,9 @@ impl AnnilClaims {
 pub struct AnnilAuth;
 
 impl<S> Transform<S, ServiceRequest> for AnnilAuth
-where
-    S: Service<ServiceRequest, Response = ServiceResponse, Error = Error>,
-    S::Future: 'static,
+    where
+        S: Service<ServiceRequest, Response=ServiceResponse, Error=Error>,
+        S::Future: 'static,
 {
     type Response = ServiceResponse;
     type Error = Error;
@@ -98,9 +103,9 @@ pub struct AnnilAuthMiddleware<S> {
 }
 
 impl<S> Service<ServiceRequest> for AnnilAuthMiddleware<S>
-where
-    S: Service<ServiceRequest, Response = ServiceResponse, Error = Error>,
-    S::Future: 'static,
+    where
+        S: Service<ServiceRequest, Response=ServiceResponse, Error=Error>,
+        S::Future: 'static,
 {
     type Response = ServiceResponse;
     type Error = Error;
@@ -135,9 +140,9 @@ where
                 // load app data
                 let data = req.app_data::<web::Data<AppState>>().unwrap();
 
-                // for /reload, treat auth as reload token
-                if req.path() == "/reload" {
-                    return if auth == data.reload_token {
+                // for /admin interfaces, treat auth as reload token
+                if req.path().starts_with("/admin") {
+                    return if auth == data.admin_token {
                         Either::Left(self.service.call(req))
                     } else {
                         Either::Right(ok(req.error_response(AnnilError::Unauthorized)))
@@ -145,16 +150,37 @@ where
                 }
 
                 // for other requests, treat auth as JWT
-                match data.key.verify_token::<AnnilClaims>(&auth, None) {
-                    Ok(token) => {
-                        req.extensions_mut().insert(token.custom);
-                        Either::Left(self.service.call(req))
+                // FIXME: handle the unwrap
+                let metadata = jwt_simple::token::Token::decode_metadata(&auth).unwrap();
+                match metadata.key_id() {
+                    None => {
+                        // no key_id, verify with normal token
+                        if let Ok(token) = data.key.verify_token::<AnnilClaims>(&auth, None) {
+                            // notice that share tokens signed by user key are also allowed here
+                            // it's somewhat undefined and would never be written to standard, just for convenience
+                            req.extensions_mut().insert(token.custom);
+                            return Either::Left(self.service.call(req));
+                        }
                     }
-                    Err(e) => {
-                        println!("{:?}", e);
-                        Either::Right(ok(req.error_response(AnnilError::Unauthorized)))
+                    Some(_) => {
+                        // got key_id, verify with share token
+                        if let Ok(token) = data.share_key.verify_token::<AnnilClaims>(
+                            &auth,
+                            Some(VerificationOptions {
+                                required_key_id: Some(data.share_key.key_id().as_deref().unwrap().to_string()),
+                                ..Default::default()
+                            }),
+                        ) {
+                            // note that we MUST check whether it's a share token here
+                            // otherwise, we may get a user token signed by share key
+                            if token.custom.is_guest() {
+                                req.extensions_mut().insert(token.custom);
+                                return Either::Left(self.service.call(req));
+                            }
+                        }
                     }
                 }
+                Either::Right(ok(req.error_response(AnnilError::Unauthorized)))
             }
             None => Either::Right(ok(req.error_response(AnnilError::Unauthorized))),
         }
@@ -175,10 +201,10 @@ fn test_sign() {
             jwt_id: None,
             nonce: None,
             custom: AnnilClaims::User(UserClaim {
-                username: "test".to_string(),
-                allow_share: true,
+                user_id: "test".to_string(),
+                share: None,
             }),
         })
         .expect("failed to sign jwt");
-    assert_eq!(jwt, "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpYXQiOjAsInR5cGUiOiJ1c2VyIiwidXNlcm5hbWUiOiJ0ZXN0IiwiYWxsb3dTaGFyZSI6dHJ1ZX0.7CH27OBvUnJhKxBdtZbJSXA-JIwQ4MWqI5JsZ46NoKk");
+    assert_eq!(jwt, "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpYXQiOjAsInR5cGUiOiJ1c2VyIiwidXNlcl9pZCI6InRlc3QiLCJzaGFyZSI6bnVsbH0.krwh8gkycIVuzPbZ-xZYbRXXzpHD3Lou9OLazsHnmBY");
 }

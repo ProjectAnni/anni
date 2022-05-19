@@ -19,10 +19,7 @@ impl Serialize for AnniDate {
         } else {
             let mut result = format!("{:04}", self.year);
             if self.month > 0 {
-                result += &format!("{:02}", self.month);
-                if self.day > 0 {
-                    result += &format!("{:02}", self.day);
-                }
+                result += &format!("-{:02}", self.month);
             }
             Value::serialize(&Value::String(result), serializer)
         }

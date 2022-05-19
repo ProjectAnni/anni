@@ -4,7 +4,7 @@ use anni_repo::RepositoryManager;
 use crate::AppState;
 use crate::utils::compute_etag;
 
-#[post("/reload")]
+#[post("/admin/reload")]
 async fn reload(data: web::Data<AppState>) -> impl Responder {
     if data.metadata.pull {
         let repo = RepositoryManager::pull(data.metadata.base.join("repo"), &data.metadata.branch).unwrap();
