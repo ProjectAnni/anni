@@ -116,18 +116,6 @@ impl FileBackend {
                                 .ok_or(ProviderError::InvalidPath)?,
                         ) {
                             Ok(album_id) => {
-                                let mut discs = Vec::new();
-                                let mut dir = read_dir(&path).await?;
-                                while let Some(entry) = dir.next_entry().await? {
-                                    if entry.metadata().await?.is_dir() {
-                                        let disc: u8 = entry.file_name().to_string_lossy().parse().map_err(|_| ProviderError::InvalidPath)?;
-                                        let p = entry.path();
-                                        log::debug!("Found disc {disc} at: {p:?}");
-                                        discs.push((disc, p));
-                                    }
-                                }
-                                discs.sort_by_key(|(disc, _)| *disc);
-                                self.album_discs.insert(album_id.to_string(), discs.into_iter().map(|(_, p)| p).collect());
                                 self.album_path.insert(album_id.to_string(), path);
                             }
                             _ => log::warn!("Unexpected dir: {path:?}"),
@@ -211,50 +199,58 @@ impl AnniProvider for FileBackend {
         range: Range,
     ) -> Result<AudioResourceReader, ProviderError> {
         let path = self.get_disc(album_id, disc_id)?;
-        let mut dir = read_dir(path).await?;
-        while let Some(entry) = dir.next_entry().await? {
-            let filename = entry.file_name();
-            if (self.strict.0
-                && filename
-                    .to_string_lossy()
-                    .starts_with(&track_id.to_string()))
-                || filename
-                    .to_string_lossy()
-                    .starts_with::<&str>(format!("{:02}.", track_id).as_ref())
-            {
-                let path = entry.path();
-                let mut file = File::open(&path).await?;
-                let metadata = file.metadata().await?;
-                let file_size = metadata.len();
-
-                // limit in range
-                file.seek(SeekFrom::Start(range.start)).await?;
-                let file = file.take(range.length_limit(file_size));
-
-                // calculate audio duration only if it flac header is in range
-                let (duration, reader): (u64, ResourceReader) = if range.contains_flac_header() {
-                    let (info, reader) = crate::utils::read_header(file).await?;
-                    (info.total_samples / info.sample_rate as u64, reader)
-                } else {
-                    (0, Box::pin(file))
-                };
-
-                return Ok(AudioResourceReader {
-                    info: AudioInfo {
-                        extension: path.extension().map(|s| s.to_string_lossy().to_string()).unwrap_or_default(),
-                        size: file_size as usize,
-                        duration,
-                    },
-                    range: if range.is_full() {
-                        range
-                    } else {
-                        range.end_with(file_size)
-                    },
-                    reader,
-                });
+        let mut file = if self.strict.0 {
+            File::open(
+                path.join(disc_id.to_string())
+                    .join(format!("{track_id}.flac")),
+            )
+        } else {
+            let mut dir = read_dir(path).await?;
+            loop {
+                match dir.next_entry().await? {
+                    Some(entry)
+                        if entry
+                            .file_name()
+                            .to_string_lossy()
+                            .starts_with::<&str>(format!("{:02}.", track_id).as_ref()) =>
+                    {
+                        break File::open(entry.path())
+                    }
+                    None => return Err(ProviderError::FileNotFound),
+                    _ => {}
+                }
             }
         }
-        Err(ProviderError::FileNotFound)
+        .await?;
+        let metadata = file.metadata().await?;
+        let file_size = metadata.len();
+
+        // limit in range
+        file.seek(SeekFrom::Start(range.start)).await?;
+        let file = file.take(range.length_limit(file_size));
+
+        // calculate audio duration only if it flac header is in range
+        let (duration, reader): (u64, ResourceReader) = if range.contains_flac_header() {
+            let (info, reader) = crate::utils::read_header(file).await?;
+            (info.total_samples / info.sample_rate as u64, reader)
+        } else {
+            (0, Box::pin(file))
+        };
+
+        return Ok(AudioResourceReader {
+            info: AudioInfo {
+                extension: path.extension().map(|s| s.to_string_lossy().to_string()).unwrap_or_default(),
+                size: file_size as usize,
+                duration,
+            },
+            range: if range.is_full() {
+                range
+            } else {
+                range.end_with(file_size)
+            },
+            reader,
+        });
+
     }
 
     async fn get_cover(&self, album_id: &str, disc_id: Option<u8>) -> Result<ResourceReader, ProviderError> {
