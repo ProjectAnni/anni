@@ -1,4 +1,4 @@
-pub use file::FileBackend;
+pub use file::{FileBackend, StrictFileBackend};
 pub use drive::DriveBackend;
 pub use proxy::ProxyBackend;
 

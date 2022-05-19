@@ -17,21 +17,18 @@ pub struct FileBackend {
     repo: Mutex<RepoDatabaseRead>,
     album_path: HashMap<String, PathBuf>,
     album_discs: HashMap<String, Vec<PathBuf>>,
-    strict: (bool, usize), // (enable, layer)
 }
 
 impl FileBackend {
     pub async fn new(
         root: PathBuf,
         repo: RepoDatabaseRead,
-        strict: (bool, usize),
     ) -> Result<Self, ProviderError> {
         let mut this = Self {
             root,
             repo: Mutex::new(repo),
             album_path: Default::default(),
             album_discs: Default::default(),
-            strict,
         };
 
         this.reload().await?;
@@ -42,19 +39,15 @@ impl FileBackend {
         &mut self,
         dir: P,
     ) -> Result<(), ProviderError> {
-        if self.strict.0 {
-            self.walk_dir_strict(dir).await
-        } else {
-            let mut to_visit = vec![dir.as_ref().to_owned()];
+        let mut to_visit = vec![dir.as_ref().to_owned()];
     
-            while let Some(dir) = to_visit.pop() {
-                self.walk_dir_instrict(dir, &mut to_visit).await?;
-            }
-            Ok(())    
-        }
+         while let Some(dir) = to_visit.pop() {
+             self.walk_dir_impl(dir, &mut to_visit).await?;
+         }
+         Ok(())   
     }
 
-    async fn walk_dir_instrict<P: AsRef<Path> + Send>(
+    async fn walk_dir_impl<P: AsRef<Path> + Send>(
         &mut self,
         dir: P,
         to_visit: &mut Vec<PathBuf>,
@@ -87,50 +80,6 @@ impl FileBackend {
                     }
                 } else {
                     to_visit.push(path);
-                }
-            }
-        }
-        Ok(())
-    }
-
-    async fn walk_dir_strict<P: AsRef<Path> + Send>(
-        &mut self,
-        dir: P,
-    ) -> Result<(), ProviderError> {
-        self.walk_dir_bfs(dir.as_ref(), self.strict.1).await
-    }
-
-    async fn walk_dir_bfs(&mut self, dir: &Path, target: usize) -> Result<(), ProviderError> {
-        let mut vis = VecDeque::from([(dir.to_owned(), 0)]);
-        while let Some((ref path, layer)) = vis.pop_front() {
-            log::debug!("Walking dir: {path:?}");
-            let mut reader = read_dir(path).await?;
-            if layer == target {
-                while let Some(entry) = reader.next_entry().await? {
-                    let path = entry.path();
-                    if entry.metadata().await?.is_dir() {
-                        match Uuid::parse_str(
-                            entry
-                                .file_name()
-                                .to_str()
-                                .ok_or(ProviderError::InvalidPath)?,
-                        ) {
-                            Ok(album_id) => {
-                                self.album_path.insert(album_id.to_string(), path);
-                            }
-                            _ => log::warn!("Unexpected dir: {path:?}"),
-                        }
-                    } else {
-                        log::warn!("Unexpected file: {:?}", entry.path());
-                    }
-                }
-            } else {
-                while let Some(entry) = reader.next_entry().await? {
-                    if entry.metadata().await?.is_dir() {
-                        vis.push_back((entry.path(), layer + 1));
-                    } else {
-                        log::warn!("Unexpected file: {:?}", entry.path());
-                    }
                 }
             }
         }
@@ -199,26 +148,19 @@ impl AnniProvider for FileBackend {
         range: Range,
     ) -> Result<AudioResourceReader, ProviderError> {
         let path = self.get_disc(album_id, disc_id)?;
-        let mut file = if self.strict.0 {
-            File::open(
-                path.join(disc_id.to_string())
-                    .join(format!("{track_id}.flac")),
-            )
-        } else {
-            let mut dir = read_dir(path).await?;
-            loop {
-                match dir.next_entry().await? {
-                    Some(entry)
-                        if entry
-                            .file_name()
-                            .to_string_lossy()
-                            .starts_with::<&str>(format!("{:02}.", track_id).as_ref()) =>
-                    {
-                        break File::open(entry.path())
-                    }
-                    None => return Err(ProviderError::FileNotFound),
-                    _ => {}
+        let mut dir = read_dir(path).await?;
+        let mut file = loop {
+            match dir.next_entry().await? {
+                Some(entry)
+                    if entry
+                        .file_name()
+                        .to_string_lossy()
+                        .starts_with::<&str>(format!("{:02}.", track_id).as_ref()) =>
+                {
+                    break File::open(entry.path())
                 }
+                None => return Err(ProviderError::FileNotFound),
+                _ => {}
             }
         }
         .await?;
@@ -255,7 +197,7 @@ impl AnniProvider for FileBackend {
 
     async fn get_cover(&self, album_id: &str, disc_id: Option<u8>) -> Result<ResourceReader, ProviderError> {
         let path = match disc_id {
-            Some(disc_id) if !self.strict.0 => self.get_disc(album_id, disc_id)?,
+            Some(disc_id) => self.get_disc(album_id, disc_id)?,
             _ => self.get_album_path(album_id)?,
             
         };
@@ -270,6 +212,127 @@ impl AnniProvider for FileBackend {
         self.repo.lock().reload()?;
 
         self.walk_dir(self.root.clone()).await?;
+        Ok(())
+    }
+}
+
+pub struct StrictFileBackend {
+    root: PathBuf,
+    layer: usize,
+}
+
+impl StrictFileBackend {
+    pub fn new(root: PathBuf, layer: usize) -> Self {
+        Self { root, layer }
+    }
+
+    
+    pub fn get_album_path(&self, album_id: &str) -> PathBuf {
+        let mut res = self.root.clone();
+        for i in 0..self.layer {
+            res.push(&album_id[i * 2..=i * 2 + 1].trim_start_matches('0'));
+        }
+        res.join(album_id)
+    }
+}
+
+#[async_trait]
+impl AnniProvider for StrictFileBackend {
+    async fn albums(&self) -> Result<HashSet<Cow<str>>, ProviderError> {
+        let mut album_list = HashSet::new();
+        let mut vis = VecDeque::from([(self.root.clone(), 0)]);
+        while let Some((ref path, layer)) = vis.pop_front() {
+            log::debug!("Walking dir: {path:?}");
+            let mut reader = read_dir(path).await?;
+            if layer == self.layer {
+                while let Some(entry) = reader.next_entry().await? {
+                    let path = entry.path();
+                    if entry.metadata().await?.is_dir() {
+                        match Uuid::parse_str(
+                            entry
+                                .file_name()
+                                .to_str()
+                                .ok_or(ProviderError::InvalidPath)?,
+                        ) {
+                            Ok(album_id) => {
+                                album_list.insert(Cow::Owned(album_id.to_string()));
+                            }
+                            _ => log::warn!("Unexpected dir: {path:?}"),
+                        }
+                    } else {
+                        log::warn!("Unexpected file: {:?}", entry.path());
+                    }
+                }
+            } else {
+                while let Some(entry) = reader.next_entry().await? {
+                    if entry.metadata().await?.is_dir() {
+                        vis.push_back((entry.path(), layer + 1));
+                    } else {
+                        log::warn!("Unexpected file: {:?}", entry.path());
+                    }
+                }
+            }
+        }
+        Ok(album_list)
+    }
+
+    async fn get_audio_info(&self, album_id: &str, disc_id: u8, track_id: u8) -> Result<AudioInfo, ProviderError> {
+        Ok(self.get_audio(album_id, disc_id, track_id, Range::FLAC_HEADER).await?.info)
+    }
+
+    async fn get_audio(
+        &self,
+        album_id: &str,
+        disc_id: u8,
+        track_id: u8,
+        range: Range,
+    ) -> Result<AudioResourceReader, ProviderError> {
+        let path = self.get_album_path(album_id);
+        let mut file = File::open(
+            path.join(disc_id.to_string())
+                .join(format!("{track_id}.flac")),
+        ).await?;
+        let metadata = file.metadata().await?;
+        let file_size = metadata.len();
+
+        // limit in range
+        file.seek(SeekFrom::Start(range.start)).await?;
+        let file = file.take(range.length_limit(file_size));
+
+        // calculate audio duration only if it flac header is in range
+        let (duration, reader): (u64, ResourceReader) = if range.contains_flac_header() {
+            let (info, reader) = crate::utils::read_header(file).await?;
+            (info.total_samples / info.sample_rate as u64, reader)
+        } else {
+            (0, Box::pin(file))
+        };
+
+        return Ok(AudioResourceReader {
+            info: AudioInfo {
+                extension: path.extension().map(|s| s.to_string_lossy().to_string()).unwrap_or_default(),
+                size: file_size as usize,
+                duration,
+            },
+            range: if range.is_full() {
+                range
+            } else {
+                range.end_with(file_size)
+            },
+            reader,
+        });
+
+    }
+
+    async fn get_cover(&self, album_id: &str, disc_id: Option<u8>) -> Result<ResourceReader, ProviderError> {
+        let path = match disc_id {
+            Some(id) => self.get_album_path(album_id).join(id.to_string()),
+            None => self.get_album_path(album_id),
+        };
+        let file = File::open(path.join("cover.jpg")).await?;
+        Ok(Box::pin(file))
+    }
+
+    async fn reload(&mut self) -> Result<(), ProviderError> {
         Ok(())
     }
 }
