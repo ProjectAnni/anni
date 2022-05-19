@@ -10,7 +10,6 @@ use serde::de::Error;
 use serde::{Deserialize, Deserializer};
 use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
-use std::str::FromStr;
 use std::sync::Arc;
 
 #[derive(Args, Debug, Clone, Handler)]
@@ -76,7 +75,7 @@ fn convention_check(me: &ConventionCheckAction, rules: &ConventionRules) -> anyh
 
 struct ConventionRules {
     stream_info: ConventionStreamInfo,
-    types: HashMap<String, Vec<Validator>>,
+    types: HashMap<String, ValidatorList>,
 
     required: HashMap<String, Arc<ConventionTag>>,
     optional: HashMap<String, Arc<ConventionTag>>,
@@ -136,17 +135,17 @@ impl ConventionRules {
         let filename = filename.as_ref().to_string_lossy();
         self.stream_info.sample_rate.iter().for_each(|expected| {
             if !expected.contains(&info.sample_rate) {
-                error!(target: "convention/sample-rate", "Stream sample-rate mismatch in file {}: expected `{:?}`, got {}", filename, expected, info.sample_rate);
+                error!(target: "convention/sample-rate", "Stream sample-rate mismatch in file {filename}: expected `{expected:?}`, got {}", info.sample_rate);
             }
         });
         self.stream_info.bit_per_sample.iter().for_each(|expected| {
             if info.bits_per_sample != *expected {
-                error!(target: "convention/bit-per-sample", "Stream bit-per-sample mismatch in file {}: expected {}, got {}", filename, expected, info.bits_per_sample);
+                error!(target: "convention/bit-per-sample", "Stream bit-per-sample mismatch in file {filename}: expected {expected}, got {}", info.bits_per_sample);
             }
         });
         self.stream_info.channels.iter().for_each(|expected| {
             if info.channels != *expected {
-                error!(target: "convention/channel-num", "Stream channel num mismatch in file {}: expected {}, got {}", filename, expected, info.channels);
+                error!(target: "convention/channel-num", "Stream channel num mismatch in file {filename}: expected {expected}, got {}", info.channels);
             }
         });
         if self.stream_info.require_checksum && u128::from_be_bytes(info.md5_signature) == 0 {
@@ -173,10 +172,10 @@ impl ConventionRules {
         for comment in comment.comments.iter_mut() {
             let (key, key_raw, value) = (comment.key(), comment.key_raw(), comment.value());
             if value.is_empty() {
-                warn!(target: "convention/tag/empty", "Empty value for tag: {} in file: {}", key_raw, filename_str);
+                warn!(target: "convention/tag/empty", "Empty value for tag: {key_raw} in file: {filename_str}");
             }
             if !comment.is_key_uppercase() {
-                warn!(target: "convention/tag/lowercase", "Lowercase tag: {} in file: {}", key_raw, filename_str);
+                warn!(target: "convention/tag/lowercase", "Lowercase tag: {key_raw} in file: {filename_str}");
             }
             let key = key.as_str();
 
@@ -184,7 +183,7 @@ impl ConventionRules {
                 if !required.contains(key) {
                     // Required key duplicated
                     // duplication detection is only enabled for Required tags
-                    warn!(target: "convention/tag/duplicated", "Required key {} duplicated in file: {}", key_raw, filename_str);
+                    warn!(target: "convention/tag/duplicated", "Required key {key_raw} duplicated in file: {filename_str}");
                     continue;
                 } else {
                     // remove from required key set
@@ -198,11 +197,11 @@ impl ConventionRules {
             } else if self.unrecommended.contains_key(key) {
                 // unrecommended tag
                 let tag = &self.unrecommended[key];
-                warn!(target: "convention/tag/unrecommended", "Unrecommended key: {}={} found in file {}, use {} instead", key_raw, value, filename_str, &tag.name);
+                warn!(target: "convention/tag/unrecommended", "Unrecommended key: {key_raw}={value} found in file {filename_str}, use {} instead", &tag.name);
                 tag
             } else {
                 // No tag rule found
-                warn!(target: "convention/tag/unnecessary", "Unnecessary tag {} in file: {}", key_raw, filename_str);
+                warn!(target: "convention/tag/unnecessary", "Unnecessary tag {key_raw} in file: {filename_str}");
                 if fix {
                     comment.clear();
                     fixed = true;
@@ -211,36 +210,32 @@ impl ConventionRules {
             };
 
             // type validators
-            for v in self.types[tag.value_type.as_str()].iter() {
-                let result = v.validate(value);
+            for (ty, result) in self.types[tag.value_type.as_str()].validate(value) {
                 // if it's a warning, display it with warn!
                 if result.warning {
-                    warn!(target: "convention/tag/type", "Warning for tag {}={} in file: {}", key_raw, value, filename_str);
+                    warn!(target: "convention/tag/type", "Validator {ty} warning for tag {key_raw}={value} in file: {filename_str}");
                     if let Some(message) = result.message {
-                        warn!(target: "convention/tag/type", "  {}", message);
+                        warn!(target: "convention/tag/type", "  {message}");
                     }
                 } else if !result.valid {
-                    error!(target: "convention/tag/type", "Type validator {} not passed: invalid tag value {}={} in file: {}", v.name(), key_raw, value, filename_str);
+                    error!(target: "convention/tag/type", "Type validator {ty} not passed: invalid tag value {key_raw}={value} in file: {filename_str}");
                     if let Some(message) = result.message {
-                        error!(target: "convention/tag/type", "  {}", message);
+                        error!(target: "convention/tag/type", "  {message}");
                     }
                 }
             }
 
             // field validators
-            let tag_problems = tag.validate(value);
-            if !tag_problems.is_empty() {
-                for problem in tag_problems.iter() {
-                    if problem.1.warning {
-                        warn!(target: "convention/tag/validator", "Validator {} warning for tag {}={} in file {}", problem.0, key_raw, value, filename_str);
-                        if let Some(message) = &problem.1.message {
-                            warn!(target: "convention/tag/validator", "  {}", message);
-                        }
-                    } else {
-                        error!(target: "convention/tag/validator", "Validator {} not passed: invalid tag value {}={} in file {}", problem.0, key_raw, value, filename_str);
-                        if let Some(message) = &problem.1.message {
-                            error!(target: "convention/tag/validator", "  {}", message);
-                        }
+            for (ty, result) in tag.validate(value) {
+                if result.warning {
+                    warn!(target: "convention/tag/validator", "Validator {ty} warning for tag {key_raw}={value} in file {filename_str}");
+                    if let Some(message) = &result.message {
+                        warn!(target: "convention/tag/validator", "  {message}");
+                    }
+                } else {
+                    error!(target: "convention/tag/validator", "Validator {ty} not passed: invalid tag value {key_raw}={value} in file {filename_str}");
+                    if let Some(message) = &result.message {
+                        error!(target: "convention/tag/validator", "  {message}");
                     }
                 }
             }
@@ -255,10 +250,10 @@ impl ConventionRules {
                 // additional artist name check
                 match value {
                     "[Unknown Artist]" | "UnknownArtist" => {
-                        error!(target: "convention/tag/artist", "Invalid artist: {} in file: {}", value, filename_str)
+                        error!(target: "convention/tag/artist", "Invalid artist: {value} in file: {filename_str}")
                     }
                     "Various Artists" => {
-                        warn!(target: "convention/tag/artist", "Various Artist is used as track artist in file: {}. Could it be more accurate?", filename_str)
+                        warn!(target: "convention/tag/artist", "Various Artist is used as track artist in file: {filename_str}. Could it be more accurate?")
                     }
                     _ => {}
                 }
@@ -267,7 +262,7 @@ impl ConventionRules {
 
         // remaining keys in set are missing
         for key in required {
-            error!(target: "convention/tag/missing", "Missing tag {} in file: {}", key, filename_str);
+            error!(target: "convention/tag/missing", "Missing tag {key} in file: {filename_str}");
         }
 
         // Filename check
@@ -281,7 +276,7 @@ impl ConventionRules {
                 .to_str()
                 .expect("Non-UTF8 filenames are currently not supported!");
             if filename_raw != filename_expected {
-                error!(target: "convention/filename", "Filename of file: {} mismatch. Expected {}", filename_str, filename_expected);
+                error!(target: "convention/filename", "Filename of file: {filename_str} mismatch. Expected {filename_expected}");
                 if fix {
                     // use correct filename
                     let path_expected = filename.as_ref().with_file_name(filename_expected);
@@ -303,7 +298,7 @@ impl ConventionRules {
 struct ConventionConfig {
     #[serde(default)]
     stream_info: ConventionStreamInfo,
-    types: HashMap<String, Vec<Validator>>,
+    types: HashMap<String, ValidatorList>,
     tags: ConventionTagConfig,
 }
 
@@ -341,18 +336,8 @@ impl Default for ConventionConfig {
         Self {
             stream_info: Default::default(),
             types: vec![
-                (
-                    "string".to_string(),
-                    vec![
-                        Validator::from_str("trim").unwrap(),
-                        Validator::from_str("dot").unwrap(),
-                        Validator::from_str("tidle").unwrap(),
-                    ],
-                ),
-                (
-                    "number".to_string(),
-                    vec![Validator::from_str("number").unwrap()],
-                ),
+                ("string".to_string(), ValidatorList::new(&["trim", "dot", "tidle"]).unwrap()),
+                ("number".to_string(), ValidatorList::new(&["number"]).unwrap()),
             ]
                 .into_iter()
                 .collect(),
@@ -368,7 +353,7 @@ impl Default for ConventionConfig {
                         name: "ARTIST".to_string(),
                         alias: Default::default(),
                         value_type: ValueType::String,
-                        validators: vec![Validator::from_str("artist").unwrap()],
+                        validators: ValidatorList::new(&["artist"]).unwrap(),
                     },
                     ConventionTag {
                         name: "ALBUM".to_string(),
@@ -380,7 +365,7 @@ impl Default for ConventionConfig {
                         name: "DATE".to_string(),
                         alias: Default::default(),
                         value_type: ValueType::String,
-                        validators: vec![Validator::from_str("date").unwrap()],
+                        validators: ValidatorList::new(&["date"]).unwrap(),
                     },
                     ConventionTag {
                         name: "TRACKNUMBER".to_string(),
@@ -463,19 +448,12 @@ struct ConventionTag {
 
     /// Validators for this tag
     #[serde(default)]
-    validators: Vec<Validator>,
+    validators: ValidatorList,
 }
 
 impl ConventionTag {
     pub(crate) fn validate(&self, value: &str) -> Vec<(&'static str, ValidateResult)> {
-        let mut problems = Vec::new();
-        for v in self.validators.iter() {
-            let result = v.validate(value);
-            if result.warning || !result.valid {
-                problems.push((v.name(), result));
-            }
-        }
-        problems
+        self.validators.validate(value)
     }
 }
 

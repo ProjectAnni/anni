@@ -36,8 +36,8 @@ impl FromStr for Validator {
 
 impl<'de> Deserialize<'de> for Validator {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where
-        D: Deserializer<'de>,
+        where
+            D: Deserializer<'de>,
     {
         let s = String::deserialize(deserializer)?;
         Validator::from_str(s.as_str()).map_err(|_| D::Error::custom(s))
@@ -47,6 +47,26 @@ impl<'de> Deserialize<'de> for Validator {
 impl std::fmt::Debug for Validator {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}", self.name())
+    }
+}
+
+#[derive(Default, Debug, Deserialize)]
+#[serde(transparent)]
+pub struct ValidatorList(Vec<Validator>);
+
+impl ValidatorList {
+    pub fn new(validators: &[&str]) -> Result<Self, ()> {
+        validators.iter()
+            .map(|v| Validator::from_str(v))
+            .collect::<Result<_, _>>()
+            .map(|e| ValidatorList(e))
+    }
+
+    pub fn validate(&self, input: &str) -> Vec<(&'static str, ValidateResult)> {
+        self.0.iter()
+            .map(|v| (v.0, v.1(input)))
+            .filter(|v| !v.1.valid || v.1.warning)
+            .collect()
     }
 }
 
