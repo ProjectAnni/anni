@@ -236,8 +236,9 @@ impl AnniProvider for FileBackend {
 
     async fn get_cover(&self, album_id: &str, disc_id: Option<u8>) -> Result<ResourceReader, ProviderError> {
         let path = match disc_id {
-            None => self.get_album_path(album_id)?,
-            Some(disc_id) => self.get_disc(album_id, disc_id)?,
+            Some(disc_id) if !self.strict => self.get_disc(album_id, disc_id)?,
+            _ => self.get_album_path(album_id)?,
+            
         };
         let path = path.join("cover.jpg");
         let file = File::open(path).await?;
