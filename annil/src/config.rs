@@ -95,7 +95,7 @@ impl ProviderConfig {
 pub enum ProviderItem {
     #[serde(rename = "file")]
     #[serde(rename_all = "kebab-case")]
-    File { root: String, strict: bool },
+    File { root: String, strict: bool, layer: usize },
     #[serde(rename = "drive")]
     #[serde(rename_all = "kebab-case")]
     Drive {
