@@ -13,6 +13,7 @@ use anni_flac::blocks::{UserComment, UserCommentExt};
 use anni_clap_handler::{Context, Handler, handler};
 use anni_common::inherit::InheritableValue;
 use cuna::Cuna;
+use anni_common::validator::ValidatorList;
 use crate::args::ActionFile;
 
 #[derive(Args, Debug, Clone, Handler)]
@@ -508,29 +509,40 @@ fn repo_validate(manager: RepositoryManager, _: &RepoValidateAction) -> anyhow::
 
     // initialize owned manager
     let manager = manager.into_owned_manager()?;
+    let string_validator = ValidatorList::new(&["trim", "dot", "tidle"]).unwrap();
+    let artist_validator = ValidatorList::new(&["trim", "dot", "tidle", "artist"]).unwrap();
 
     // check albums
     for album in manager.albums_iter() {
         let catalog = album.catalog();
 
+        validate_string(catalog, "title of album", &string_validator, album.title().as_ref(), &mut has_error);
+        validate_string(catalog, "artist of album", &artist_validator, album.artist(), &mut has_error);
+
         if album.artist() == "[Unknown Artist]" || album.artist() == "UnknownArtist" {
-            error!(target: &format!("repo|{}", catalog), "{}", fl!("repo-invalid-artist", artist = album.artist()));
+            error!(target: &format!("repo|{catalog}"), "{}", fl!("repo-invalid-artist", artist = album.artist()));
             has_error = true;
         }
         if let TrackType::Other(o) = album.track_type() {
-            warn!(target: &format!("repo|{}", catalog), "Unknown track type: {}", o);
+            warn!(target: &format!("repo|{catalog}"), "Unknown track type: {}", o);
         }
 
         for (disc_id, disc) in album.discs().iter().enumerate() {
             let disc_id = disc_id + 1;
+
+            validate_string(catalog, &format!("title of disc {disc_id}"), &string_validator, disc.title(), &mut has_error);
+            validate_string(catalog, &format!("artist of disc {disc_id}"), &artist_validator, disc.artist(), &mut has_error);
             if let TrackType::Other(o) = disc.track_type() {
-                warn!(target: &format!("repo|{}", catalog), "Unknown track type in disc {}: {}", disc_id, o);
+                warn!(target: &format!("repo|{catalog}"), "Unknown track type in disc {}: {}", disc_id, o);
             }
 
             for (track_id, track) in disc.tracks().iter().enumerate() {
                 let track_id = track_id + 1;
+
+                validate_string(catalog, &format!("title of track {disc_id}/{track_id}"), &string_validator, track.title().as_ref(), &mut has_error);
+                validate_string(catalog, &format!("artist of track {disc_id}/{track_id}"), &artist_validator, track.artist(), &mut has_error);
                 if let TrackType::Other(o) = track.track_type() {
-                    warn!(target: &format!("repo|{}", catalog), "Unknown track type in disc {} track {}: {}", disc_id, track_id, o);
+                    warn!(target: &format!("repo|{catalog}"), "Unknown track type in disc {} track {}: {}", disc_id, track_id, o);
                 }
             }
         }
@@ -546,6 +558,18 @@ fn repo_validate(manager: RepositoryManager, _: &RepoValidateAction) -> anyhow::
     } else {
         ball!("repo-validate-failed");
     }
+}
+
+fn validate_string(catalog: &str, target: &str, validator: &ValidatorList, value: &str, has_error: &mut bool) {
+    validator.validate(value).iter().for_each(|(ty, result)| {
+        if !result.valid {
+            error!(target: &format!("repo|{catalog}"), "Validator error on {target}: {ty} [{}]", result.message.as_deref().unwrap_or("No message"));
+            *has_error = true;
+        } else {
+            // warning
+            warn!(target: &format!("repo|{catalog}"), "Validator warning on {target}: {ty} [{}]", result.message.as_deref().unwrap_or("No message"));
+        }
+    });
 }
 
 #[derive(Args, Debug, Clone)]
