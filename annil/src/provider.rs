@@ -24,7 +24,7 @@ impl AnnilProvider {
     }
 
     pub async fn has_album(&self, album_id: &str) -> bool {
-        self.albums().await.contains(album_id)
+        self.enabled && self.inner.has_album(album_id).await
     }
 
     pub async fn get_cover(&self, album_id: &str, disc_id: Option<u8>) -> Result<ResourceReader, ProviderError> {
