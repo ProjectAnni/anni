@@ -149,50 +149,22 @@ impl AnniProvider for FileBackend {
     ) -> Result<AudioResourceReader, ProviderError> {
         let path = self.get_disc(album_id, disc_id)?;
         let mut dir = read_dir(path).await?;
-        let mut file = loop {
+        let file = loop {
             match dir.next_entry().await? {
                 Some(entry)
                     if entry
                         .file_name()
                         .to_string_lossy()
-                        .starts_with::<&str>(format!("{:02}.", track_id).as_ref()) =>
+                        .starts_with(&format!("{:02}.", track_id)) =>
                 {
-                    break File::open(entry.path())
+                    break File::open(entry.path()).await?
                 }
                 None => return Err(ProviderError::FileNotFound),
                 _ => {}
             }
-        }
-        .await?;
-        let metadata = file.metadata().await?;
-        let file_size = metadata.len();
-
-        // limit in range
-        file.seek(SeekFrom::Start(range.start)).await?;
-        let file = file.take(range.length_limit(file_size));
-
-        // calculate audio duration only if it flac header is in range
-        let (duration, reader): (u64, ResourceReader) = if range.contains_flac_header() {
-            let (info, reader) = crate::utils::read_header(file).await?;
-            (info.total_samples / info.sample_rate as u64, reader)
-        } else {
-            (0, Box::pin(file))
         };
 
-        return Ok(AudioResourceReader {
-            info: AudioInfo {
-                extension: path.extension().map(|s| s.to_string_lossy().to_string()).unwrap_or_default(),
-                size: file_size as usize,
-                duration,
-            },
-            range: if range.is_full() {
-                range
-            } else {
-                range.end_with(file_size)
-            },
-            reader,
-        });
-
+        read_audio(path, file, range).await
     }
 
     async fn get_cover(&self, album_id: &str, disc_id: Option<u8>) -> Result<ResourceReader, ProviderError> {
@@ -295,39 +267,12 @@ impl AnniProvider for StrictFileBackend {
         range: Range,
     ) -> Result<AudioResourceReader, ProviderError> {
         let path = self.get_album_path(album_id);
-        let mut file = File::open(
+        let file = File::open(
             path.join(disc_id.to_string())
                 .join(format!("{track_id}.flac")),
         ).await?;
-        let metadata = file.metadata().await?;
-        let file_size = metadata.len();
-
-        // limit in range
-        file.seek(SeekFrom::Start(range.start)).await?;
-        let file = file.take(range.length_limit(file_size));
-
-        // calculate audio duration only if it flac header is in range
-        let (duration, reader): (u64, ResourceReader) = if range.contains_flac_header() {
-            let (info, reader) = crate::utils::read_header(file).await?;
-            (info.total_samples / info.sample_rate as u64, reader)
-        } else {
-            (0, Box::pin(file))
-        };
-
-        return Ok(AudioResourceReader {
-            info: AudioInfo {
-                extension: path.extension().map(|s| s.to_string_lossy().to_string()).unwrap_or_default(),
-                size: file_size as usize,
-                duration,
-            },
-            range: if range.is_full() {
-                range
-            } else {
-                range.end_with(file_size)
-            },
-            reader,
-        });
-
+        
+        read_audio(&path, file, range).await
     }
 
     async fn get_cover(&self, album_id: &str, disc_id: Option<u8>) -> Result<ResourceReader, ProviderError> {
@@ -344,6 +289,36 @@ impl AnniProvider for StrictFileBackend {
     }
 }
 
+async fn read_audio(path: &Path, mut file: File, range: Range) -> Result<AudioResourceReader, ProviderError> {
+    let metadata = file.metadata().await?;
+    let file_size = metadata.len();
+
+    // limit in range
+    file.seek(SeekFrom::Start(range.start)).await?;
+    let file = file.take(range.length_limit(file_size));
+
+    // calculate audio duration only if it flac header is in range
+    let (duration, reader): (u64, ResourceReader) = if range.contains_flac_header() {
+        let (info, reader) = crate::utils::read_header(file).await?;
+        (info.total_samples / info.sample_rate as u64, reader)
+    } else {
+        (0, Box::pin(file))
+    };
+
+    return Ok(AudioResourceReader {
+        info: AudioInfo {
+            extension: path.extension().map(|s| s.to_string_lossy().to_string()).unwrap_or_default(),
+            size: file_size as usize,
+            duration,
+        },
+        range: if range.is_full() {
+            range
+        } else {
+            range.end_with(file_size)
+        },
+        reader,
+    });
+}
 #[cfg(feature = "test")]
 mod test {
     #[tokio::test]
