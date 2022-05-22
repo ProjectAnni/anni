@@ -11,6 +11,7 @@ use crate::prelude::*;
 pub struct Album {
     #[serde(rename = "album")]
     info: AlbumInfo,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
     discs: Vec<Disc>,
 }
 
