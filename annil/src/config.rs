@@ -95,7 +95,7 @@ impl ProviderConfig {
 pub enum ProviderItem {
     #[serde(rename = "file")]
     #[serde(rename_all = "kebab-case")]
-    File { root: String },
+    File { root: String, strict: bool, #[serde(default = "default_layer")] layer: usize },
     #[serde(rename = "drive")]
     #[serde(rename_all = "kebab-case")]
     Drive {
@@ -104,6 +104,10 @@ pub enum ProviderItem {
         initial_token_path: Option<PathBuf>,
         token_path: PathBuf,
     },
+}
+
+const fn default_layer() -> usize {
+    2
 }
 
 #[derive(Deserialize)]
