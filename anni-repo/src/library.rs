@@ -1,6 +1,7 @@
 use regex::Regex;
 use std::path::Path;
 use std::str::FromStr;
+use once_cell::sync::Lazy;
 use thiserror::Error;
 use toml::value::DatetimeParseError;
 use crate::models::AnniDate;
@@ -35,10 +36,12 @@ pub enum InfoParseError {
     InvalidDateTime(#[from] DatetimeParseError),
 }
 
+static ALBUM_INFO: Lazy<Regex> = Lazy::new(|| Regex::new(r"^\[(\d{4}|\d{2})-?(\d{2})-?(\d{2})]\[([^]]+)] (.+?)(?: \[(\d+) Discs])?$").unwrap());
+static DISC_INFO: Lazy<Regex> = Lazy::new(|| Regex::new(r"^\[([^]]+)] (.+) \[Disc (\d+)]$").unwrap());
+
 // catalog, title, disc_id
 pub fn disc_info(path: &str) -> Result<(String, String, usize), InfoParseError> {
-    let r = Regex::new(r"^\[([^]]+)] (.+) \[Disc (\d+)]$").unwrap();
-    let r = r.captures(path).ok_or(InfoParseError::NotMatch)?;
+    let r = DISC_INFO.captures(path).ok_or(InfoParseError::NotMatch)?;
     if r.len() == 0 {
         return Err(InfoParseError::NoCaptureGroup);
     }
@@ -52,8 +55,7 @@ pub fn disc_info(path: &str) -> Result<(String, String, usize), InfoParseError> 
 
 // Date, catalog, title, disc_count
 pub fn album_info(path: &str) -> Result<(AnniDate, String, String, usize), InfoParseError> {
-    let r = Regex::new(r"^\[(\d{4}|\d{2})-?(\d{2})-?(\d{2})]\[([^]]+)] (.+?)(?: \[(\d+) Discs])?$").unwrap();
-    let r = r.captures(path).ok_or(InfoParseError::NotMatch)?;
+    let r = ALBUM_INFO.captures(path).ok_or(InfoParseError::NotMatch)?;
     if r.len() == 0 {
         return Err(InfoParseError::NoCaptureGroup);
     }

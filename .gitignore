@@ -4,8 +4,9 @@
 *.glade~
 *.token
 
-*.svg
+flamegraph.svg
 perf.data
+perf.data.old
 *.db-shm
 *.db-wal
 repo
