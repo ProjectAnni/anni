@@ -199,7 +199,7 @@ impl StrictFileBackend {
     }
 
     
-    pub fn get_album_path(&self, album_id: &str) -> PathBuf {
+    pub fn album_path(&self, album_id: &str) -> PathBuf {
         let mut res = self.root.clone();
         for i in 0..self.layer {
             res.push(match &album_id[i * 2..=i * 2 + 1].trim_start_matches('0') {
@@ -252,7 +252,7 @@ impl AnniProvider for StrictFileBackend {
     }
 
     async fn has_album(&self, album_id: &str) -> bool {
-        self.get_album_path(album_id).exists()
+        self.album_path(album_id).exists()
     }
     
     async fn get_audio_info(&self, album_id: &str, disc_id: u8, track_id: u8) -> Result<AudioInfo, ProviderError> {
@@ -266,7 +266,7 @@ impl AnniProvider for StrictFileBackend {
         track_id: u8,
         range: Range,
     ) -> Result<AudioResourceReader, ProviderError> {
-        let path = self.get_album_path(album_id);
+        let path = self.album_path(album_id);
         let file = File::open(
             path.join(disc_id.to_string())
                 .join(format!("{track_id}.flac")),
@@ -277,8 +277,8 @@ impl AnniProvider for StrictFileBackend {
 
     async fn get_cover(&self, album_id: &str, disc_id: Option<u8>) -> Result<ResourceReader, ProviderError> {
         let path = match disc_id {
-            Some(id) => self.get_album_path(album_id).join(id.to_string()),
-            None => self.get_album_path(album_id),
+            Some(disc_id) => self.album_path(album_id).join(disc_id.to_string()),
+            None => self.album_path(album_id),
         };
         let file = File::open(path.join("cover.jpg")).await?;
         Ok(Box::pin(file))
