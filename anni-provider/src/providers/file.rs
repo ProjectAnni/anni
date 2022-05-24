@@ -136,10 +136,6 @@ impl AnniProvider for FileBackend {
         Ok(self.album_path.keys().map(|s| Cow::Borrowed(s.as_str())).collect())
     }
 
-    async fn get_audio_info(&self, album_id: &str, disc_id: u8, track_id: u8) -> Result<AudioInfo, ProviderError> {
-        Ok(self.get_audio(album_id, disc_id, track_id, Range::FLAC_HEADER).await?.info)
-    }
-
     async fn get_audio(
         &self,
         album_id: &str,
@@ -255,10 +251,6 @@ impl AnniProvider for StrictFileBackend {
         self.album_path(album_id).exists()
     }
     
-    async fn get_audio_info(&self, album_id: &str, disc_id: u8, track_id: u8) -> Result<AudioInfo, ProviderError> {
-        Ok(self.get_audio(album_id, disc_id, track_id, Range::FLAC_HEADER).await?.info)
-    }
-
     async fn get_audio(
         &self,
         album_id: &str,

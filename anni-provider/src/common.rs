@@ -119,7 +119,7 @@ impl Range {
 /// AnniProvider is a common trait for anni resource providers.
 /// It provides functions to get cover, audio, album list and reload.
 #[async_trait]
-// work around to add a default implementaion for has_albums()
+// work around to add a default implementation for has_albums()
 // https://github.com/rust-lang/rust/issues/51443
 // https://docs.rs/async-trait/latest/async_trait/index.html#dyn-traits
 pub trait AnniProvider: Sync {
@@ -132,7 +132,9 @@ pub trait AnniProvider: Sync {
     }
 
     /// Get audio info describing basic information of the audio file.
-    async fn get_audio_info(&self, album_id: &str, disc_id: u8, track_id: u8) -> Result<AudioInfo, ProviderError>;
+    async fn get_audio_info(&self, album_id: &str, disc_id: u8, track_id: u8) -> Result<AudioInfo, ProviderError> {
+        Ok(self.get_audio(album_id, disc_id, track_id, Range::FLAC_HEADER).await?.info)
+    }
 
     /// Returns a reader implements AsyncRead for content reading
     async fn get_audio(&self, album_id: &str, disc_id: u8, track_id: u8, range: Range) -> Result<AudioResourceReader, ProviderError>;

@@ -194,11 +194,6 @@ impl AnniProvider for DriveBackend {
             .collect())
     }
 
-    async fn get_audio_info(&self, album_id: &str, disc_id: u8, track_id: u8) -> Result<AudioInfo, ProviderError> {
-        // TODO: cache audio size
-        Ok(self.get_audio(album_id, disc_id, track_id, Range::FLAC_HEADER).await?.info)
-    }
-
     async fn get_audio(&self, album_id: &str, disc_id: u8, track_id: u8, range: Range) -> Result<AudioResourceReader, ProviderError> {
         // catalog not found
         if !self.folders.contains_key(album_id) {
