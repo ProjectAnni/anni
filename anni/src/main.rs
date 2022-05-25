@@ -30,6 +30,7 @@ pub enum AnniSubcommand {
     Convention(ConventionSubcommand),
     Repo(RepoSubcommand),
     Library(LibrarySubcommand),
+    Completions(CompletionsSubcommand),
 }
 
 #[tokio::main]

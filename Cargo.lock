@@ -281,6 +281,7 @@ dependencies = [
  "anni-vgmdb",
  "anyhow",
  "clap",
+ "clap_complete",
  "cuna",
  "directories-next",
  "edit",
@@ -682,6 +683,15 @@ dependencies = [
  "strsim",
  "termcolor",
  "textwrap",
+]
+
+[[package]]
+name = "clap_complete"
+version = "3.1.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "da92e6facd8d73c22745a5d3cbb59bdf8e46e3235c923e516527d8e81eec14a4"
+dependencies = [
+ "clap",
 ]
 
 [[package]]
