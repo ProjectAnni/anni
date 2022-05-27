@@ -188,9 +188,9 @@ pub struct StrictFileBackend {
     layer: usize,
 }
 
-pub fn strict_album_path(root: &PathBuf, album_id: &str, layers: usize) -> PathBuf {
+pub fn strict_album_path(root: &PathBuf, album_id: &str, layer: usize) -> PathBuf {
     let mut res = root.clone();
-    for i in 0..layers {
+    for i in 0..layer {
         res.push(match &album_id[i * 2..=i * 2 + 1].trim_start_matches('0') {
             &"" => "0",
             s @ _ => s,

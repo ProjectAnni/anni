@@ -182,7 +182,10 @@ fn is_uuid(input: &str) -> bool {
 #[derive(Args, Debug, Clone)]
 pub struct LibraryLinkAction {
     #[clap(short, long, default_value = "2")]
-    layers: usize,
+    layer: usize,
+
+    #[clap(long)]
+    incremental: bool,
 
     from: PathBuf,
     to: PathBuf,
@@ -197,9 +200,11 @@ pub async fn library_link(me: LibraryLinkAction, manager: RepositoryManager) -> 
         anyhow::bail!("Must migrate from a directory!");
     }
 
-    // 1. recreate `to` folder
-    fs::remove_dir_all(&to)?; // this function only remove sym link and does not remove the underlying file
-    fs::create_dir_all(&to)?;
+    if !me.incremental {
+        // 1. recreate `to` folder
+        fs::remove_dir_all(&to)?; // this function only remove sym link and does not remove the underlying file
+        fs::create_dir_all(&to)?;
+    }
 
     // 2. create temp database
     let repo_path = to.join("repo.db");
@@ -209,7 +214,10 @@ pub async fn library_link(me: LibraryLinkAction, manager: RepositoryManager) -> 
     let provider = FileBackend::new(from, RepoDatabaseRead::new(&repo_path.to_string_lossy().to_string())?).await?;
     for (album_id, album_from) in provider.album_path {
         // 4. create album_id folder
-        let album_to = strict_album_path(&to, &album_id, me.layers);
+        let album_to = strict_album_path(&to, &album_id, me.layer);
+        if me.incremental && album_to.exists() {
+            continue;
+        }
         fs::create_dir_all(&album_to)?;
 
         // 5. link album art
