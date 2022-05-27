@@ -65,30 +65,57 @@ impl ValidatorList {
     pub fn validate(&self, input: &str) -> Vec<(&'static str, ValidateResult)> {
         self.0.iter()
             .map(|v| (v.0, v.1(input)))
-            .filter(|v| !v.1.valid || v.1.warning)
+            .filter(|v| !v.1.is_pass())
             .collect()
     }
 }
 
-pub struct ValidateResult {
-    pub valid: bool,
-    pub warning: bool,
-    pub message: Option<String>,
+pub enum ValidateResult {
+    Pass,
+    Warning(String),
+    Error(String),
 }
 
 impl ValidateResult {
-    fn new(valid: bool, is_warning: bool) -> Self {
-        Self {
-            valid,
-            warning: is_warning,
-            message: None,
+    fn pass() -> Self {
+        Self::Pass
+    }
+
+    fn pass_or(pass: bool, message: String) -> Self {
+        if pass {
+            Self::Pass
+        } else {
+            Self::Error(message)
+        }
+    }
+
+    fn warn(message: String) -> Self {
+        Self::Warning(message)
+    }
+
+    fn fail(message: String) -> Self {
+        Self::Error(message)
+    }
+
+    pub fn is_pass(&self) -> bool {
+        match self {
+            Self::Pass => true,
+            _ => false,
+        }
+    }
+
+    pub fn into_message(self) -> String {
+        match self {
+            Self::Warning(m) => m,
+            Self::Error(m) => m,
+            Self::Pass => unreachable!(),
         }
     }
 }
 
 pub fn number_validator(str: &str) -> ValidateResult {
     let pass = str.chars().all(|c| c.is_numeric());
-    ValidateResult::new(pass, false)
+    ValidateResult::pass_or(pass, "not a number".to_string())
 }
 
 pub fn trim_validator(str: &str) -> ValidateResult {
@@ -102,7 +129,7 @@ pub fn trim_validator(str: &str) -> ValidateResult {
         is_start = false;
     }
     let pass = !is_empty;
-    ValidateResult::new(pass, false)
+    ValidateResult::pass_or(pass, "whitespaces need to be trimmed".to_string())
 }
 
 pub fn date_validator(str: &str) -> ValidateResult {
@@ -111,14 +138,14 @@ pub fn date_validator(str: &str) -> ValidateResult {
     let mut mode = 0;
     for c in str.chars() {
         if mode > 9 || (!c.is_numeric() && c != '-') {
-            return ValidateResult::new(false, false);
+            return ValidateResult::fail("invalid date".to_string());
         }
         if c == '-' {
             if mode != 4 && mode != 7 {
-                return ValidateResult::new(false, false);
+                return ValidateResult::fail("invalid date".to_string());
             }
         } else if !c.is_numeric() {
-            return ValidateResult::new(false, false);
+            return ValidateResult::fail("invalid date".to_string());
         }
         mode += 1;
     }
@@ -126,30 +153,22 @@ pub fn date_validator(str: &str) -> ValidateResult {
     let is_year_month = mode == 7;
     let is_year = mode == 4;
     if is_year_month_day {
-        ValidateResult::new(true, false)
+        ValidateResult::pass()
     } else if is_year_month {
-        ValidateResult {
-            valid: true,
-            warning: true,
-            message: Some("Empty day field, could it be more accurate?".to_string()),
-        }
+        ValidateResult::warn("Empty day field, could it be more accurate?".to_string())
     } else if is_year {
-        ValidateResult {
-            valid: true,
-            warning: true,
-            message: Some("Empty month and day fields, could it be more accurate?".to_string()),
-        }
+        ValidateResult::warn("Empty month and day fields, could it be more accurate?".to_string())
     } else {
-        ValidateResult::new(false, false)
+        ValidateResult::fail("invalid date".to_string())
     }
 }
 
 pub fn artist_validator(str: &str) -> ValidateResult {
     match ArtistList::parse(str) {
-        Ok(_) => ValidateResult::new(true, false),
+        Ok(_) => ValidateResult::pass(),
         Err(err) => {
             log::debug!("ArtistList parse error: {}", err);
-            ValidateResult::new(false, false)
+            ValidateResult::warn(err)
         }
     }
 }
@@ -161,7 +180,7 @@ lazy_static::lazy_static! {
 /// http://www.0x08.org/posts/middle-dot
 pub fn middle_dot_validator(input: &str) -> ValidateResult {
     let pass = !DOTS.is_match(input);
-    ValidateResult::new(pass, false)
+    ValidateResult::pass_or(pass, "invalid dots detected".to_string())
 }
 
 pub fn middle_dot_replace(input: &str) -> String {
@@ -170,7 +189,7 @@ pub fn middle_dot_replace(input: &str) -> String {
 
 pub fn tidal_validator(input: &str) -> ValidateResult {
     let pass = !input.contains('\u{301c}');
-    ValidateResult::new(pass, false)
+    ValidateResult::pass_or(pass, "invalid tidal detected".to_string())
 }
 
 pub fn tidal_replace(input: &str) -> String {

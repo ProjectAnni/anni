@@ -297,6 +297,7 @@ dependencies = [
  "reqwest",
  "rust-embed",
  "serde",
+ "serde_json",
  "tokio",
  "toml",
  "uuid",

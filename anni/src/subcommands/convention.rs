@@ -212,31 +212,27 @@ impl ConventionRules {
             // type validators
             for (ty, result) in self.types[tag.value_type.as_str()].validate(value) {
                 // if it's a warning, display it with warn!
-                if result.warning {
-                    warn!(target: "convention/tag/type", "Validator {ty} warning for tag {key_raw}={value} in file: {filename_str}");
-                    if let Some(message) = result.message {
-                        warn!(target: "convention/tag/type", "  {message}");
+                match result {
+                    ValidateResult::Warning(message) => {
+                        warn!(target: "convention/tag/type", "Validator {ty} warning for tag {key_raw}={value} in file {filename_str}: {message}");
                     }
-                } else if !result.valid {
-                    error!(target: "convention/tag/type", "Type validator {ty} not passed: invalid tag value {key_raw}={value} in file: {filename_str}");
-                    if let Some(message) = result.message {
-                        error!(target: "convention/tag/type", "  {message}");
+                    ValidateResult::Error(message) => {
+                        error!(target: "convention/tag/type", "Type validator {ty} not passed: invalid tag value {key_raw}={value} in file {filename_str}: {message}");
                     }
+                    _ => {}
                 }
             }
 
             // field validators
             for (ty, result) in tag.validate(value) {
-                if result.warning {
-                    warn!(target: "convention/tag/validator", "Validator {ty} warning for tag {key_raw}={value} in file {filename_str}");
-                    if let Some(message) = &result.message {
-                        warn!(target: "convention/tag/validator", "  {message}");
+                match result {
+                    ValidateResult::Warning(message) => {
+                        warn!(target: "convention/tag/validator", "Validator {ty} warning for tag {key_raw}={value} in file {filename_str}: {message}");
                     }
-                } else {
-                    error!(target: "convention/tag/validator", "Validator {ty} not passed: invalid tag value {key_raw}={value} in file {filename_str}");
-                    if let Some(message) = &result.message {
-                        error!(target: "convention/tag/validator", "  {message}");
+                    ValidateResult::Error(message) => {
+                        error!(target: "convention/tag/validator", "Validator {ty} not passed: invalid tag value {key_raw}={value} in file {filename_str}: {message}");
                     }
+                    _ => {}
                 }
             }
 

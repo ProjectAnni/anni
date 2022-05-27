@@ -1,4 +1,4 @@
-use serde::{Serialize, Deserialize, Deserializer, Serializer};
+use serde::{Serialize, Deserialize};
 use std::str::FromStr;
 use anni_common::inherit::{InheritableValue, default_some};
 use std::borrow::Cow;
@@ -397,7 +397,7 @@ impl Track {
     pub fn artist(&self) -> &str {
         self.artist.as_ref()
     }
-    
+
     pub fn set_artist<T: Into<InheritableValue<String>>>(&mut self, artist: T) {
         self.artist = artist.into();
     }
@@ -417,7 +417,8 @@ impl Track {
     }
 }
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
 pub enum TrackType {
     Normal,
     Instrumental,
@@ -425,7 +426,6 @@ pub enum TrackType {
     Drama,
     Radio,
     Vocal,
-    Other(String),
 }
 
 impl AsRef<str> for TrackType {
@@ -437,7 +437,6 @@ impl AsRef<str> for TrackType {
             TrackType::Drama => "drama",
             TrackType::Radio => "radio",
             TrackType::Vocal => "vocal",
-            TrackType::Other(s) => s.as_ref(),
         }
     }
 }
@@ -457,30 +456,6 @@ impl TrackType {
         } else {
             None
         }
-    }
-}
-
-impl Serialize for TrackType {
-    fn serialize<S>(&self, serializer: S) -> Result<<S as Serializer>::Ok, <S as Serializer>::Error> where
-        S: Serializer {
-        serializer.serialize_str(self.as_ref())
-    }
-}
-
-impl<'de> Deserialize<'de> for TrackType {
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-        where D: Deserializer<'de>
-    {
-        let s = String::deserialize(deserializer)?;
-        Ok(match s.as_str() {
-            "normal" => TrackType::Normal,
-            "instrumental" => TrackType::Instrumental,
-            "absolute" => TrackType::Absolute,
-            "drama" => TrackType::Drama,
-            "radio" => TrackType::Radio,
-            "vocal" => TrackType::Vocal,
-            _ => TrackType::Other(s),
-        })
     }
 }
 
