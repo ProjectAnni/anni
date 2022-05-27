@@ -66,8 +66,7 @@ impl FlacExportAction {
             FlacExportType::List => {
                 for (i, block) in stream.blocks.iter().enumerate() {
                     let mut out = self.output.to_writer()?;
-                    let mut handle = out.lock();
-                    block.write(&mut handle, i)?;
+                    block.write(&mut out, i)?;
                 }
                 Ok(())
             }
@@ -77,7 +76,6 @@ impl FlacExportAction {
     fn export_inner(&self, header: &FlacHeader, export_block_name: &str) -> anyhow::Result<()> {
         let mut first_picture = true;
         let mut out = self.output.to_writer()?;
-        let mut handle = out.lock();
 
         for (i, block) in header.blocks.iter().enumerate() {
             // if block_num is specified, only dump the specified type
@@ -89,17 +87,17 @@ impl FlacExportAction {
 
             if block.data.as_str() == export_block_name {
                 match &block.data {
-                    MetadataBlockData::Comment(s) => write!(handle, "{}", s)?,
+                    MetadataBlockData::Comment(s) => write!(out, "{}", s)?,
                     // TODO
                     // MetadataBlockData::CueSheet(_) => {}
                     MetadataBlockData::Picture(p) => {
                         // only dump the first picture of specified type
                         if first_picture && p.picture_type == self.picture_type {
-                            handle.write_all(&p.data)?;
+                            out.write_all(&p.data)?;
                             first_picture = false;
                         }
                     }
-                    _ => block.write(&mut handle, i)?,
+                    _ => block.write(&mut out, i)?,
                 };
             }
         }
