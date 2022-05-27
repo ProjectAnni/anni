@@ -4,6 +4,9 @@ use anni_clap_handler::{Context, Handler, handler};
 use anni_common::fs;
 use anni_flac::blocks::{UserComment, UserCommentExt};
 use anni_flac::FlacHeader;
+use anni_provider::providers::file::strict_album_path;
+use anni_provider::providers::FileBackend;
+use anni_repo::db::RepoDatabaseRead;
 use anni_repo::library::{album_info, file_name};
 use anni_repo::prelude::*;
 use anni_repo::RepositoryManager;
@@ -34,6 +37,7 @@ impl LibrarySubcommand {
 pub enum LibraryAction {
     New(LibraryNewAlbumAction),
     Tag(LibraryApplyTagAction),
+    Link(LibraryLinkAction),
 }
 
 #[derive(Args, Debug, Clone)]
@@ -173,4 +177,69 @@ pub fn library_apply_tag(me: LibraryApplyTagAction, manager: RepositoryManager) 
 
 fn is_uuid(input: &str) -> bool {
     regex::Regex::new(r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$").unwrap().is_match(input)
+}
+
+#[derive(Args, Debug, Clone)]
+pub struct LibraryLinkAction {
+    #[clap(short, long, default_value = "2")]
+    layers: usize,
+
+    from: PathBuf,
+    to: PathBuf,
+}
+
+#[handler(LibraryLinkAction)]
+pub async fn library_link(me: LibraryLinkAction, manager: RepositoryManager) -> anyhow::Result<()> {
+    let manager = manager.into_owned_manager()?;
+    let from = me.from.canonicalize()?;
+    let to = me.to;
+    if !from.is_dir() {
+        anyhow::bail!("Must migrate from a directory!");
+    }
+
+    // 1. recreate `to` folder
+    fs::remove_dir_all(&to)?; // this function only remove sym link and does not remove the underlying file
+    fs::create_dir_all(&to)?;
+
+    // 2. create temp database
+    let repo_path = to.join("repo.db");
+    manager.to_database(&repo_path)?;
+
+    // 3. scan `from` folder
+    let provider = FileBackend::new(from, RepoDatabaseRead::new(&repo_path.to_string_lossy().to_string())?).await?;
+    for (album_id, album_from) in provider.album_path {
+        // 4. create album_id folder
+        let album_to = strict_album_path(&to, &album_id, me.layers);
+        fs::create_dir_all(&album_to)?;
+
+        // 5. link album art
+        fs::symlink_file(album_from.join("cover.jpg"), album_to.join("cover.jpg"))?;
+
+        let discs = vec![album_from];
+        let discs = provider.album_discs.get(&album_id).unwrap_or(&discs);
+        for (i, disc_from) in discs.iter().enumerate() {
+            // 6. create disc folder
+            let disc_to = album_to.join(format!("{}", i + 1));
+            fs::create_dir_all(&disc_to)?;
+
+            // 7. link disc art
+            fs::symlink_file(disc_from.join("cover.jpg"), disc_to.join("cover.jpg"))?;
+
+            // 8. link tracks
+            for entry in fs::read_dir(&disc_from)? {
+                let entry = entry?;
+                let parts = entry.file_name();
+                let parts = parts.to_string_lossy();
+                let parts: Vec<_> = parts.split('.').collect();
+                if let Some(&"flac") = parts.last() {
+                    let index = parts.first().unwrap();
+                    let track_from = entry.path();
+                    let track_to = disc_to.join(format!("{}.flac", index.trim_start_matches('0')));
+                    fs::symlink_file(track_from, track_to)?;
+                }
+            };
+        }
+    }
+
+    Ok(())
 }

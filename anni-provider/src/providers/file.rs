@@ -15,8 +15,8 @@ use uuid::Uuid;
 pub struct FileBackend {
     root: PathBuf,
     repo: Mutex<RepoDatabaseRead>,
-    album_path: HashMap<String, PathBuf>,
-    album_discs: HashMap<String, Vec<PathBuf>>,
+    pub album_path: HashMap<String, PathBuf>,
+    pub album_discs: HashMap<String, Vec<PathBuf>>,
 }
 
 impl FileBackend {
@@ -40,11 +40,11 @@ impl FileBackend {
         dir: P,
     ) -> Result<(), ProviderError> {
         let mut to_visit = vec![dir.as_ref().to_owned()];
-    
-         while let Some(dir) = to_visit.pop() {
-             self.walk_dir_impl(dir, &mut to_visit).await?;
-         }
-         Ok(())   
+
+        while let Some(dir) = to_visit.pop() {
+            self.walk_dir_impl(dir, &mut to_visit).await?;
+        }
+        Ok(())
     }
 
     async fn walk_dir_impl<P: AsRef<Path> + Send>(
@@ -148,13 +148,13 @@ impl AnniProvider for FileBackend {
         let file = loop {
             match dir.next_entry().await? {
                 Some(entry)
-                    if entry
-                        .file_name()
-                        .to_string_lossy()
-                        .starts_with(&format!("{:02}.", track_id)) =>
-                {
-                    break File::open(entry.path()).await?
-                }
+                if entry
+                    .file_name()
+                    .to_string_lossy()
+                    .starts_with(&format!("{:02}.", track_id)) =>
+                    {
+                        break File::open(entry.path()).await?;
+                    }
                 None => return Err(ProviderError::FileNotFound),
                 _ => {}
             }
@@ -167,7 +167,6 @@ impl AnniProvider for FileBackend {
         let path = match disc_id {
             Some(disc_id) => self.get_disc(album_id, disc_id)?,
             _ => self.get_album_path(album_id)?,
-            
         };
         let path = path.join("cover.jpg");
         let file = File::open(path).await?;
@@ -189,21 +188,24 @@ pub struct StrictFileBackend {
     layer: usize,
 }
 
+pub fn strict_album_path(root: &PathBuf, album_id: &str, layers: usize) -> PathBuf {
+    let mut res = root.clone();
+    for i in 0..layers {
+        res.push(match &album_id[i * 2..=i * 2 + 1].trim_start_matches('0') {
+            &"" => "0",
+            s @ _ => s,
+        });
+    }
+    res.join(album_id)
+}
+
 impl StrictFileBackend {
     pub fn new(root: PathBuf, layer: usize) -> Self {
         Self { root, layer }
     }
 
-    
-    pub fn album_path(&self, album_id: &str) -> PathBuf {
-        let mut res = self.root.clone();
-        for i in 0..self.layer {
-            res.push(match &album_id[i * 2..=i * 2 + 1].trim_start_matches('0') {
-                &"" => "0",
-                s @ _ => s,
-            });
-        }
-        res.join(album_id)
+    fn album_path(&self, album_id: &str) -> PathBuf {
+        strict_album_path(&self.root, album_id, self.layer)
     }
 }
 
@@ -250,7 +252,7 @@ impl AnniProvider for StrictFileBackend {
     async fn has_album(&self, album_id: &str) -> bool {
         self.album_path(album_id).exists()
     }
-    
+
     async fn get_audio(
         &self,
         album_id: &str,
@@ -263,7 +265,7 @@ impl AnniProvider for StrictFileBackend {
             path.join(disc_id.to_string())
                 .join(format!("{track_id}.flac")),
         ).await?;
-        
+
         read_audio(&path, file, range).await
     }
 
@@ -311,6 +313,7 @@ async fn read_audio(path: &Path, mut file: File, range: Range) -> Result<AudioRe
         reader,
     });
 }
+
 #[cfg(feature = "test")]
 mod test {
     #[tokio::test]

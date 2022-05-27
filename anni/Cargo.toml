@@ -21,6 +21,7 @@ anni-common = { path = "../anni-common" }
 anni-flac = { path = "../anni-flac" }
 anni-repo = { path = "../anni-repo", features = ["db", "arc", "git"] }
 anni-clap-handler = { path = "../anni-clap-handler", features = ["async"] }
+anni-provider = { path = "../anni-provider" }
 
 i18n-embed = { version = "0.13.4", features = ["fluent-system", "desktop-requester", "filesystem-assets"] }
 i18n-embed-fl = "0.6.4"

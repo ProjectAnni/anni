@@ -277,6 +277,7 @@ dependencies = [
  "anni-clap-handler",
  "anni-common",
  "anni-flac",
+ "anni-provider",
  "anni-repo",
  "anni-vgmdb",
  "anyhow",

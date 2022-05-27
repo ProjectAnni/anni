@@ -158,3 +158,10 @@ pub fn remove_file<P: AsRef<Path>>(input: P, trashcan: bool) -> io::Result<()> {
         std::fs::remove_file(input)
     }
 }
+
+pub fn symlink_file<P: AsRef<Path>>(from: P, to: P) -> io::Result<()> {
+    #[cfg(unix)]
+    return std::os::unix::fs::symlink(from, to);
+    #[cfg(windows)]
+    return std::os::windows::fs::symlink_file(from, to);
+}

@@ -72,6 +72,7 @@ repo-migrate-album-id = Add album_id field to album metadata.
 
 ## Library
 library = Anni Audio library manager.
+library-link = Link library to strict format.
 
 ## Completions
 completions = Generate shell completion.

@@ -71,6 +71,7 @@ repo-migrate-album-id = 为缺少 album_id 字段的专辑添加这一字段
 
 ## Library
 library = 提供音频仓库的管理功能
+library-link = 以符号链接将约定目录格式转换为严格目录格式
 
 ## Completions
 completions = 生成 Shell 的补全脚本

@@ -100,8 +100,6 @@ impl DriveBackend {
         ]).await?;
         let hub = DriveHub::new(
             hyper::Client::builder()
-                // https://github.com/hyperium/hyper/issues/2312
-                .pool_max_idle_per_host(0)
                 .build(HttpsConnectorBuilder::new()
                     .with_native_roots()
                     .https_or_http()
