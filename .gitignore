@@ -9,5 +9,4 @@ perf.data
 perf.data.old
 *.db-shm
 *.db-wal
-repo
 repo.json
