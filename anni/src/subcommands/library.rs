@@ -232,6 +232,7 @@ pub fn library_apply_tag(me: LibraryApplyTagAction, manager: RepositoryManager) 
             anyhow::bail!("{} is not a directory", path.display());
         }
 
+        let path = path.canonicalize()?;
         let folder_name = path.file_name().expect("Failed to get basename of path").to_string_lossy();
         if is_uuid(&folder_name) {
             // strict folder structure, folder name is album_id
