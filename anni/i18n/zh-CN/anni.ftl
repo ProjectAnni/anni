@@ -55,7 +55,6 @@ repo-get-cue-catalog = 当 catalog 不存在时，手动指定
 repo-cue-insufficient-information = CUE 文件未能提供足够的信息
 
 repo-edit = 当元数据仓库中存在该专辑时，打开仓库中对应的文件
-repo-apply = 将元数据仓库中的数据应用到专辑
 repo-validate = 检查仓库数据的合法性
 
 repo-print = 根据品番输出元数据仓库中的数据
@@ -71,6 +70,7 @@ repo-migrate-album-id = 为缺少 album_id 字段的专辑添加这一字段
 
 ## Library
 library = 提供音频仓库的管理功能
+library-tag = 将元数据仓库中的数据应用到专辑
 library-link = 以符号链接将约定目录格式转换为严格目录格式
 
 ## Completions

@@ -10,7 +10,7 @@ use anni_repo::db::RepoDatabaseRead;
 use anni_repo::library::{album_info, file_name};
 use anni_repo::prelude::*;
 use anni_repo::RepositoryManager;
-use crate::ll;
+use crate::{ball, ll};
 
 #[derive(Args, Debug, Clone, Handler)]
 #[clap(about = ll ! ("library"))]
@@ -32,11 +32,12 @@ impl LibrarySubcommand {
     }
 }
 
-
 #[derive(Subcommand, Debug, Clone, Handler)]
 pub enum LibraryAction {
     New(LibraryNewAlbumAction),
-    Tag(LibraryApplyTagAction),
+    #[clap(name = "tag", alias = "apply")]
+    #[clap(about = ll ! {"library-tag"})]
+    ApplyTag(LibraryApplyTagAction),
     Link(LibraryLinkAction),
 }
 
@@ -152,6 +153,77 @@ DISCTOTAL={disc_total}
     Ok(())
 }
 
+fn apply_convention(directory: &PathBuf, album: Album) -> anyhow::Result<()> {
+    let discs = album.discs();
+
+    for (disc_num, disc) in album.discs().iter().enumerate() {
+        let disc_num = disc_num + 1;
+        let disc_dir = if discs.len() > 1 {
+            directory.join(format!(
+                "[{catalog}] {title} [Disc {disc_num}]",
+                catalog = disc.catalog(),
+                title = disc.title(),
+                disc_num = disc_num,
+            ))
+        } else {
+            directory.to_owned()
+        };
+        debug!(target: "repo|apply", "Disc dir: {}", disc_dir.to_string_lossy());
+
+        if !disc_dir.exists() {
+            bail!("Disc directory does not exist: {:?}", disc_dir);
+        }
+
+        let files = fs::get_ext_files(disc_dir, "flac", false)?.unwrap();
+        let tracks = disc.tracks();
+        if files.len() != tracks.len() {
+            bail!("Track number mismatch in Disc {} of {}. Aborted.", disc_num, album.catalog());
+        }
+
+        for (track_num, (file, track)) in files.iter().zip(tracks).enumerate() {
+            let track_num = track_num + 1;
+
+            let mut flac = FlacHeader::from_file(file)?;
+            let comments = flac.comments();
+            // TODO: read anni convention config here
+            let meta = format!(
+                r#"TITLE={title}
+ALBUM={album}
+ARTIST={artist}
+DATE={release_date}
+TRACKNUMBER={track_number}
+TRACKTOTAL={track_total}
+DISCNUMBER={disc_number}
+DISCTOTAL={disc_total}
+"#,
+                title = track.title(),
+                album = disc.title(),
+                artist = track.artist(),
+                release_date = album.release_date(),
+                track_number = track_num,
+                track_total = tracks.len(),
+                disc_number = disc_num,
+                disc_total = discs.len(),
+            );
+            // no comment block exist, or comments is not correct
+            if comments.is_none() || comments.unwrap().to_string() != meta {
+                let comments = flac.comments_mut();
+                comments.clear();
+                comments.push(UserComment::title(track.title()));
+                comments.push(UserComment::album(disc.title()));
+                comments.push(UserComment::artist(track.artist()));
+                comments.push(UserComment::date(album.release_date()));
+                comments.push(UserComment::track_number(track_num));
+                comments.push(UserComment::track_total(tracks.len()));
+                comments.push(UserComment::disc_number(disc_num));
+                comments.push(UserComment::disc_total(discs.len()));
+                flac.save::<String>(None)?;
+            }
+        }
+    }
+    Ok(())
+}
+
 #[handler(LibraryApplyTagAction)]
 pub fn library_apply_tag(me: LibraryApplyTagAction, manager: RepositoryManager) -> anyhow::Result<()> {
     let manager = manager.into_owned_manager()?;
@@ -160,16 +232,39 @@ pub fn library_apply_tag(me: LibraryApplyTagAction, manager: RepositoryManager) 
             anyhow::bail!("{} is not a directory", path.display());
         }
 
-        let album_id = path.file_name().expect("Failed to get basename of path").to_string_lossy();
-        if is_uuid(&album_id) {
-            // strict folder structure
-            let album = manager.albums().get(album_id.as_ref()).ok_or_else(|| anyhow::anyhow!("Album {} not found", album_id))?;
+        let folder_name = path.file_name().expect("Failed to get basename of path").to_string_lossy();
+        if is_uuid(&folder_name) {
+            // strict folder structure, folder name is album_id
+            let album = manager.albums().get(folder_name.as_ref()).ok_or_else(|| anyhow::anyhow!("Album {} not found", folder_name))?;
             apply_strict(&path, album)?;
-        } else if let Ok((_date, _catalog, _title, _disc_count)) = album_info(&album_id) {
-            // convention folder structure
-            todo!()
+        } else if let Ok((release_date, catalog, album_title, disc_count)) = album_info(&folder_name) {
+            debug!(target: "repo|apply", "Release date: {}, Catalog: {}, Title: {}", release_date, catalog, album_title);
+
+            // convention folder structure, load album by catalog
+            let albums = manager.repo.load_albums(&catalog)?;
+            let albums = if albums.len() > 1 {
+                albums.into_iter().filter(|a| a.title() == album_title).collect()
+            } else { albums };
+            if albums.is_empty() {
+                // no album found
+                ball!("repo-album-not-found", catalog = catalog);
+            }
+
+            // get track metadata & compare with album folder
+            let album = albums.into_iter().nth(0).unwrap();
+            if album.title() != album_title
+                || album.catalog() != catalog
+                || album.release_date() != &release_date {
+                ball!("repo-album-info-mismatch");
+            }
+
+            // check discs & tracks
+            if album.discs().len() != disc_count {
+                bail!("discs.len() != disc_count!");
+            }
+            apply_convention(&path, album)?;
         } else {
-            anyhow::bail!("{} is not a valid album id", album_id);
+            anyhow::bail!("{} is not a valid album id", folder_name);
         }
     }
     Ok(())

@@ -56,7 +56,6 @@ repo-get-cue-catalog = Specify catalog when it does not exist.
 repo-cue-insufficient-information = Insufficient information from CUE file.
 
 repo-edit = Open text editor for an album if metadata exists.
-repo-apply = Apply metadata from repository to album.
 repo-validate = Check whether data in repository is valid.
 
 repo-print = Print metadata information of given catalog.
@@ -72,6 +71,7 @@ repo-migrate-album-id = Add album_id field to album metadata.
 
 ## Library
 library = Anni Audio library manager.
+library-tag = Apply metadata from repository to album.
 library-link = Link library to strict format.
 
 ## Completions

@@ -11,7 +11,6 @@ use crate::{fl, ll, ball};
 use std::path::PathBuf;
 use std::str::FromStr;
 use anni_vgmdb::VGMClient;
-use anni_flac::blocks::{UserComment, UserCommentExt};
 use anni_clap_handler::{Context, Handler, handler};
 use anni_common::inherit::InheritableValue;
 use cuna::Cuna;
@@ -49,8 +48,6 @@ pub enum RepoAction {
     Get(RepoGetAction),
     #[clap(about = ll ! {"repo-edit"})]
     Edit(RepoEditAction),
-    #[clap(about = ll ! {"repo-apply"})]
-    Apply(RepoApplyAction),
     #[clap(about = ll ! {"repo-validate"})]
     #[clap(alias = "validate")]
     Lint(lint::RepoLintAction),
@@ -371,130 +368,6 @@ fn repo_edit(me: &RepoEditAction, manager: &RepositoryManager) -> anyhow::Result
     for directory in me.directories.iter() {
         if let Err(e) = do_edit(directory, manager) {
             error!("{}", e);
-        }
-    }
-    Ok(())
-}
-
-#[derive(Args, Debug, Clone)]
-pub struct RepoApplyAction {
-    #[clap(required = true)]
-    directories: Vec<PathBuf>,
-}
-
-#[handler(RepoApplyAction)]
-fn repo_apply(me: &RepoApplyAction, manager: &RepositoryManager) -> anyhow::Result<()> {
-    fn do_apply(directory: &PathBuf, manager: &RepositoryManager) -> anyhow::Result<()> {
-        let last = anni_repo::library::file_name(directory)?;
-        debug!(target: "repo|apply", "Directory: {}", last);
-        if !is_album_folder(&last) {
-            ball!("repo-invalid-album", name = last);
-        }
-
-        // extract album info
-        let (release_date, catalog, album_title, disc_count) = album_info(&last)?;
-        debug!(target: "repo|apply", "Release date: {}, Catalog: {}, Title: {}", release_date, catalog, album_title);
-
-        // load and pick album
-        let albums = manager.load_albums(&catalog)?;
-        let albums = if albums.len() > 1 {
-            albums.into_iter().filter(|a| a.title() == album_title).collect()
-        } else { albums };
-        if albums.is_empty() {
-            // no album found
-            ball!("repo-album-not-found", catalog = catalog);
-        }
-
-        // get track metadata & compare with album folder
-        let album = albums.into_iter().nth(0).unwrap();
-        if album.title() != album_title
-            || album.catalog() != catalog
-            || album.release_date() != &release_date {
-            ball!("repo-album-info-mismatch");
-        }
-
-        // check discs & tracks
-        let discs = album.discs();
-        if discs.len() != disc_count {
-            bail!("discs.len() != disc_count!");
-        }
-
-        for (disc_num, disc) in album.discs().iter().enumerate() {
-            let disc_num = disc_num + 1;
-            let disc_dir = if discs.len() > 1 {
-                directory.join(format!(
-                    "[{catalog}] {title} [Disc {disc_num}]",
-                    catalog = disc.catalog(),
-                    title = disc.title(),
-                    disc_num = disc_num,
-                ))
-            } else {
-                directory.to_owned()
-            };
-            debug!(target: "repo|apply", "Disc dir: {}", disc_dir.to_string_lossy());
-
-            if !disc_dir.exists() {
-                bail!("Disc directory does not exist: {:?}", disc_dir);
-            }
-
-            let files = fs::get_ext_files(disc_dir, "flac", false)?.unwrap();
-            let tracks = disc.tracks();
-            if files.len() != tracks.len() {
-                bail!(
-                    "Track number mismatch in Disc {} of {}. Aborted.",
-                    disc_num,
-                    catalog
-                );
-            }
-
-            for (track_num, (file, track)) in files.iter().zip(tracks).enumerate() {
-                let track_num = track_num + 1;
-
-                let mut flac = FlacHeader::from_file(file)?;
-                let comments = flac.comments();
-                // TODO: read anni convention config here
-                let meta = format!(
-                    r#"TITLE={title}
-ALBUM={album}
-ARTIST={artist}
-DATE={release_date}
-TRACKNUMBER={track_number}
-TRACKTOTAL={track_total}
-DISCNUMBER={disc_number}
-DISCTOTAL={disc_total}
-"#,
-                    title = track.title(),
-                    album = disc.title(),
-                    artist = track.artist(),
-                    release_date = album.release_date(),
-                    track_number = track_num,
-                    track_total = tracks.len(),
-                    disc_number = disc_num,
-                    disc_total = discs.len(),
-                );
-                // no comment block exist, or comments is not correct
-                if comments.is_none() || comments.unwrap().to_string() != meta {
-                    // TODO: user verify before apply tags
-                    let comments = flac.comments_mut();
-                    comments.clear();
-                    comments.push(UserComment::title(track.title()));
-                    comments.push(UserComment::album(disc.title()));
-                    comments.push(UserComment::artist(track.artist()));
-                    comments.push(UserComment::date(album.release_date()));
-                    comments.push(UserComment::track_number(track_num));
-                    comments.push(UserComment::track_total(tracks.len()));
-                    comments.push(UserComment::disc_number(disc_num));
-                    comments.push(UserComment::disc_total(discs.len()));
-                    flac.save::<String>(None)?;
-                }
-            }
-        }
-        Ok(())
-    }
-
-    for directory in me.directories.iter() {
-        if let Err(e) = do_apply(directory, manager) {
-            error!("{}", e)
         }
     }
     Ok(())
