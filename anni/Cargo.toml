@@ -5,7 +5,7 @@ authors = ["Yesterday17 <mmf@mmf.moe>"]
 edition = "2018"
 
 [dependencies]
-tokio = { version = "1.17.0", features = ["full"] }
+tokio = { version = "1", features = ["full"] }
 clap = { version = "3.1.12", features = ["derive", "cargo", "env"] }
 clap_complete = "3.1.4"
 regex = "1"
@@ -34,7 +34,7 @@ pretty_env_logger = { git = "https://github.com/ProjectAnni/pretty-env-logger" }
 anyhow = "1.0"
 
 cuna = "0.6.3"
-id3 = "0.6.6"
+id3 = "1"
 anni-vgmdb = "0.3.0"
 
 uuid = { version = "1", features = ["v4"] }

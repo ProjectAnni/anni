@@ -5,7 +5,6 @@ use crate::utils::*;
 use crate::prelude::*;
 use std::fmt;
 use std::path::Path;
-use image::GenericImageView;
 use std::borrow::Cow;
 use std::str::FromStr;
 use crate::error::FlacError;

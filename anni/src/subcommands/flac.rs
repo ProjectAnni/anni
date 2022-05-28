@@ -136,7 +136,7 @@ fn flac_remove_id3(me: &FlacRemoveID3Action) -> anyhow::Result<()> {
         for path in filenames.iter() {
             debug!("Opening {}", path.display());
             let mut file = std::fs::OpenOptions::new().read(true).write(true).open(&path)?;
-            let removed = id3::Tag::remove_from(&mut file)?;
+            let removed = id3::Tag::remove_from_file(&mut file)?;
             if removed {
                 info!("Removed ID3 tag from {}", path.display());
             } else {

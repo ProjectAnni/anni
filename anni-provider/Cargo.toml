@@ -5,11 +5,11 @@ authors = ["Yesterday17 <mmf@mmf.moe>"]
 edition = "2018"
 
 [dependencies]
-tokio = { version = "1", features = ["full", "time"] }
-tokio-util = { version = "0.6.3", features = ["compat", "io"] }
+tokio = { version = "1", features = ["time"] }
+tokio-util = { version = "0.7.2", features = ["compat", "io"] }
 tokio-stream = "0.1.8"
 futures = "0.3"
-async-trait = "0.1.45"
+async-trait = "0.1"
 
 thiserror = "1.0"
 anni-repo = { path = "../anni-repo", features = ["db-read"] }
@@ -18,9 +18,9 @@ log = "0.4.0"
 google-drive3 = { path = "../third_party/google-drive3" }
 
 uuid = "1"
-sha2 = "0.9.4"
+sha2 = "0.10.2"
 hex = "0.4.2"
-parking_lot = "0.11.1"
+parking_lot = "0.12.0"
 dashmap = "5.2.0"
 lru = "0.7.3"
 anni-flac = { path = "../anni-flac", features = ["async"] }

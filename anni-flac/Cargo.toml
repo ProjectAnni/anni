@@ -5,14 +5,14 @@ authors = ["Yesterday17 <mmf@mmf.moe>"]
 edition = "2018"
 
 [dependencies]
-hex = "0.4.2"
-thiserror = "1.0"
+hex = "0.4"
+thiserror = "1"
 byteorder = "1"
 num-traits = "0.2"
 num-derive = "0.3"
-image = "0.23.14"
+image = "0.24"
 tokio = { version = "1", features = ["full"], optional = true }
-async-trait = { version = "0.1.45", optional = true }
+async-trait = { version = "0.1", optional = true }
 log = "0.4"
 
 [dev-dependencies]
