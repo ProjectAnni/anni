@@ -151,7 +151,7 @@ impl<S> Service<ServiceRequest> for AnnilAuthMiddleware<S>
 
                 // for other requests, treat auth as JWT
                 // FIXME: handle the unwrap
-                let metadata = jwt_simple::token::Token::decode_metadata(&auth).unwrap();
+                let metadata = Token::decode_metadata(&auth).unwrap();
                 match metadata.key_id() {
                     None => {
                         // no key_id, verify with normal token

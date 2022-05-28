@@ -68,6 +68,10 @@ impl RepoTag {
 pub struct TagRef(String);
 
 impl TagRef {
+    pub fn new(name: String) -> Self {
+        TagRef(name)
+    }
+
     pub fn name(&self) -> &str {
         self.0.as_str()
     }

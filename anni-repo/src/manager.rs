@@ -202,6 +202,10 @@ impl<'repo> OwnedRepositoryManager {
         Ok(repo)
     }
 
+    pub fn album(&self, album_id: &str) -> Option<&Album> {
+        self.albums.get(album_id)
+    }
+
     pub fn albums(&self) -> &HashMap<String, Album> {
         &self.albums
     }
@@ -212,6 +216,14 @@ impl<'repo> OwnedRepositoryManager {
 
     pub fn tags(&self) -> &HashSet<RepoTag> {
         &self.tags
+    }
+
+    pub fn child_tags(&self, tag: &TagRef) -> HashSet<&TagRef> {
+        self.tags_relation.get(tag).map_or(HashSet::new(), |children| children.iter().collect())
+    }
+
+    pub fn albums_tagged_by(&self, tag: &TagRef) -> Option<&Vec<String>> {
+        self.album_tags.get(tag)
     }
 
     fn add_tag_relation(&mut self, parent: TagRef, child: TagRef) {
@@ -325,7 +337,7 @@ impl<'repo> OwnedRepositoryManager {
                     self.album_tags
                         .get_mut(tag)
                         .unwrap()
-                        .push(catalog.to_string());
+                        .push(album.album_id().to_string());
                 }
             }
             if let Some(album_with_same_id) = self.albums.insert(album.album_id().to_string(), album) {
