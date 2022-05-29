@@ -174,7 +174,7 @@ pub fn artist_validator(str: &str) -> ValidateResult {
 }
 
 lazy_static::lazy_static! {
-    static ref DOTS: Regex = Regex::new(r"[\u{0087}\u{0387}\u{16eb}\u{2022}\u{2027}\u{2218}\u{2219}\u{22c5}\u{25e6}\u{2981}\u{2e30}\u{2e31}\u{ff65}\u{10101}]").unwrap();
+    static ref DOTS: Regex = Regex::new(r"[\u{00B7}\u{0387}\u{16eb}\u{2022}\u{2027}\u{2218}\u{2219}\u{22c5}\u{25e6}\u{2981}\u{2e30}\u{2e31}\u{ff65}\u{10101}]").unwrap();
 }
 
 /// http://www.0x08.org/posts/middle-dot
@@ -230,8 +230,7 @@ mod tests {
     fn middle_dot_detect() {
         assert!(middle_dot_validator("123").valid);
 
-        assert!(!middle_dot_validator("\u{0087}").valid);
-        assert!(!middle_dot_validator("\u{0087}").valid);
+        assert!(!middle_dot_validator("\u{00B7}").valid);
         assert!(!middle_dot_validator("\u{0387}").valid);
         assert!(!middle_dot_validator("\u{16eb}").valid);
         assert!(!middle_dot_validator("\u{2022}").valid);
@@ -250,7 +249,7 @@ mod tests {
     #[test]
     fn middle_dot_replace_all() {
         assert_eq!(
-            middle_dot_replace("1\u{0087}2\u{0387}3\u{16eb}4\u{2022}5\u{2027}6\u{2218}7\u{2219}8\u{22c5}9\u{25e6}1\u{2981}2\u{2e30}3\u{2e31}4\u{ff65}5\u{10101}6"),
+            middle_dot_replace("1\u{00B7}2\u{0387}3\u{16eb}4\u{2022}5\u{2027}6\u{2218}7\u{2219}8\u{22c5}9\u{25e6}1\u{2981}2\u{2e30}3\u{2e31}4\u{ff65}5\u{10101}6"),
             "1・2・3・4・5・6・7・8・9・1・2・3・4・5・6"
         );
     }
