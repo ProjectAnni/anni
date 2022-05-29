@@ -40,6 +40,7 @@ anni-vgmdb = "0.3.0"
 uuid = { version = "1", features = ["v4"] }
 alphanumeric-sort = "1.4.4"
 ptree = "0.4.0"
+colored = "2.0.0"
 
 [dependencies.reqwest]
 version = "0.11"

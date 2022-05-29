@@ -214,6 +214,21 @@ impl<'repo> OwnedRepositoryManager {
         self.albums.values()
     }
 
+    pub fn tag(&self, tag: &TagRef) -> Option<&Tag> {
+        // avoid string copy with RepoTag::from_ref
+        // since we own the reference of tag, it would not be dropped
+        // so the following code is safe
+        let tag_ref = unsafe { RepoTag::from_ref(tag) };
+        let tag = self.tags.get(&tag_ref)?;
+        // drop the unsafe reference when we got the full tag
+        drop(tag_ref);
+        match tag {
+            // it must be a Full tag
+            RepoTag::Full(tag) => Some(tag),
+            RepoTag::Ref(_) => unreachable!(),
+        }
+    }
+
     pub fn tags(&self) -> &HashSet<RepoTag> {
         &self.tags
     }

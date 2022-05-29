@@ -1,3 +1,4 @@
+use core::slice;
 use std::fmt::{Display, Formatter};
 use std::hash::{Hash, Hasher};
 use serde::{Serialize, Deserialize, Serializer, Deserializer};
@@ -54,6 +55,12 @@ impl Display for RepoTag {
 }
 
 impl RepoTag {
+    pub unsafe fn from_ref(tag: &TagRef) -> Self {
+        let ptr = tag.0.as_ptr();
+        let tag = String::from_utf8_unchecked(slice::from_raw_parts(ptr, tag.0.len()).to_vec());
+        RepoTag::Ref(TagRef(tag))
+    }
+
     /// Get an owned TagRef of the RepoTag.
     pub fn get_ref(&self) -> TagRef {
         match self {

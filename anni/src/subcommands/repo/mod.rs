@@ -451,17 +451,28 @@ FILE "{filename}" WAVE
         RepoPrintType::TagTree => {
             // print tag
             let manager = manager.into_owned_manager()?;
-            let mut tree = TreeBuilder::new(me.input.clone());
 
             let tag = TagRef::new(me.input);
+            if manager.tag(&tag).is_none() {
+                bail!("Tag not found!");
+            }
+
+            let mut tree = TreeBuilder::new(tag_to_string(&tag, &manager));
             build_tree(&manager, &tag, &mut tree);
-            let tree = tree.build();
-            ptree::print_tree(&tree)?;
+            ptree::print_tree(&tree.build())?;
+
+            fn tag_to_string(tag: &TagRef, manager: &OwnedRepositoryManager) -> String {
+                use colored::Colorize;
+
+                let tag_full = manager.tag(tag).unwrap();
+                let tag_type = format!("[{:?}]", tag_full.tag_type()).green();
+                format!("{tag_type} {}", tag_full.name())
+            }
 
             fn build_tree(manager: &OwnedRepositoryManager, tag: &TagRef, tree: &mut TreeBuilder) {
                 let child_tags = manager.child_tags(&tag);
                 for tag in child_tags {
-                    tree.begin_child(tag.name().to_string());
+                    tree.begin_child(tag_to_string(tag, manager));
                     build_tree(manager, tag, tree);
                     tree.end_child();
                 }

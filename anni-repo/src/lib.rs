@@ -7,7 +7,7 @@ pub mod prelude {
     pub use crate::models::*;
     pub use crate::error::Error;
 
-    pub type RepoResult<R> = std::result::Result<R, Error>;
+    pub type RepoResult<R> = Result<R, Error>;
 }
 
 pub mod db;
