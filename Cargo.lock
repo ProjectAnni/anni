@@ -343,6 +343,7 @@ dependencies = [
  "log 0.4.17",
  "regex",
  "serde 1.0.137",
+ "serde_json",
  "thiserror",
  "trash",
 ]

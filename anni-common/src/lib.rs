@@ -4,3 +4,5 @@ pub mod decode;
 pub mod encode;
 pub mod traits;
 pub mod inherit;
+pub mod lint;
+pub mod diagnostic;
