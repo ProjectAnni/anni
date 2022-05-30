@@ -4,9 +4,10 @@ use std::collections::{HashMap, HashSet};
 use std::path::{PathBuf, Path};
 use std::str::FromStr;
 
+/// A simple repository visitor. Can perform simple operations on the repository.
 pub struct RepositoryManager {
     root: PathBuf,
-    pub repo: Repository,
+    repo: Repository,
 }
 
 impl RepositoryManager {
@@ -182,10 +183,12 @@ pub struct OwnedRepositoryManager {
     tags: HashSet<RepoTag>,
     /// Parent to child tag relation
     tags_relation: HashMap<TagRef, HashSet<TagRef>>,
+    /// Tag -> File
+    tag_path: HashMap<TagRef, PathBuf>,
 
     album_tags: HashMap<TagRef, Vec<String>>,
-
     albums: HashMap<String, Album>,
+    album_path: HashMap<String, PathBuf>,
 }
 
 impl<'repo> OwnedRepositoryManager {
@@ -194,8 +197,10 @@ impl<'repo> OwnedRepositoryManager {
             repo,
             tags: Default::default(),
             tags_relation: Default::default(),
+            tag_path: Default::default(),
             album_tags: Default::default(),
             albums: Default::default(),
+            album_path: Default::default(),
         };
         repo.load_tags()?;
         repo.load_album_tags()?;
@@ -204,6 +209,10 @@ impl<'repo> OwnedRepositoryManager {
 
     pub fn album(&self, album_id: &str) -> Option<&Album> {
         self.albums.get(album_id)
+    }
+
+    pub fn album_path(&self, album_id: &str) -> Option<&PathBuf> {
+        self.album_path.get(album_id)
     }
 
     pub fn albums(&self) -> &HashMap<String, Album> {
@@ -231,6 +240,10 @@ impl<'repo> OwnedRepositoryManager {
 
     pub fn tags(&self) -> &HashSet<RepoTag> {
         &self.tags
+    }
+
+    pub fn tag_path(&self, tag: &TagRef) -> Option<&PathBuf> {
+        self.tag_path.get(tag)
     }
 
     pub fn child_tags(&self, tag: &TagRef) -> HashSet<&TagRef> {
@@ -289,6 +302,7 @@ impl<'repo> OwnedRepositoryManager {
                         });
                     }
                     self.add_tag_relation(tag.get_ref(), child.clone());
+                    self.tag_path.insert(child.clone(), tag_file.clone());
                 }
 
                 let tag_ref = tag.get_ref();
@@ -299,6 +313,7 @@ impl<'repo> OwnedRepositoryManager {
                         path: tag_file,
                     });
                 }
+                self.tag_path.insert(tag_ref, tag_file.clone());
             }
         }
 
@@ -323,7 +338,8 @@ impl<'repo> OwnedRepositoryManager {
 
         let mut has_problem = false;
         for path in self.repo.all_album_paths()? {
-            let album = self.repo.load_album(path)?;
+            let album = self.repo.load_album(&path)?;
+            let album_id = album.album_id();
             let catalog = album.catalog();
             let tags = album.tags();
             if tags.is_empty() {
@@ -340,7 +356,7 @@ impl<'repo> OwnedRepositoryManager {
                         log::error!(
                             "Orphan tag {} found in album {}, catalog = {}",
                             tag,
-                            album.album_id(),
+                            album_id.to_string(),
                             catalog
                         );
                         has_problem = true;
@@ -352,13 +368,14 @@ impl<'repo> OwnedRepositoryManager {
                     self.album_tags
                         .get_mut(tag)
                         .unwrap()
-                        .push(album.album_id().to_string());
+                        .push(album_id.to_string());
                 }
             }
-            if let Some(album_with_same_id) = self.albums.insert(album.album_id().to_string(), album) {
+            if let Some(album_with_same_id) = self.albums.insert(album_id.to_string(), album) {
                 log::error!("Duplicated album id detected: {}", album_with_same_id.album_id());
                 has_problem = true;
             }
+            self.album_path.insert(album_id.to_string(), path.clone());
         }
 
         if !has_problem {
