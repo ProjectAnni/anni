@@ -47,7 +47,17 @@ pub struct DiagnosticMessage<T> {
     pub message: String,
 }
 
-#[derive(Clone)]
+impl<T> Serialize for DiagnosticMessage<T> {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+        where
+            S: serde::Serializer,
+    {
+        serializer.serialize_str(&self.message)
+    }
+}
+
+// Serialize here may never be used, but we need this for compile
+#[derive(Clone, Serialize)]
 pub enum MetadataDiagnosticTarget {
     Identifier(String, Option<u8>, Option<u8>),
     Tag(String),
@@ -67,16 +77,7 @@ impl MetadataDiagnosticTarget {
     }
 }
 
-impl<T> Serialize for DiagnosticMessage<T> {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-        where
-            S: serde::Serializer,
-    {
-        serializer.serialize_str(&self.message)
-    }
-}
-
-#[derive(Serialize, Default)]
+#[derive(Serialize)]
 pub struct DiagnosticLocation {
     pub path: String,
     #[serde(skip_serializing_if = "Option::is_none")]

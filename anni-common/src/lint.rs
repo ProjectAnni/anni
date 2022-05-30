@@ -1,3 +1,4 @@
+use serde::Serialize;
 use crate::diagnostic::{Diagnostic, DiagnosticSeverity};
 
 pub trait AnniLinter<T> {
@@ -14,12 +15,12 @@ impl AnniLinterReviewDogJsonLineFormat {
     }
 }
 
-impl<T> AnniLinter<T> for AnniLinterReviewDogJsonLineFormat {
+impl<T: Serialize> AnniLinter<T> for AnniLinterReviewDogJsonLineFormat {
     fn add(&mut self, msg: Diagnostic<T>) {
         if let DiagnosticSeverity::Error = msg.severity {
             self.0 = true;
         }
-        println!("{}", serde_json::to_string(&msg.message).unwrap());
+        println!("{}", serde_json::to_string(&msg).unwrap());
     }
 
     fn flush(&self) -> bool { !self.0 }
