@@ -278,12 +278,13 @@ impl<'repo> OwnedRepositoryManager {
         for tag_file in tags_path {
             let text = fs::read_to_string(&tag_file)?;
             let tags = toml::from_str::<Tags>(&text)
-                .map_err(|e| crate::error::Error::TomlParseError {
+                .map_err(|e| Error::TomlParseError {
                     target: "Tags",
                     input: text,
                     err: e,
                 })?
                 .into_inner();
+            let relative_path = pathdiff::diff_paths(&tag_file, &self.repo.root).unwrap();
 
             for tag in tags {
                 for parent in tag.parents() {
@@ -302,7 +303,7 @@ impl<'repo> OwnedRepositoryManager {
                         });
                     }
                     self.add_tag_relation(tag.get_ref(), child.clone());
-                    self.tag_path.insert(child.clone(), tag_file.clone());
+                    self.tag_path.insert(child.clone(), relative_path.clone());
                 }
 
                 let tag_ref = tag.get_ref();
@@ -313,7 +314,8 @@ impl<'repo> OwnedRepositoryManager {
                         path: tag_file,
                     });
                 }
-                self.tag_path.insert(tag_ref, tag_file.clone());
+
+                self.tag_path.insert(tag_ref, relative_path.clone());
             }
         }
 
@@ -375,7 +377,7 @@ impl<'repo> OwnedRepositoryManager {
                 log::error!("Duplicated album id detected: {}", album_with_same_id.album_id());
                 has_problem = true;
             }
-            self.album_path.insert(album_id.to_string(), path.clone());
+            self.album_path.insert(album_id.to_string(), pathdiff::diff_paths(&path, &self.repo.root).unwrap());
         }
 
         if !has_problem {
