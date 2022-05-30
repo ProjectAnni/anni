@@ -168,7 +168,7 @@ pub fn artist_validator(str: &str) -> ValidateResult {
         Ok(_) => ValidateResult::pass(),
         Err(err) => {
             log::debug!("ArtistList parse error: {}", err);
-            ValidateResult::warn(err)
+            ValidateResult::error(err)
         }
     }
 }
