@@ -123,11 +123,12 @@ pub struct DiagnosticPosition {
 }
 
 #[derive(Serialize)]
-#[serde(rename_all = "lowercase")]
+#[serde(rename_all = "UPPERCASE")]
 pub enum DiagnosticSeverity {
     Error,
     Warning,
     // should be Info
+    #[serde(rename = "INFO")]
     Information,
     // does not exist in rdf
     Hint,

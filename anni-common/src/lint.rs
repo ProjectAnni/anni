@@ -53,11 +53,11 @@ impl<T> AnniLinter<T> for AnniLinterTextFormat<T> {
         println!("{} errors, {} warnings", self.errors.len(), self.warnings.len());
         println!();
         for error in self.errors.iter() {
-            println!("ERROR:{}:{}:{}: {}", error.location.path, error.location.start_line(), error.location.start_column().unwrap_or(0), error.message.message);
+            println!("[ERROR][{}] {}:{}: {}", error.location.path, error.location.start_line(), error.location.start_column().unwrap_or(0), error.message.message);
         }
         println!();
         for warn in self.warnings.iter() {
-            println!("WARN:{}:{}:{}: {}", warn.location.path, warn.location.start_line(), warn.location.start_column().unwrap_or(0), warn.message.message);
+            println!("[WARN][{}] {}:{}: {}", warn.location.path, warn.location.start_line(), warn.location.start_column().unwrap_or(0), warn.message.message);
         }
 
         return self.errors.is_empty();
