@@ -2,9 +2,9 @@
 
 use serde::Serialize;
 
-#[derive(Serialize, Default)]
-pub struct Diagnostic {
-    pub message: String,
+#[derive(Serialize)]
+pub struct Diagnostic<T> {
+    pub message: DiagnosticMessage<T>,
     pub location: DiagnosticLocation,
     pub severity: DiagnosticSeverity,
 
@@ -14,6 +14,66 @@ pub struct Diagnostic {
     pub code: Option<DiagnosticCode>,
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub suggestions: Vec<DiagnosticSuggestion>,
+}
+
+impl<T> Diagnostic<T> {
+    pub fn error(message: DiagnosticMessage<T>, location: DiagnosticLocation) -> Self {
+        Self {
+            message,
+            location,
+            severity: DiagnosticSeverity::Error,
+
+            source: None,
+            code: None,
+            suggestions: Vec::new(),
+        }
+    }
+
+    pub fn warning(message: DiagnosticMessage<T>, location: DiagnosticLocation) -> Self {
+        Self {
+            message,
+            location,
+            severity: DiagnosticSeverity::Warning,
+
+            source: None,
+            code: None,
+            suggestions: Vec::new(),
+        }
+    }
+}
+
+pub struct DiagnosticMessage<T> {
+    pub target: T,
+    pub message: String,
+}
+
+#[derive(Clone)]
+pub enum MetadataDiagnosticTarget {
+    Identifier(String, Option<u8>, Option<u8>),
+    Tag(String),
+}
+
+impl MetadataDiagnosticTarget {
+    pub fn album(album_id: String) -> Self {
+        Self::Identifier(album_id, None, None)
+    }
+
+    pub fn disc(album_id: String, disc_id: u8) -> Self {
+        Self::Identifier(album_id, Some(disc_id), None)
+    }
+
+    pub fn track(album_id: String, disc_id: u8, track_id: u8) -> Self {
+        Self::Identifier(album_id, Some(disc_id), Some(track_id))
+    }
+}
+
+impl<T> Serialize for DiagnosticMessage<T> {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+        where
+            S: serde::Serializer,
+    {
+        serializer.serialize_str(&self.message)
+    }
 }
 
 #[derive(Serialize, Default)]
@@ -66,12 +126,15 @@ pub struct DiagnosticPosition {
 pub enum DiagnosticSeverity {
     Error,
     Warning,
-    Info,
+    // should be Info
+    Information,
+    // does not exist in rdf
+    Hint,
 }
 
 impl Default for DiagnosticSeverity {
     fn default() -> Self {
-        DiagnosticSeverity::Info
+        DiagnosticSeverity::Information
     }
 }
 

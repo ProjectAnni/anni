@@ -1,37 +1,50 @@
 use crate::diagnostic::{Diagnostic, DiagnosticSeverity};
 
-pub trait AnniLinter {
-    fn add(&mut self, msg: Diagnostic);
+pub trait AnniLinter<T> {
+    fn add(&mut self, msg: Diagnostic<T>);
     fn flush(&self) -> bool;
 }
 
 #[derive(Default)]
 pub struct AnniLinterReviewDogJsonLineFormat(bool);
 
-impl AnniLinter for AnniLinterReviewDogJsonLineFormat {
-    fn add(&mut self, msg: Diagnostic) {
+impl AnniLinterReviewDogJsonLineFormat {
+    pub fn new() -> Self {
+        AnniLinterReviewDogJsonLineFormat(false)
+    }
+}
+
+impl<T> AnniLinter<T> for AnniLinterReviewDogJsonLineFormat {
+    fn add(&mut self, msg: Diagnostic<T>) {
         if let DiagnosticSeverity::Error = msg.severity {
             self.0 = true;
         }
-        println!("{}", serde_json::to_string(&msg).unwrap());
+        println!("{}", serde_json::to_string(&msg.message).unwrap());
     }
 
     fn flush(&self) -> bool { !self.0 }
 }
 
-#[derive(Default)]
-pub struct AnniLinterTextFormat {
-    errors: Vec<Diagnostic>,
-    warnings: Vec<Diagnostic>,
-    info: Vec<Diagnostic>,
+pub struct AnniLinterTextFormat<T> {
+    errors: Vec<Diagnostic<T>>,
+    warnings: Vec<Diagnostic<T>>,
 }
 
-impl AnniLinter for AnniLinterTextFormat {
-    fn add(&mut self, msg: Diagnostic) {
+impl<T> AnniLinterTextFormat<T> {
+    pub fn new() -> Self {
+        Self {
+            errors: Vec::new(),
+            warnings: Vec::new(),
+        }
+    }
+}
+
+impl<T> AnniLinter<T> for AnniLinterTextFormat<T> {
+    fn add(&mut self, msg: Diagnostic<T>) {
         match msg.severity {
             DiagnosticSeverity::Error => self.errors.push(msg),
             DiagnosticSeverity::Warning => self.warnings.push(msg),
-            DiagnosticSeverity::Info => self.info.push(msg),
+            _ => {}
         }
     }
 
@@ -39,11 +52,11 @@ impl AnniLinter for AnniLinterTextFormat {
         println!("{} errors, {} warnings", self.errors.len(), self.warnings.len());
         println!();
         for error in self.errors.iter() {
-            println!("ERROR:{}:{}:{}: {}", error.location.path, error.location.start_line(), error.location.start_column().unwrap_or(0), error.message);
+            println!("ERROR:{}:{}:{}: {}", error.location.path, error.location.start_line(), error.location.start_column().unwrap_or(0), error.message.message);
         }
         println!();
         for warn in self.warnings.iter() {
-            println!("WARN:{}:{}:{}: {}", warn.location.path, warn.location.start_line(), warn.location.start_column().unwrap_or(0), warn.message);
+            println!("WARN:{}:{}:{}: {}", warn.location.path, warn.location.start_line(), warn.location.start_column().unwrap_or(0), warn.message.message);
         }
 
         return self.errors.is_empty();
