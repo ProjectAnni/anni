@@ -27,7 +27,7 @@ impl Default for DriveAuth {
         DriveAuth::InstalledFlow {
             client_id: "175511611598-ot9agsmf6v3lf1jc3qbsf1vcru7saop7.apps.googleusercontent.com".to_string(),
             client_secret: "mW1neo-JSSwzYz5Syqiiset1".to_string(),
-            project_id: Some("project-anni".to_string()),
+            project_id: Some("anni-provider".to_string()),
         }
     }
 }
