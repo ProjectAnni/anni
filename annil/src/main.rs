@@ -39,7 +39,7 @@ pub struct AppState {
     etag: RwLock<String>,
 }
 
-async fn init_metadata(config: &Config) -> anyhow::Result<PathBuf> {
+fn init_metadata(config: &Config) -> anyhow::Result<PathBuf> {
     log::info!("Fetching metadata repository...");
     let repo_root = config.metadata.base.join("repo");
     let repo = if !repo_root.exists() {
@@ -61,33 +61,40 @@ async fn init_metadata(config: &Config) -> anyhow::Result<PathBuf> {
     Ok(database_path)
 }
 
+fn open_db(p: &str) -> anyhow::Result<RepoDatabaseRead> {
+    Ok(RepoDatabaseRead::new(p)?)
+}
+
 async fn init_state(config: Config) -> anyhow::Result<web::Data<AppState>> {
     // init metadata
-    let database_path = init_metadata(&config).await?;
+    let database_path = if config.providers.iter().all(|(_, conf)| matches!(conf.item, ProviderItem::File { strict: true, .. })) {
+        None
+    } else {
+        // proxy settings
+        if let Some(proxy) = &config.metadata.proxy {
+            // if metadata.proxy is an empty string, do not use proxy
+            if proxy.is_empty() {
+                setup_git2(None);
+            } else {
+                // otherwise, set proxy in config file
+                setup_git2(Some(proxy.clone()));
+            }
+            // if no proxy was provided, use default behavior (http_proxy)
+        }
+        
+        Some(init_metadata(&config)?.to_string_lossy().into_owned())
+    };
 
     log::info!("Start initializing providers...");
     let now = SystemTime::now();
     let mut providers = Vec::with_capacity(config.providers.len());
     let mut caches = HashMap::new();
 
-    // proxy settings
-    if let Some(proxy) = &config.metadata.proxy {
-        // if metadata.proxy is an empty string, do not use proxy
-        if proxy.is_empty() {
-            setup_git2(None);
-        } else {
-            // otherwise, set proxy in config file
-            setup_git2(Some(proxy.clone()));
-        }
-        // if no proxy was provided, use default behavior (http_proxy)
-    }
-
     for (provider_name, provider_config) in config.providers.iter() {
         log::debug!("Initializing provider: {}", provider_name);
-        let repo = RepoDatabaseRead::new(database_path.to_string_lossy().as_ref())?;
         let mut provider: Box<dyn AnniProvider + Send + Sync> = match &provider_config.item {
             ProviderItem::File { root, strict: false, .. } =>
-                Box::new(FileBackend::new(PathBuf::from(root), repo).await?),
+                Box::new(FileBackend::new(PathBuf::from(root), open_db(database_path.as_ref().unwrap())?).await?),
             ProviderItem::File { root, strict: true, layer } => 
                 Box::new(StrictFileBackend::new(PathBuf::from(root), *layer)),
             ProviderItem::Drive { drive_id, corpora, initial_token_path, token_path } => {
@@ -100,7 +107,7 @@ async fn init_state(config: Config) -> anyhow::Result<web::Data<AppState>> {
                     corpora: corpora.to_string(),
                     drive_id: drive_id.clone(),
                     token_path: token_path.clone(),
-                }, repo).await?)
+                }, open_db(database_path.as_ref().unwrap())?).await?)
             }
         };
         if let Some(cache) = provider_config.cache() {
