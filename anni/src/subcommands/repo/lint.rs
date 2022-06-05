@@ -1,3 +1,4 @@
+use std::collections::HashSet;
 use std::path::PathBuf;
 use clap::{Args, ArgEnum};
 use anni_repo::RepositoryManager;
@@ -89,6 +90,8 @@ fn validate_album(album: &Album, path: &PathBuf, report: &mut dyn AnniLinter<Met
         ));
     }
 
+    validate_disc_catalog(album.discs(), &album_id, path, report);
+
     for (disc_id, disc) in album.discs().iter().enumerate() {
         let disc_id = (disc_id + 1) as u8;
 
@@ -104,7 +107,7 @@ fn validate_album(album: &Album, path: &PathBuf, report: &mut dyn AnniLinter<Met
     }
 }
 
-fn validate_string(path: &PathBuf, target: MetadataDiagnosticTarget, field: Option<String>, validator: &ValidatorList, value: &str, report: &mut dyn AnniLinter<MetadataDiagnosticTarget>) {
+fn validate_string(path: &PathBuf, target: MetadataDiagnosticTarget, _field: Option<String>, validator: &ValidatorList, value: &str, report: &mut dyn AnniLinter<MetadataDiagnosticTarget>) {
     validator.validate(value).into_iter().for_each(|(ty, result)| {
         let severity = match result {
             ValidateResult::Warning(_) => DiagnosticSeverity::Warning,
@@ -126,6 +129,15 @@ fn validate_string(path: &PathBuf, target: MetadataDiagnosticTarget, field: Opti
                 });
             }
             _ => {}
+        }
+    });
+}
+
+fn validate_disc_catalog(discs: &Vec<Disc>, album_id: &str, path: &PathBuf, report: &mut dyn AnniLinter<MetadataDiagnosticTarget>) {
+    let mut catalogs = HashSet::new();
+    discs.iter().zip(1..).for_each(|(disc, disc_id)| {
+        if !catalogs.insert(disc.catalog()) {
+            report.add(Diagnostic::warning(DiagnosticMessage { target: MetadataDiagnosticTarget::disc(album_id.to_string(), disc_id), message: "Duplicate catalog".to_string() }, DiagnosticLocation::simple(path.display().to_string())))
         }
     });
 }
