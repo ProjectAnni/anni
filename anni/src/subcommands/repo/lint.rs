@@ -137,7 +137,7 @@ fn validate_disc_catalog(discs: &Vec<Disc>, album_id: &str, path: &PathBuf, repo
     let mut catalogs = HashSet::new();
     discs.iter().zip(1..).for_each(|(disc, disc_id)| {
         if !catalogs.insert(disc.catalog()) {
-            report.add(Diagnostic::warning(DiagnosticMessage { target: MetadataDiagnosticTarget::disc(album_id.to_string(), disc_id), message: "Duplicate catalog".to_string() }, DiagnosticLocation::simple(path.display().to_string())))
+            report.add(Diagnostic::warning(DiagnosticMessage { target: MetadataDiagnosticTarget::disc(album_id.to_string(), disc_id), message: format!("Duplicate catalog {}", disc.catalog()) }, DiagnosticLocation::simple(path.display().to_string())))
         }
     });
 }
