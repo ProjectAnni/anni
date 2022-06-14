@@ -9,7 +9,7 @@ use parking_lot::Mutex;
 use tokio::fs::{read_dir, File};
 use tokio::io::{AsyncReadExt, AsyncSeekExt};
 use anni_repo::db::RepoDatabaseRead;
-use crate::{AudioInfo, Range, ResourceReader};
+use crate::{AudioInfo, Range, ResourceReader, strict_album_path};
 use uuid::Uuid;
 
 pub struct FileBackend {
@@ -20,10 +20,7 @@ pub struct FileBackend {
 }
 
 impl FileBackend {
-    pub async fn new(
-        root: PathBuf,
-        repo: RepoDatabaseRead,
-    ) -> Result<Self, ProviderError> {
+    pub async fn new(root: PathBuf, repo: RepoDatabaseRead) -> Result<Self, ProviderError> {
         let mut this = Self {
             root,
             repo: Mutex::new(repo),
@@ -35,10 +32,7 @@ impl FileBackend {
         Ok(this)
     }
 
-    async fn walk_dir<P: AsRef<Path> + Send>(
-        &mut self,
-        dir: P,
-    ) -> Result<(), ProviderError> {
+    async fn walk_dir<P: AsRef<Path> + Send>(&mut self, dir: P) -> Result<(), ProviderError> {
         let mut to_visit = vec![dir.as_ref().to_owned()];
 
         while let Some(dir) = to_visit.pop() {
@@ -47,11 +41,7 @@ impl FileBackend {
         Ok(())
     }
 
-    async fn walk_dir_impl<P: AsRef<Path> + Send>(
-        &mut self,
-        dir: P,
-        to_visit: &mut Vec<PathBuf>,
-    ) -> Result<(), ProviderError> {
+    async fn walk_dir_impl<P: AsRef<Path> + Send>(&mut self, dir: P, to_visit: &mut Vec<PathBuf>) -> Result<(), ProviderError> {
         log::debug!("Walking dir: {:?}", dir.as_ref());
         let mut dir = read_dir(dir).await?;
         while let Some(entry) = dir.next_entry().await? {
@@ -86,11 +76,7 @@ impl FileBackend {
         Ok(())
     }
 
-    async fn walk_discs<P: AsRef<Path> + Send>(
-        &mut self,
-        album: P,
-        size: usize,
-    ) -> Result<Vec<PathBuf>, ProviderError> {
+    async fn walk_discs<P: AsRef<Path> + Send>(&mut self, album: P, size: usize) -> Result<Vec<PathBuf>, ProviderError> {
         let mut discs = vec![PathBuf::new(); size];
         let mut dir = read_dir(album).await?;
         while let Some(entry) = dir.next_entry().await? {
@@ -136,13 +122,7 @@ impl AnniProvider for FileBackend {
         Ok(self.album_path.keys().map(|s| Cow::Borrowed(s.as_str())).collect())
     }
 
-    async fn get_audio(
-        &self,
-        album_id: &str,
-        disc_id: u8,
-        track_id: u8,
-        range: Range,
-    ) -> Result<AudioResourceReader, ProviderError> {
+    async fn get_audio(&self, album_id: &str, disc_id: u8, track_id: u8, range: Range) -> Result<AudioResourceReader, ProviderError> {
         let path = self.get_disc(album_id, disc_id)?;
         let mut dir = read_dir(path).await?;
         let file = loop {
@@ -186,17 +166,6 @@ impl AnniProvider for FileBackend {
 pub struct StrictFileBackend {
     root: PathBuf,
     layer: usize,
-}
-
-pub fn strict_album_path(root: &PathBuf, album_id: &str, layer: usize) -> PathBuf {
-    let mut res = root.clone();
-    for i in 0..layer {
-        res.push(match &album_id[i * 2..=i * 2 + 1].trim_start_matches('0') {
-            &"" => "0",
-            s @ _ => s,
-        });
-    }
-    res.join(album_id)
 }
 
 impl StrictFileBackend {
@@ -312,14 +281,4 @@ async fn read_audio(path: &Path, mut file: File, range: Range) -> Result<AudioRe
         },
         reader,
     });
-}
-
-#[cfg(feature = "test")]
-mod test {
-    #[tokio::test]
-    async fn test_scan() {
-        let mut f = FileBackend::new(PathBuf::from("/data/Music/"), (false, 0));
-        let _ = f.albums().await.unwrap();
-        let _audio = f.get_audio("LACM-14986", 2).await.unwrap();
-    }
 }

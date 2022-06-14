@@ -4,7 +4,7 @@ use anni_clap_handler::{Context, Handler, handler};
 use anni_common::fs;
 use anni_flac::blocks::{UserComment, UserCommentExt};
 use anni_flac::FlacHeader;
-use anni_provider::providers::file::strict_album_path;
+use anni_provider::strict_album_path;
 use anni_provider::providers::FileBackend;
 use anni_repo::db::RepoDatabaseRead;
 use anni_repo::library::{album_info, file_name};

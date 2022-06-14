@@ -8,9 +8,10 @@ use google_drive3::{DriveHub, hyper, oauth2, hyper_rustls::HttpsConnector, hyper
 use self::oauth2::authenticator::Authenticator;
 use self::oauth2::authenticator_delegate::DefaultInstalledFlowDelegate;
 use anni_repo::library::{album_info, disc_info};
-use google_drive3::api::FileListCall;
+use google_drive3::api::{FileList, FileListCall};
 use std::str::FromStr;
 use dashmap::DashMap;
+use dashmap::mapref::one::Ref;
 use futures::TryStreamExt;
 use parking_lot::Mutex;
 use tokio::sync::Semaphore;
@@ -67,32 +68,18 @@ pub struct DriveProviderSettings {
     pub token_path: PathBuf,
 }
 
-pub struct DriveBackend {
-    /// Google Drive API Hub
+pub struct DriveClient {
     hub: Box<DriveHub>,
-    /// HashMap mapping album_id and folder_id
-    folders: HashMap<String, String>,
-    /// Cache for mapping album_id and its discs if multiple discs exists
-    /// All albums with multiple discs must be in this map
-    /// If the value is None, it means the album is not cached
-    /// If the value is Some, then the value of index is the folder_id of the disc
-    discs: DashMap<String, Option<Vec<String>>>,
-    /// Cache file id
-    /// "{album_id}/cover" <-> file_id
-    /// "{album_id}/{disc_id}/cover" <-> file_id
-    /// "{album_id}/{disc_id}/track_id" <-> file_id
-    files: DashMap<String, String>,
-    /// file_id <-> (extension, filesize)
-    audios: DashMap<String, (String, usize)>,
-    /// Settings
     settings: DriveProviderSettings,
-    repo: Mutex<RepoDatabaseRead>,
     /// Semaphore for rate limiting
     semaphore: Semaphore,
+
+    // parent_id <-> file_id
+    covers: DashMap<String, String>,
 }
 
-impl DriveBackend {
-    pub async fn new(auth: DriveAuth, settings: DriveProviderSettings, repo: RepoDatabaseRead) -> Result<Self, ProviderError> {
+impl DriveClient {
+    pub async fn new(auth: DriveAuth, settings: DriveProviderSettings) -> Result<Self, ProviderError> {
         let auth = auth.build(&settings.token_path).await?;
         auth.token(&[
             "https://www.googleapis.com/auth/drive.metadata.readonly",
@@ -107,18 +94,12 @@ impl DriveBackend {
                     .enable_http2()
                     .build()
                 ), auth);
-        let mut this = Self {
+        Ok(Self {
             hub: Box::new(hub),
-            folders: Default::default(),
-            discs: Default::default(),
-            files: Default::default(),
-            audios: Default::default(),
             settings,
-            repo: Mutex::new(repo),
+            covers: DashMap::new(),
             semaphore: Semaphore::new(200),
-        };
-        this.reload().await?;
-        Ok(this)
+        })
     }
 
     fn prepare_list(&self) -> FileListCall {
@@ -133,14 +114,91 @@ impl DriveBackend {
         }
     }
 
+    async fn list_folder(&self, parent_id: &str) -> Result<FileList, ProviderError> {
+        let permit = self.semaphore.acquire().await.unwrap();
+        let (_, list) = self.prepare_list()
+            .q(&format!("mimeType = 'application/vnd.google-apps.folder' and trashed = false and '{}' in parents", parent_id))
+            .param("fields", "nextPageToken, files(id,name)")
+            .doit().await?;
+        drop(permit);
+        Ok(list)
+    }
+
+    async fn get_file(&self, file_id: &str, range: &Range) -> Result<(ResourceReader, Range), ProviderError> {
+        let permit = self.semaphore.acquire().await.unwrap();
+        let (resp, _) = self.hub.files().get(file_id)
+            .supports_all_drives(true)
+            .param("alt", "media")
+            .range(range.to_range_header())
+            .doit().await?;
+        drop(permit);
+        let content_range = resp.headers().get("Content-Range").map(|v| v.to_str().unwrap().to_string());
+        let body = resp.into_body()
+            .map_err(|_| std::io::Error::new(std::io::ErrorKind::Other, "Error!"))
+            .into_async_read();
+        let body = tokio_util::compat::FuturesAsyncReadCompatExt::compat(body);
+        Ok((Box::pin(body), content_range_to_range(content_range.as_deref())))
+    }
+
+    async fn get_cover_id_in(&self, parent_id: &str) -> Result<Ref<'_, String, String>, ProviderError> {
+        if self.covers.contains_key(parent_id) {
+            return self.covers.get(parent_id)
+                .ok_or(ProviderError::FileNotFound);
+        }
+
+        let permit = self.semaphore.acquire().await.unwrap();
+        let (_, list) = self.prepare_list()
+            .q(&format!("trashed = false and mimeType = 'image/jpeg' and name = 'cover.jpg' and '{}' in parents", parent_id))
+            .param("fields", "nextPageToken, files(id,name)")
+            .doit().await?;
+        drop(permit);
+
+        let files = list.files.unwrap();
+        let file = files.get(0).ok_or(ProviderError::FileNotFound)?;
+        let id = file.id.as_ref().unwrap().to_string();
+        self.covers.insert(parent_id.to_string(), id);
+        self.covers.get(parent_id)
+            .ok_or(ProviderError::FileNotFound)
+    }
+}
+
+pub struct DriveBackend {
+    /// Google Drive API Client
+    client: DriveClient,
+    /// HashMap mapping album_id and folder_id
+    folders: HashMap<String, String>,
+    /// Cache for mapping album_id and its discs if multiple discs exists
+    /// All albums with multiple discs must be in this map
+    /// If the value is None, it means the album is not cached
+    /// If the value is Some, then the value of index is the folder_id of the disc
+    discs: DashMap<String, Option<Vec<String>>>,
+    /// Cache file id
+    /// "{album_id}/cover" <-> file_id
+    /// "{album_id}/{disc_id}/cover" <-> file_id
+    /// "{album_id}/{disc_id}/track_id" <-> file_id
+    files: DashMap<String, String>,
+    /// file_id <-> (extension, filesize)
+    audios: DashMap<String, (String, usize)>,
+    repo: Mutex<RepoDatabaseRead>,
+}
+
+impl DriveBackend {
+    pub async fn new(auth: DriveAuth, settings: DriveProviderSettings, repo: RepoDatabaseRead) -> Result<Self, ProviderError> {
+        let mut this = Self {
+            client: DriveClient::new(auth, settings).await?,
+            folders: Default::default(),
+            discs: Default::default(),
+            files: Default::default(),
+            audios: Default::default(),
+            repo: Mutex::new(repo),
+        };
+        this.reload().await?;
+        Ok(this)
+    }
+
     async fn cache_discs(&self, album_id: &str) -> Result<(), ProviderError> {
         if self.folders.contains_key(album_id) && self.discs.contains_key(album_id) && self.discs.get(album_id).unwrap().is_none() {
-            let permit = self.semaphore.acquire().await.unwrap();
-            let (_, list) = self.prepare_list()
-                .q(&format!("mimeType = 'application/vnd.google-apps.folder' and trashed = false and '{}' in parents", self.folders[album_id]))
-                .param("fields", "nextPageToken, files(id,name)")
-                .doit().await?;
-            drop(permit);
+            let list = self.client.list_folder(&self.folders[album_id]).await?;
             let mut discs: Vec<_> = list.files.unwrap().iter().filter_map(|file| {
                 let (_, _, disc_index) = disc_info(file.name.as_deref().unwrap()).ok()?;
                 return Some((disc_index, file.id.as_deref().unwrap().to_string()));
@@ -163,22 +221,6 @@ impl DriveBackend {
             }
             None => Cow::Borrowed(&self.folders[album_id]),
         }
-    }
-
-    async fn get_file(&self, file_id: String, range: &Range) -> Result<(ResourceReader, Range), ProviderError> {
-        let permit = self.semaphore.acquire().await.unwrap();
-        let (resp, _) = self.hub.files().get(&file_id)
-            .supports_all_drives(true)
-            .param("alt", "media")
-            .range(range.to_range_header())
-            .doit().await?;
-        drop(permit);
-        let content_range = resp.headers().get("Content-Range").map(|v| v.to_str().unwrap().to_string());
-        let body = resp.into_body()
-            .map_err(|_| std::io::Error::new(std::io::ErrorKind::Other, "Error!"))
-            .into_async_read();
-        let body = tokio_util::compat::FuturesAsyncReadCompatExt::compat(body);
-        Ok((Box::pin(body), content_range_to_range(content_range.as_deref())))
     }
 }
 
@@ -207,8 +249,8 @@ impl AnniProvider for DriveBackend {
             let folder_id = self.get_parent_folder(album_id, Some(disc_id));
 
             // get audio file id
-            let permit = self.semaphore.acquire().await.unwrap();
-            let (_, list) = self.prepare_list()
+            let permit = self.client.semaphore.acquire().await.unwrap();
+            let (_, list) = self.client.prepare_list()
                 .q(&format!("trashed = false and name contains '{:02}.' and '{}' in parents", track_id, folder_id))
                 .param("fields", "nextPageToken, files(id,name,fileExtension,size)")
                 .doit().await?;
@@ -234,7 +276,7 @@ impl AnniProvider for DriveBackend {
                 drop(id); // drop lock immediately
                 let metadata = self.audios.get(&file_id).unwrap().value().clone(); // drop lock inline
 
-                let (mut reader, range) = self.get_file(file_id, &range).await?;
+                let (mut reader, range) = self.client.get_file(&file_id, &range).await?;
                 let duration = if is_head {
                     let (info, _reader) = crate::utils::read_header(reader).await?;
                     reader = _reader;
@@ -267,30 +309,18 @@ impl AnniProvider for DriveBackend {
             None => format!("{album_id}/cover"),
         };
         let id = match self.files.get(&key) {
-            Some(id) => id.to_string(),
+            Some(id) => id,
             None => {
                 // get folder_id
                 self.cache_discs(album_id).await?;
                 let folder_id = self.get_parent_folder(album_id, disc_id);
 
                 // get cover file id
-                let permit = self.semaphore.acquire().await.unwrap();
-                let (_, list) = self.prepare_list()
-                    .q(&format!("trashed = false and mimeType = 'image/jpeg' and name = 'cover.jpg' and '{}' in parents", folder_id))
-                    .param("fields", "nextPageToken, files(id,name)")
-                    .doit().await?;
-                drop(permit);
-
-                // get cover file & return
-                let files = list.files.unwrap();
-                let file = files.get(0).ok_or(ProviderError::FileNotFound)?;
-                let id = file.id.as_ref().unwrap().to_string();
-                self.files.insert(key.to_string(), id.to_string());
-                id
+                self.client.get_cover_id_in(&folder_id).await?
             }
         };
 
-        Ok(self.get_file(id, &Range::FULL).await?.0)
+        Ok(self.client.get_file(id.as_str(), &Range::FULL).await?.0)
     }
 
     async fn reload(&mut self) -> Result<(), ProviderError> {
@@ -302,8 +332,8 @@ impl AnniProvider for DriveBackend {
 
         let mut page_token = String::new();
         loop {
-            let permit = self.semaphore.acquire().await.unwrap();
-            let (_, list) = self.prepare_list()
+            let permit = self.client.semaphore.acquire().await.unwrap();
+            let (_, list) = self.client.prepare_list()
                 .page_token(&page_token)
                 .q("mimeType = 'application/vnd.google-apps.folder' and trashed = false")
                 .param("fields", "nextPageToken, files(id,name)")

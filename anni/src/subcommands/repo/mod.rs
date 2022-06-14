@@ -91,7 +91,7 @@ pub struct RepoAddAction {
 #[handler(RepoAddAction)]
 fn repo_add(me: &RepoAddAction, manager: &RepositoryManager) -> anyhow::Result<()> {
     for to_add in me.directories.iter() {
-        let last = anni_repo::library::file_name(&to_add)?;
+        let last = file_name(&to_add)?;
         if !is_album_folder(&last) {
             ball!("repo-invalid-album", name = last);
         }
