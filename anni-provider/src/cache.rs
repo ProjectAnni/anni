@@ -255,7 +255,7 @@ impl CacheReader for Arc<CacheItem> {
                 size: self.size(),
                 duration: self.duration,
             },
-            range: range.clone(),
+            range,
             reader,
         }
     }

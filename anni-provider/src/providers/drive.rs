@@ -17,6 +17,7 @@ use parking_lot::Mutex;
 use tokio::sync::Semaphore;
 use anni_repo::db::RepoDatabaseRead;
 use google_drive3::hyper_rustls::HttpsConnectorBuilder;
+use crate::utils::read_duration;
 
 pub enum DriveAuth {
     InstalledFlow { client_id: String, client_secret: String, project_id: Option<String> },
@@ -240,8 +241,6 @@ impl AnniProvider for DriveBackend {
             return Err(ProviderError::FileNotFound);
         }
 
-        let is_head = range.contains_flac_header();
-
         let key = format!("{album_id}/{disc_id}/{track_id}");
         if !self.files.contains_key(&key) {
             // get folder_id
@@ -277,11 +276,7 @@ impl AnniProvider for DriveBackend {
                 let metadata = self.audios.get(&file_id).unwrap().value().clone(); // drop lock inline
 
                 let (mut reader, range) = self.client.get_file(&file_id, &range).await?;
-                let duration = if is_head {
-                    let (info, _reader) = crate::utils::read_header(reader).await?;
-                    reader = _reader;
-                    info.total_samples / info.sample_rate as u64
-                } else { 0 };
+                let (duration, reader) = read_duration(reader, range).await?;
                 Ok(AudioResourceReader {
                     info: AudioInfo {
                         extension: metadata.0,

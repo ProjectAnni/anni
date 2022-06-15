@@ -11,6 +11,7 @@ use tokio::io::{AsyncReadExt, AsyncSeekExt};
 use anni_repo::db::RepoDatabaseRead;
 use crate::{AudioInfo, Range, ResourceReader, strict_album_path};
 use uuid::Uuid;
+use crate::utils::read_duration;
 
 pub struct FileBackend {
     root: PathBuf,
@@ -261,12 +262,7 @@ async fn read_audio(path: &Path, mut file: File, range: Range) -> Result<AudioRe
     let file = file.take(range.length_limit(file_size));
 
     // calculate audio duration only if it flac header is in range
-    let (duration, reader): (u64, ResourceReader) = if range.contains_flac_header() {
-        let (info, reader) = crate::utils::read_header(file).await?;
-        (info.total_samples / info.sample_rate as u64, reader)
-    } else {
-        (0, Box::pin(file))
-    };
+    let (duration, reader) = read_duration(Box::pin(file), range).await?;
 
     return Ok(AudioResourceReader {
         info: AudioInfo {

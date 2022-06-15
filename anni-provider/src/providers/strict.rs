@@ -3,7 +3,8 @@ use std::collections::{HashMap, HashSet, VecDeque};
 use std::path::PathBuf;
 use async_trait::async_trait;
 use uuid::Uuid;
-use crate::{AnniProvider, AudioResourceReader, FileEntry, FileSystemProvider, ProviderError, Range, ResourceReader, Result};
+use crate::{AnniProvider, AudioInfo, AudioResourceReader, FileEntry, FileSystemProvider, ProviderError, Range, ResourceReader, Result};
+use crate::utils::read_duration;
 
 pub struct StrictProvider {
     root: PathBuf,
@@ -21,18 +22,31 @@ impl AnniProvider for StrictProvider {
     async fn get_audio(&self, album_id: &str, disc_id: u8, track_id: u8, range: Range) -> Result<AudioResourceReader> {
         let disc = self.get_disc(album_id, disc_id).await?;
         let file = self.fs.get_file_entry_by_prefix(&disc.path, &format!("{}", track_id)).await?;
-        self.fs.get_audio(&file.path, range).await
+        let reader = self.fs.get_file(&file.path, range).await?;
+        let metadata = self.fs.get_audio_info(&file.path).await?;
+        let (duration, reader) = read_duration(reader, range).await?;
+        Ok(AudioResourceReader {
+            info: AudioInfo {
+                extension: metadata.0,
+                size: metadata.1,
+                duration,
+            },
+            range,
+            reader,
+        })
     }
 
     async fn get_cover(&self, album_id: &str, disc_id: Option<u8>) -> Result<ResourceReader> {
         match disc_id {
             Some(disc_id) => {
                 let disc = self.get_disc(album_id, disc_id).await?;
-                self.fs.get_cover(&disc.path).await
+                let cover = self.fs.get_file_entry_by_prefix(&disc.path, "cover.jpg").await?;
+                self.fs.get_file(&cover.path, Range::FULL).await
             }
             None => {
                 let album = self.folders.get(album_id).ok_or(ProviderError::FileNotFound)?;
-                self.fs.get_cover(&album.path).await
+                let cover = self.fs.get_file_entry_by_prefix(&album.path, "cover.jpg").await?;
+                self.fs.get_file(&cover.path, Range::FULL).await
             }
         }
     }

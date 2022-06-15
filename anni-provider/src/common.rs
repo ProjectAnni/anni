@@ -29,7 +29,7 @@ pub struct AudioResourceReader {
     pub reader: ResourceReader,
 }
 
-#[derive(Clone)]
+#[derive(Clone, Copy)]
 pub struct Range {
     pub start: u64,
     pub end: Option<u64>,
@@ -162,11 +162,11 @@ pub trait FileSystemProvider: Sync {
     /// Get file entry in a folder with given prefix
     async fn get_file_entry_by_prefix(&self, parent: &PathBuf, prefix: &str) -> Result<FileEntry>;
 
-    /// Get audio reader
-    async fn get_audio(&self, path: &PathBuf, range: Range) -> Result<AudioResourceReader>;
+    /// Get file reader
+    async fn get_file(&self, path: &PathBuf, range: Range) -> Result<ResourceReader>;
 
-    /// Get cover reader
-    async fn get_cover(&self, path: &PathBuf) -> Result<ResourceReader>;
+    /// Get audio info: (extension ,size)
+    async fn get_audio_info(&self, path: &PathBuf) -> Result<(String, usize)>;
 
     /// Reload
     async fn reload(&mut self) -> Result<()>;

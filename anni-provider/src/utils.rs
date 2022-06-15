@@ -2,9 +2,9 @@ use std::io::{Cursor};
 use tokio::io::{AsyncRead, AsyncReadExt, AsyncWriteExt};
 use anni_flac::blocks::BlockStreamInfo;
 use anni_flac::prelude::{AsyncDecode, Encode, Result};
-use crate::ResourceReader;
+use crate::{Range, ResourceReader};
 
-pub(crate) async fn read_header<R>(mut reader: R) -> Result<(BlockStreamInfo, ResourceReader)>
+async fn read_header<R>(mut reader: R) -> Result<(BlockStreamInfo, ResourceReader)>
     where R: AsyncRead + Unpin + Send + 'static {
     let first = reader.read_u32().await.unwrap();
     let second = reader.read_u32().await.unwrap();
@@ -17,4 +17,14 @@ pub(crate) async fn read_header<R>(mut reader: R) -> Result<(BlockStreamInfo, Re
     header.set_position(0);
 
     Ok((info, Box::pin(header.chain(reader))))
+}
+
+pub(crate) async fn read_duration(reader: ResourceReader, range: Range) -> Result<(u64, ResourceReader)> {
+    if !range.contains_flac_header() {
+        return Ok((0, reader));
+    }
+
+    let (info, reader) = read_header(reader).await?;
+    let duration = info.total_samples / info.sample_rate as u64;
+    Ok((duration, Box::pin(reader)))
 }
