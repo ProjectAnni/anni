@@ -168,6 +168,22 @@ pub trait FileSystemProvider: Sync {
     /// Get audio info: (extension ,size)
     async fn get_audio_info(&self, path: &PathBuf) -> Result<(String, usize)>;
 
+    // TODO: move this method to a sub trait
+    async fn get_audio_file(&self, path: &PathBuf, range: Range) -> Result<AudioResourceReader> {
+        let reader = self.get_file(path, range).await?;
+        let metadata = self.get_audio_info(path).await?;
+        let (duration, reader) = crate::utils::read_duration(reader, range).await?;
+        Ok(AudioResourceReader {
+            info: AudioInfo {
+                extension: metadata.0,
+                size: metadata.1,
+                duration,
+            },
+            range,
+            reader,
+        })
+    }
+
     /// Reload
     async fn reload(&mut self) -> Result<()>;
 }

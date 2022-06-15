@@ -3,8 +3,7 @@ use std::collections::{HashMap, HashSet, VecDeque};
 use std::path::PathBuf;
 use async_trait::async_trait;
 use uuid::Uuid;
-use crate::{AnniProvider, AudioInfo, AudioResourceReader, FileEntry, FileSystemProvider, ProviderError, Range, ResourceReader, Result};
-use crate::utils::read_duration;
+use crate::{AnniProvider, AudioResourceReader, FileEntry, FileSystemProvider, ProviderError, Range, ResourceReader, Result};
 
 pub struct StrictProvider {
     root: PathBuf,
@@ -22,18 +21,7 @@ impl AnniProvider for StrictProvider {
     async fn get_audio(&self, album_id: &str, disc_id: u8, track_id: u8, range: Range) -> Result<AudioResourceReader> {
         let disc = self.get_disc(album_id, disc_id).await?;
         let file = self.fs.get_file_entry_by_prefix(&disc.path, &format!("{}", track_id)).await?;
-        let reader = self.fs.get_file(&file.path, range).await?;
-        let metadata = self.fs.get_audio_info(&file.path).await?;
-        let (duration, reader) = read_duration(reader, range).await?;
-        Ok(AudioResourceReader {
-            info: AudioInfo {
-                extension: metadata.0,
-                size: metadata.1,
-                duration,
-            },
-            range,
-            reader,
-        })
+        self.fs.get_audio_file(&file.path, range).await
     }
 
     async fn get_cover(&self, album_id: &str, disc_id: Option<u8>) -> Result<ResourceReader> {

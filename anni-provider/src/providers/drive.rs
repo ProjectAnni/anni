@@ -275,7 +275,7 @@ impl AnniProvider for DriveBackend {
                 drop(id); // drop lock immediately
                 let metadata = self.audios.get(&file_id).unwrap().value().clone(); // drop lock inline
 
-                let (mut reader, range) = self.client.get_file(&file_id, &range).await?;
+                let (reader, range) = self.client.get_file(&file_id, &range).await?;
                 let (duration, reader) = read_duration(reader, range).await?;
                 Ok(AudioResourceReader {
                     info: AudioInfo {
