@@ -2,6 +2,7 @@ use std::borrow::Cow;
 use std::collections::{HashMap, HashSet, VecDeque};
 use std::path::PathBuf;
 use async_trait::async_trait;
+use futures::StreamExt;
 use uuid::Uuid;
 use crate::{AnniProvider, AudioResourceReader, FileEntry, FileSystemProvider, ProviderError, Range, ResourceReader, Result};
 
@@ -49,8 +50,8 @@ impl AnniProvider for StrictProvider {
 impl StrictProvider {
     pub async fn get_disc(&self, album_id: &str, disc_id: u8) -> Result<FileEntry> {
         let folder = self.folders.get(album_id).ok_or(ProviderError::FileNotFound)?;
-        for folder in self.fs.children(&folder.path).await? {
-            let folder = folder.await;
+        let mut folders = self.fs.children(&folder.path).await?;
+        while let Some(folder) = folders.next().await {
             if folder.name == format!("{}", disc_id) {
                 return Ok(folder);
             }
@@ -64,10 +65,9 @@ impl StrictProvider {
         let mut vis = VecDeque::from([(self.root.clone(), 0)]);
         while let Some((ref path, layer)) = vis.pop_front() {
             log::debug!("Walking dir: {path:?}");
-            let reader = self.fs.children(path).await?;
+            let mut reader = self.fs.children(path).await?;
             if layer == self.layer {
-                for entry in reader {
-                    let entry = entry.await;
+                while let Some(entry) = reader.next().await {
                     match Uuid::parse_str(&entry.name) {
                         Ok(album_id) => {
                             self.folders.insert(album_id.to_string(), entry);
@@ -76,8 +76,7 @@ impl StrictProvider {
                     }
                 }
             } else {
-                for entry in reader {
-                    let entry = entry.await;
+                while let Some(entry) = reader.next().await {
                     vis.push_back((entry.path, layer + 1));
                 }
             }

@@ -1,11 +1,11 @@
 use std::borrow::Cow;
 use async_trait::async_trait;
 use std::collections::HashSet;
-use std::future::Future;
 use std::path::PathBuf;
 use std::pin::Pin;
 use thiserror::Error;
 use tokio::io::AsyncRead;
+use tokio_stream::Stream;
 
 pub type Result<T> = std::result::Result<T, ProviderError>;
 pub type ResourceReader = Pin<Box<dyn AsyncRead + Send>>;
@@ -149,6 +149,7 @@ pub trait AnniProvider: Sync {
     async fn reload(&mut self) -> Result<()>;
 }
 
+#[derive(Clone)]
 pub struct FileEntry {
     pub name: String,
     pub path: PathBuf,
@@ -157,7 +158,7 @@ pub struct FileEntry {
 #[async_trait]
 pub trait FileSystemProvider: Sync {
     /// List sub folders
-    async fn children(&self, path: &PathBuf) -> Result<Box<dyn Iterator<Item=Pin<Box<dyn Future<Output=FileEntry> + Send>>> + Send>>;
+    async fn children(&self, path: &PathBuf) -> Result<Pin<Box<dyn Stream<Item=FileEntry> + Send>>>;
 
     /// Get file entry in a folder with given prefix
     async fn get_file_entry_by_prefix(&self, parent: &PathBuf, prefix: &str) -> Result<FileEntry>;

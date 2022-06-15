@@ -3,6 +3,7 @@ use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;
 use parking_lot::Mutex;
 use async_trait::async_trait;
+use tokio_stream::StreamExt;
 use anni_repo::db::RepoDatabaseRead;
 use anni_repo::library::{album_info, disc_info};
 use crate::{AnniProvider, AudioResourceReader, FileEntry, FileSystemProvider, ProviderError, Range, ResourceReader, Result};
@@ -68,10 +69,8 @@ impl CommonConventionProvider {
 
     async fn walk_dir_impl(&mut self, dir: PathBuf, to_visit: &mut Vec<PathBuf>) -> Result<()> {
         log::debug!("Walking dir: {}", dir.display());
-        let dir = self.fs.children(&dir).await?;
-        for entry in dir {
-            let entry = entry.await;
-
+        let mut dir = self.fs.children(&dir).await?;
+        while let Some(entry) = dir.next().await {
             if let Ok((release_date, catalog, title, disc_count)) = album_info(&entry.name) {
                 log::debug!("Found album {} at: {:?}", catalog, entry.path);
                 let album_id = self.repo.lock().match_album(&catalog, &release_date, disc_count as u8, &title)?;
@@ -97,10 +96,8 @@ impl CommonConventionProvider {
 
     async fn walk_discs(&self, album: &PathBuf, size: usize) -> Result<Vec<FileEntry>> {
         let mut discs = Vec::new();
-        let dir = self.fs.children(album).await?;
-        for entry in dir {
-            let entry = entry.await;
-
+        let mut dir = self.fs.children(album).await?;
+        while let Some(entry) = dir.next().await {
             if let Ok((catalog, _, disc_id)) = disc_info(&entry.name) {
                 log::debug!("Found disc {} at: {:?}", catalog, entry.path);
                 if disc_id <= size {
