@@ -1,10 +1,13 @@
 use std::borrow::Cow;
 use async_trait::async_trait;
 use std::collections::HashSet;
+use std::future::Future;
+use std::path::PathBuf;
 use std::pin::Pin;
 use thiserror::Error;
 use tokio::io::AsyncRead;
 
+pub type Result<T> = std::result::Result<T, ProviderError>;
 pub type ResourceReader = Pin<Box<dyn AsyncRead + Send>>;
 
 pub struct AudioInfo {
@@ -124,7 +127,7 @@ impl Range {
 // https://docs.rs/async-trait/latest/async_trait/index.html#dyn-traits
 pub trait AnniProvider: Sync {
     /// Get album information provided by provider.
-    async fn albums(&self) -> Result<HashSet<Cow<str>>, ProviderError>;
+    async fn albums(&self) -> Result<HashSet<Cow<str>>>;
 
     /// Returns whether given album exists
     async fn has_album(&self, album_id: &str) -> bool {
@@ -132,18 +135,41 @@ pub trait AnniProvider: Sync {
     }
 
     /// Get audio info describing basic information of the audio file.
-    async fn get_audio_info(&self, album_id: &str, disc_id: u8, track_id: u8) -> Result<AudioInfo, ProviderError> {
+    async fn get_audio_info(&self, album_id: &str, disc_id: u8, track_id: u8) -> Result<AudioInfo> {
         Ok(self.get_audio(album_id, disc_id, track_id, Range::FLAC_HEADER).await?.info)
     }
 
     /// Returns a reader implements AsyncRead for content reading
-    async fn get_audio(&self, album_id: &str, disc_id: u8, track_id: u8, range: Range) -> Result<AudioResourceReader, ProviderError>;
+    async fn get_audio(&self, album_id: &str, disc_id: u8, track_id: u8, range: Range) -> Result<AudioResourceReader>;
 
     /// Returns a cover of corresponding album
-    async fn get_cover(&self, album_id: &str, disc_id: Option<u8>) -> Result<ResourceReader, ProviderError>;
+    async fn get_cover(&self, album_id: &str, disc_id: Option<u8>) -> Result<ResourceReader>;
 
     /// Reloads the provider for new albums
-    async fn reload(&mut self) -> Result<(), ProviderError>;
+    async fn reload(&mut self) -> Result<()>;
+}
+
+pub struct FileEntry {
+    pub name: String,
+    pub path: PathBuf,
+}
+
+#[async_trait]
+pub trait FileSystemProvider: Sync {
+    /// List sub folders
+    async fn children(&self, path: &PathBuf) -> Result<Box<dyn Iterator<Item=Pin<Box<dyn Future<Output=FileEntry> + Send>>> + Send>>;
+
+    /// Get file entry in a folder with given prefix
+    async fn get_file_entry_by_prefix(&self, parent: &PathBuf, prefix: &str) -> Result<FileEntry>;
+
+    /// Get audio reader
+    async fn get_audio(&self, path: &PathBuf, range: Range) -> Result<AudioResourceReader>;
+
+    /// Get cover reader
+    async fn get_cover(&self, path: &PathBuf) -> Result<ResourceReader>;
+
+    /// Reload
+    async fn reload(&mut self) -> Result<()>;
 }
 
 #[derive(Debug, Error)]

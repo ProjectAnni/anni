@@ -5,3 +5,4 @@ pub use proxy::ProxyBackend;
 mod file;
 pub mod drive;
 mod proxy;
+mod strict;

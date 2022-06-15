@@ -1,0 +1,86 @@
+use std::borrow::Cow;
+use std::collections::{HashMap, HashSet, VecDeque};
+use std::path::PathBuf;
+use async_trait::async_trait;
+use uuid::Uuid;
+use crate::{AnniProvider, AudioResourceReader, FileEntry, FileSystemProvider, ProviderError, Range, ResourceReader, Result};
+
+pub struct StrictProvider {
+    root: PathBuf,
+    layer: usize,
+    fs: Box<dyn FileSystemProvider + Send + Sync>,
+    folders: HashMap<String, FileEntry>,
+}
+
+#[async_trait]
+impl AnniProvider for StrictProvider {
+    async fn albums(&self) -> Result<HashSet<Cow<str>>> {
+        Ok(self.folders.keys().map(|c| Cow::Borrowed(c.as_str())).collect())
+    }
+
+    async fn get_audio(&self, album_id: &str, disc_id: u8, track_id: u8, range: Range) -> Result<AudioResourceReader> {
+        let disc = self.get_disc(album_id, disc_id).await?;
+        let file = self.fs.get_file_entry_by_prefix(&disc.path, &format!("{}", track_id)).await?;
+        self.fs.get_audio(&file.path, range).await
+    }
+
+    async fn get_cover(&self, album_id: &str, disc_id: Option<u8>) -> Result<ResourceReader> {
+        match disc_id {
+            Some(disc_id) => {
+                let disc = self.get_disc(album_id, disc_id).await?;
+                self.fs.get_cover(&disc.path).await
+            }
+            None => {
+                let album = self.folders.get(album_id).ok_or(ProviderError::FileNotFound)?;
+                self.fs.get_cover(&album.path).await
+            }
+        }
+    }
+
+    async fn reload(&mut self) -> Result<()> {
+        self.fs.reload().await?;
+        self.reload_albums().await?;
+        Ok(())
+    }
+}
+
+impl StrictProvider {
+    pub async fn get_disc(&self, album_id: &str, disc_id: u8) -> Result<FileEntry> {
+        let folder = self.folders.get(album_id).ok_or(ProviderError::FileNotFound)?;
+        for folder in self.fs.children(&folder.path).await? {
+            let folder = folder.await;
+            if folder.name == format!("{}", disc_id) {
+                return Ok(folder);
+            }
+        }
+        Err(ProviderError::FileNotFound)
+    }
+
+    pub async fn reload_albums(&mut self) -> Result<()> {
+        self.folders.clear();
+
+        let mut vis = VecDeque::from([(self.root.clone(), 0)]);
+        while let Some((ref path, layer)) = vis.pop_front() {
+            log::debug!("Walking dir: {path:?}");
+            let reader = self.fs.children(path).await?;
+            if layer == self.layer {
+                for entry in reader {
+                    let entry = entry.await;
+                    match Uuid::parse_str(&entry.name) {
+                        Ok(album_id) => {
+                            self.folders.insert(album_id.to_string(), entry);
+                        }
+                        _ => log::warn!("Unexpected dir: {path:?}"),
+                    }
+                }
+            } else {
+                for entry in reader {
+                    let entry = entry.await;
+                    vis.push_back((entry.path, layer + 1));
+                }
+            }
+        }
+
+        Ok(())
+    }
+}
