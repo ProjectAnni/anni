@@ -7,7 +7,8 @@ mod utils;
 
 use actix_web::{HttpServer, App, web};
 use std::sync::Arc;
-use anni_provider::providers::{FileBackend, StrictFileBackend, DriveBackend};
+use anni_provider::providers::{CommonConventionProvider, CommonStrictProvider, DriveBackend};
+use anni_provider::fs::LocalFileSystemProvider;
 use std::path::PathBuf;
 use crate::provider::AnnilProvider;
 use crate::config::{Config, MetadataConfig, ProviderItem};
@@ -81,7 +82,7 @@ async fn init_state(config: Config) -> anyhow::Result<web::Data<AppState>> {
             }
             // if no proxy was provided, use default behavior (http_proxy)
         }
-        
+
         Some(init_metadata(&config)?.to_string_lossy().into_owned())
     };
 
@@ -94,9 +95,9 @@ async fn init_state(config: Config) -> anyhow::Result<web::Data<AppState>> {
         log::debug!("Initializing provider: {}", provider_name);
         let mut provider: Box<dyn AnniProvider + Send + Sync> = match &provider_config.item {
             ProviderItem::File { root, strict: false, .. } =>
-                Box::new(FileBackend::new(PathBuf::from(root), open_db(database_path.as_ref().unwrap())?).await?),
-            ProviderItem::File { root, strict: true, layer } => 
-                Box::new(StrictFileBackend::new(PathBuf::from(root), *layer)),
+                Box::new(CommonConventionProvider::new(PathBuf::from(root), open_db(database_path.as_ref().unwrap())?, Box::new(LocalFileSystemProvider)).await?),
+            ProviderItem::File { root, strict: true, layer } =>
+                Box::new(CommonStrictProvider::new(PathBuf::from(root), *layer, Box::new(LocalFileSystemProvider)).await?),
             ProviderItem::Drive { drive_id, corpora, initial_token_path, token_path } => {
                 if let Some(initial_token_path) = initial_token_path {
                     if initial_token_path.exists() && !token_path.exists() {

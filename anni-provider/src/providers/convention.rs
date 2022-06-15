@@ -17,6 +17,21 @@ pub struct CommonConventionProvider {
     discs: HashMap<String, Vec<FileEntry>>,
 }
 
+impl CommonConventionProvider {
+    pub async fn new(root: PathBuf, repo: RepoDatabaseRead, fs: Box<dyn FileSystemProvider + Send + Sync>) -> Result<Self> {
+        let mut me = Self {
+            root,
+            fs,
+            repo: Mutex::new(repo),
+
+            albums: HashMap::new(),
+            discs: HashMap::new(),
+        };
+        me.reload().await?;
+        Ok(me)
+    }
+}
+
 #[async_trait]
 impl AnniProvider for CommonConventionProvider {
     async fn albums(&self) -> Result<HashSet<Cow<str>>> {
@@ -47,12 +62,15 @@ impl AnniProvider for CommonConventionProvider {
 
 impl CommonConventionProvider {
     pub fn get_disc(&self, album_id: &str, disc_id: u8) -> Result<&FileEntry> {
-        if !self.albums.contains_key(album_id) {
-            return Err(ProviderError::FileNotFound);
+        if let Some(album) = self.albums.get(album_id) {
+            if let Some(folders) = self.discs.get(album_id) {
+                folders.get(disc_id as usize).ok_or(ProviderError::FileNotFound)
+            } else {
+                Ok(album)
+            }
+        } else {
+            Err(ProviderError::FileNotFound)
         }
-
-        let folders = self.discs.get(album_id).ok_or(ProviderError::FileNotFound)?;
-        folders.get(disc_id as usize - 1).ok_or(ProviderError::FileNotFound)
     }
 
     pub async fn reload_albums(&mut self) -> Result<()> {

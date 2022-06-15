@@ -1,8 +1,8 @@
-pub use file::{FileBackend, StrictFileBackend};
 pub use drive::DriveBackend;
 pub use proxy::ProxyBackend;
+pub use convention::CommonConventionProvider;
+pub use strict::CommonStrictProvider;
 
-mod file;
 pub mod drive;
 mod proxy;
 mod strict;

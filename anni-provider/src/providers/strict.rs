@@ -6,15 +6,28 @@ use futures::StreamExt;
 use uuid::Uuid;
 use crate::{AnniProvider, AudioResourceReader, FileEntry, FileSystemProvider, ProviderError, Range, ResourceReader, Result};
 
-pub struct StrictProvider {
+pub struct CommonStrictProvider {
     root: PathBuf,
     layer: usize,
     fs: Box<dyn FileSystemProvider + Send + Sync>,
     folders: HashMap<String, FileEntry>,
 }
 
+impl CommonStrictProvider {
+    pub async fn new(root: PathBuf, layer: usize, fs: Box<dyn FileSystemProvider + Send + Sync>) -> Result<Self> {
+        let mut me = Self {
+            root,
+            layer,
+            fs,
+            folders: HashMap::new(),
+        };
+        me.reload().await?;
+        Ok(me)
+    }
+}
+
 #[async_trait]
-impl AnniProvider for StrictProvider {
+impl AnniProvider for CommonStrictProvider {
     async fn albums(&self) -> Result<HashSet<Cow<str>>> {
         Ok(self.folders.keys().map(|c| Cow::Borrowed(c.as_str())).collect())
     }
@@ -47,7 +60,7 @@ impl AnniProvider for StrictProvider {
     }
 }
 
-impl StrictProvider {
+impl CommonStrictProvider {
     pub async fn get_disc(&self, album_id: &str, disc_id: u8) -> Result<FileEntry> {
         let folder = self.folders.get(album_id).ok_or(ProviderError::FileNotFound)?;
         let mut folders = self.fs.children(&folder.path).await?;
