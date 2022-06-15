@@ -1,9 +1,10 @@
 use std::borrow::Cow;
 use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;
-use std::sync::Mutex;
+use parking_lot::Mutex;
 use async_trait::async_trait;
 use anni_repo::db::RepoDatabaseRead;
+use anni_repo::library::{album_info, disc_info};
 use crate::{AnniProvider, AudioResourceReader, FileEntry, FileSystemProvider, ProviderError, Range, ResourceReader, Result};
 
 pub struct CommonConventionProvider {
@@ -37,7 +38,7 @@ impl AnniProvider for CommonConventionProvider {
 
     async fn reload(&mut self) -> Result<()> {
         self.fs.reload().await?;
-        self.repo.lock().unwrap().reload()?;
+        self.repo.lock().reload()?;
         self.reload_albums().await?;
         Ok(())
     }
@@ -57,8 +58,57 @@ impl CommonConventionProvider {
         self.albums.clear();
         self.discs.clear();
 
-        // TODO: load albums
+        let mut to_visit = vec![self.root.clone()];
+        while let Some(dir) = to_visit.pop() {
+            self.walk_dir_impl(dir, &mut to_visit).await?;
+        }
 
         Ok(())
+    }
+
+    async fn walk_dir_impl(&mut self, dir: PathBuf, to_visit: &mut Vec<PathBuf>) -> Result<()> {
+        log::debug!("Walking dir: {}", dir.display());
+        let dir = self.fs.children(&dir).await?;
+        for entry in dir {
+            let entry = entry.await;
+
+            if let Ok((release_date, catalog, title, disc_count)) = album_info(&entry.name) {
+                log::debug!("Found album {} at: {:?}", catalog, entry.path);
+                let album_id = self.repo.lock().match_album(&catalog, &release_date, disc_count as u8, &title)?;
+                match album_id {
+                    Some(album_id) => {
+                        if disc_count > 1 {
+                            // look for inner discs
+                            let discs = self.walk_discs(&entry.path, disc_count).await?;
+                            self.discs.insert(album_id.to_string(), discs);
+                        }
+                        self.albums.insert(album_id.to_string(), entry);
+                    }
+                    None => {
+                        log::warn!("Album ID not found for {}, ignoring...", catalog);
+                    }
+                }
+            } else {
+                to_visit.push(entry.path.clone());
+            }
+        }
+        Ok(())
+    }
+
+    async fn walk_discs(&self, album: &PathBuf, size: usize) -> Result<Vec<FileEntry>> {
+        let mut discs = Vec::new();
+        let dir = self.fs.children(album).await?;
+        for entry in dir {
+            let entry = entry.await;
+
+            if let Ok((catalog, _, disc_id)) = disc_info(&entry.name) {
+                log::debug!("Found disc {} at: {:?}", catalog, entry.path);
+                if disc_id <= size {
+                    discs.push((disc_id, entry));
+                }
+            }
+        }
+        discs.sort_by(|a, b| a.0.cmp(&b.0));
+        Ok(discs.into_iter().map(|(_, entry)| entry).collect())
     }
 }
