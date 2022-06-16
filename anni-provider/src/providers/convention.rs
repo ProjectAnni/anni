@@ -13,8 +13,8 @@ pub struct CommonConventionProvider {
     fs: Box<dyn FileSystemProvider + Send + Sync>,
     repo: Mutex<RepoDatabaseRead>,
 
-    albums: HashMap<String, FileEntry>,
-    discs: HashMap<String, Vec<FileEntry>>,
+    pub albums: HashMap<String, FileEntry>,
+    pub discs: HashMap<String, Vec<FileEntry>>,
 }
 
 impl CommonConventionProvider {

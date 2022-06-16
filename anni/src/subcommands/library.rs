@@ -4,8 +4,9 @@ use anni_clap_handler::{Context, Handler, handler};
 use anni_common::fs;
 use anni_flac::blocks::{UserComment, UserCommentExt};
 use anni_flac::FlacHeader;
+use anni_provider::fs::LocalFileSystemProvider;
+use anni_provider::providers::CommonConventionProvider;
 use anni_provider::strict_album_path;
-use anni_provider::providers::FileBackend;
 use anni_repo::db::RepoDatabaseRead;
 use anni_repo::library::{album_info, file_name};
 use anni_repo::prelude::*;
@@ -307,8 +308,8 @@ pub async fn library_link(me: LibraryLinkAction, manager: RepositoryManager) -> 
     manager.to_database(&repo_path)?;
 
     // 3. scan `from` folder
-    let provider = FileBackend::new(from, RepoDatabaseRead::new(&repo_path.to_string_lossy().to_string())?).await?;
-    for (album_id, album_from) in provider.album_path {
+    let provider = CommonConventionProvider::new(from, RepoDatabaseRead::new(&repo_path.to_string_lossy().to_string())?, Box::new(LocalFileSystemProvider)).await?;
+    for (album_id, album_from) in provider.albums {
         // 4. create album_id folder
         let album_to = strict_album_path(&to, &album_id, me.layer);
         if me.incremental && album_to.exists() {
@@ -317,20 +318,20 @@ pub async fn library_link(me: LibraryLinkAction, manager: RepositoryManager) -> 
         fs::create_dir_all(&album_to)?;
 
         // 5. link album art
-        fs::symlink_file(album_from.join("cover.jpg"), album_to.join("cover.jpg"))?;
+        fs::symlink_file(album_from.path.join("cover.jpg"), album_to.join("cover.jpg"))?;
 
         let discs = vec![album_from];
-        let discs = provider.album_discs.get(&album_id).unwrap_or(&discs);
+        let discs = provider.discs.get(&album_id).unwrap_or(&discs);
         for (i, disc_from) in discs.iter().enumerate() {
             // 6. create disc folder
             let disc_to = album_to.join(format!("{}", i + 1));
             fs::create_dir_all(&disc_to)?;
 
             // 7. link disc art
-            fs::symlink_file(disc_from.join("cover.jpg"), disc_to.join("cover.jpg"))?;
+            fs::symlink_file(disc_from.path.join("cover.jpg"), disc_to.join("cover.jpg"))?;
 
             // 8. link tracks
-            for entry in fs::read_dir(&disc_from)? {
+            for entry in fs::read_dir(&disc_from.path)? {
                 let entry = entry?;
                 let parts = entry.file_name();
                 let parts = parts.to_string_lossy();
