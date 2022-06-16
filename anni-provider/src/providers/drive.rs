@@ -11,7 +11,6 @@ use anni_repo::library::{album_info, disc_info};
 use google_drive3::api::{FileList, FileListCall};
 use std::str::FromStr;
 use dashmap::DashMap;
-use dashmap::mapref::one::Ref;
 use futures::TryStreamExt;
 use parking_lot::Mutex;
 use tokio::sync::Semaphore;
@@ -141,10 +140,9 @@ impl DriveClient {
         Ok((Box::pin(body), content_range_to_range(content_range.as_deref())))
     }
 
-    async fn get_cover_id_in(&self, parent_id: &str) -> Result<Ref<'_, String, String>, ProviderError> {
+    async fn get_cover_id_in(&self, parent_id: &str) -> Result<String, ProviderError> {
         if self.covers.contains_key(parent_id) {
-            return self.covers.get(parent_id)
-                .ok_or(ProviderError::FileNotFound);
+            return self.covers.get(parent_id).map(|v| v.to_string()).ok_or(ProviderError::FileNotFound);
         }
 
         let permit = self.semaphore.acquire().await.unwrap();
@@ -157,9 +155,8 @@ impl DriveClient {
         let files = list.files.unwrap();
         let file = files.get(0).ok_or(ProviderError::FileNotFound)?;
         let id = file.id.as_ref().unwrap().to_string();
-        self.covers.insert(parent_id.to_string(), id);
-        self.covers.get(parent_id)
-            .ok_or(ProviderError::FileNotFound)
+        self.covers.insert(parent_id.to_string(), id.clone());
+        Ok(id)
     }
 }
 
@@ -304,7 +301,7 @@ impl AnniProvider for DriveBackend {
             None => format!("{album_id}/cover"),
         };
         let id = match self.files.get(&key) {
-            Some(id) => id,
+            Some(id) => id.to_string(),
             None => {
                 // get folder_id
                 self.cache_discs(album_id).await?;
@@ -315,7 +312,7 @@ impl AnniProvider for DriveBackend {
             }
         };
 
-        Ok(self.client.get_file(id.as_str(), &Range::FULL).await?.0)
+        Ok(self.client.get_file(&id, &Range::FULL).await?.0)
     }
 
     async fn reload(&mut self) -> Result<(), ProviderError> {
