@@ -13,7 +13,7 @@ flac-export-type = Type of data to export.
 split = Provided helper to split audios.
 split-format-input = Format of input audio file.
 split-format-output = Format of output audio file.
-split-no-apply-tags = Do not extract tags from CUE files to audio file.
+split-clean = Keep split ao files clean with no metadata or cover written into.
 split-no-import-cover = Do not import cover to audio file.
 split-output-file-exist = Output file {$filename} exists. Please remove the file and try again.
 

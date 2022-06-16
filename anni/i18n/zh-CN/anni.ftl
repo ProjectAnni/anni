@@ -13,7 +13,7 @@ flac-export-type = 导出内容类型
 split = 提供音频分割相关的功能
 split-format-input = 待切分音频的文件类型
 split-format-output = 切分后输出音频的文件类型
-split-no-apply-tags = 不将 CUE 中的元数据写入音频文件
+split-clean = 不向切分后的音频文件中写入元数据和封面等信息
 split-no-import-cover = 不从切分目录寻找封面写入音频文件
 split-output-file-exist = 输出路径下已存在文件 {$filename}，请删除文件后重试
 

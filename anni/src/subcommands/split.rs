@@ -30,9 +30,9 @@ pub struct SplitSubcommand {
     #[clap(help = ll ! {"split-format-output"})]
     output_format: SplitOutputFormat,
 
-    #[clap(long = "no-apply-tags", parse(from_flag = std::ops::Not::not))]
-    #[clap(help = ll ! {"split-no-apply-tags"})]
-    apply_tags: bool,
+    #[clap(long = "clean")]
+    #[clap(help = ll ! {"split-clean"})]
+    clean: bool,
 
     #[clap(long = "no-import-cover", parse(from_flag = std::ops::Not::not))]
     #[clap(help = ll ! {"split-no-import-cover"})]
@@ -115,15 +115,13 @@ impl SplitSubcommand {
                 // wait for process to exit
                 process.wait();
 
-                if self.apply_tags || cover.is_some() && matches!(self.output_format, SplitOutputFormat::Flac) {
+                if !self.clean && matches!(self.output_format, SplitOutputFormat::Flac) {
                     let mut flac = FlacHeader::from_file(&path)?;
 
                     // write tags
-                    if self.apply_tags {
-                        let comment = flac.comments_mut();
-                        comment.clear();
-                        comment.comments.append(&mut track.tags);
-                    }
+                    let comment = flac.comments_mut();
+                    comment.clear();
+                    comment.comments.append(&mut track.tags);
 
                     // write cover
                     if let Some(cover) = &cover {
