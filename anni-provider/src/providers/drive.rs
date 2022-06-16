@@ -70,7 +70,7 @@ pub struct DriveProviderSettings {
 }
 
 pub struct DriveClient {
-    hub: Box<DriveHub>,
+    hub: Box<DriveHub<HttpsConnector<HttpConnector>>>,
     settings: DriveProviderSettings,
     /// Semaphore for rate limiting
     semaphore: Semaphore,
@@ -103,7 +103,7 @@ impl DriveClient {
         })
     }
 
-    fn prepare_list(&self) -> FileListCall {
+    fn prepare_list(&self) -> FileListCall<HttpsConnector<HttpConnector>> {
         let result = self.hub.files().list()
             .corpora(&self.settings.corpora)
             .supports_all_drives(true)

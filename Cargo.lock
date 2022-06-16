@@ -1486,8 +1486,9 @@ dependencies = [
 
 [[package]]
 name = "google-drive3"
-version = "3.0.0+20220225"
+version = "4.0.0+20220225"
 dependencies = [
+ "http",
  "hyper",
  "hyper-rustls",
  "itertools",
@@ -1495,6 +1496,8 @@ dependencies = [
  "serde 1.0.137",
  "serde_derive",
  "serde_json",
+ "tokio",
+ "tower-service",
  "url 1.7.2",
  "yup-oauth2",
 ]
@@ -4240,9 +4243,9 @@ dependencies = [
 
 [[package]]
 name = "yup-oauth2"
-version = "6.7.0"
+version = "7.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "87d859e5b7fb10b5956b30eb1a6da981cdf0d3195fe2c6ff1840424522ca0d51"
+checksum = "c366bdabfb970344057848d4e8045b03038dc9275bd6e630e5310fa6d0e2f986"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -4261,6 +4264,7 @@ dependencies = [
  "serde_json",
  "time 0.3.9",
  "tokio",
+ "tower-service",
  "url 2.2.2",
 ]
 

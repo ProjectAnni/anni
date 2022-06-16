@@ -2,15 +2,15 @@
 // This file was generated automatically from 'src/mako/api/lib.rs.mako'
 // DO NOT EDIT !
 
-//! This documentation was generated from *drive* crate version *3.0.0+20220225*, where *20220225* is the exact revision of the *drive:v3* schema built by the [mako](http://www.makotemplates.org/) code generator *v3.0.0*.
-//! 
+//! This documentation was generated from *drive* crate version *4.0.0+20220225*, where *20220225* is the exact revision of the *drive:v3* schema built by the [mako](http://www.makotemplates.org/) code generator *v4.0.0*.
+//!
 //! Everything else about the *drive* *v3* API can be found at the
 //! [official documentation site](https://developers.google.com/drive/).
 //! The original source code is [on github](https://github.com/Byron/google-apis-rs/tree/main/gen/drive3).
 //! # Features
-//! 
-//! Handle the following *Resources* with ease from the central [hub](DriveHub) ... 
-//! 
+//!
+//! Handle the following *Resources* with ease from the central [hub](DriveHub) ...
+//!
 //! * [about](api::About)
 //!  * [*get*](api::AboutGetCall)
 //! * [changes](api::Change)
@@ -31,36 +31,36 @@
 //!  * [*delete*](api::RevisionDeleteCall), [*get*](api::RevisionGetCall), [*list*](api::RevisionListCall) and [*update*](api::RevisionUpdateCall)
 //! * teamdrives
 //!  * [*create*](api::TeamdriveCreateCall), [*delete*](api::TeamdriveDeleteCall), [*get*](api::TeamdriveGetCall), [*list*](api::TeamdriveListCall) and [*update*](api::TeamdriveUpdateCall)
-//! 
-//! 
+//!
+//!
 //! Upload supported by ...
-//! 
+//!
 //! * [*create files*](api::FileCreateCall)
 //! * [*update files*](api::FileUpdateCall)
-//! 
+//!
 //! Download supported by ...
-//! 
+//!
 //! * [*export files*](api::FileExportCall)
 //! * [*get files*](api::FileGetCall)
 //! * [*watch files*](api::FileWatchCall)
 //! * [*get revisions*](api::RevisionGetCall)
-//! 
+//!
 //! Subscription supported by ...
-//! 
+//!
 //! * [*list changes*](api::ChangeListCall)
 //! * [*watch changes*](api::ChangeWatchCall)
 //! * [*create files*](api::FileCreateCall)
 //! * [*get files*](api::FileGetCall)
 //! * [*watch files*](api::FileWatchCall)
-//! 
-//! 
-//! 
+//!
+//!
+//!
 //! Not what you are looking for ? Find all other Google APIs in their Rust [documentation index](http://byron.github.io/google-apis-rs).
-//! 
+//!
 //! # Structure of this Library
-//! 
+//!
 //! The API is structured into the following primary items:
-//! 
+//!
 //! * **[Hub](DriveHub)**
 //!     * a central object to maintain state and allow accessing all *Activities*
 //!     * creates [*Method Builders*](client::MethodsBuilder) which in turn
@@ -73,17 +73,17 @@
 //!         * never directly used in *Activities*
 //! * **[Activities](client::CallBuilder)**
 //!     * operations to apply to *Resources*
-//! 
+//!
 //! All *structures* are marked with applicable traits to further categorize them and ease browsing.
-//! 
+//!
 //! Generally speaking, you can invoke *Activities* like this:
-//! 
+//!
 //! ```Rust,ignore
 //! let r = hub.resource().activity(...).doit().await
 //! ```
-//! 
+//!
 //! Or specifically ...
-//! 
+//!
 //! ```ignore
 //! let r = hub.files().copy(...).doit().await
 //! let r = hub.files().create(...).doit().await
@@ -96,27 +96,27 @@
 //! let r = hub.files().update(...).doit().await
 //! let r = hub.files().watch(...).doit().await
 //! ```
-//! 
-//! The `resource()` and `activity(...)` calls create [builders][builder-pattern]. The second one dealing with `Activities` 
-//! supports various methods to configure the impending operation (not shown here). It is made such that all required arguments have to be 
+//!
+//! The `resource()` and `activity(...)` calls create [builders][builder-pattern]. The second one dealing with `Activities`
+//! supports various methods to configure the impending operation (not shown here). It is made such that all required arguments have to be
 //! specified right away (i.e. `(...)`), whereas all optional ones can be [build up][builder-pattern] as desired.
 //! The `doit()` method performs the actual communication with the server and returns the respective result.
-//! 
+//!
 //! # Usage
-//! 
+//!
 //! ## Setting up your Project
-//! 
+//!
 //! To use this library, you would put the following lines into your `Cargo.toml` file:
-//! 
+//!
 //! ```toml
 //! [dependencies]
 //! google-drive3 = "*"
 //! serde = "^1.0"
 //! serde_json = "^1.0"
 //! ```
-//! 
+//!
 //! ## A complete example
-//! 
+//!
 //! ```test_harness,no_run
 //! extern crate hyper;
 //! extern crate hyper_rustls;
@@ -125,20 +125,20 @@
 //! # async fn dox() {
 //! use std::default::Default;
 //! use drive3::{DriveHub, oauth2, hyper, hyper_rustls};
-//! 
-//! // Get an ApplicationSecret instance by some means. It contains the `client_id` and 
+//!
+//! // Get an ApplicationSecret instance by some means. It contains the `client_id` and
 //! // `client_secret`, among other things.
 //! let secret: oauth2::ApplicationSecret = Default::default();
-//! // Instantiate the authenticator. It will choose a suitable authentication flow for you, 
+//! // Instantiate the authenticator. It will choose a suitable authentication flow for you,
 //! // unless you replace  `None` with the desired Flow.
-//! // Provide your own `AuthenticatorDelegate` to adjust the way it operates and get feedback about 
+//! // Provide your own `AuthenticatorDelegate` to adjust the way it operates and get feedback about
 //! // what's going on. You probably want to bring in your own `TokenStorage` to persist tokens and
 //! // retrieve them from storage.
 //! let auth = oauth2::InstalledFlowAuthenticator::builder(
 //!         secret,
 //!         oauth2::InstalledFlowReturnMethod::HTTPRedirect,
 //!     ).build().await.unwrap();
-//! let mut hub = DriveHub::new(hyper::Client::builder().build(hyper_rustls::HttpsConnector::with_native_roots()), auth);
+//! let mut hub = DriveHub::new(hyper::Client::builder().build(hyper_rustls::HttpsConnector::with_native_roots().https_or_http().enable_http1().enable_http2().build()), auth);
 //! // You can configure optional parameters by calling the respective setters at will, and
 //! // execute the final call using `doit()`.
 //! // Values shown here are possibly random and not representative !
@@ -158,7 +158,7 @@
 //!              .corpus("dolor")
 //!              .corpora("Lorem")
 //!              .doit().await;
-//! 
+//!
 //! match result {
 //!     Err(e) => match e {
 //!         // The Error enum provides details about what exactly happened.
@@ -179,58 +179,58 @@
 //! # }
 //! ```
 //! ## Handling Errors
-//! 
+//!
 //! All errors produced by the system are provided either as [Result](client::Result) enumeration as return value of
-//! the doit() methods, or handed as possibly intermediate results to either the 
+//! the doit() methods, or handed as possibly intermediate results to either the
 //! [Hub Delegate](client::Delegate), or the [Authenticator Delegate](https://docs.rs/yup-oauth2/*/yup_oauth2/trait.AuthenticatorDelegate.html).
-//! 
-//! When delegates handle errors or intermediate values, they may have a chance to instruct the system to retry. This 
+//!
+//! When delegates handle errors or intermediate values, they may have a chance to instruct the system to retry. This
 //! makes the system potentially resilient to all kinds of errors.
-//! 
+//!
 //! ## Uploads and Downloads
 //! If a method supports downloads, the response body, which is part of the [Result](client::Result), should be
 //! read by you to obtain the media.
 //! If such a method also supports a [Response Result](client::ResponseResult), it will return that by default.
 //! You can see it as meta-data for the actual media. To trigger a media download, you will have to set up the builder by making
 //! this call: `.param("alt", "media")`.
-//! 
-//! Methods supporting uploads can do so using up to 2 different protocols: 
-//! *simple* and *resumable*. The distinctiveness of each is represented by customized 
+//!
+//! Methods supporting uploads can do so using up to 2 different protocols:
+//! *simple* and *resumable*. The distinctiveness of each is represented by customized
 //! `doit(...)` methods, which are then named `upload(...)` and `upload_resumable(...)` respectively.
-//! 
+//!
 //! ## Customization and Callbacks
-//! 
-//! You may alter the way an `doit()` method is called by providing a [delegate](client::Delegate) to the 
-//! [Method Builder](client::CallBuilder) before making the final `doit()` call. 
-//! Respective methods will be called to provide progress information, as well as determine whether the system should 
+//!
+//! You may alter the way an `doit()` method is called by providing a [delegate](client::Delegate) to the
+//! [Method Builder](client::CallBuilder) before making the final `doit()` call.
+//! Respective methods will be called to provide progress information, as well as determine whether the system should
 //! retry on failure.
-//! 
+//!
 //! The [delegate trait](client::Delegate) is default-implemented, allowing you to customize it with minimal effort.
-//! 
+//!
 //! ## Optional Parts in Server-Requests
-//! 
-//! All structures provided by this library are made to be [encodable](client::RequestValue) and 
-//! [decodable](client::ResponseResult) via *json*. Optionals are used to indicate that partial requests are responses 
+//!
+//! All structures provided by this library are made to be [encodable](client::RequestValue) and
+//! [decodable](client::ResponseResult) via *json*. Optionals are used to indicate that partial requests are responses
 //! are valid.
-//! Most optionals are are considered [Parts](client::Part) which are identifiable by name, which will be sent to 
+//! Most optionals are are considered [Parts](client::Part) which are identifiable by name, which will be sent to
 //! the server to indicate either the set parts of the request or the desired parts in the response.
-//! 
+//!
 //! ## Builder Arguments
-//! 
+//!
 //! Using [method builders](client::CallBuilder), you are able to prepare an action call by repeatedly calling it's methods.
 //! These will always take a single argument, for which the following statements are true.
-//! 
+//!
 //! * [PODs][wiki-pod] are handed by copy
 //! * strings are passed as `&str`
 //! * [request values](client::RequestValue) are moved
-//! 
+//!
 //! Arguments will always be copied or cloned into the builder, to make them independent of their original life times.
-//! 
+//!
 //! [wiki-pod]: http://en.wikipedia.org/wiki/Plain_old_data_structure
 //! [builder-pattern]: http://en.wikipedia.org/wiki/Builder_pattern
 //! [google-go-api]: https://github.com/google/google-api-go-client
-//! 
-//! 
+//!
+//!
 
 // Unused attributes happen thanks to defined, but unused structures
 // We don't warn about this, as depending on the API, some data structures or facilities are never used.
