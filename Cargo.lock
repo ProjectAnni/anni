@@ -687,8 +687,9 @@ dependencies = [
 
 [[package]]
 name = "clap-handler"
-version = "0.1.0"
-source = "git+https://github.com/ProjectAnni/clap-handler#011a6b0ea259d7010250a39236bee598151d938b"
+version = "0.1.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5bdbff292f9db13ddb40c254fa3e0b19082948604bb052aa462f9a838ef3e911"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -698,7 +699,8 @@ dependencies = [
 [[package]]
 name = "clap-handler-derive"
 version = "0.1.0"
-source = "git+https://github.com/ProjectAnni/clap-handler#011a6b0ea259d7010250a39236bee598151d938b"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6bc84d6cb04f5b8d9e6ebb696fe1780abcf1f5889550a788a433fe33f1b783ae"
 dependencies = [
  "cfg-if",
  "proc-macro-error",
