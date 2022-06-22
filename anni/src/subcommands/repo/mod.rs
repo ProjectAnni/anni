@@ -11,7 +11,7 @@ use crate::{fl, ll, ball};
 use std::path::PathBuf;
 use std::str::FromStr;
 use anni_vgmdb::VGMClient;
-use anni_clap_handler::{Context, Handler, handler};
+use clap_handler::{Context, Handler, handler};
 use anni_common::inherit::InheritableValue;
 use cuna::Cuna;
 use ptree::TreeBuilder;

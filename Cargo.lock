@@ -274,7 +274,6 @@ name = "anni"
 version = "0.1.1"
 dependencies = [
  "alphanumeric-sort",
- "anni-clap-handler",
  "anni-common",
  "anni-flac",
  "anni-provider",
@@ -282,6 +281,7 @@ dependencies = [
  "anni-vgmdb",
  "anyhow",
  "clap",
+ "clap-handler",
  "clap_complete",
  "colored",
  "cuna",
@@ -310,26 +310,6 @@ dependencies = [
 name = "anni-artist"
 version = "0.1.0"
 source = "git+https://github.com/ProjectAnni/anni-artist#6e372fb09b6ec001db5fc180794c11a1fc8d5776"
-
-[[package]]
-name = "anni-clap-handler"
-version = "0.1.0"
-dependencies = [
- "anni-clap-handler-derive",
- "anyhow",
- "async-trait",
-]
-
-[[package]]
-name = "anni-clap-handler-derive"
-version = "0.1.0"
-dependencies = [
- "cfg-if",
- "proc-macro-error",
- "proc-macro2",
- "quote",
- "syn",
-]
 
 [[package]]
 name = "anni-common"
@@ -703,6 +683,28 @@ dependencies = [
  "strsim",
  "termcolor",
  "textwrap",
+]
+
+[[package]]
+name = "clap-handler"
+version = "0.1.0"
+source = "git+https://github.com/ProjectAnni/clap-handler#011a6b0ea259d7010250a39236bee598151d938b"
+dependencies = [
+ "anyhow",
+ "async-trait",
+ "clap-handler-derive",
+]
+
+[[package]]
+name = "clap-handler-derive"
+version = "0.1.0"
+source = "git+https://github.com/ProjectAnni/clap-handler#011a6b0ea259d7010250a39236bee598151d938b"
+dependencies = [
+ "cfg-if",
+ "proc-macro-error",
+ "proc-macro2",
+ "quote",
+ "syn",
 ]
 
 [[package]]

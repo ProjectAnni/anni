@@ -1,6 +1,6 @@
 use clap::{Args, CommandFactory};
 use clap_complete::{generate, Shell as CompletionShell};
-use anni_clap_handler::handler;
+use clap_handler::handler;
 use crate::{AnniArguments, ll};
 
 #[derive(Args, Debug, Clone)]

@@ -1,6 +1,6 @@
 use std::path::PathBuf;
 use clap::{Args, Subcommand};
-use anni_clap_handler::{Context, Handler, handler};
+use clap_handler::{Context, Handler, handler};
 use anni_common::fs;
 use anni_flac::blocks::{UserComment, UserCommentExt};
 use anni_flac::FlacHeader;

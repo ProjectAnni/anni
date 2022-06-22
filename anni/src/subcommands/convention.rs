@@ -1,7 +1,7 @@
 use crate::args::{FlacInputPath, InputPath};
 use crate::config::read_config;
 use crate::ll;
-use anni_clap_handler::{handler, Context, Handler};
+use clap_handler::{handler, Context, Handler};
 use anni_common::validator::*;
 use anni_flac::blocks::{BlockStreamInfo, BlockVorbisComment, PictureType};
 use anni_flac::{FlacHeader, MetadataBlockData};

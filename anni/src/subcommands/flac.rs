@@ -4,7 +4,7 @@ use anni_flac::{MetadataBlockData, FlacHeader};
 use clap::{Args, Subcommand, ArgEnum};
 use crate::ll;
 use crate::args::{InputPath, FlacInputFile};
-use anni_clap_handler::{Handler, handler};
+use clap_handler::{Handler, handler};
 
 #[derive(Args, Handler, Debug, Clone)]
 #[clap(about = ll ! ("flac"))]

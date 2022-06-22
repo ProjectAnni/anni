@@ -10,7 +10,7 @@ use anni_common::decode::{DecodeError, u16_le, u32_le, token};
 use anni_common::encode::{btoken_w, u16_le_w, u32_le_w};
 
 use anni_common::traits::{Decode, Encode};
-use anni_clap_handler::handler;
+use clap_handler::handler;
 use anni_flac::{FlacHeader, MetadataBlock, MetadataBlockData};
 use anni_flac::blocks::{UserComment, UserCommentExt, BlockPicture, PictureType};
 use crate::{ll, ball};

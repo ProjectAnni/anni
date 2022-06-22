@@ -1,6 +1,6 @@
 use log::LevelFilter;
 use clap::{Parser, AppSettings};
-use anni_clap_handler::Handler;
+use clap_handler::Handler;
 use crate::subcommands::*;
 
 mod i18n;

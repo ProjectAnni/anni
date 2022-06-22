@@ -2,7 +2,7 @@ use std::collections::HashSet;
 use std::path::PathBuf;
 use clap::{Args, ArgEnum};
 use anni_repo::RepositoryManager;
-use anni_clap_handler::handler;
+use clap_handler::handler;
 use anni_common::validator::{ValidateResult, ValidatorList};
 use anni_repo::prelude::*;
 use crate::{fl, ball};
