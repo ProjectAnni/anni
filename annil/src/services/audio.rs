@@ -1,11 +1,11 @@
-use std::process::Stdio;
-use actix_web::{HttpRequest, HttpResponse, Responder, ResponseError, web};
+use crate::{AnnilClaims, AnnilError, AppState};
 use actix_web::http::header::{ACCEPT_RANGES, ACCESS_CONTROL_EXPOSE_HEADERS, CACHE_CONTROL};
 use actix_web::web::Query;
-use tokio_util::io::ReaderStream;
-use serde::Deserialize;
+use actix_web::{web, HttpRequest, HttpResponse, Responder, ResponseError};
 use anni_provider::Range;
-use crate::{AnnilClaims, AnnilError, AppState};
+use serde::Deserialize;
+use std::process::Stdio;
+use tokio_util::io::ReaderStream;
 
 #[derive(Deserialize)]
 pub struct AudioQuery {
@@ -28,7 +28,12 @@ impl AudioQuery {
     }
 }
 
-pub async fn audio_head(claim: AnnilClaims, path: web::Path<(String, u8, u8)>, data: web::Data<AppState>, query: Query<AudioQuery>) -> impl Responder {
+pub async fn audio_head(
+    claim: AnnilClaims,
+    path: web::Path<(String, u8, u8)>,
+    data: web::Data<AppState>,
+    query: Query<AudioQuery>,
+) -> impl Responder {
     let (album_id, disc_id, track_id) = path.into_inner();
     if !claim.can_fetch(&album_id, disc_id, track_id) {
         return AnnilError::Unauthorized.error_response();
@@ -36,7 +41,10 @@ pub async fn audio_head(claim: AnnilClaims, path: web::Path<(String, u8, u8)>, d
 
     for provider in data.providers.read().iter() {
         if provider.has_album(&album_id).await {
-            let audio = provider.get_audio_info(&album_id, disc_id, track_id).await.map_err(|_| AnnilError::NotFound);
+            let audio = provider
+                .get_audio_info(&album_id, disc_id, track_id)
+                .await
+                .map_err(|_| AnnilError::NotFound);
             let transcode = query.need_transcode(claim.is_guest());
             return match audio {
                 Ok(info) => {
@@ -56,9 +64,7 @@ pub async fn audio_head(claim: AnnilClaims, path: web::Path<(String, u8, u8)>, d
                     }
                     resp.finish()
                 }
-                Err(e) => {
-                    e.error_response()
-                }
+                Err(e) => e.error_response(),
             };
         }
     }
@@ -68,7 +74,13 @@ pub async fn audio_head(claim: AnnilClaims, path: web::Path<(String, u8, u8)>, d
 }
 
 /// Get audio in an album with {album_id}, {disc_id} and {track_id}
-pub async fn audio(claim: AnnilClaims, path: web::Path<(String, u8, u8)>, data: web::Data<AppState>, query: Query<AudioQuery>, req: HttpRequest) -> impl Responder {
+pub async fn audio(
+    claim: AnnilClaims,
+    path: web::Path<(String, u8, u8)>,
+    data: web::Data<AppState>,
+    query: Query<AudioQuery>,
+    req: HttpRequest,
+) -> impl Responder {
     let (album_id, disc_id, track_id) = path.into_inner();
     if !claim.can_fetch(&album_id, disc_id, track_id) {
         return AnnilError::Unauthorized.error_response();
@@ -81,23 +93,34 @@ pub async fn audio(claim: AnnilClaims, path: web::Path<(String, u8, u8)>, data: 
         "lossless" => None,
         _ => Some("128k"),
     };
-    let range = req.headers().get("Range").and_then(|r| {
-        let range = r.to_str().ok()?;
-        let (_, right) = range.split_once('=')?;
-        let (from, to) = right.split_once('-')?;
-        let range = Range::new(from.parse().ok()?, to.parse().ok());
-        Some(if range.is_full() {
-            Range::new(0, Some(1024))
-        } else {
-            range
+    let range = req
+        .headers()
+        .get("Range")
+        .and_then(|r| {
+            let range = r.to_str().ok()?;
+            let (_, right) = range.split_once('=')?;
+            let (from, to) = right.split_once('-')?;
+            let range = Range::new(from.parse().ok()?, to.parse().ok());
+            Some(if range.is_full() {
+                Range::new(0, Some(1024))
+            } else {
+                range
+            })
         })
-    }).unwrap_or(Range::FULL);
+        .unwrap_or(Range::FULL);
 
     for provider in data.providers.read().iter() {
         if provider.has_album(&album_id).await {
             // range is only supported on lossless
-            let range = if bitrate.is_some() { Range::FULL } else { range };
-            let audio = provider.get_audio(&album_id, disc_id, track_id, range).await.map_err(|_| AnnilError::NotFound);
+            let range = if bitrate.is_some() {
+                Range::FULL
+            } else {
+                range
+            };
+            let audio = provider
+                .get_audio(&album_id, disc_id, track_id, range)
+                .await
+                .map_err(|_| AnnilError::NotFound);
             if let Err(e) = audio {
                 return e.error_response();
             }
@@ -107,27 +130,28 @@ pub async fn audio(claim: AnnilClaims, path: web::Path<(String, u8, u8)>, data: 
                 let mut resp = HttpResponse::PartialContent();
                 resp.append_header(("Content-Range", audio.range.to_content_range_header()));
                 resp
-            } else { HttpResponse::Ok() };
+            } else {
+                HttpResponse::Ok()
+            };
 
             resp.append_header(("X-Origin-Type", format!("audio/{}", audio.info.extension)))
                 .append_header(("X-Origin-Size", audio.info.size))
                 .append_header(("X-Duration-Seconds", audio.info.duration))
                 .append_header(("X-Audio-Quality", query.quality(claim.is_guest())))
-                .append_header((ACCESS_CONTROL_EXPOSE_HEADERS, "X-Origin-Type, X-Origin-Size, X-Duration-Seconds, X-Audio-Quality"))
+                .append_header((
+                    ACCESS_CONTROL_EXPOSE_HEADERS,
+                    "X-Origin-Type, X-Origin-Size, X-Duration-Seconds, X-Audio-Quality",
+                ))
                 .content_type(match bitrate {
                     Some(_) => "audio/aac".to_string(),
-                    None => format!("audio/{}", audio.info.extension)
+                    None => format!("audio/{}", audio.info.extension),
                 });
 
             return match bitrate {
                 Some(bitrate) => {
                     let mut process = tokio::process::Command::new("ffmpeg")
                         .args(&[
-                            "-i", "pipe:0",
-                            "-map", "0:0",
-                            "-b:a", bitrate,
-                            "-f", "adts",
-                            "-",
+                            "-i", "pipe:0", "-map", "0:0", "-b:a", bitrate, "-f", "adts", "-",
                         ])
                         .stdin(Stdio::piped())
                         .stdout(Stdio::piped())
@@ -141,9 +165,7 @@ pub async fn audio(claim: AnnilClaims, path: web::Path<(String, u8, u8)>, data: 
                     });
                     resp.streaming(ReaderStream::new(stdout))
                 }
-                None => {
-                    resp.streaming(ReaderStream::new(audio.reader))
-                }
+                None => resp.streaming(ReaderStream::new(audio.reader)),
             };
         }
     }

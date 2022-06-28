@@ -1,6 +1,6 @@
+use anni_flac::prelude::{Decode, Encode};
 use anni_flac::{MetadataBlock, MetadataBlockData};
 use std::io::Cursor;
-use anni_flac::prelude::{Decode, Encode};
 
 #[test]
 fn block_application_encode_decode() {

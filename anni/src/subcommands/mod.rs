@@ -1,13 +1,13 @@
-pub mod flac;
-pub mod split;
-pub mod convention;
-pub mod repo;
-pub mod library;
 pub mod completions;
+pub mod convention;
+pub mod flac;
+pub mod library;
+pub mod repo;
+pub mod split;
 
-pub use flac::FlacSubcommand;
-pub use split::SplitSubcommand;
-pub use convention::ConventionSubcommand;
-pub use repo::RepoSubcommand;
-pub use library::LibrarySubcommand;
 pub use completions::CompletionsSubcommand;
+pub use convention::ConventionSubcommand;
+pub use flac::FlacSubcommand;
+pub use library::LibrarySubcommand;
+pub use repo::RepoSubcommand;
+pub use split::SplitSubcommand;

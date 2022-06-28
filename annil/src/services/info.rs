@@ -1,5 +1,5 @@
-use actix_web::{HttpResponse, Responder, web, get};
-use crate::{AppState, json};
+use crate::{json, AppState};
+use actix_web::{get, web, HttpResponse, Responder};
 
 #[get("/info")]
 pub async fn info(data: web::Data<AppState>) -> impl Responder {

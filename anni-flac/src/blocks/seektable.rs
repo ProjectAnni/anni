@@ -1,9 +1,9 @@
-use std::io::{Read, Write};
-use byteorder::{ReadBytesExt, BigEndian, WriteBytesExt};
 use crate::error::FlacError;
 use crate::prelude::*;
 use crate::utils::*;
+use byteorder::{BigEndian, ReadBytesExt, WriteBytesExt};
 use std::fmt;
+use std::io::{Read, Write};
 
 pub struct BlockSeekTable {
     pub seek_points: Vec<SeekPoint>,
@@ -63,7 +63,8 @@ impl Decode for BlockSeekTable {
 #[async_trait::async_trait]
 impl AsyncDecode for BlockSeekTable {
     async fn from_async_reader<R>(reader: &mut R) -> Result<Self>
-        where R: AsyncRead + Unpin + Send
+    where
+        R: AsyncRead + Unpin + Send,
     {
         let buf = take_to_end_async(reader).await?;
         let size = buf.len();
@@ -79,8 +80,8 @@ impl AsyncDecode for BlockSeekTable {
         let mut seek_points = Vec::with_capacity(points);
         for _ in 0..points {
             let sample_number = AsyncReadExt::read_u64(&mut reader).await?;
-            let stream_offset =  AsyncReadExt::read_u64(&mut reader).await?;
-            let frame_samples =  AsyncReadExt::read_u16(&mut reader).await?;
+            let stream_offset = AsyncReadExt::read_u64(&mut reader).await?;
+            let frame_samples = AsyncReadExt::read_u16(&mut reader).await?;
             seek_points.push(SeekPoint {
                 sample_number,
                 stream_offset,
@@ -109,12 +110,25 @@ impl fmt::Debug for BlockSeekTable {
         if let Some(width) = f.width() {
             prefix = " ".repeat(width);
         }
-        writeln!(f, "{prefix}seek points: {}", self.seek_points.len(), prefix = prefix)?;
+        writeln!(
+            f,
+            "{prefix}seek points: {}",
+            self.seek_points.len(),
+            prefix = prefix
+        )?;
         for (i, p) in self.seek_points.iter().enumerate() {
             if p.is_placehoder() {
                 writeln!(f, "{prefix}point {}: PLACEHOLDER", i, prefix = prefix)?;
             } else {
-                writeln!(f, "{prefix}point {}: sample_number={}, stream_offset={}, frame_samples={}", i, p.sample_number, p.stream_offset, p.frame_samples, prefix = prefix)?;
+                writeln!(
+                    f,
+                    "{prefix}point {}: sample_number={}, stream_offset={}, frame_samples={}",
+                    i,
+                    p.sample_number,
+                    p.stream_offset,
+                    p.frame_samples,
+                    prefix = prefix
+                )?;
             }
         }
         Ok(())

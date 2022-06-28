@@ -1,8 +1,8 @@
-pub mod validator;
-pub mod fs;
 pub mod decode;
+pub mod diagnostic;
 pub mod encode;
-pub mod traits;
+pub mod fs;
 pub mod inherit;
 pub mod lint;
-pub mod diagnostic;
+pub mod traits;
+pub mod validator;

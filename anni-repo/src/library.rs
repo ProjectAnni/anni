@@ -1,10 +1,10 @@
+use crate::models::AnniDate;
+use once_cell::sync::Lazy;
 use regex::Regex;
 use std::path::Path;
 use std::str::FromStr;
-use once_cell::sync::Lazy;
 use thiserror::Error;
 use toml::value::DatetimeParseError;
-use crate::models::AnniDate;
 
 pub fn file_name<P: AsRef<Path>>(path: P) -> std::io::Result<String> {
     let path = if path.as_ref().is_absolute() {
@@ -14,15 +14,9 @@ pub fn file_name<P: AsRef<Path>>(path: P) -> std::io::Result<String> {
     };
     Ok(path
         .file_name()
-        .ok_or_else(|| std::io::Error::new(
-            std::io::ErrorKind::InvalidInput,
-            "No filename found",
-        ))?
+        .ok_or_else(|| std::io::Error::new(std::io::ErrorKind::InvalidInput, "No filename found"))?
         .to_str()
-        .ok_or_else(|| std::io::Error::new(
-            std::io::ErrorKind::InvalidData,
-            "Invalid UTF-8 path",
-        ))?
+        .ok_or_else(|| std::io::Error::new(std::io::ErrorKind::InvalidData, "Invalid UTF-8 path"))?
         .to_owned())
 }
 
@@ -36,8 +30,11 @@ pub enum InfoParseError {
     InvalidDateTime(#[from] DatetimeParseError),
 }
 
-static ALBUM_INFO: Lazy<Regex> = Lazy::new(|| Regex::new(r"^\[(\d{4}|\d{2})-?(\d{2})-?(\d{2})]\[([^]]+)] (.+?)(?: \[(\d+) Discs])?$").unwrap());
-static DISC_INFO: Lazy<Regex> = Lazy::new(|| Regex::new(r"^\[([^]]+)] (.+) \[Disc (\d+)]$").unwrap());
+static ALBUM_INFO: Lazy<Regex> = Lazy::new(|| {
+    Regex::new(r"^\[(\d{4}|\d{2})-?(\d{2})-?(\d{2})]\[([^]]+)] (.+?)(?: \[(\d+) Discs])?$").unwrap()
+});
+static DISC_INFO: Lazy<Regex> =
+    Lazy::new(|| Regex::new(r"^\[([^]]+)] (.+) \[Disc (\d+)]$").unwrap());
 
 // catalog, title, disc_id
 pub fn disc_info(path: &str) -> Result<(String, String, usize), InfoParseError> {
@@ -76,13 +73,15 @@ pub fn album_info(path: &str) -> Result<(AnniDate, String, String, usize), InfoP
 mod tests {
     #[test]
     fn test_album_info() {
-        let (date, catalog, title, disc_count) = super::album_info("[220302][SMCL-753] 彩色硝子").unwrap();
+        let (date, catalog, title, disc_count) =
+            super::album_info("[220302][SMCL-753] 彩色硝子").unwrap();
         assert_eq!(date.to_string(), "2022-03-02");
         assert_eq!(catalog, "SMCL-753");
         assert_eq!(title, "彩色硝子");
         assert_eq!(disc_count, 1);
 
-        let (date, catalog, title, disc_count) = super::album_info("[2022-03-02][SMCL-753] 彩色硝子 [1 Discs]").unwrap();
+        let (date, catalog, title, disc_count) =
+            super::album_info("[2022-03-02][SMCL-753] 彩色硝子 [1 Discs]").unwrap();
         assert_eq!(date.to_string(), "2022-03-02");
         assert_eq!(catalog, "SMCL-753");
         assert_eq!(title, "彩色硝子");

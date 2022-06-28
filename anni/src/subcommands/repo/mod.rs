@@ -1,28 +1,28 @@
 mod lint;
 
-use std::io::Read;
-use anni_flac::FlacHeader;
-use anni_repo::prelude::*;
-use anni_repo::library::{album_info, disc_info, file_name};
-use anni_repo::{OwnedRepositoryManager, RepositoryManager};
+use crate::args::ActionFile;
+use crate::{ball, fl, ll};
 use anni_common::fs;
-use clap::{Args, Subcommand, ArgEnum, crate_version};
-use crate::{fl, ll, ball};
-use std::path::PathBuf;
-use std::str::FromStr;
-use anni_vgmdb::VGMClient;
-use clap_handler::{Context, Handler, handler};
 use anni_common::inherit::InheritableValue;
+use anni_flac::FlacHeader;
+use anni_repo::library::{album_info, disc_info, file_name};
+use anni_repo::prelude::*;
+use anni_repo::{OwnedRepositoryManager, RepositoryManager};
+use anni_vgmdb::VGMClient;
+use clap::{crate_version, ArgEnum, Args, Subcommand};
+use clap_handler::{handler, Context, Handler};
 use cuna::Cuna;
 use ptree::TreeBuilder;
-use crate::args::ActionFile;
+use std::io::Read;
+use std::path::PathBuf;
+use std::str::FromStr;
 
 #[derive(Args, Debug, Clone, Handler)]
-#[clap(about = ll ! {"repo"})]
+#[clap(about = ll!{"repo"})]
 #[handler_inject(repo_fields)]
 pub struct RepoSubcommand {
     #[clap(long, env = "ANNI_REPO")]
-    #[clap(help = ll ! {"repo-root"})]
+    #[clap(help = ll!{"repo-root"})]
     root: PathBuf,
 
     #[clap(subcommand)]
@@ -39,23 +39,23 @@ impl RepoSubcommand {
 
 #[derive(Subcommand, Handler, Debug, Clone)]
 pub enum RepoAction {
-    #[clap(about = ll ! {"repo-clone"})]
+    #[clap(about = ll!{"repo-clone"})]
     Clone(RepoCloneAction),
-    #[clap(about = ll ! {"repo-add"})]
+    #[clap(about = ll!{"repo-add"})]
     Add(RepoAddAction),
-    #[clap(about = ll ! {"repo-import"})]
+    #[clap(about = ll!{"repo-import"})]
     Import(RepoImportAction),
-    #[clap(about = ll ! {"repo-get"})]
+    #[clap(about = ll!{"repo-get"})]
     Get(RepoGetAction),
-    #[clap(about = ll ! {"repo-edit"})]
+    #[clap(about = ll!{"repo-edit"})]
     Edit(RepoEditAction),
-    #[clap(about = ll ! {"repo-validate"})]
+    #[clap(about = ll!{"repo-validate"})]
     #[clap(alias = "validate")]
     Lint(lint::RepoLintAction),
-    #[clap(about = ll ! {"repo-print"})]
+    #[clap(about = ll!{"repo-print"})]
     Print(RepoPrintAction),
     #[clap(name = "db")]
-    #[clap(about = ll ! {"repo-db"})]
+    #[clap(about = ll!{"repo-db"})]
     Database(RepoDatabaseAction),
 }
 
@@ -69,7 +69,10 @@ pub struct RepoCloneAction {
 #[handler(RepoCloneAction)]
 fn repo_clone(me: RepoCloneAction) -> anyhow::Result<()> {
     let root = me.root.unwrap_or_else(|| PathBuf::from(".")).join("repo");
-    log::info!("{}", fl!("repo-clone-start", path = root.display().to_string()));
+    log::info!(
+        "{}",
+        fl!("repo-clone-start", path = root.display().to_string())
+    );
     RepositoryManager::clone(&me.url, root)?;
     log::info!("{}", fl!("repo-clone-done"));
     Ok(())
@@ -78,7 +81,7 @@ fn repo_clone(me: RepoCloneAction) -> anyhow::Result<()> {
 #[derive(Args, Debug, Clone)]
 pub struct RepoAddAction {
     #[clap(short = 'e', long)]
-    #[clap(help = ll ! ("repo-add-edit"))]
+    #[clap(help = ll!("repo-add-edit"))]
     open_editor: bool,
 
     #[clap(short = 'D', long = "duplicate")]
@@ -97,7 +100,14 @@ fn repo_add(me: &RepoAddAction, manager: &RepositoryManager) -> anyhow::Result<(
         }
 
         let (release_date, catalog, album_title, discs) = album_info(&last)?;
-        let mut album = Album::new(album_title.clone(), None, "UnknownArtist".to_string(), release_date, catalog.clone(), Default::default());
+        let mut album = Album::new(
+            album_title.clone(),
+            None,
+            "UnknownArtist".to_string(),
+            release_date,
+            catalog.clone(),
+            Default::default(),
+        );
 
         let directories = fs::get_subdirectories(to_add)?;
         let mut directories: Vec<_> = directories.iter().map(|r| r.as_path()).collect();
@@ -114,7 +124,11 @@ fn repo_add(me: &RepoAddAction, manager: &RepositoryManager) -> anyhow::Result<(
                 let (catalog, disc_title, _) = disc_info(&*file_name(dir)?)?;
                 Disc::new(
                     catalog,
-                    if album_title != disc_title { Some(disc_title) } else { None },
+                    if album_title != disc_title {
+                        Some(disc_title)
+                    } else {
+                        None
+                    },
                     None,
                     None,
                     Default::default(),
@@ -189,7 +203,7 @@ fn repo_import(me: &RepoImportAction, manager: &RepositoryManager) -> anyhow::Re
 #[derive(Args, Handler, Debug, Clone)]
 pub struct RepoGetAction {
     #[clap(long, global = true)]
-    #[clap(help = ll ! {"repo-get-print"})]
+    #[clap(help = ll!{"repo-get-print"})]
     print: bool,
     #[clap(subcommand)]
     subcommand: RepoGetSubcommand,
@@ -210,7 +224,11 @@ async fn search_album(keyword: &str) -> anyhow::Result<Album> {
 
     let date = {
         let split = album_got.release_date().split('-').collect::<Vec<_>>();
-        AnniDate::from_parts(split[0], split.get(1).unwrap_or(&"0"), split.get(2).unwrap_or(&"0"))
+        AnniDate::from_parts(
+            split[0],
+            split.get(1).unwrap_or(&"0"),
+            split.get(2).unwrap_or(&"0"),
+        )
     };
 
     let mut album = Album::new(
@@ -258,7 +276,11 @@ pub struct RepoGetVGMdb {
 }
 
 #[handler(RepoGetVGMdb)]
-fn repo_get_vgmdb(options: &RepoGetVGMdb, manager: &RepositoryManager, get: &RepoGetAction) -> anyhow::Result<()> {
+fn repo_get_vgmdb(
+    options: &RepoGetVGMdb,
+    manager: &RepositoryManager,
+    get: &RepoGetAction,
+) -> anyhow::Result<()> {
     let catalog = &options.catalog;
 
     let album = search_album(&options.keyword.as_deref().unwrap_or(catalog)).await?;
@@ -273,9 +295,9 @@ fn repo_get_vgmdb(options: &RepoGetVGMdb, manager: &RepositoryManager, get: &Rep
 
 #[derive(Args, Debug, Clone)]
 pub struct RepoGetCue {
-    #[clap(short = 'k', long, help = ll ! {"repo-get-cue-keyword"})]
+    #[clap(short = 'k', long, help = ll!{"repo-get-cue-keyword"})]
     keyword: Option<String>,
-    #[clap(short = 'c', long, help = ll ! {"repo-get-cue-catalog"})]
+    #[clap(short = 'c', long, help = ll!{"repo-get-cue-catalog"})]
     catalog: Option<String>,
 
     path: PathBuf,
@@ -315,7 +337,7 @@ fn repo_get_cue(
     if album.catalog().is_empty() {
         match &options.catalog {
             Some(catalog) => album.set_catalog(catalog.to_string()),
-            None => ball!("repo-cue-insufficient-information")
+            None => ball!("repo-cue-insufficient-information"),
         }
     }
 
@@ -378,18 +400,18 @@ fn repo_edit(me: &RepoEditAction, manager: &RepositoryManager) -> anyhow::Result
 pub struct RepoPrintAction {
     #[clap(arg_enum)]
     #[clap(short = 't', long = "type", default_value = "title")]
-    #[clap(help = ll ! ("repo-print-type"))]
+    #[clap(help = ll!("repo-print-type"))]
     print_type: RepoPrintType,
 
     #[clap(long = "no-generated-by", alias = "no-gb", parse(from_flag = std::ops::Not::not))]
-    #[clap(help = ll ! ("repo-print-clean"))]
+    #[clap(help = ll!("repo-print-clean"))]
     add_generated_by: bool,
 
-    #[clap(help = ll ! ("repo-print-input"))]
+    #[clap(help = ll!("repo-print-input"))]
     input: String,
 
     #[clap(short, long, default_value = "-")]
-    #[clap(help = ll ! {"export-to"})]
+    #[clap(help = ll!{"export-to"})]
     output: ActionFile,
 }
 
@@ -398,11 +420,17 @@ fn repo_print(me: RepoPrintAction, manager: RepositoryManager) -> anyhow::Result
     let mut dst = me.output.to_writer()?;
 
     match me.print_type {
-        RepoPrintType::Title | RepoPrintType::Artist | RepoPrintType::Date | RepoPrintType::Cue | RepoPrintType::Toml => {
+        RepoPrintType::Title
+        | RepoPrintType::Artist
+        | RepoPrintType::Date
+        | RepoPrintType::Cue
+        | RepoPrintType::Toml => {
             // print album
             let split: Vec<_> = me.input.split('/').collect();
             let catalog = split[0];
-            let disc_id = split.get(1).map_or(1, |x| x.parse::<u32>().expect("Invalid disc id"));
+            let disc_id = split
+                .get(1)
+                .map_or(1, |x| x.parse::<u32>().expect("Invalid disc id"));
             let disc_id = if disc_id > 0 { disc_id - 1 } else { disc_id };
 
             // FIXME: pick the correct album
@@ -412,36 +440,50 @@ fn repo_print(me: RepoPrintAction, manager: RepositoryManager) -> anyhow::Result
                 RepoPrintType::Title => writeln!(dst, "{}", album.title())?,
                 RepoPrintType::Artist => writeln!(dst, "{}", album.artist())?,
                 RepoPrintType::Date => writeln!(dst, "{}", album.release_date())?,
-                RepoPrintType::Cue => {
-                    match album.discs().iter().nth(disc_id as usize) {
-                        Some(disc) => {
-                            write!(dst, r#"TITLE "{title}"
+                RepoPrintType::Cue => match album.discs().iter().nth(disc_id as usize) {
+                    Some(disc) => {
+                        write!(
+                            dst,
+                            r#"TITLE "{title}"
 PERFORMER "{artist}"
 REM DATE "{date}"
-"#, title = disc.title(), artist = disc.artist(), date = album.release_date())?;
-                            if me.add_generated_by {
-                                write!(dst, r#"REM COMMENT "Generated by Anni v{}""#, crate_version!())?;
-                            }
+"#,
+                            title = disc.title(),
+                            artist = disc.artist(),
+                            date = album.release_date()
+                        )?;
+                        if me.add_generated_by {
+                            write!(
+                                dst,
+                                r#"REM COMMENT "Generated by Anni v{}""#,
+                                crate_version!()
+                            )?;
+                        }
 
-                            for (track_id, track) in disc.tracks().iter().enumerate() {
-                                let track_id = track_id + 1;
-                                write!(dst, r#"
+                        for (track_id, track) in disc.tracks().iter().enumerate() {
+                            let track_id = track_id + 1;
+                            write!(
+                                dst,
+                                r#"
 FILE "{filename}" WAVE
   TRACK 01 AUDIO
     TITLE "{title}"
     PERFORMER "{artist}"
     INDEX 01 00:00:00"#,
-                                       filename = format!("{:02}. {}.flac", track_id, track.title().replace("/", "／")),
-                                       title = track.title(),
-                                       artist = track.artist(),
-                                )?;
-                            }
-                        }
-                        None => {
-                            bail!("Disc {} not found!", disc_id + 1);
+                                filename = format!(
+                                    "{:02}. {}.flac",
+                                    track_id,
+                                    track.title().replace("/", "／")
+                                ),
+                                title = track.title(),
+                                artist = track.artist(),
+                            )?;
                         }
                     }
-                }
+                    None => {
+                        bail!("Disc {} not found!", disc_id + 1);
+                    }
+                },
                 RepoPrintType::Toml => {
                     write!(dst, "{}", album.to_string())?;
                 }
@@ -505,13 +547,16 @@ pub(crate) fn stream_to_track(stream: &FlacHeader) -> Track {
         Some(comment) => {
             let map = comment.to_map();
             Track::new(
-                map.get("TITLE").map(|v| v.value()).unwrap_or("").to_string(),
+                map.get("TITLE")
+                    .map(|v| v.value())
+                    .unwrap_or("")
+                    .to_string(),
                 map.get("ARTIST").map(|v| v.value().to_string()),
                 None,
                 Default::default(),
             )
         }
-        None => Track::empty()
+        None => Track::empty(),
     }
 }
 
@@ -525,7 +570,7 @@ fn is_album_folder(input: &str) -> bool {
 // Repo database
 #[derive(Args, Debug, Clone)]
 pub struct RepoDatabaseAction {
-    #[clap(help = ll ! {"export-to"})]
+    #[clap(help = ll!{"export-to"})]
     output: PathBuf,
 }
 

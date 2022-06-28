@@ -1,7 +1,7 @@
 use std::io::Cursor;
 
 use anni_common::decode;
-use anni_common::decode::{DecodeError, raw_to_string};
+use anni_common::decode::{raw_to_string, DecodeError};
 
 #[test]
 fn take_token() {
@@ -9,13 +9,15 @@ fn take_token() {
     let mut cursor = Cursor::new(arr);
     assert!(decode::token(&mut cursor, b"fLaC").is_ok());
     assert!(decode::token(&mut cursor, b"|2333|").is_ok());
-    assert_eq!(decode::token(&mut cursor, b"114514").map_err(
-        |e| match e {
+    assert_eq!(
+        decode::token(&mut cursor, b"114514").map_err(|e| match e {
             DecodeError::InvalidTokenError { expected, got } => {
                 &expected == b"114514" && &got == b"114515"
             }
             _ => false,
-        }), Err(true));
+        }),
+        Err(true)
+    );
 }
 
 #[test]
@@ -40,7 +42,9 @@ fn u32_be() -> Result<(), decode::DecodeError> {
 fn test_raw_to_string() {
     let input = include_bytes!("GNCA-0337.cue");
     let str = raw_to_string(input);
-    assert_eq!(str, r#"TITLE "TVアニメ「ご注文はうさぎですか？」キャラクターソング①"
+    assert_eq!(
+        str,
+        r#"TITLE "TVアニメ「ご注文はうさぎですか？」キャラクターソング①"
 REM DATE "2014"
 FILE "GNCA-0337.flac" WAVE
   TRACK 01 AUDIO
@@ -72,5 +76,6 @@ FILE "GNCA-0337.flac" WAVE
     PERFORMER "チノ（水瀬いのり）"
     INDEX 00 21:20:30
     INDEX 01 21:21:31
-"#)
+"#
+    )
 }

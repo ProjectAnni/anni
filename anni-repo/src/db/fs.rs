@@ -4,7 +4,7 @@ use wasm_bindgen::prelude::*;
 use std::{collections::BTreeMap, ffi::CStr};
 
 use log::info;
-use sqlite_vfs::{OpenOptions, Vfs, VfsResult, SQLITE_IOERR, ffi};
+use sqlite_vfs::{ffi, OpenOptions, Vfs, VfsResult, SQLITE_IOERR};
 
 #[wasm_bindgen]
 pub struct MemVfs {
@@ -126,7 +126,11 @@ impl Vfs for MemVfs {
         let path = path.to_string_lossy();
         info!("open {:?} {} {:?}", self, path, opts);
         let data = if self.files.contains_key(path.as_ref()) {
-            self.files.get_mut(path.as_ref()).unwrap().take().unwrap_or_default()
+            self.files
+                .get_mut(path.as_ref())
+                .unwrap()
+                .take()
+                .unwrap_or_default()
         } else {
             self.files.insert(path.to_string(), None);
             Default::default()

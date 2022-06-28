@@ -1,9 +1,9 @@
-use std::collections::HashMap;
-use std::path::Path;
-use rusqlite::{Connection, params};
 use crate::db::DB_VERSION;
 use crate::models::TagType;
 use crate::prelude::RepoResult;
+use rusqlite::{params, Connection};
+use std::collections::HashMap;
+use std::path::Path;
 
 pub struct RepoDatabaseWrite {
     conn: Connection,
@@ -95,7 +95,8 @@ COMMIT;"#)?;
     }
 
     pub fn create_index(&self) -> RepoResult<()> {
-        self.conn.execute_batch(r#"
+        self.conn.execute_batch(
+            r#"
 BEGIN;
 
 CREATE UNIQUE INDEX "repo_album_index" ON "repo_album" (
@@ -120,7 +121,8 @@ CREATE INDEX IF NOT EXISTS "repo_tag_detail_index" ON "repo_tag_detail" (
 );
 
 COMMIT;
-"#)?;
+"#,
+        )?;
 
         Ok(())
     }
@@ -219,34 +221,39 @@ COMMIT;
     fn add_tag(&self, name: &str, tag_type: &TagType) -> RepoResult<i32> {
         self.conn.execute(
             "INSERT INTO repo_tag (name, tag_type) VALUES (?, ?)",
-            params![
-                name,
-                tag_type.to_string(),
-            ],
+            params![name, tag_type.to_string(),],
         )?;
         // this is a hack to get the id of the tag we just inserted
-        let mut stmt = self.conn.prepare("SELECT tag_id FROM repo_tag WHERE rowid = ?")?;
-        let id = stmt.query_map([self.conn.last_insert_rowid()], |row| Ok(row.get(0)?))?.next().unwrap()?;
+        let mut stmt = self
+            .conn
+            .prepare("SELECT tag_id FROM repo_tag WHERE rowid = ?")?;
+        let id = stmt
+            .query_map([self.conn.last_insert_rowid()], |row| Ok(row.get(0)?))?
+            .next()
+            .unwrap()?;
         Ok(id)
     }
 
     fn add_alias(&self, tag_id: i32, alias: &str) -> RepoResult<()> {
         self.conn.execute(
             "INSERT INTO repo_tag_alias (tag_id, alias) VALUES (?, ?)",
-            params![
-                tag_id,
-                alias,
-            ],
+            params![tag_id, alias,],
         )?;
         Ok(())
     }
 
     fn add_parent(&self, tag_id: i32, parent_id: i32) -> RepoResult<()> {
-        self.conn.execute("INSERT INTO repo_tag_relation (tag_id, parent_id) VALUES (?, ?)", [tag_id, parent_id])?;
+        self.conn.execute(
+            "INSERT INTO repo_tag_relation (tag_id, parent_id) VALUES (?, ?)",
+            [tag_id, parent_id],
+        )?;
         Ok(())
     }
 
-    pub fn add_tags<'tag>(&self, tags: impl Iterator<Item=&'tag crate::models::Tag>) -> RepoResult<()> {
+    pub fn add_tags<'tag>(
+        &self,
+        tags: impl Iterator<Item = &'tag crate::models::Tag>,
+    ) -> RepoResult<()> {
         let mut tag_id = HashMap::new();
         let mut relation_deferred = HashMap::new();
 
@@ -281,11 +288,20 @@ COMMIT;
     }
 
     fn add_info(&self, key: &str, value: &str) -> RepoResult<()> {
-        self.conn.execute("INSERT INTO repo_info (key, value) VALUES (?, ?)", [key, value])?;
+        self.conn.execute(
+            "INSERT INTO repo_info (key, value) VALUES (?, ?)",
+            [key, value],
+        )?;
         Ok(())
     }
 
-    pub fn write_info(&self, repo_name: &str, repo_edition: &str, repo_url: &str, repo_ref: &str) -> RepoResult<()> {
+    pub fn write_info(
+        &self,
+        repo_name: &str,
+        repo_edition: &str,
+        repo_url: &str,
+        repo_ref: &str,
+    ) -> RepoResult<()> {
         self.add_info("repo_name", repo_name)?;
         self.add_info("repo_edition", repo_edition)?;
         self.add_info("repo_url", repo_url)?;
@@ -295,7 +311,10 @@ COMMIT;
     }
 
     pub fn add_detailed_artist(&self, key: &str, value: &str) -> RepoResult<()> {
-        self.conn.execute("INSERT INTO repo_artists (key, value) VALUES (?, ?)", [key, value])?;
+        self.conn.execute(
+            "INSERT INTO repo_artists (key, value) VALUES (?, ?)",
+            [key, value],
+        )?;
         Ok(())
     }
 }

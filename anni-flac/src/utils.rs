@@ -1,5 +1,5 @@
-use std::io::Read;
 use crate::prelude::*;
+use std::io::Read;
 
 pub(crate) fn take<R: Read>(reader: &mut R, len: usize) -> std::io::Result<Vec<u8>> {
     let mut r = Vec::with_capacity(len);
@@ -8,7 +8,10 @@ pub(crate) fn take<R: Read>(reader: &mut R, len: usize) -> std::io::Result<Vec<u
 }
 
 #[cfg(feature = "async")]
-pub(crate) async fn take_async<R: AsyncRead + Unpin>(reader: &mut R, len: usize) -> std::io::Result<Vec<u8>> {
+pub(crate) async fn take_async<R: AsyncRead + Unpin>(
+    reader: &mut R,
+    len: usize,
+) -> std::io::Result<Vec<u8>> {
     let mut r = Vec::with_capacity(len);
     tokio::io::copy(&mut reader.take(len as u64), &mut r).await?;
     Ok(r)
@@ -21,7 +24,9 @@ pub(crate) fn take_to_end<R: Read>(reader: &mut R) -> std::io::Result<Vec<u8>> {
 }
 
 #[cfg(feature = "async")]
-pub(crate) async fn take_to_end_async<R: AsyncRead + Unpin>(reader: &mut R) -> std::io::Result<Vec<u8>> {
+pub(crate) async fn take_to_end_async<R: AsyncRead + Unpin>(
+    reader: &mut R,
+) -> std::io::Result<Vec<u8>> {
     let mut r = Vec::new();
     reader.read_to_end(&mut r).await?;
     Ok(r)
@@ -33,7 +38,10 @@ pub(crate) fn take_string<R: Read>(reader: &mut R, len: usize) -> Result<String>
 }
 
 #[cfg(feature = "async")]
-pub(crate) async fn take_string_async<R: AsyncRead + Unpin>(reader: &mut R, len: usize) -> Result<String> {
+pub(crate) async fn take_string_async<R: AsyncRead + Unpin>(
+    reader: &mut R,
+    len: usize,
+) -> Result<String> {
     let r = take_async(reader, len).await?;
     Ok(String::from_utf8(r)?)
 }
@@ -43,7 +51,10 @@ pub(crate) fn skip<R: Read>(reader: &mut R, len: usize) -> std::io::Result<u64> 
 }
 
 #[cfg(feature = "async")]
-pub(crate) async fn skip_async<R: AsyncRead + Unpin>(reader: &mut R, len: usize) -> std::io::Result<u64> {
+pub(crate) async fn skip_async<R: AsyncRead + Unpin>(
+    reader: &mut R,
+    len: usize,
+) -> std::io::Result<u64> {
     tokio::io::copy(&mut reader.take(len as u64), &mut tokio::io::sink()).await
 }
 

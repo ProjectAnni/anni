@@ -1,9 +1,9 @@
-use rusqlite::{Connection, OpenFlags, params, Params};
+use crate::db::rows;
+use crate::prelude::RepoResult;
+use rusqlite::{params, Connection, OpenFlags, Params};
 use serde::de::DeserializeOwned;
 use serde_rusqlite::from_rows;
 use uuid::Uuid;
-use crate::db::rows;
-use crate::prelude::RepoResult;
 
 pub struct RepoDatabaseRead {
     uri: String,
@@ -26,16 +26,21 @@ impl RepoDatabaseRead {
         })
     }
 
-    pub fn match_album(&self, catalog: &str, release_date: &crate::models::AnniDate, disc_count: u8, album_title: &str) -> RepoResult<Option<Uuid>> {
+    pub fn match_album(
+        &self,
+        catalog: &str,
+        release_date: &crate::models::AnniDate,
+        disc_count: u8,
+        album_title: &str,
+    ) -> RepoResult<Option<Uuid>> {
         log::trace!("Catalog: {catalog}, Title: {album_title}, Release date: {release_date}, Discs: {disc_count}");
         let mut stmt = self.conn.prepare(
             "SELECT album_id, title FROM repo_album
-  WHERE catalog = ? AND release_date = ? AND disc_count = ?;")?;
+  WHERE catalog = ? AND release_date = ? AND disc_count = ?;",
+        )?;
         let albums_iter = stmt.query_map(
             params![catalog, release_date.to_string(), disc_count],
-            |row| {
-                Ok((row.get(0)?, row.get(1)?))
-            },
+            |row| Ok((row.get(0)?, row.get(1)?)),
         )?;
         let mut albums: Vec<(Uuid, String)> = Vec::new();
         for album in albums_iter {
@@ -64,9 +69,10 @@ impl RepoDatabaseRead {
     }
 
     fn query_optional<P, T>(&self, sql: &str, params: P) -> RepoResult<Option<T>>
-        where
-            P: Params,
-            T: DeserializeOwned, {
+    where
+        P: Params,
+        T: DeserializeOwned,
+    {
         let mut stmt = self.conn.prepare(sql)?;
         let mut rows = from_rows::<T>(stmt.query(params)?);
         match rows.next() {
@@ -76,9 +82,10 @@ impl RepoDatabaseRead {
     }
 
     fn query_list<P, T>(&self, sql: &str, params: P) -> RepoResult<Vec<T>>
-        where
-            P: Params,
-            T: DeserializeOwned, {
+    where
+        P: Params,
+        T: DeserializeOwned,
+    {
         let mut stmt = self.conn.prepare(sql)?;
         let rows = from_rows::<T>(stmt.query(params)?).collect::<Vec<_>>();
         if rows.is_empty() {
@@ -93,31 +100,52 @@ impl RepoDatabaseRead {
     }
 
     pub fn get_disc(&self, album_id: Uuid, disc_id: u8) -> RepoResult<Option<rows::DiscRow>> {
-        self.query_optional("SELECT * FROM repo_disc WHERE album_id = ? AND disc_id = ?", params![album_id, disc_id])
+        self.query_optional(
+            "SELECT * FROM repo_disc WHERE album_id = ? AND disc_id = ?",
+            params![album_id, disc_id],
+        )
     }
 
     pub fn get_discs(&self, album_id: Uuid) -> RepoResult<Vec<rows::DiscRow>> {
-        self.query_list("SELECT * FROM repo_disc WHERE album_id = ? ORDER BY disc_id", params![album_id])
+        self.query_list(
+            "SELECT * FROM repo_disc WHERE album_id = ? ORDER BY disc_id",
+            params![album_id],
+        )
     }
 
-    pub fn get_track(&self, album_id: Uuid, disc_id: u8, track_id: u8) -> RepoResult<Option<rows::TrackRow>> {
-        self.query_optional("SELECT * FROM repo_track WHERE album_id = ? AND disc_id = ? AND track_id = ?", params![album_id, disc_id, track_id])
+    pub fn get_track(
+        &self,
+        album_id: Uuid,
+        disc_id: u8,
+        track_id: u8,
+    ) -> RepoResult<Option<rows::TrackRow>> {
+        self.query_optional(
+            "SELECT * FROM repo_track WHERE album_id = ? AND disc_id = ? AND track_id = ?",
+            params![album_id, disc_id, track_id],
+        )
     }
 
     pub fn get_tracks(&self, album_id: Uuid, disc_id: u8) -> RepoResult<Vec<rows::TrackRow>> {
-        self.query_list("SELECT * FROM repo_track WHERE album_id = ? AND disc_id = ? ORDER BY track_id", params![album_id, disc_id])
+        self.query_list(
+            "SELECT * FROM repo_track WHERE album_id = ? AND disc_id = ? ORDER BY track_id",
+            params![album_id, disc_id],
+        )
     }
 
     pub fn get_albums_by_tag(&self, tag: &str, recursive: bool) -> RepoResult<Vec<rows::AlbumRow>> {
         if !recursive {
-            self.query_list(r#"
+            self.query_list(
+                r#"
 SELECT * FROM repo_album WHERE album_id IN (
     SELECT DISTINCT album_id FROM repo_tag_detail WHERE tag_id = (
         SELECT tag_id FROM repo_tag WHERE name = ?
     )
-)"#, params![tag])
+)"#,
+                params![tag],
+            )
         } else {
-            self.query_list(r#"
+            self.query_list(
+                r#"
 WITH RECURSIVE recursive_tags(tag_id) AS (
   SELECT tag_id FROM repo_tag WHERE name = ?
 
@@ -130,7 +158,9 @@ SELECT * FROM repo_album WHERE album_id IN (
     SELECT DISTINCT album_id FROM repo_tag_detail WHERE tag_id IN (
         SELECT * FROM recursive_tags
     )
-)"#, params![tag])
+)"#,
+                params![tag],
+            )
         }
     }
 
@@ -142,10 +172,10 @@ SELECT * FROM repo_album WHERE album_id IN (
 
 #[cfg(target_arch = "wasm32")]
 mod wasm {
-    use wasm_bindgen::JsCast;
+    use super::rows::wasm::*;
     use super::*;
     use wasm_bindgen::prelude::*;
-    use super::rows::wasm::*;
+    use wasm_bindgen::JsCast;
 
     #[cfg(target_arch = "wasm32")]
     #[wasm_bindgen]
@@ -167,31 +197,59 @@ mod wasm {
         }
 
         pub fn get_album(&self, album_id: String) -> Result<IAlbumRow, JsValue> {
-            let album = self.db.get_album(Uuid::parse_str(&album_id).map_err(js_err)?).map_err(js_err)?;
+            let album = self
+                .db
+                .get_album(Uuid::parse_str(&album_id).map_err(js_err)?)
+                .map_err(js_err)?;
             Ok(serde_wasm_bindgen::to_value(&album)?.unchecked_into())
         }
 
         pub fn get_disc(&self, album_id: String, disc_id: u8) -> Result<IDiscRow, JsValue> {
-            let album = self.db.get_disc(Uuid::parse_str(&album_id).map_err(js_err)?, disc_id).map_err(js_err)?;
+            let album = self
+                .db
+                .get_disc(Uuid::parse_str(&album_id).map_err(js_err)?, disc_id)
+                .map_err(js_err)?;
             Ok(serde_wasm_bindgen::to_value(&album)?.unchecked_into())
         }
 
         pub fn get_discs(&self, album_id: String) -> Result<IDiscRowArray, JsValue> {
-            let album = self.db.get_discs(Uuid::parse_str(&album_id).map_err(js_err)?).map_err(js_err)?;
+            let album = self
+                .db
+                .get_discs(Uuid::parse_str(&album_id).map_err(js_err)?)
+                .map_err(js_err)?;
             Ok(serde_wasm_bindgen::to_value(&album)?.unchecked_into())
         }
 
-        pub fn get_track(&self, album_id: String, disc_id: u8, track_id: u8) -> Result<ITrackRow, JsValue> {
-            let tracks = self.db.get_track(Uuid::parse_str(&album_id).map_err(js_err)?, disc_id, track_id).map_err(js_err)?;
+        pub fn get_track(
+            &self,
+            album_id: String,
+            disc_id: u8,
+            track_id: u8,
+        ) -> Result<ITrackRow, JsValue> {
+            let tracks = self
+                .db
+                .get_track(
+                    Uuid::parse_str(&album_id).map_err(js_err)?,
+                    disc_id,
+                    track_id,
+                )
+                .map_err(js_err)?;
             Ok(serde_wasm_bindgen::to_value(&tracks)?.unchecked_into())
         }
 
         pub fn get_tracks(&self, album_id: String, disc_id: u8) -> Result<ITrackRowArray, JsValue> {
-            let tracks = self.db.get_tracks(Uuid::parse_str(&album_id).map_err(js_err)?, disc_id).map_err(js_err)?;
+            let tracks = self
+                .db
+                .get_tracks(Uuid::parse_str(&album_id).map_err(js_err)?, disc_id)
+                .map_err(js_err)?;
             Ok(serde_wasm_bindgen::to_value(&tracks)?.unchecked_into())
         }
 
-        pub fn get_albums_by_tag(&self, tag: String, recursive: bool) -> Result<IAlbumRowArray, JsValue> {
+        pub fn get_albums_by_tag(
+            &self,
+            tag: String,
+            recursive: bool,
+        ) -> Result<IAlbumRowArray, JsValue> {
             let tracks = self.db.get_albums_by_tag(&tag, recursive).map_err(js_err)?;
             Ok(serde_wasm_bindgen::to_value(&tracks)?.unchecked_into())
         }

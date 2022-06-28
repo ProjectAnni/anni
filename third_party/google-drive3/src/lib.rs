@@ -251,13 +251,13 @@ pub extern crate hyper_rustls;
 extern crate serde;
 extern crate serde_json;
 // Re-export the yup_oauth2 crate, that is required to call some methods of the hub and the client
-pub extern crate yup_oauth2 as oauth2;
 extern crate mime;
 extern crate url;
+pub extern crate yup_oauth2 as oauth2;
 
 pub mod api;
 pub mod client;
 
 // Re-export the hub type and some basic client structs
 pub use api::DriveHub;
-pub use client::{Result, Error, Delegate};
+pub use client::{Delegate, Error, Result};

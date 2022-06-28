@@ -264,7 +264,7 @@ impl Display for Error {
                     f,
                     "The application's API key was not found in the configuration"
                 ))
-                    .ok();
+                .ok();
                 writeln!(
                     f,
                     "It is used as there are no Scopes defined for this method."
@@ -426,7 +426,7 @@ impl<'a> Read for MultiPartReader<'a> {
                     LINE_ENDING,
                     LINE_ENDING,
                 ))
-                    .unwrap();
+                .unwrap();
                 c.seek(SeekFrom::Start(0)).unwrap();
                 self.current_part = Some((c, reader));
             }
@@ -574,16 +574,14 @@ impl RangeResponseHeader {
 
 /// A utility type to perform a resumable upload from start to end.
 pub struct ResumableUploadHelper<'a, A: 'a, S>
-    where
-        S: tower_service::Service<Uri> + Clone + Send + Sync + 'static,
-        S::Response: hyper::client::connect::Connection + AsyncRead + AsyncWrite + Send + Unpin + 'static,
-        S::Future: Send + Unpin + 'static,
-        S::Error: Into<Box<dyn StdError + Send + Sync>>,
+where
+    S: tower_service::Service<Uri> + Clone + Send + Sync + 'static,
+    S::Response:
+        hyper::client::connect::Connection + AsyncRead + AsyncWrite + Send + Unpin + 'static,
+    S::Future: Send + Unpin + 'static,
+    S::Error: Into<Box<dyn StdError + Send + Sync>>,
 {
-    pub client: &'a hyper::client::Client<
-        S,
-        hyper::body::Body,
-    >,
+    pub client: &'a hyper::client::Client<S, hyper::body::Body>,
     pub delegate: &'a mut dyn Delegate,
     pub start_at: Option<u64>,
     pub auth: &'a A,
@@ -596,11 +594,12 @@ pub struct ResumableUploadHelper<'a, A: 'a, S>
 }
 
 impl<'a, A, S> ResumableUploadHelper<'a, A, S>
-    where
-        S: tower_service::Service<Uri> + Clone + Send + Sync + 'static,
-        S::Response: hyper::client::connect::Connection + AsyncRead + AsyncWrite + Send + Unpin + 'static,
-        S::Future: Send + Unpin + 'static,
-        S::Error: Into<Box<dyn StdError + Send + Sync>>,
+where
+    S: tower_service::Service<Uri> + Clone + Send + Sync + 'static,
+    S::Response:
+        hyper::client::connect::Connection + AsyncRead + AsyncWrite + Send + Unpin + 'static,
+    S::Future: Send + Unpin + 'static,
+    S::Error: Into<Box<dyn StdError + Send + Sync>>,
 {
     async fn query_transfer_status(
         &mut self,
@@ -619,7 +618,7 @@ impl<'a, A, S> ResumableUploadHelper<'a, A, S>
                                 range: None,
                                 total_length: self.content_length,
                             }
-                                .header_value(),
+                            .header_value(),
                         )
                         .header(AUTHORIZATION, self.auth_header.clone())
                         .body(hyper::body::Body::empty())
@@ -723,7 +722,7 @@ impl<'a, A, S> ResumableUploadHelper<'a, A, S>
                             .into_iter()
                             .collect(),
                     )
-                        .unwrap();
+                    .unwrap();
                     let reconstructed_result =
                         hyper::Response::from_parts(res_parts, res_body_string.clone().into());
 

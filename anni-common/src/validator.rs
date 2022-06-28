@@ -36,8 +36,8 @@ impl FromStr for Validator {
 
 impl<'de> Deserialize<'de> for Validator {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-        where
-            D: Deserializer<'de>,
+    where
+        D: Deserializer<'de>,
     {
         let s = String::deserialize(deserializer)?;
         Validator::from_str(s.as_str()).map_err(|_| D::Error::custom(s))
@@ -56,14 +56,16 @@ pub struct ValidatorList(Vec<Validator>);
 
 impl ValidatorList {
     pub fn new(validators: &[&str]) -> Result<Self, ()> {
-        validators.iter()
+        validators
+            .iter()
             .map(|v| Validator::from_str(v))
             .collect::<Result<_, _>>()
             .map(|e| ValidatorList(e))
     }
 
     pub fn validate(&self, input: &str) -> Vec<(&'static str, ValidateResult)> {
-        self.0.iter()
+        self.0
+            .iter()
             .map(|v| (v.0, v.1(input)))
             .filter(|v| !v.1.is_pass())
             .collect()

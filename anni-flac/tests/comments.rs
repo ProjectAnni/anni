@@ -1,4 +1,4 @@
-use anni_flac::blocks::{UserComment, BlockVorbisComment};
+use anni_flac::blocks::{BlockVorbisComment, UserComment};
 
 mod common;
 

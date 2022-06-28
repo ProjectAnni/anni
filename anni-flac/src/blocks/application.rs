@@ -1,8 +1,8 @@
-use std::io::{Read, Write};
-use byteorder::{ReadBytesExt, BigEndian, WriteBytesExt};
 use crate::prelude::*;
 use crate::utils::*;
+use byteorder::{BigEndian, ReadBytesExt, WriteBytesExt};
 use std::fmt;
+use std::io::{Read, Write};
 
 pub struct BlockApplication {
     /// Registered application ID.
@@ -25,7 +25,8 @@ impl Decode for BlockApplication {
 #[async_trait::async_trait]
 impl AsyncDecode for BlockApplication {
     async fn from_async_reader<R>(reader: &mut R) -> Result<Self>
-    where R: AsyncRead + Unpin + Send
+    where
+        R: AsyncRead + Unpin + Send,
     {
         Ok(BlockApplication {
             application_id: reader.read_u32().await?,
@@ -48,7 +49,12 @@ impl fmt::Debug for BlockApplication {
         if let Some(width) = f.width() {
             prefix = " ".repeat(width);
         }
-        writeln!(f, "{prefix}application ID: {:x}", self.application_id, prefix = prefix)?;
+        writeln!(
+            f,
+            "{prefix}application ID: {:x}",
+            self.application_id,
+            prefix = prefix
+        )?;
         writeln!(f, "{prefix}data contents:", prefix = prefix)?;
         // TODO: hexdump
         writeln!(f, "{prefix}<TODO>", prefix = prefix)

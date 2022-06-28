@@ -1,32 +1,39 @@
-use std::borrow::Cow;
-use crate::{AnniProvider, ProviderError, AudioResourceReader, ResourceReader, Range, AudioInfo};
-use std::collections::{HashSet, HashMap};
-use std::path::{Path, PathBuf};
+use crate::{AnniProvider, AudioInfo, AudioResourceReader, ProviderError, Range, ResourceReader};
 use async_trait::async_trait;
-use google_drive3::{DriveHub, hyper, oauth2, hyper_rustls::HttpsConnector, hyper::client::HttpConnector};
+use google_drive3::{
+    hyper, hyper::client::HttpConnector, hyper_rustls::HttpsConnector, oauth2, DriveHub,
+};
+use std::borrow::Cow;
+use std::collections::{HashMap, HashSet};
+use std::path::{Path, PathBuf};
 
 use self::oauth2::authenticator::Authenticator;
 use self::oauth2::authenticator_delegate::DefaultInstalledFlowDelegate;
+use crate::utils::read_duration;
+use anni_repo::db::RepoDatabaseRead;
 use anni_repo::library::{album_info, disc_info};
-use google_drive3::api::{FileList, FileListCall};
-use std::str::FromStr;
 use dashmap::DashMap;
 use futures::TryStreamExt;
-use parking_lot::Mutex;
-use tokio::sync::Semaphore;
-use anni_repo::db::RepoDatabaseRead;
+use google_drive3::api::{FileList, FileListCall};
 use google_drive3::hyper_rustls::HttpsConnectorBuilder;
-use crate::utils::read_duration;
+use parking_lot::Mutex;
+use std::str::FromStr;
+use tokio::sync::Semaphore;
 
 pub enum DriveAuth {
-    InstalledFlow { client_id: String, client_secret: String, project_id: Option<String> },
+    InstalledFlow {
+        client_id: String,
+        client_secret: String,
+        project_id: Option<String>,
+    },
     ServiceAccount(oauth2::ServiceAccountKey),
 }
 
 impl Default for DriveAuth {
     fn default() -> Self {
         DriveAuth::InstalledFlow {
-            client_id: "175511611598-ot9agsmf6v3lf1jc3qbsf1vcru7saop7.apps.googleusercontent.com".to_string(),
+            client_id: "175511611598-ot9agsmf6v3lf1jc3qbsf1vcru7saop7.apps.googleusercontent.com"
+                .to_string(),
             client_secret: "mW1neo-JSSwzYz5Syqiiset1".to_string(),
             project_id: Some("anni-provider".to_string()),
         }
@@ -34,29 +41,45 @@ impl Default for DriveAuth {
 }
 
 impl DriveAuth {
-    pub async fn build<P>(self, persist_path: P) -> std::io::Result<Authenticator<HttpsConnector<HttpConnector>>>
-        where P: AsRef<Path> {
+    pub async fn build<P>(
+        self,
+        persist_path: P,
+    ) -> std::io::Result<Authenticator<HttpsConnector<HttpConnector>>>
+    where
+        P: AsRef<Path>,
+    {
         match self {
-            DriveAuth::InstalledFlow { client_id, client_secret, project_id } => {
-                oauth2::InstalledFlowAuthenticator::builder(oauth2::ApplicationSecret {
-                    client_id,
-                    project_id,
-                    auth_uri: "https://accounts.google.com/o/oauth2/auth".to_string(),
-                    token_uri: "https://oauth2.googleapis.com/token".to_string(),
-                    auth_provider_x509_cert_url: Some("https://www.googleapis.com/oauth2/v1/certs".to_string()),
-                    client_secret,
-                    redirect_uris: vec!["urn:ietf:wg:oauth:2.0:oob".to_string()],
-                    client_email: None,
-                    client_x509_cert_url: None,
-                }, oauth2::InstalledFlowReturnMethod::Interactive)
-                    .persist_tokens_to_disk(persist_path.as_ref())
-                    .flow_delegate(Box::new(DefaultInstalledFlowDelegate))
-                    .build().await
+            DriveAuth::InstalledFlow {
+                client_id,
+                client_secret,
+                project_id,
+            } => {
+                oauth2::InstalledFlowAuthenticator::builder(
+                    oauth2::ApplicationSecret {
+                        client_id,
+                        project_id,
+                        auth_uri: "https://accounts.google.com/o/oauth2/auth".to_string(),
+                        token_uri: "https://oauth2.googleapis.com/token".to_string(),
+                        auth_provider_x509_cert_url: Some(
+                            "https://www.googleapis.com/oauth2/v1/certs".to_string(),
+                        ),
+                        client_secret,
+                        redirect_uris: vec!["urn:ietf:wg:oauth:2.0:oob".to_string()],
+                        client_email: None,
+                        client_x509_cert_url: None,
+                    },
+                    oauth2::InstalledFlowReturnMethod::Interactive,
+                )
+                .persist_tokens_to_disk(persist_path.as_ref())
+                .flow_delegate(Box::new(DefaultInstalledFlowDelegate))
+                .build()
+                .await
             }
             DriveAuth::ServiceAccount(sa) => {
                 oauth2::ServiceAccountAuthenticator::builder(sa)
                     .persist_tokens_to_disk(persist_path.as_ref())
-                    .build().await
+                    .build()
+                    .await
             }
         }
     }
@@ -79,21 +102,27 @@ pub struct DriveClient {
 }
 
 impl DriveClient {
-    pub async fn new(auth: DriveAuth, settings: DriveProviderSettings) -> Result<Self, ProviderError> {
+    pub async fn new(
+        auth: DriveAuth,
+        settings: DriveProviderSettings,
+    ) -> Result<Self, ProviderError> {
         let auth = auth.build(&settings.token_path).await?;
         auth.token(&[
             "https://www.googleapis.com/auth/drive.metadata.readonly",
             "https://www.googleapis.com/auth/drive.readonly",
-        ]).await?;
+        ])
+        .await?;
         let hub = DriveHub::new(
-            hyper::Client::builder()
-                .build(HttpsConnectorBuilder::new()
+            hyper::Client::builder().build(
+                HttpsConnectorBuilder::new()
                     .with_native_roots()
                     .https_or_http()
                     .enable_http1()
                     .enable_http2()
-                    .build()
-                ), auth);
+                    .build(),
+            ),
+            auth,
+        );
         Ok(Self {
             hub: Box::new(hub),
             settings,
@@ -103,7 +132,10 @@ impl DriveClient {
     }
 
     fn prepare_list(&self) -> FileListCall<HttpsConnector<HttpConnector>> {
-        let result = self.hub.files().list()
+        let result = self
+            .hub
+            .files()
+            .list()
             .corpora(&self.settings.corpora)
             .supports_all_drives(true)
             .include_items_from_all_drives(true)
@@ -124,25 +156,44 @@ impl DriveClient {
         Ok(list)
     }
 
-    async fn get_file(&self, file_id: &str, range: &Range) -> Result<(ResourceReader, Range), ProviderError> {
+    async fn get_file(
+        &self,
+        file_id: &str,
+        range: &Range,
+    ) -> Result<(ResourceReader, Range), ProviderError> {
         let permit = self.semaphore.acquire().await.unwrap();
-        let (resp, _) = self.hub.files().get(file_id)
+        let (resp, _) = self
+            .hub
+            .files()
+            .get(file_id)
             .supports_all_drives(true)
             .param("alt", "media")
             .range(range.to_range_header())
-            .doit().await?;
+            .doit()
+            .await?;
         drop(permit);
-        let content_range = resp.headers().get("Content-Range").map(|v| v.to_str().unwrap().to_string());
-        let body = resp.into_body()
+        let content_range = resp
+            .headers()
+            .get("Content-Range")
+            .map(|v| v.to_str().unwrap().to_string());
+        let body = resp
+            .into_body()
             .map_err(|_| std::io::Error::new(std::io::ErrorKind::Other, "Error!"))
             .into_async_read();
         let body = tokio_util::compat::FuturesAsyncReadCompatExt::compat(body);
-        Ok((Box::pin(body), content_range_to_range(content_range.as_deref())))
+        Ok((
+            Box::pin(body),
+            content_range_to_range(content_range.as_deref()),
+        ))
     }
 
     async fn get_cover_id_in(&self, parent_id: &str) -> Result<String, ProviderError> {
         if self.covers.contains_key(parent_id) {
-            return self.covers.get(parent_id).map(|v| v.to_string()).ok_or(ProviderError::FileNotFound);
+            return self
+                .covers
+                .get(parent_id)
+                .map(|v| v.to_string())
+                .ok_or(ProviderError::FileNotFound);
         }
 
         let permit = self.semaphore.acquire().await.unwrap();
@@ -181,7 +232,11 @@ pub struct DriveBackend {
 }
 
 impl DriveBackend {
-    pub async fn new(auth: DriveAuth, settings: DriveProviderSettings, repo: RepoDatabaseRead) -> Result<Self, ProviderError> {
+    pub async fn new(
+        auth: DriveAuth,
+        settings: DriveProviderSettings,
+        repo: RepoDatabaseRead,
+    ) -> Result<Self, ProviderError> {
         let mut this = Self {
             client: DriveClient::new(auth, settings).await?,
             folders: Default::default(),
@@ -195,14 +250,25 @@ impl DriveBackend {
     }
 
     async fn cache_discs(&self, album_id: &str) -> Result<(), ProviderError> {
-        if self.folders.contains_key(album_id) && self.discs.contains_key(album_id) && self.discs.get(album_id).unwrap().is_none() {
+        if self.folders.contains_key(album_id)
+            && self.discs.contains_key(album_id)
+            && self.discs.get(album_id).unwrap().is_none()
+        {
             let list = self.client.list_folder(&self.folders[album_id]).await?;
-            let mut discs: Vec<_> = list.files.unwrap().iter().filter_map(|file| {
-                let (_, _, disc_index) = disc_info(file.name.as_deref().unwrap()).ok()?;
-                return Some((disc_index, file.id.as_deref().unwrap().to_string()));
-            }).collect();
+            let mut discs: Vec<_> = list
+                .files
+                .unwrap()
+                .iter()
+                .filter_map(|file| {
+                    let (_, _, disc_index) = disc_info(file.name.as_deref().unwrap()).ok()?;
+                    return Some((disc_index, file.id.as_deref().unwrap().to_string()));
+                })
+                .collect();
             discs.sort();
-            self.discs.insert(album_id.to_string(), Some(discs.into_iter().map(|(_, id)| id).collect()));
+            self.discs.insert(
+                album_id.to_string(),
+                Some(discs.into_iter().map(|(_, id)| id).collect()),
+            );
         }
 
         Ok(())
@@ -212,7 +278,11 @@ impl DriveBackend {
         match disc_id {
             Some(disc_id) => {
                 if self.discs.contains_key(album_id) {
-                    Cow::Owned(self.discs.get(album_id).unwrap().as_deref().unwrap()[(disc_id - 1) as usize].clone())
+                    Cow::Owned(
+                        self.discs.get(album_id).unwrap().as_deref().unwrap()
+                            [(disc_id - 1) as usize]
+                            .clone(),
+                    )
                 } else {
                     Cow::Borrowed(&self.folders[album_id])
                 }
@@ -232,7 +302,13 @@ impl AnniProvider for DriveBackend {
             .collect())
     }
 
-    async fn get_audio(&self, album_id: &str, disc_id: u8, track_id: u8, range: Range) -> Result<AudioResourceReader, ProviderError> {
+    async fn get_audio(
+        &self,
+        album_id: &str,
+        disc_id: u8,
+        track_id: u8,
+        range: Range,
+    ) -> Result<AudioResourceReader, ProviderError> {
         // catalog not found
         if !self.folders.contains_key(album_id) {
             return Err(ProviderError::FileNotFound);
@@ -246,20 +322,39 @@ impl AnniProvider for DriveBackend {
 
             // get audio file id
             let permit = self.client.semaphore.acquire().await.unwrap();
-            let (_, list) = self.client.prepare_list()
-                .q(&format!("trashed = false and name contains '{:02}.' and '{}' in parents", track_id, folder_id))
+            let (_, list) = self
+                .client
+                .prepare_list()
+                .q(&format!(
+                    "trashed = false and name contains '{:02}.' and '{}' in parents",
+                    track_id, folder_id
+                ))
                 .param("fields", "nextPageToken, files(id,name,fileExtension,size)")
-                .doit().await?;
+                .doit()
+                .await?;
             drop(permit);
 
             let files = list.files.unwrap();
-            let id = files.iter().reduce(|a, b| if a.name.as_ref().unwrap().starts_with(&format!("{:02}.", track_id)) { a } else { b });
+            let id = files.iter().reduce(|a, b| {
+                if a.name
+                    .as_ref()
+                    .unwrap()
+                    .starts_with(&format!("{:02}.", track_id))
+                {
+                    a
+                } else {
+                    b
+                }
+            });
             if let Some(file) = id {
                 let id = file.id.as_ref().unwrap();
-                self.audios.insert(id.to_string(), (
-                    file.file_extension.as_ref().unwrap().to_string(),
-                    usize::from_str(file.size.as_ref().unwrap()).unwrap()
-                ));
+                self.audios.insert(
+                    id.to_string(),
+                    (
+                        file.file_extension.as_ref().unwrap().to_string(),
+                        usize::from_str(file.size.as_ref().unwrap()).unwrap(),
+                    ),
+                );
                 self.files.insert(key.to_string(), id.to_string());
             } else {
                 return Err(ProviderError::FileNotFound);
@@ -288,11 +383,16 @@ impl AnniProvider for DriveBackend {
         }
     }
 
-    async fn get_cover(&self, album_id: &str, disc_id: Option<u8>) -> Result<ResourceReader, ProviderError> {
+    async fn get_cover(
+        &self,
+        album_id: &str,
+        disc_id: Option<u8>,
+    ) -> Result<ResourceReader, ProviderError> {
         // album_id not found
         if !self.folders.contains_key(album_id) ||
             // disc not found
-            (disc_id.is_some() && !matches!(disc_id, Some(1)) && !self.discs.contains_key(album_id)) {
+            (disc_id.is_some() && !matches!(disc_id, Some(1)) && !self.discs.contains_key(album_id))
+        {
             return Err(ProviderError::FileNotFound);
         }
 
@@ -325,16 +425,24 @@ impl AnniProvider for DriveBackend {
         let mut page_token = String::new();
         loop {
             let permit = self.client.semaphore.acquire().await.unwrap();
-            let (_, list) = self.client.prepare_list()
+            let (_, list) = self
+                .client
+                .prepare_list()
                 .page_token(&page_token)
                 .q("mimeType = 'application/vnd.google-apps.folder' and trashed = false")
                 .param("fields", "nextPageToken, files(id,name)")
-                .doit().await?;
+                .doit()
+                .await?;
             drop(permit);
             for file in list.files.unwrap() {
                 let name = file.name.unwrap();
                 if let Ok((release_date, catalog, title, disc_count)) = album_info(&name) {
-                    let album_id = self.repo.lock().match_album(&catalog, &release_date, disc_count as u8, &title)?;
+                    let album_id = self.repo.lock().match_album(
+                        &catalog,
+                        &release_date,
+                        disc_count as u8,
+                        &title,
+                    )?;
                     match album_id {
                         Some(album_id) => {
                             self.folders.insert(album_id.to_string(), file.id.unwrap());
@@ -370,7 +478,8 @@ pub(crate) fn content_range_to_range(content_range: Option<&str>) -> Range {
             // Content-Range: bytes 0-1023/10240
             //                      | offset = 6
             let content_range = &content_range[6..];
-            let (from, content_range) = content_range.split_once('-').unwrap_or((content_range, ""));
+            let (from, content_range) =
+                content_range.split_once('-').unwrap_or((content_range, ""));
             let (to, total) = content_range.split_once('/').unwrap_or((content_range, ""));
 
             Range {

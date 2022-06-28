@@ -1,12 +1,12 @@
-use std::io::{Read, Write, Seek, SeekFrom};
-use byteorder::{BigEndian, ReadBytesExt, WriteBytesExt};
-use crate::prelude::*;
 use crate::blocks::*;
-use crate::utils::*;
 use crate::error::FlacError;
+use crate::prelude::*;
+use crate::utils::*;
+use byteorder::{BigEndian, ReadBytesExt, WriteBytesExt};
 use std::fmt;
-use std::path::{Path, PathBuf};
 use std::fs::{File, OpenOptions};
+use std::io::{Read, Seek, SeekFrom, Write};
+use std::path::{Path, PathBuf};
 
 pub struct FlacHeader {
     pub blocks: Vec<MetadataBlock>,
@@ -16,17 +16,18 @@ pub struct FlacHeader {
 
 impl FlacHeader {
     pub fn parse<R: Read>(reader: &mut R) -> Result<FlacHeader> {
-        if reader.read_u8()? != b'f' ||
-            reader.read_u8()? != b'L' ||
-            reader.read_u8()? != b'a' ||
-            reader.read_u8()? != b'C' {
+        if reader.read_u8()? != b'f'
+            || reader.read_u8()? != b'L'
+            || reader.read_u8()? != b'a'
+            || reader.read_u8()? != b'C'
+        {
             return Err(FlacError::InvalidMagicNumber);
         }
 
         let stream_info = MetadataBlock::from_reader(reader)?;
         match stream_info.data {
             MetadataBlockData::StreamInfo(_) => {}
-            _ => return Err(FlacError::InvalidFirstBlock)
+            _ => return Err(FlacError::InvalidFirstBlock),
         }
 
         let mut is_last = stream_info.is_last;
@@ -38,24 +39,30 @@ impl FlacHeader {
             is_last = block.is_last;
             blocks.push(block);
         }
-        Ok(FlacHeader { blocks, input_file: None, frame_offset })
+        Ok(FlacHeader {
+            blocks,
+            input_file: None,
+            frame_offset,
+        })
     }
 
     #[cfg(feature = "async")]
     pub async fn parse_async<R>(reader: &mut R) -> Result<FlacHeader>
-        where R: AsyncRead + Unpin + Send
+    where
+        R: AsyncRead + Unpin + Send,
     {
-        if reader.read_u8().await? != b'f' ||
-            reader.read_u8().await? != b'L' ||
-            reader.read_u8().await? != b'a' ||
-            reader.read_u8().await? != b'C' {
+        if reader.read_u8().await? != b'f'
+            || reader.read_u8().await? != b'L'
+            || reader.read_u8().await? != b'a'
+            || reader.read_u8().await? != b'C'
+        {
             return Err(FlacError::InvalidMagicNumber);
         }
 
         let stream_info = MetadataBlock::from_async_reader(reader).await?;
         match stream_info.data {
             MetadataBlockData::StreamInfo(_) => {}
-            _ => return Err(FlacError::InvalidFirstBlock)
+            _ => return Err(FlacError::InvalidFirstBlock),
         }
 
         let mut is_last = stream_info.is_last;
@@ -67,7 +74,11 @@ impl FlacHeader {
             is_last = block.is_last;
             blocks.push(block);
         }
-        Ok(FlacHeader { blocks, input_file: None, frame_offset })
+        Ok(FlacHeader {
+            blocks,
+            input_file: None,
+            frame_offset,
+        })
     }
 
     pub fn from_file<P: AsRef<Path>>(filename: P) -> Result<FlacHeader> {
@@ -116,13 +127,19 @@ impl FlacHeader {
     pub fn comments_mut(&mut self) -> &mut BlockVorbisComment {
         let is_none = self.block_of_mut(4).is_none();
         if is_none {
-            let comment = BlockVorbisComment { vendor_string: format!("anni-flac v{}", env!("CARGO_PKG_VERSION")), comments: vec![] };
-            self.blocks.push(MetadataBlock::new(MetadataBlockData::Comment(comment)));
+            let comment = BlockVorbisComment {
+                vendor_string: format!("anni-flac v{}", env!("CARGO_PKG_VERSION")),
+                comments: vec![],
+            };
+            self.blocks
+                .push(MetadataBlock::new(MetadataBlockData::Comment(comment)));
         }
-        self.block_of_mut(4).map(|b| match &mut b.data {
-            MetadataBlockData::Comment(c) => c,
-            _ => unreachable!(),
-        }).unwrap()
+        self.block_of_mut(4)
+            .map(|b| match &mut b.data {
+                MetadataBlockData::Comment(c) => c,
+                _ => unreachable!(),
+            })
+            .unwrap()
     }
 
     fn frame_offset_now(&self) -> usize {
@@ -134,7 +151,11 @@ impl FlacHeader {
     }
 
     pub fn save<P: AsRef<Path>>(&mut self, output: Option<P>) -> Result<()> {
-        let input_path = self.input_file.as_deref().expect("No input path provided!").to_path_buf();
+        let input_path = self
+            .input_file
+            .as_deref()
+            .expect("No input path provided!")
+            .to_path_buf();
         let output_path = match output {
             Some(p) => p.as_ref().to_path_buf(),
             None => input_path.clone(),
@@ -158,7 +179,11 @@ impl FlacHeader {
         } else {
             // recalculate frame offset after header modify
             let frame_offset_now = self.frame_offset_now();
-            log::debug!("frame_offset_now = {}, flac.frame_offset = {}", frame_offset_now, self.frame_offset);
+            log::debug!(
+                "frame_offset_now = {}, flac.frame_offset = {}",
+                frame_offset_now,
+                self.frame_offset
+            );
 
             let need_new_file = frame_offset_now > self.frame_offset || {
                 // if header is smaller than / the same size as previous header
@@ -171,7 +196,11 @@ impl FlacHeader {
                 if let MetadataBlockData::Padding(size) = &mut last.data {
                     // padding block exists, modify padding size directly
                     last.length += space_to_add;
-                    log::debug!("padding.size_original = {}, adjusted to {}", size, last.length);
+                    log::debug!(
+                        "padding.size_original = {}, adjusted to {}",
+                        size,
+                        last.length
+                    );
                     *size = last.length;
                     false
                 } else if space_to_add >= 4 {
@@ -241,28 +270,29 @@ impl FlacHeader {
 
         // insert padding block if necessary
         if let Some(mut padding_block_size) = padding_size {
-            let need_padding = frame_offset_now != self.frame_offset && if frame_offset_now > self.frame_offset {
-                // need more space
-                let needed = frame_offset_now - self.frame_offset;
-                if needed <= padding_block_size {
-                    // have enough space
-                    padding_block_size -= frame_offset_now - self.frame_offset;
-                    true
-                } else if needed == padding_block_size + 4 {
-                    // space needed == padding size + padding header size
-                    padding_block_size = 0;
-                    false
+            let need_padding = frame_offset_now != self.frame_offset
+                && if frame_offset_now > self.frame_offset {
+                    // need more space
+                    let needed = frame_offset_now - self.frame_offset;
+                    if needed <= padding_block_size {
+                        // have enough space
+                        padding_block_size -= frame_offset_now - self.frame_offset;
+                        true
+                    } else if needed == padding_block_size + 4 {
+                        // space needed == padding size + padding header size
+                        padding_block_size = 0;
+                        false
+                    } else {
+                        // padding space not enough
+                        padding_block_size = 8192;
+                        true
+                    }
                 } else {
-                    // padding space not enough
-                    padding_block_size = 8192;
+                    // expand padding space
+                    let expanded = self.frame_offset - frame_offset_now;
+                    padding_block_size += expanded;
                     true
-                }
-            } else {
-                // expand padding space
-                let expanded = self.frame_offset - frame_offset_now;
-                padding_block_size += expanded;
-                true
-            };
+                };
 
             if need_padding {
                 self.blocks.push(MetadataBlock {
@@ -305,13 +335,25 @@ impl Decode for MetadataBlock {
             is_last: first_byte & 0b10000000 > 0,
             length,
             data: match block_type {
-                0 => MetadataBlockData::StreamInfo(BlockStreamInfo::from_reader(&mut reader.take(length as u64))?),
+                0 => MetadataBlockData::StreamInfo(BlockStreamInfo::from_reader(
+                    &mut reader.take(length as u64),
+                )?),
                 1 => MetadataBlockData::Padding(skip(reader, length)? as usize),
-                2 => MetadataBlockData::Application(BlockApplication::from_reader(&mut reader.take(length as u64))?),
-                3 => MetadataBlockData::SeekTable(BlockSeekTable::from_reader(&mut reader.take(length as u64))?),
-                4 => MetadataBlockData::Comment(BlockVorbisComment::from_reader(&mut reader.take(length as u64))?),
-                5 => MetadataBlockData::CueSheet(BlockCueSheet::from_reader(&mut reader.take(length as u64))?),
-                6 => MetadataBlockData::Picture(BlockPicture::from_reader(&mut reader.take(length as u64))?),
+                2 => MetadataBlockData::Application(BlockApplication::from_reader(
+                    &mut reader.take(length as u64),
+                )?),
+                3 => MetadataBlockData::SeekTable(BlockSeekTable::from_reader(
+                    &mut reader.take(length as u64),
+                )?),
+                4 => MetadataBlockData::Comment(BlockVorbisComment::from_reader(
+                    &mut reader.take(length as u64),
+                )?),
+                5 => MetadataBlockData::CueSheet(BlockCueSheet::from_reader(
+                    &mut reader.take(length as u64),
+                )?),
+                6 => MetadataBlockData::Picture(BlockPicture::from_reader(
+                    &mut reader.take(length as u64),
+                )?),
                 _ => MetadataBlockData::Reserved((block_type, take(reader, length)?)),
             },
         })
@@ -322,7 +364,8 @@ impl Decode for MetadataBlock {
 #[async_trait::async_trait]
 impl AsyncDecode for MetadataBlock {
     async fn from_async_reader<R>(reader: &mut R) -> Result<Self>
-        where R: AsyncRead + Unpin + Send
+    where
+        R: AsyncRead + Unpin + Send,
     {
         let first_byte = reader.read_u8().await?;
         let block_type = first_byte & 0b01111111;
@@ -331,13 +374,25 @@ impl AsyncDecode for MetadataBlock {
             is_last: first_byte & 0b10000000 > 0,
             length,
             data: match block_type {
-                0 => MetadataBlockData::StreamInfo(BlockStreamInfo::from_async_reader(&mut reader.take(length as u64)).await?),
+                0 => MetadataBlockData::StreamInfo(
+                    BlockStreamInfo::from_async_reader(&mut reader.take(length as u64)).await?,
+                ),
                 1 => MetadataBlockData::Padding(skip_async(reader, length).await? as usize),
-                2 => MetadataBlockData::Application(BlockApplication::from_async_reader(&mut reader.take(length as u64)).await?),
-                3 => MetadataBlockData::SeekTable(BlockSeekTable::from_async_reader(&mut reader.take(length as u64)).await?),
-                4 => MetadataBlockData::Comment(BlockVorbisComment::from_async_reader(&mut reader.take(length as u64)).await?),
-                5 => MetadataBlockData::CueSheet(BlockCueSheet::from_async_reader(&mut reader.take(length as u64)).await?),
-                6 => MetadataBlockData::Picture(BlockPicture::from_async_reader(&mut reader.take(length as u64)).await?),
+                2 => MetadataBlockData::Application(
+                    BlockApplication::from_async_reader(&mut reader.take(length as u64)).await?,
+                ),
+                3 => MetadataBlockData::SeekTable(
+                    BlockSeekTable::from_async_reader(&mut reader.take(length as u64)).await?,
+                ),
+                4 => MetadataBlockData::Comment(
+                    BlockVorbisComment::from_async_reader(&mut reader.take(length as u64)).await?,
+                ),
+                5 => MetadataBlockData::CueSheet(
+                    BlockCueSheet::from_async_reader(&mut reader.take(length as u64)).await?,
+                ),
+                6 => MetadataBlockData::Picture(
+                    BlockPicture::from_async_reader(&mut reader.take(length as u64)).await?,
+                ),
                 _ => MetadataBlockData::Reserved((block_type, take_async(reader, length).await?)),
             },
         })
@@ -428,9 +483,19 @@ impl MetadataBlockData {
             MetadataBlockData::Padding(p) => *p,
             MetadataBlockData::Application(a) => a.data.len() + 4,
             MetadataBlockData::SeekTable(t) => t.seek_points.len() * 18,
-            MetadataBlockData::Comment(c) => 8 + c.vendor_string.len() + c.comments.iter().map(|c| 4 + c.len()).sum::<usize>(),
-            MetadataBlockData::CueSheet(c) => 396 + c.tracks.iter().map(|t| 36 + t.track_index.len() * 12).sum::<usize>(),
-            MetadataBlockData::Picture(p) => 32 + p.mime_type.len() + p.description.len() + p.data.len(),
+            MetadataBlockData::Comment(c) => {
+                8 + c.vendor_string.len() + c.comments.iter().map(|c| 4 + c.len()).sum::<usize>()
+            }
+            MetadataBlockData::CueSheet(c) => {
+                396 + c
+                    .tracks
+                    .iter()
+                    .map(|t| 36 + t.track_index.len() * 12)
+                    .sum::<usize>()
+            }
+            MetadataBlockData::Picture(p) => {
+                32 + p.mime_type.len() + p.description.len() + p.data.len()
+            }
             MetadataBlockData::Reserved((_, arr)) => arr.len(),
         }
     }

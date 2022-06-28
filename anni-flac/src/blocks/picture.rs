@@ -1,13 +1,13 @@
-use std::io::{Read, Write};
-use num_traits::FromPrimitive;
-use byteorder::{ReadBytesExt, BigEndian, WriteBytesExt};
-use crate::utils::*;
-use crate::prelude::*;
-use std::fmt;
-use std::path::Path;
-use std::borrow::Cow;
-use std::str::FromStr;
 use crate::error::FlacError;
+use crate::prelude::*;
+use crate::utils::*;
+use byteorder::{BigEndian, ReadBytesExt, WriteBytesExt};
+use num_traits::FromPrimitive;
+use std::borrow::Cow;
+use std::fmt;
+use std::io::{Read, Write};
+use std::path::Path;
+use std::str::FromStr;
 
 pub struct BlockPicture {
     /// <32> The picture type according to the ID3v2 APIC frame
@@ -36,7 +36,8 @@ pub struct BlockPicture {
 
 impl Decode for BlockPicture {
     fn from_reader<R: Read>(reader: &mut R) -> Result<Self> {
-        let picture_type: PictureType = FromPrimitive::from_u32(reader.read_u32::<BigEndian>()?).unwrap_or(PictureType::Unknown);
+        let picture_type: PictureType = FromPrimitive::from_u32(reader.read_u32::<BigEndian>()?)
+            .unwrap_or(PictureType::Unknown);
         let mime_type_length = reader.read_u32::<BigEndian>()?;
         let mime_type = take_string(reader, mime_type_length as usize)?;
         let description_length = reader.read_u32::<BigEndian>()?;
@@ -67,9 +68,11 @@ impl Decode for BlockPicture {
 #[async_trait::async_trait]
 impl AsyncDecode for BlockPicture {
     async fn from_async_reader<R>(reader: &mut R) -> Result<Self>
-        where R: AsyncRead + Unpin + Send
+    where
+        R: AsyncRead + Unpin + Send,
     {
-        let picture_type: PictureType = FromPrimitive::from_u32(reader.read_u32().await?).unwrap_or(PictureType::Unknown);
+        let picture_type: PictureType =
+            FromPrimitive::from_u32(reader.read_u32().await?).unwrap_or(PictureType::Unknown);
         let mime_type_length = reader.read_u32().await?;
         let mime_type = take_string_async(reader, mime_type_length as usize).await?;
         let description_length = reader.read_u32().await?;
@@ -124,20 +127,50 @@ impl fmt::Debug for BlockPicture {
         if let Some(width) = f.width() {
             prefix = " ".repeat(width);
         }
-        writeln!(f, "{prefix}type: {} ({})", self.picture_type as u8, self.picture_type.as_str(), prefix = prefix)?;
+        writeln!(
+            f,
+            "{prefix}type: {} ({})",
+            self.picture_type as u8,
+            self.picture_type.as_str(),
+            prefix = prefix
+        )?;
         writeln!(f, "{prefix}MIME type: {}", self.mime_type, prefix = prefix)?;
-        writeln!(f, "{prefix}description: {}", self.description, prefix = prefix)?;
+        writeln!(
+            f,
+            "{prefix}description: {}",
+            self.description,
+            prefix = prefix
+        )?;
         writeln!(f, "{prefix}width: {}", self.width, prefix = prefix)?;
         writeln!(f, "{prefix}height: {}", self.height, prefix = prefix)?;
         writeln!(f, "{prefix}depth: {}", self.depth, prefix = prefix)?;
-        writeln!(f, "{prefix}colors: {}{}", self.colors, if self.color_indexed() { "" } else { " (unindexed)" }, prefix = prefix)?;
-        writeln!(f, "{prefix}data length: {}", self.data.len(), prefix = prefix)?;
+        writeln!(
+            f,
+            "{prefix}colors: {}{}",
+            self.colors,
+            if self.color_indexed() {
+                ""
+            } else {
+                " (unindexed)"
+            },
+            prefix = prefix
+        )?;
+        writeln!(
+            f,
+            "{prefix}data length: {}",
+            self.data.len(),
+            prefix = prefix
+        )?;
         Ok(())
     }
 }
 
 impl BlockPicture {
-    pub fn new<P: AsRef<Path>>(file: P, picture_type: PictureType, description: String) -> Result<Self> {
+    pub fn new<P: AsRef<Path>>(
+        file: P,
+        picture_type: PictureType,
+        description: String,
+    ) -> Result<Self> {
         let img = image::open(file.as_ref())?;
         let mut data = Vec::new();
         std::fs::File::open(file.as_ref())?.read_to_end(&mut data)?;

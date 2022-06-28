@@ -1,7 +1,7 @@
 use crate::prelude::*;
 use anni_common::fs;
 use std::collections::{HashMap, HashSet};
-use std::path::{PathBuf, Path};
+use std::path::{Path, PathBuf};
 use std::str::FromStr;
 
 /// A simple repository visitor. Can perform simple operations on the repository.
@@ -55,7 +55,12 @@ impl RepositoryManager {
     }
 
     fn default_album_root(&self) -> PathBuf {
-        self.root.join(self.repo.albums().get(0).map_or_else(|| "album", String::as_str))
+        self.root.join(
+            self.repo
+                .albums()
+                .get(0)
+                .map_or_else(|| "album", String::as_str),
+        )
     }
 
     /// Get all album paths.
@@ -113,7 +118,9 @@ impl RepositoryManager {
 
     /// Load album with given path.
     fn load_album<P>(&self, path: P) -> RepoResult<Album>
-        where P: AsRef<Path> {
+    where
+        P: AsRef<Path>,
+    {
         let input = fs::read_to_string(path.as_ref())?;
         Album::from_str(&input)
     }
@@ -143,10 +150,11 @@ impl RepositoryManager {
 
         if folder.exists() {
             // multiple albums with the same catalog exists
-            let count = fs::PathWalker::new(&folder, false).filter(|p|
+            let count = fs::PathWalker::new(&folder, false)
+                .filter(|p|
                 // p.extension is toml
-                p.extension() == Some("toml".as_ref())
-            ).count();
+                p.extension() == Some("toml".as_ref()))
+                .count();
             let new_file_name = format!("{catalog}.{count}.toml");
             fs::write(folder.join(new_file_name), album.to_string())?;
         } else if file.exists() {
@@ -219,7 +227,7 @@ impl<'repo> OwnedRepositoryManager {
         &self.albums
     }
 
-    pub fn albums_iter(&self) -> impl Iterator<Item=&Album> {
+    pub fn albums_iter(&self) -> impl Iterator<Item = &Album> {
         self.albums.values()
     }
 
@@ -247,7 +255,9 @@ impl<'repo> OwnedRepositoryManager {
     }
 
     pub fn child_tags(&self, tag: &TagRef) -> HashSet<&TagRef> {
-        self.tags_relation.get(tag).map_or(HashSet::new(), |children| children.iter().collect())
+        self.tags_relation
+            .get(tag)
+            .map_or(HashSet::new(), |children| children.iter().collect())
     }
 
     pub fn albums_tagged_by(&self, tag: &TagRef) -> Option<&Vec<String>> {
@@ -374,10 +384,16 @@ impl<'repo> OwnedRepositoryManager {
                 }
             }
             if let Some(album_with_same_id) = self.albums.insert(album_id.to_string(), album) {
-                log::error!("Duplicated album id detected: {}", album_with_same_id.album_id());
+                log::error!(
+                    "Duplicated album id detected: {}",
+                    album_with_same_id.album_id()
+                );
                 has_problem = true;
             }
-            self.album_path.insert(album_id.to_string(), pathdiff::diff_paths(&path, &self.repo.root).unwrap());
+            self.album_path.insert(
+                album_id.to_string(),
+                pathdiff::diff_paths(&path, &self.repo.root).unwrap(),
+            );
         }
 
         if !has_problem {
@@ -449,7 +465,9 @@ impl<'repo> OwnedRepositoryManager {
 
     #[cfg(feature = "db-write")]
     pub fn to_database<P>(&self, database_path: P) -> RepoResult<()>
-        where P: AsRef<Path> {
+    where
+        P: AsRef<Path>,
+    {
         use std::time::{SystemTime, UNIX_EPOCH};
 
         // remove database first
@@ -474,9 +492,17 @@ impl<'repo> OwnedRepositoryManager {
         // Create Index
         db.create_index()?;
 
-
         // Creation time
-        fs::write(database_path.as_ref().with_file_name("repo.json"), &format!("{{\"last_modified\": {}}}", SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs()))?;
+        fs::write(
+            database_path.as_ref().with_file_name("repo.json"),
+            &format!(
+                "{{\"last_modified\": {}}}",
+                SystemTime::now()
+                    .duration_since(UNIX_EPOCH)
+                    .unwrap()
+                    .as_secs()
+            ),
+        )?;
         Ok(())
     }
 }

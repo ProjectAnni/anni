@@ -1,12 +1,16 @@
+use crate::{AnnilClaims, AppState};
+use actix_web::http::header::{ETAG, IF_NONE_MATCH};
+use actix_web::{get, web, HttpRequest, HttpResponse, Responder};
 use std::borrow::Cow;
 use std::collections::HashSet;
-use actix_web::{HttpResponse, Responder, web, get, HttpRequest};
-use actix_web::http::header::{ETAG, IF_NONE_MATCH};
-use crate::{AnnilClaims, AppState};
 
 /// Get available albums of current annil server
 #[get("/albums")]
-async fn albums(claims: AnnilClaims, data: web::Data<AppState>, req: HttpRequest) -> impl Responder {
+async fn albums(
+    claims: AnnilClaims,
+    data: web::Data<AppState>,
+    req: HttpRequest,
+) -> impl Responder {
     match claims {
         AnnilClaims::User(_) => {
             if let Some(Ok(mut etag)) = req.headers().get(IF_NONE_MATCH).map(|v| v.to_str()) {

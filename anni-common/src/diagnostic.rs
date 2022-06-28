@@ -49,8 +49,8 @@ pub struct DiagnosticMessage<T> {
 
 impl<T> Serialize for DiagnosticMessage<T> {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-        where
-            S: serde::Serializer,
+    where
+        S: serde::Serializer,
     {
         serializer.serialize_str(&self.message)
     }
@@ -100,11 +100,15 @@ impl DiagnosticLocation {
     }
 
     pub fn end_line(&self) -> Option<u32> {
-        self.range.as_ref().and_then(|r| r.end.as_ref().and_then(|p| Some(p.line)))
+        self.range
+            .as_ref()
+            .and_then(|r| r.end.as_ref().and_then(|p| Some(p.line)))
     }
 
     pub fn end_column(&self) -> Option<u32> {
-        self.range.as_ref().and_then(|r| r.end.as_ref().and_then(|p| p.column))
+        self.range
+            .as_ref()
+            .and_then(|r| r.end.as_ref().and_then(|p| p.column))
     }
 }
 
@@ -156,7 +160,10 @@ pub struct DiagnosticCode {
 
 impl DiagnosticCode {
     pub fn new(value: String) -> Self {
-        Self { value, ..Default::default() }
+        Self {
+            value,
+            ..Default::default()
+        }
     }
 }
 

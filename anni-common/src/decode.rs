@@ -1,8 +1,8 @@
+use byteorder::{BigEndian, LittleEndian, ReadBytesExt};
 use std::io;
 use std::io::Read;
 use std::string::FromUtf8Error;
 use thiserror::Error;
-use byteorder::{ReadBytesExt, BigEndian, LittleEndian};
 
 #[derive(Debug, Error)]
 pub enum DecodeError {
@@ -11,10 +11,7 @@ pub enum DecodeError {
     #[error(transparent)]
     FromUtf8Error(#[from] FromUtf8Error),
     #[error("invalid token, expected {expected:?}, got {got:?}")]
-    InvalidTokenError {
-        expected: Vec<u8>,
-        got: Vec<u8>,
-    },
+    InvalidTokenError { expected: Vec<u8>, got: Vec<u8> },
 }
 
 type Result<T> = std::result::Result<T, DecodeError>;
@@ -43,7 +40,10 @@ pub fn take_string<R: Read>(reader: &mut R, len: usize) -> Result<String> {
 
 #[inline]
 pub fn skip<R: Read>(reader: &mut R, len: usize) -> Result<u64> {
-    Ok(std::io::copy(&mut reader.take(len as u64), &mut std::io::sink())?)
+    Ok(std::io::copy(
+        &mut reader.take(len as u64),
+        &mut std::io::sink(),
+    )?)
 }
 
 pub fn token<R: Read>(reader: &mut R, token: &[u8]) -> Result<()> {

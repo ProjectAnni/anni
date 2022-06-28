@@ -1,11 +1,13 @@
-use std::io::{Cursor};
-use tokio::io::{AsyncRead, AsyncReadExt, AsyncWriteExt};
+use crate::{Range, ResourceReader};
 use anni_flac::blocks::BlockStreamInfo;
 use anni_flac::prelude::{AsyncDecode, Encode, Result};
-use crate::{Range, ResourceReader};
+use std::io::Cursor;
+use tokio::io::{AsyncRead, AsyncReadExt, AsyncWriteExt};
 
 async fn read_header<R>(mut reader: R) -> Result<(BlockStreamInfo, ResourceReader)>
-    where R: AsyncRead + Unpin + Send + 'static {
+where
+    R: AsyncRead + Unpin + Send + 'static,
+{
     let first = reader.read_u32().await.unwrap();
     let second = reader.read_u32().await.unwrap();
     let info = BlockStreamInfo::from_async_reader(&mut reader).await?;
@@ -19,7 +21,10 @@ async fn read_header<R>(mut reader: R) -> Result<(BlockStreamInfo, ResourceReade
     Ok((info, Box::pin(header.chain(reader))))
 }
 
-pub(crate) async fn read_duration(reader: ResourceReader, range: Range) -> Result<(u64, ResourceReader)> {
+pub(crate) async fn read_duration(
+    reader: ResourceReader,
+    range: Range,
+) -> Result<(u64, ResourceReader)> {
     if !range.contains_flac_header() {
         return Ok((0, reader));
     }

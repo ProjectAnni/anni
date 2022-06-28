@@ -1,6 +1,7 @@
-use i18n_embed::{DesktopLanguageRequester, fluent::{
-    FluentLanguageLoader, fluent_language_loader,
-}, LanguageLoader};
+use i18n_embed::{
+    fluent::{fluent_language_loader, FluentLanguageLoader},
+    DesktopLanguageRequester, LanguageLoader,
+};
 use rust_embed::RustEmbed;
 
 #[derive(RustEmbed)]
@@ -12,7 +13,9 @@ fn init_i18n() -> FluentLanguageLoader {
     let requested_languages = DesktopLanguageRequester::requested_languages();
     let mut references: Vec<_> = requested_languages.iter().collect();
     references.push(loader.fallback_language());
-    loader.load_languages(&Localizations, &references).expect("Failed to load localization.");
+    loader
+        .load_languages(&Localizations, &references)
+        .expect("Failed to load localization.");
     loader
 }
 

@@ -1,18 +1,24 @@
-use serde::{Serialize, Deserialize, Serializer, Deserializer};
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use uuid::Uuid;
 
 #[derive(Debug)]
 pub struct UuidRow(pub Uuid);
 
 impl<'de> Deserialize<'de> for UuidRow {
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error> where D: Deserializer<'de> {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
         let inner = Vec::deserialize(deserializer)?;
         Ok(UuidRow(Uuid::from_slice(&inner).unwrap()))
     }
 }
 
 impl Serialize for UuidRow {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error> where S: Serializer {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
         self.0.serialize(serializer)
     }
 }

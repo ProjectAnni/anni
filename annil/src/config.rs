@@ -1,7 +1,7 @@
 use serde::Deserialize;
-use std::path::{Path, PathBuf};
-use std::fs;
 use std::collections::HashMap;
+use std::fs;
+use std::path::{Path, PathBuf};
 
 #[derive(Deserialize)]
 pub struct Config {
@@ -95,7 +95,12 @@ impl ProviderConfig {
 pub enum ProviderItem {
     #[serde(rename = "file")]
     #[serde(rename_all = "kebab-case")]
-    File { root: String, strict: bool, #[serde(default = "default_layer")] layer: usize },
+    File {
+        root: String,
+        strict: bool,
+        #[serde(default = "default_layer")]
+        layer: usize,
+    },
     #[serde(rename = "drive")]
     #[serde(rename_all = "kebab-case")]
     Drive {

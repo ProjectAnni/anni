@@ -1,6 +1,6 @@
-use thiserror::Error;
-use actix_web::ResponseError;
 use actix_web::http::StatusCode;
+use actix_web::ResponseError;
+use thiserror::Error;
 
 #[derive(Error, Debug)]
 pub enum AnnilError {

@@ -1,7 +1,7 @@
-use actix_web::{HttpResponse, Responder, web, post};
-use jwt_simple::prelude::*;
-use crate::{AnnilClaims, AppState};
 use crate::auth::{UserClaim, UserShare};
+use crate::{AnnilClaims, AppState};
+use actix_web::{post, web, HttpResponse, Responder};
+use jwt_simple::prelude::*;
 
 #[derive(Deserialize, Clone)]
 pub(crate) struct SignPayload {
@@ -20,7 +20,9 @@ async fn sign(data: web::Data<AppState>, info: web::Json<SignPayload>) -> impl R
                 key_id: data.share_key.key_id().as_deref().unwrap().to_string(),
                 secret: unsafe { String::from_utf8_unchecked(data.share_key.to_bytes().to_vec()) },
             })
-        } else { None },
+        } else {
+            None
+        },
     });
 
     let now = Some(Clock::now_since_epoch());
@@ -35,6 +37,9 @@ async fn sign(data: web::Data<AppState>, info: web::Json<SignPayload>) -> impl R
         nonce: None,
         custom,
     };
-    let token = data.key.authenticate(claim).expect("Failed to sign user token");
+    let token = data
+        .key
+        .authenticate(claim)
+        .expect("Failed to sign user token");
     HttpResponse::Ok().body(token)
 }

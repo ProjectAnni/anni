@@ -1,7 +1,7 @@
 use core::slice;
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use std::fmt::{Display, Formatter};
 use std::hash::{Hash, Hasher};
-use serde::{Serialize, Deserialize, Serializer, Deserializer};
 use toml::Value;
 
 /// RepoTag is a wrapper type for the actual tag used in anni metadata repository.
@@ -97,14 +97,18 @@ impl TagRef {
 
 impl Serialize for TagRef {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-        where S: Serializer {
+    where
+        S: Serializer,
+    {
         Value::String(self.0.clone()).serialize(serializer)
     }
 }
 
 impl<'de> Deserialize<'de> for TagRef {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-        where D: Deserializer<'de> {
+    where
+        D: Deserializer<'de>,
+    {
         use serde::de;
 
         let value = Value::deserialize(deserializer)?;
@@ -230,16 +234,34 @@ impl Tag {
         &self.parents
     }
 
-    pub fn children_simple(&self) -> impl Iterator<Item=(&TagRef, TagType)> {
-        self.children.artist.iter().map(|t| (t, TagType::Artist))
+    pub fn children_simple(&self) -> impl Iterator<Item = (&TagRef, TagType)> {
+        self.children
+            .artist
+            .iter()
+            .map(|t| (t, TagType::Artist))
             .chain(self.children.group.iter().map(|t| (t, TagType::Group)))
-            .chain(self.children.animation.iter().map(|t| (t, TagType::Animation)))
+            .chain(
+                self.children
+                    .animation
+                    .iter()
+                    .map(|t| (t, TagType::Animation)),
+            )
             .chain(self.children.series.iter().map(|t| (t, TagType::Series)))
             .chain(self.children.project.iter().map(|t| (t, TagType::Project)))
             .chain(self.children.game.iter().map(|t| (t, TagType::Game)))
-            .chain(self.children.organization.iter().map(|t| (t, TagType::Organization)))
+            .chain(
+                self.children
+                    .organization
+                    .iter()
+                    .map(|t| (t, TagType::Organization)),
+            )
             .chain(self.children.default.iter().map(|t| (t, TagType::Default)))
-            .chain(self.children.category.iter().map(|t| (t, TagType::Category)))
+            .chain(
+                self.children
+                    .category
+                    .iter()
+                    .map(|t| (t, TagType::Category)),
+            )
     }
 
     pub fn get_ref(&self) -> TagRef {

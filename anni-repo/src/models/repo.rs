@@ -1,6 +1,6 @@
-use serde::{Serialize, Deserialize};
-use std::str::FromStr;
 use crate::prelude::*;
+use serde::{Deserialize, Serialize};
+use std::str::FromStr;
 
 #[derive(Serialize, Deserialize)]
 pub struct Repository {
@@ -23,12 +23,11 @@ impl FromStr for Repository {
     type Err = Error;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        let val: Repository = toml::from_str(s)
-            .map_err(|e| Error::TomlParseError {
-                target: "Repository",
-                input: s.to_string(),
-                err: e,
-            })?;
+        let val: Repository = toml::from_str(s).map_err(|e| Error::TomlParseError {
+            target: "Repository",
+            input: s.to_string(),
+            err: e,
+        })?;
         Ok(val)
     }
 }

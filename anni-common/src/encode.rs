@@ -1,5 +1,5 @@
+use byteorder::{BigEndian, LittleEndian, WriteBytesExt};
 use std::io::{Result, Write};
-use byteorder::{WriteBytesExt, LittleEndian, BigEndian};
 
 pub fn btoken_w<W: Write>(writer: &mut W, tag: &[u8]) -> Result<()> {
     writer.write_all(tag)

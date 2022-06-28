@@ -1,8 +1,8 @@
-use std::io::{Read, Write};
-use byteorder::{ReadBytesExt, BigEndian, WriteBytesExt};
-use crate::utils::*;
 use crate::prelude::*;
+use crate::utils::*;
+use byteorder::{BigEndian, ReadBytesExt, WriteBytesExt};
 use std::fmt;
+use std::io::{Read, Write};
 
 pub struct BlockCueSheet {
     /// <128*8> Media catalog number, in ASCII printable characters 0x20-0x7e.
@@ -59,7 +59,8 @@ impl Decode for BlockCueSheet {
 #[async_trait::async_trait]
 impl AsyncDecode for BlockCueSheet {
     async fn from_async_reader<R>(reader: &mut R) -> Result<Self>
-        where R: AsyncRead + Unpin + Send
+    where
+        R: AsyncRead + Unpin + Send,
     {
         let catalog_number = take_string_async(reader, 128).await?;
         let leadin_samples = reader.read_u64().await?;
@@ -103,13 +104,33 @@ impl fmt::Debug for BlockCueSheet {
         if let Some(width) = f.width() {
             prefix = " ".repeat(width);
         }
-        writeln!(f, "{prefix}media catalog number: {}", self.catalog, prefix = prefix)?;
-        writeln!(f, "{prefix}lead-in: {}", self.leadin_samples, prefix = prefix)?;
+        writeln!(
+            f,
+            "{prefix}media catalog number: {}",
+            self.catalog,
+            prefix = prefix
+        )?;
+        writeln!(
+            f,
+            "{prefix}lead-in: {}",
+            self.leadin_samples,
+            prefix = prefix
+        )?;
         writeln!(f, "{prefix}is CD: {}", self.is_cd, prefix = prefix)?;
-        writeln!(f, "{prefix}number of tracks: {}", self.track_number, prefix = prefix)?;
+        writeln!(
+            f,
+            "{prefix}number of tracks: {}",
+            self.track_number,
+            prefix = prefix
+        )?;
         for (i, t) in self.tracks.iter().enumerate() {
             writeln!(f, "{prefix}{prefix}track[{}]", i, prefix = prefix)?;
-            writeln!(f, "{prefix}{prefix}{prefix}offset: {}", t.track_offset, prefix = prefix)?;
+            writeln!(
+                f,
+                "{prefix}{prefix}{prefix}offset: {}",
+                t.track_offset,
+                prefix = prefix
+            )?;
             // TODO: https://github.com/xiph/flac/blob/ce6dd6b5732e319ef60716d9cc9af6a836a4011a/src/metaflac/operations.c#L627-L651
         }
         Ok(())
@@ -184,7 +205,8 @@ impl Decode for CueSheetTrack {
 #[async_trait::async_trait]
 impl AsyncDecode for CueSheetTrack {
     async fn from_async_reader<R>(reader: &mut R) -> Result<Self>
-        where R: AsyncRead + Unpin + Send
+    where
+        R: AsyncRead + Unpin + Send,
     {
         let track_offset = reader.read_u64().await?;
         let track_number = reader.read_u8().await?;
@@ -220,7 +242,8 @@ impl Encode for CueSheetTrack {
         writer.write_u8(self.track_number)?;
         writer.write_all(&self.isrc)?;
 
-        let b = if self.is_audio { 0b10000000 } else { 0 } + if self.is_pre_emphasis { 0b01000000 } else { 0 };
+        let b = if self.is_audio { 0b10000000 } else { 0 }
+            + if self.is_pre_emphasis { 0b01000000 } else { 0 };
         writer.write_u8(b)?;
         writer.write_all(&[0; 13])?;
 
@@ -251,7 +274,10 @@ impl Decode for CueSheetTrackIndex {
         let sample_offset = reader.read_u64::<BigEndian>()?;
         let index_point = reader.read_u8()?;
         skip(reader, 3)?;
-        Ok(CueSheetTrackIndex { sample_offset, index_point })
+        Ok(CueSheetTrackIndex {
+            sample_offset,
+            index_point,
+        })
     }
 }
 
@@ -259,12 +285,16 @@ impl Decode for CueSheetTrackIndex {
 #[async_trait::async_trait]
 impl AsyncDecode for CueSheetTrackIndex {
     async fn from_async_reader<R>(reader: &mut R) -> Result<Self>
-        where R: AsyncRead + Unpin + Send
+    where
+        R: AsyncRead + Unpin + Send,
     {
         let sample_offset = reader.read_u64().await?;
         let index_point = reader.read_u8().await?;
         skip_async(reader, 3).await?;
-        Ok(CueSheetTrackIndex { sample_offset, index_point })
+        Ok(CueSheetTrackIndex {
+            sample_offset,
+            index_point,
+        })
     }
 }
 

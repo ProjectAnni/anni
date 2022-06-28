@@ -1,6 +1,4 @@
-use std::path::PathBuf;
-use clap::{Args, Subcommand};
-use clap_handler::{Context, Handler, handler};
+use crate::{ball, ll};
 use anni_common::fs;
 use anni_flac::blocks::{UserComment, UserCommentExt};
 use anni_flac::FlacHeader;
@@ -11,10 +9,12 @@ use anni_repo::db::RepoDatabaseRead;
 use anni_repo::library::{album_info, file_name};
 use anni_repo::prelude::*;
 use anni_repo::RepositoryManager;
-use crate::{ball, ll};
+use clap::{Args, Subcommand};
+use clap_handler::{handler, Context, Handler};
+use std::path::PathBuf;
 
 #[derive(Args, Debug, Clone, Handler)]
-#[clap(about = ll ! ("library"))]
+#[clap(about = ll!("library"))]
 #[clap(alias = "lib")]
 #[handler_inject(library_fields)]
 pub struct LibrarySubcommand {
@@ -37,7 +37,7 @@ impl LibrarySubcommand {
 pub enum LibraryAction {
     New(LibraryNewAlbumAction),
     #[clap(name = "tag", alias = "apply")]
-    #[clap(about = ll ! {"library-tag"})]
+    #[clap(about = ll!{"library-tag"})]
     ApplyTag(LibraryApplyTagAction),
     Link(LibraryLinkAction),
 }
@@ -87,7 +87,12 @@ fn apply_strict(directory: &PathBuf, album: &Album) -> anyhow::Result<()> {
     // check disc name
     let mut discs = fs::read_dir(directory)?
         .filter_map(|entry| entry.ok())
-        .filter_map(|entry| entry.metadata().ok().and_then(|meta| if meta.is_dir() { Some(entry) } else { None }))
+        .filter_map(|entry| {
+            entry
+                .metadata()
+                .ok()
+                .and_then(|meta| if meta.is_dir() { Some(entry) } else { None })
+        })
         .filter_map(|entry| entry.path().to_str().map(|s| s.to_string()))
         .collect::<Vec<_>>();
     alphanumeric_sort::sort_str_slice(&mut discs);
@@ -178,7 +183,11 @@ fn apply_convention(directory: &PathBuf, album: Album) -> anyhow::Result<()> {
         let files = fs::get_ext_files(disc_dir, "flac", false)?.unwrap();
         let tracks = disc.tracks();
         if files.len() != tracks.len() {
-            bail!("Track number mismatch in Disc {} of {}. Aborted.", disc_num, album.catalog());
+            bail!(
+                "Track number mismatch in Disc {} of {}. Aborted.",
+                disc_num,
+                album.catalog()
+            );
         }
 
         for (track_num, (file, track)) in files.iter().zip(tracks).enumerate() {
@@ -226,7 +235,10 @@ DISCTOTAL={disc_total}
 }
 
 #[handler(LibraryApplyTagAction)]
-pub fn library_apply_tag(me: LibraryApplyTagAction, manager: RepositoryManager) -> anyhow::Result<()> {
+pub fn library_apply_tag(
+    me: LibraryApplyTagAction,
+    manager: RepositoryManager,
+) -> anyhow::Result<()> {
     let manager = manager.into_owned_manager()?;
     for path in me.directories {
         if !path.is_dir() {
@@ -234,19 +246,32 @@ pub fn library_apply_tag(me: LibraryApplyTagAction, manager: RepositoryManager) 
         }
 
         let path = path.canonicalize()?;
-        let folder_name = path.file_name().expect("Failed to get basename of path").to_string_lossy();
+        let folder_name = path
+            .file_name()
+            .expect("Failed to get basename of path")
+            .to_string_lossy();
         if is_uuid(&folder_name) {
             // strict folder structure, folder name is album_id
-            let album = manager.albums().get(folder_name.as_ref()).ok_or_else(|| anyhow::anyhow!("Album {} not found", folder_name))?;
+            let album = manager
+                .albums()
+                .get(folder_name.as_ref())
+                .ok_or_else(|| anyhow::anyhow!("Album {} not found", folder_name))?;
             apply_strict(&path, album)?;
-        } else if let Ok((release_date, catalog, album_title, disc_count)) = album_info(&folder_name) {
+        } else if let Ok((release_date, catalog, album_title, disc_count)) =
+            album_info(&folder_name)
+        {
             debug!(target: "repo|apply", "Release date: {}, Catalog: {}, Title: {}", release_date, catalog, album_title);
 
             // convention folder structure, load album by catalog
             let albums = manager.repo.load_albums(&catalog)?;
             let albums = if albums.len() > 1 {
-                albums.into_iter().filter(|a| a.title() == album_title).collect()
-            } else { albums };
+                albums
+                    .into_iter()
+                    .filter(|a| a.title() == album_title)
+                    .collect()
+            } else {
+                albums
+            };
             if albums.is_empty() {
                 // no album found
                 ball!("repo-album-not-found", catalog = catalog);
@@ -256,7 +281,8 @@ pub fn library_apply_tag(me: LibraryApplyTagAction, manager: RepositoryManager) 
             let album = albums.into_iter().nth(0).unwrap();
             if album.title() != album_title
                 || album.catalog() != catalog
-                || album.release_date() != &release_date {
+                || album.release_date() != &release_date
+            {
                 ball!("repo-album-info-mismatch");
             }
 
@@ -273,7 +299,9 @@ pub fn library_apply_tag(me: LibraryApplyTagAction, manager: RepositoryManager) 
 }
 
 fn is_uuid(input: &str) -> bool {
-    regex::Regex::new(r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$").unwrap().is_match(input)
+    regex::Regex::new(r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$")
+        .unwrap()
+        .is_match(input)
 }
 
 #[derive(Args, Debug, Clone)]
@@ -308,7 +336,12 @@ pub async fn library_link(me: LibraryLinkAction, manager: RepositoryManager) -> 
     manager.to_database(&repo_path)?;
 
     // 3. scan `from` folder
-    let provider = CommonConventionProvider::new(from, RepoDatabaseRead::new(&repo_path.to_string_lossy().to_string())?, Box::new(LocalFileSystemProvider)).await?;
+    let provider = CommonConventionProvider::new(
+        from,
+        RepoDatabaseRead::new(&repo_path.to_string_lossy().to_string())?,
+        Box::new(LocalFileSystemProvider),
+    )
+    .await?;
     for (album_id, album_from) in provider.albums {
         // 4. create album_id folder
         let album_to = strict_album_path(&to, &album_id, me.layer);
@@ -318,7 +351,10 @@ pub async fn library_link(me: LibraryLinkAction, manager: RepositoryManager) -> 
         fs::create_dir_all(&album_to)?;
 
         // 5. link album art
-        fs::symlink_file(album_from.path.join("cover.jpg"), album_to.join("cover.jpg"))?;
+        fs::symlink_file(
+            album_from.path.join("cover.jpg"),
+            album_to.join("cover.jpg"),
+        )?;
 
         let discs = vec![album_from];
         let discs = provider.discs.get(&album_id).unwrap_or(&discs);
@@ -342,7 +378,7 @@ pub async fn library_link(me: LibraryLinkAction, manager: RepositoryManager) -> 
                     let track_to = disc_to.join(format!("{}.flac", index.trim_start_matches('0')));
                     fs::symlink_file(track_from, track_to)?;
                 }
-            };
+            }
         }
     }
 

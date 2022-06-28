@@ -1,10 +1,10 @@
-use serde::{Serialize, Deserialize};
-use std::str::FromStr;
-use anni_common::inherit::{InheritableValue, default_some};
+use crate::prelude::*;
+use anni_common::inherit::{default_some, InheritableValue};
+use serde::{Deserialize, Serialize};
 use std::borrow::Cow;
 use std::collections::{HashMap, HashSet};
+use std::str::FromStr;
 use uuid::Uuid;
-use crate::prelude::*;
 
 #[derive(Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -16,7 +16,14 @@ pub struct Album {
 }
 
 impl Album {
-    pub fn new(title: String, edition: Option<String>, artist: String, release_date: AnniDate, catalog: String, tags: Vec<TagRef>) -> Self {
+    pub fn new(
+        title: String,
+        edition: Option<String>,
+        artist: String,
+        release_date: AnniDate,
+        catalog: String,
+        tags: Vec<TagRef>,
+    ) -> Self {
         Album {
             info: AlbumInfo {
                 album_id: Uuid::new_v4(),
@@ -39,12 +46,11 @@ impl FromStr for Album {
     type Err = Error;
 
     fn from_str(toml_str: &str) -> Result<Self, Self::Err> {
-        let mut album: Album = toml::from_str(toml_str)
-            .map_err(|e| Error::TomlParseError {
-                target: "Album",
-                input: toml_str.to_string(),
-                err: e,
-            })?;
+        let mut album: Album = toml::from_str(toml_str).map_err(|e| Error::TomlParseError {
+            target: "Album",
+            input: toml_str.to_string(),
+            err: e,
+        })?;
 
         album.inherit();
         Ok(album)
@@ -115,8 +121,11 @@ impl Album {
                     tags.append(&mut track.tags.iter().collect::<Vec<_>>());
                 }
             }
-        };
-        tags.into_iter().collect::<HashSet<_>>().into_iter().collect()
+        }
+        tags.into_iter()
+            .collect::<HashSet<_>>()
+            .into_iter()
+            .collect()
     }
 
     pub fn tags_raw(&self) -> &[TagRef] {
@@ -245,8 +254,10 @@ pub struct Disc {
 
 impl Disc {
     pub fn new<I, T>(catalog: String, title: I, artist: I, disc_type: T, tags: Vec<TagRef>) -> Self
-        where
-            I: Into<InheritableValue<String>>, T: Into<InheritableValue<TrackType>> {
+    where
+        I: Into<InheritableValue<String>>,
+        T: Into<InheritableValue<TrackType>>,
+    {
         Disc {
             title: title.into(),
             artist: artist.into(),
@@ -371,8 +382,10 @@ pub struct Track {
 
 impl Track {
     pub fn new<I, T>(title: String, artist: I, track_type: T, tags: Vec<TagRef>) -> Self
-        where
-            I: Into<InheritableValue<String>>, T: Into<InheritableValue<TrackType>> {
+    where
+        I: Into<InheritableValue<String>>,
+        T: Into<InheritableValue<TrackType>>,
+    {
         Track {
             title,
             artist: artist.into(),
@@ -444,10 +457,11 @@ impl AsRef<str> for TrackType {
 impl TrackType {
     pub fn guess(title: &str) -> Option<TrackType> {
         let title_lowercase = title.to_lowercase();
-        if title_lowercase.contains("off vocal") ||
-            title_lowercase.contains("instrumental") ||
-            title_lowercase.contains("カラオケ") ||
-            title_lowercase.contains("offvocal") {
+        if title_lowercase.contains("off vocal")
+            || title_lowercase.contains("instrumental")
+            || title_lowercase.contains("カラオケ")
+            || title_lowercase.contains("offvocal")
+        {
             Some(TrackType::Instrumental)
         } else if title_lowercase.contains("drama") || title_lowercase.contains("ドラマ") {
             Some(TrackType::Drama)

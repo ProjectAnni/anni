@@ -1,4 +1,4 @@
-use serde::{Serialize, Deserialize, Deserializer, Serializer};
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use std::fmt::{Display, Formatter};
 use toml::Value;
 
@@ -11,7 +11,9 @@ pub struct AnniDate {
 
 impl Serialize for AnniDate {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-        where S: Serializer {
+    where
+        S: Serializer,
+    {
         if self.month > 0 && self.day > 0 {
             use std::str::FromStr;
             let date = toml::value::Datetime::from_str(&self.to_string()).unwrap();
@@ -28,7 +30,9 @@ impl Serialize for AnniDate {
 
 impl<'de> Deserialize<'de> for AnniDate {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-        where D: Deserializer<'de> {
+    where
+        D: Deserializer<'de>,
+    {
         use serde::de;
 
         let value = Value::deserialize(deserializer)?;
@@ -59,11 +63,7 @@ impl<'de> Deserialize<'de> for AnniDate {
 
 impl AnniDate {
     pub fn new(year: u32, month: u8, day: u8) -> Self {
-        Self {
-            year,
-            month,
-            day,
-        }
+        Self { year, month, day }
     }
 
     pub fn from_parts(y: &str, m: &str, d: &str) -> Self {
@@ -81,7 +81,11 @@ impl AnniDate {
         } else {
             0
         };
-        Self::new(year_offset + u32::from_str(y).unwrap(), u8::from_str(m).unwrap_or(0), u8::from_str(d).unwrap_or(0))
+        Self::new(
+            year_offset + u32::from_str(y).unwrap(),
+            u8::from_str(m).unwrap_or(0),
+            u8::from_str(d).unwrap_or(0),
+        )
     }
 }
 

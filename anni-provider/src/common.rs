@@ -1,5 +1,5 @@
-use std::borrow::Cow;
 use async_trait::async_trait;
+use std::borrow::Cow;
 use std::collections::HashSet;
 use std::path::PathBuf;
 use std::pin::Pin;
@@ -51,7 +51,11 @@ impl Range {
 
     /// create a new range with given start and end offset
     pub fn new(start: u64, end: Option<u64>) -> Self {
-        Self { start, end, total: None }
+        Self {
+            start,
+            end,
+            total: None,
+        }
     }
 
     /// get the length of the range
@@ -67,7 +71,7 @@ impl Range {
     pub fn length_limit(&self, limit: u64) -> u64 {
         let end = match self.end {
             Some(end) => std::cmp::min(end, limit),
-            None => limit
+            None => limit,
         };
         end - self.start + 1
     }
@@ -131,16 +135,28 @@ pub trait AnniProvider: Sync {
 
     /// Returns whether given album exists
     async fn has_album(&self, album_id: &str) -> bool {
-        self.albums().await.unwrap_or(HashSet::new()).contains(album_id)
+        self.albums()
+            .await
+            .unwrap_or(HashSet::new())
+            .contains(album_id)
     }
 
     /// Get audio info describing basic information of the audio file.
     async fn get_audio_info(&self, album_id: &str, disc_id: u8, track_id: u8) -> Result<AudioInfo> {
-        Ok(self.get_audio(album_id, disc_id, track_id, Range::FLAC_HEADER).await?.info)
+        Ok(self
+            .get_audio(album_id, disc_id, track_id, Range::FLAC_HEADER)
+            .await?
+            .info)
     }
 
     /// Returns a reader implements AsyncRead for content reading
-    async fn get_audio(&self, album_id: &str, disc_id: u8, track_id: u8, range: Range) -> Result<AudioResourceReader>;
+    async fn get_audio(
+        &self,
+        album_id: &str,
+        disc_id: u8,
+        track_id: u8,
+        range: Range,
+    ) -> Result<AudioResourceReader>;
 
     /// Returns a cover of corresponding album
     async fn get_cover(&self, album_id: &str, disc_id: Option<u8>) -> Result<ResourceReader>;
@@ -158,7 +174,10 @@ pub struct FileEntry {
 #[async_trait]
 pub trait FileSystemProvider: Sync {
     /// List sub folders
-    async fn children(&self, path: &PathBuf) -> Result<Pin<Box<dyn Stream<Item=FileEntry> + Send>>>;
+    async fn children(
+        &self,
+        path: &PathBuf,
+    ) -> Result<Pin<Box<dyn Stream<Item = FileEntry> + Send>>>;
 
     /// Get file entry in a folder with given prefix
     async fn get_file_entry_by_prefix(&self, parent: &PathBuf, prefix: &str) -> Result<FileEntry>;
@@ -219,7 +238,11 @@ pub enum ProviderError {
     GeneralError,
 }
 
-pub fn strict_album_path(root: &std::path::PathBuf, album_id: &str, layer: usize) -> std::path::PathBuf {
+pub fn strict_album_path(
+    root: &std::path::PathBuf,
+    album_id: &str,
+    layer: usize,
+) -> std::path::PathBuf {
     let mut res = root.clone();
     for i in 0..layer {
         res.push(match &album_id[i * 2..=i * 2 + 1].trim_start_matches('0') {
@@ -229,4 +252,3 @@ pub fn strict_album_path(root: &std::path::PathBuf, album_id: &str, layer: usize
     }
     res.join(album_id)
 }
-

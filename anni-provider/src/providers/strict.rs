@@ -1,10 +1,13 @@
+use crate::{
+    AnniProvider, AudioResourceReader, FileEntry, FileSystemProvider, ProviderError, Range,
+    ResourceReader, Result,
+};
+use async_trait::async_trait;
+use futures::StreamExt;
 use std::borrow::Cow;
 use std::collections::{HashMap, HashSet, VecDeque};
 use std::path::PathBuf;
-use async_trait::async_trait;
-use futures::StreamExt;
 use uuid::Uuid;
-use crate::{AnniProvider, AudioResourceReader, FileEntry, FileSystemProvider, ProviderError, Range, ResourceReader, Result};
 
 pub struct CommonStrictProvider {
     root: PathBuf,
@@ -14,7 +17,11 @@ pub struct CommonStrictProvider {
 }
 
 impl CommonStrictProvider {
-    pub async fn new(root: PathBuf, layer: usize, fs: Box<dyn FileSystemProvider + Send + Sync>) -> Result<Self> {
+    pub async fn new(
+        root: PathBuf,
+        layer: usize,
+        fs: Box<dyn FileSystemProvider + Send + Sync>,
+    ) -> Result<Self> {
         let mut me = Self {
             root,
             layer,
@@ -29,12 +36,25 @@ impl CommonStrictProvider {
 #[async_trait]
 impl AnniProvider for CommonStrictProvider {
     async fn albums(&self) -> Result<HashSet<Cow<str>>> {
-        Ok(self.folders.keys().map(|c| Cow::Borrowed(c.as_str())).collect())
+        Ok(self
+            .folders
+            .keys()
+            .map(|c| Cow::Borrowed(c.as_str()))
+            .collect())
     }
 
-    async fn get_audio(&self, album_id: &str, disc_id: u8, track_id: u8, range: Range) -> Result<AudioResourceReader> {
+    async fn get_audio(
+        &self,
+        album_id: &str,
+        disc_id: u8,
+        track_id: u8,
+        range: Range,
+    ) -> Result<AudioResourceReader> {
         let disc = self.get_disc(album_id, disc_id).await?;
-        let file = self.fs.get_file_entry_by_prefix(&disc.path, &format!("{}", track_id)).await?;
+        let file = self
+            .fs
+            .get_file_entry_by_prefix(&disc.path, &format!("{}", track_id))
+            .await?;
         self.fs.get_audio_file(&file.path, range).await
     }
 
@@ -42,12 +62,21 @@ impl AnniProvider for CommonStrictProvider {
         match disc_id {
             Some(disc_id) => {
                 let disc = self.get_disc(album_id, disc_id).await?;
-                let cover = self.fs.get_file_entry_by_prefix(&disc.path, "cover.jpg").await?;
+                let cover = self
+                    .fs
+                    .get_file_entry_by_prefix(&disc.path, "cover.jpg")
+                    .await?;
                 self.fs.get_file(&cover.path, Range::FULL).await
             }
             None => {
-                let album = self.folders.get(album_id).ok_or(ProviderError::FileNotFound)?;
-                let cover = self.fs.get_file_entry_by_prefix(&album.path, "cover.jpg").await?;
+                let album = self
+                    .folders
+                    .get(album_id)
+                    .ok_or(ProviderError::FileNotFound)?;
+                let cover = self
+                    .fs
+                    .get_file_entry_by_prefix(&album.path, "cover.jpg")
+                    .await?;
                 self.fs.get_file(&cover.path, Range::FULL).await
             }
         }
@@ -62,7 +91,10 @@ impl AnniProvider for CommonStrictProvider {
 
 impl CommonStrictProvider {
     pub async fn get_disc(&self, album_id: &str, disc_id: u8) -> Result<FileEntry> {
-        let folder = self.folders.get(album_id).ok_or(ProviderError::FileNotFound)?;
+        let folder = self
+            .folders
+            .get(album_id)
+            .ok_or(ProviderError::FileNotFound)?;
         let mut folders = self.fs.children(&folder.path).await?;
         while let Some(folder) = folders.next().await {
             if folder.name == format!("{}", disc_id) {

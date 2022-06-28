@@ -19,10 +19,16 @@ pub enum Error {
     RepoAlbumLoadError { album: String, err: anyhow::Error },
 
     #[error("failed to load tags from {file:?}: {err:?}")]
-    RepoTagLoadError { file: std::path::PathBuf, err: anyhow::Error },
+    RepoTagLoadError {
+        file: std::path::PathBuf,
+        err: anyhow::Error,
+    },
 
     #[error("duplicated tag {tag} defined in {path}")]
-    RepoTagDuplicate { tag: TagRef, path: std::path::PathBuf },
+    RepoTagDuplicate {
+        tag: TagRef,
+        path: std::path::PathBuf,
+    },
 
     #[error("undefined tags {0:?}")]
     RepoTagsUndefined(Vec<TagRef>),

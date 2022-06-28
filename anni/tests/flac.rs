@@ -1,5 +1,5 @@
-use std::io::Read;
 use std::fs::File;
+use std::io::Read;
 
 mod common;
 
@@ -18,22 +18,39 @@ const COVER_PATH: &str = "../assets/1s-cover.png";
 
 #[test]
 fn flac_export_default() {
-    let cmd = common::run(&["flac", "export", FLAC_PATH]).output().unwrap();
-    assert_eq!(String::from_utf8(cmd.stdout).expect("Invalid UTF-8 output."), TEST_TAGS);
+    let cmd = common::run(&["flac", "export", FLAC_PATH])
+        .output()
+        .unwrap();
+    assert_eq!(
+        String::from_utf8(cmd.stdout).expect("Invalid UTF-8 output."),
+        TEST_TAGS
+    );
 }
 
 #[test]
 fn flac_export_tags() {
-    let cmd = common::run(&["flac", "export", "--type=tag", FLAC_PATH]).output().unwrap();
-    assert_eq!(String::from_utf8(cmd.stdout).expect("Invalid UTF-8 output."), TEST_TAGS);
+    let cmd = common::run(&["flac", "export", "--type=tag", FLAC_PATH])
+        .output()
+        .unwrap();
+    assert_eq!(
+        String::from_utf8(cmd.stdout).expect("Invalid UTF-8 output."),
+        TEST_TAGS
+    );
 
-    let cmd = common::run(&["flac", "export", "-t=comment", FLAC_PATH]).output().unwrap();
-    assert_eq!(String::from_utf8(cmd.stdout).expect("Invalid UTF-8 output."), TEST_TAGS);
+    let cmd = common::run(&["flac", "export", "-t=comment", FLAC_PATH])
+        .output()
+        .unwrap();
+    assert_eq!(
+        String::from_utf8(cmd.stdout).expect("Invalid UTF-8 output."),
+        TEST_TAGS
+    );
 }
 
 #[test]
 fn flac_export_cover() {
-    let cmd = common::run(&["flac", "export", "-t=picture", FLAC_PATH]).output().unwrap();
+    let cmd = common::run(&["flac", "export", "-t=picture", FLAC_PATH])
+        .output()
+        .unwrap();
 
     let mut file = File::open(COVER_PATH).expect("Failed to open cover.");
     let mut data = Vec::new();

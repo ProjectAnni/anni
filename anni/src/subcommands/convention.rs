@@ -1,11 +1,11 @@
 use crate::args::{FlacInputPath, InputPath};
 use crate::config::read_config;
 use crate::ll;
-use clap_handler::{handler, Context, Handler};
 use anni_common::validator::*;
 use anni_flac::blocks::{BlockStreamInfo, BlockVorbisComment, PictureType};
 use anni_flac::{FlacHeader, MetadataBlockData};
 use clap::{Args, Subcommand};
+use clap_handler::{handler, Context, Handler};
 use serde::de::Error;
 use serde::{Deserialize, Deserializer};
 use std::collections::{HashMap, HashSet};
@@ -13,7 +13,7 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 #[derive(Args, Debug, Clone, Handler)]
-#[clap(about = ll ! ("convention"))]
+#[clap(about = ll!("convention"))]
 #[clap(alias = "conv")]
 #[handler_inject(convention_rules)]
 pub struct ConventionSubcommand {
@@ -39,14 +39,14 @@ impl ConventionSubcommand {
 
 #[derive(Subcommand, Handler, Debug, Clone)]
 pub enum ConventionAction {
-    #[clap(about = ll ! ("convention-check"))]
+    #[clap(about = ll!("convention-check"))]
     Check(ConventionCheckAction),
 }
 
 #[derive(Args, Debug, Clone)]
 pub struct ConventionCheckAction {
     #[clap(short, long)]
-    #[clap(help = ll ! ("convention-check-fix"))]
+    #[clap(help = ll!("convention-check-fix"))]
     fix: bool,
 
     #[clap(required = true)]
@@ -84,8 +84,8 @@ struct ConventionRules {
 
 impl ConventionRules {
     pub(crate) fn validate<P>(&self, filename: P, flac: &mut FlacHeader, fix: bool)
-        where
-            P: AsRef<Path>,
+    where
+        P: AsRef<Path>,
     {
         let mut fixed = false;
 
@@ -129,8 +129,8 @@ impl ConventionRules {
     }
 
     fn validate_stream_info<P>(&self, filename: P, info: &BlockStreamInfo)
-        where
-            P: AsRef<Path>,
+    where
+        P: AsRef<Path>,
     {
         let filename = filename.as_ref().to_string_lossy();
         self.stream_info.sample_rate.iter().for_each(|expected| {
@@ -159,8 +159,8 @@ impl ConventionRules {
         comment: &mut BlockVorbisComment,
         fix: bool,
     ) -> (bool, Option<PathBuf>)
-        where
-            P: AsRef<Path>,
+    where
+        P: AsRef<Path>,
     {
         let mut fixed = false;
         let mut new_path = None;
@@ -332,11 +332,17 @@ impl Default for ConventionConfig {
         Self {
             stream_info: Default::default(),
             types: vec![
-                ("string".to_string(), ValidatorList::new(&["trim", "dot", "tidle"]).unwrap()),
-                ("number".to_string(), ValidatorList::new(&["number"]).unwrap()),
+                (
+                    "string".to_string(),
+                    ValidatorList::new(&["trim", "dot", "tidle"]).unwrap(),
+                ),
+                (
+                    "number".to_string(),
+                    ValidatorList::new(&["number"]).unwrap(),
+                ),
             ]
-                .into_iter()
-                .collect(),
+            .into_iter()
+            .collect(),
             tags: ConventionTagConfig {
                 required: vec![
                     ConventionTag {
@@ -470,8 +476,8 @@ impl ValueType {
 
 impl<'de> Deserialize<'de> for ValueType {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-        where
-            D: Deserializer<'de>,
+    where
+        D: Deserializer<'de>,
     {
         let s = String::deserialize(deserializer)?;
         match s.as_str() {

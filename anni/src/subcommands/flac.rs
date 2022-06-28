@@ -1,13 +1,13 @@
-use std::io::Write;
-use anni_flac::blocks::PictureType;
-use anni_flac::{MetadataBlockData, FlacHeader};
-use clap::{Args, Subcommand, ArgEnum};
+use crate::args::{FlacInputFile, InputPath};
 use crate::ll;
-use crate::args::{InputPath, FlacInputFile};
-use clap_handler::{Handler, handler};
+use anni_flac::blocks::PictureType;
+use anni_flac::{FlacHeader, MetadataBlockData};
+use clap::{ArgEnum, Args, Subcommand};
+use clap_handler::{handler, Handler};
+use std::io::Write;
 
 #[derive(Args, Handler, Debug, Clone)]
-#[clap(about = ll ! ("flac"))]
+#[clap(about = ll!("flac"))]
 pub struct FlacSubcommand {
     #[clap(subcommand)]
     action: FlacAction,
@@ -15,7 +15,7 @@ pub struct FlacSubcommand {
 
 #[derive(Subcommand, Handler, Debug, Clone)]
 pub enum FlacAction {
-    #[clap(about = ll ! ("flac-export"))]
+    #[clap(about = ll!("flac-export"))]
     Export(FlacExportAction),
     RemoveID3(FlacRemoveID3Action),
 }
@@ -24,18 +24,18 @@ pub enum FlacAction {
 pub struct FlacExportAction {
     #[clap(arg_enum)]
     #[clap(short = 't', long = "type", default_value = "tag")]
-    #[clap(help = ll ! {"flac-export-type"})]
+    #[clap(help = ll!{"flac-export-type"})]
     export_type: FlacExportType,
 
     #[clap(short = 'n', long)]
-    // #[clap(about = ll ! {"flac-export-block-num"})]
+    // #[clap(about = ll!{"flac-export-block-num"})]
     block_num: Option<u8>,
 
     #[clap(long, default_value = "cover")]
     picture_type: PictureType,
 
     #[clap(short, long, default_value = "-")]
-    #[clap(help = ll ! {"export-to"})]
+    #[clap(help = ll!{"export-to"})]
     output: crate::args::ActionFile,
 
     #[clap(required = true)]
@@ -135,7 +135,10 @@ fn flac_remove_id3(me: &FlacRemoveID3Action) -> anyhow::Result<()> {
     for filenames in me.filename.iter() {
         for path in filenames.iter() {
             debug!("Opening {}", path.display());
-            let mut file = std::fs::OpenOptions::new().read(true).write(true).open(&path)?;
+            let mut file = std::fs::OpenOptions::new()
+                .read(true)
+                .write(true)
+                .open(&path)?;
             let removed = id3::Tag::remove_from_file(&mut file)?;
             if removed {
                 info!("Removed ID3 tag from {}", path.display());

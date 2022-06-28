@@ -1,7 +1,7 @@
-use std::str::FromStr;
 use std::convert::Infallible;
-use std::io::{stdin, Read, Write, stdout};
 use std::fs::File;
+use std::io::{stdin, stdout, Read, Write};
+use std::str::FromStr;
 
 /// ActionFile for file input or output
 ///

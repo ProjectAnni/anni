@@ -1,32 +1,32 @@
-mod provider;
-mod config;
 mod auth;
+mod config;
 mod error;
+mod provider;
 mod services;
 mod utils;
 
-use actix_web::{HttpServer, App, web};
-use std::sync::Arc;
-use anni_provider::providers::{CommonConventionProvider, CommonStrictProvider, DriveBackend};
-use anni_provider::fs::LocalFileSystemProvider;
-use std::path::PathBuf;
-use crate::provider::AnnilProvider;
-use crate::config::{Config, MetadataConfig, ProviderItem};
-use actix_web::middleware::Logger;
-use jwt_simple::prelude::HS256Key;
 use crate::auth::{AnnilAuth, AnnilClaims};
-use anni_provider::{AnniProvider, RepoDatabaseRead};
-use std::collections::HashMap;
-use anni_provider::cache::{CachePool, Cache};
-use anni_provider::providers::drive::DriveProviderSettings;
-use actix_cors::Cors;
+use crate::config::{Config, MetadataConfig, ProviderItem};
 use crate::error::AnnilError;
-use std::time::{SystemTime, UNIX_EPOCH};
-use jwt_simple::reexports::serde_json::json;
-use parking_lot::RwLock;
-use anni_repo::{RepositoryManager, setup_git2};
+use crate::provider::AnnilProvider;
 use crate::services::*;
 use crate::utils::compute_etag;
+use actix_cors::Cors;
+use actix_web::middleware::Logger;
+use actix_web::{web, App, HttpServer};
+use anni_provider::cache::{Cache, CachePool};
+use anni_provider::fs::LocalFileSystemProvider;
+use anni_provider::providers::drive::DriveProviderSettings;
+use anni_provider::providers::{CommonConventionProvider, CommonStrictProvider, DriveBackend};
+use anni_provider::{AnniProvider, RepoDatabaseRead};
+use anni_repo::{setup_git2, RepositoryManager};
+use jwt_simple::prelude::HS256Key;
+use jwt_simple::reexports::serde_json::json;
+use parking_lot::RwLock;
+use std::collections::HashMap;
+use std::path::PathBuf;
+use std::sync::Arc;
+use std::time::{SystemTime, UNIX_EPOCH};
 
 pub struct AppState {
     providers: RwLock<Vec<AnnilProvider>>,
@@ -47,7 +47,10 @@ fn init_metadata(config: &Config) -> anyhow::Result<PathBuf> {
         log::debug!("Cloning metadata repository from {}", config.metadata.repo);
         RepositoryManager::clone(&config.metadata.repo, repo_root)?
     } else if config.metadata.pull {
-        log::debug!("Updating metadata repository at branch: {}", config.metadata.branch);
+        log::debug!(
+            "Updating metadata repository at branch: {}",
+            config.metadata.branch
+        );
         RepositoryManager::pull(repo_root, &config.metadata.branch)?
     } else {
         log::debug!("Loading metadata repository at {}", repo_root.display());
@@ -68,7 +71,11 @@ fn open_db(p: &str) -> anyhow::Result<RepoDatabaseRead> {
 
 async fn init_state(config: Config) -> anyhow::Result<web::Data<AppState>> {
     // init metadata
-    let database_path = if config.providers.iter().all(|(_, conf)| matches!(conf.item, ProviderItem::File { strict: true, .. })) {
+    let database_path = if config
+        .providers
+        .iter()
+        .all(|(_, conf)| matches!(conf.item, ProviderItem::File { strict: true, .. }))
+    {
         None
     } else {
         // proxy settings
@@ -94,25 +101,61 @@ async fn init_state(config: Config) -> anyhow::Result<web::Data<AppState>> {
     for (provider_name, provider_config) in config.providers.iter() {
         log::debug!("Initializing provider: {}", provider_name);
         let mut provider: Box<dyn AnniProvider + Send + Sync> = match &provider_config.item {
-            ProviderItem::File { root, strict: false, .. } =>
-                Box::new(CommonConventionProvider::new(PathBuf::from(root), open_db(database_path.as_ref().unwrap())?, Box::new(LocalFileSystemProvider)).await?),
-            ProviderItem::File { root, strict: true, layer } =>
-                Box::new(CommonStrictProvider::new(PathBuf::from(root), *layer, Box::new(LocalFileSystemProvider)).await?),
-            ProviderItem::Drive { drive_id, corpora, initial_token_path, token_path } => {
+            ProviderItem::File {
+                root,
+                strict: false,
+                ..
+            } => Box::new(
+                CommonConventionProvider::new(
+                    PathBuf::from(root),
+                    open_db(database_path.as_ref().unwrap())?,
+                    Box::new(LocalFileSystemProvider),
+                )
+                .await?,
+            ),
+            ProviderItem::File {
+                root,
+                strict: true,
+                layer,
+            } => Box::new(
+                CommonStrictProvider::new(
+                    PathBuf::from(root),
+                    *layer,
+                    Box::new(LocalFileSystemProvider),
+                )
+                .await?,
+            ),
+            ProviderItem::Drive {
+                drive_id,
+                corpora,
+                initial_token_path,
+                token_path,
+            } => {
                 if let Some(initial_token_path) = initial_token_path {
                     if initial_token_path.exists() && !token_path.exists() {
                         let _ = std::fs::copy(initial_token_path, token_path.clone());
                     }
                 }
-                Box::new(DriveBackend::new(Default::default(), DriveProviderSettings {
-                    corpora: corpora.to_string(),
-                    drive_id: drive_id.clone(),
-                    token_path: token_path.clone(),
-                }, open_db(database_path.as_ref().unwrap())?).await?)
+                Box::new(
+                    DriveBackend::new(
+                        Default::default(),
+                        DriveProviderSettings {
+                            corpora: corpora.to_string(),
+                            drive_id: drive_id.clone(),
+                            token_path: token_path.clone(),
+                        },
+                        open_db(database_path.as_ref().unwrap())?,
+                    )
+                    .await?,
+                )
             }
         };
         if let Some(cache) = provider_config.cache() {
-            log::debug!("Cache configuration detected: root = {}, max-size = {}", cache.root(), cache.max_size);
+            log::debug!(
+                "Cache configuration detected: root = {}, max-size = {}",
+                cache.root(),
+                cache.max_size
+            );
             if !caches.contains_key(cache.root()) {
                 // new cache pool
                 let pool = CachePool::new(cache.root(), cache.max_size);
@@ -120,19 +163,27 @@ async fn init_state(config: Config) -> anyhow::Result<web::Data<AppState>> {
             }
             provider = Box::new(Cache::new(provider, caches[cache.root()].clone()));
         }
-        let provider = AnnilProvider::new(provider_name.to_string(), provider, provider_config.enable).await?;
+        let provider =
+            AnnilProvider::new(provider_name.to_string(), provider, provider_config.enable).await?;
         providers.push(provider);
     }
-    log::info!("Provider initialization finished, used {:?}", now.elapsed().unwrap());
+    log::info!(
+        "Provider initialization finished, used {:?}",
+        now.elapsed().unwrap()
+    );
 
     // etag
     let etag = compute_etag(&providers).await;
 
     // key
     let key = HS256Key::from_bytes(config.server.key().as_ref());
-    let share_key = HS256Key::from_bytes(config.server.share_key().as_ref()).with_key_id(config.server.share_key_id());
+    let share_key = HS256Key::from_bytes(config.server.share_key().as_ref())
+        .with_key_id(config.server.share_key_id());
     let version = format!("Annil v{}", env!("CARGO_PKG_VERSION"));
-    let last_update = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs();
+    let last_update = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap()
+        .as_secs();
     Ok(web::Data::new(AppState {
         providers: RwLock::new(providers),
         key,
@@ -152,7 +203,11 @@ async fn main() -> anyhow::Result<()> {
         .parse_env("ANNI_LOG")
         .filter_module("sqlx::query", log::LevelFilter::Warn)
         .init();
-    let config = Config::from_file(std::env::args().nth(1).unwrap_or_else(|| "config.toml".to_owned()))?;
+    let config = Config::from_file(
+        std::env::args()
+            .nth(1)
+            .unwrap_or_else(|| "config.toml".to_owned()),
+    )?;
     let listen = config.server.listen("0.0.0.0:3614").to_string();
     let state = init_state(config).await?;
 
@@ -160,31 +215,30 @@ async fn main() -> anyhow::Result<()> {
         App::new()
             .app_data(state.clone())
             .wrap(AnnilAuth)
-            .wrap(Cors::default()
-                .allow_any_origin()
-                .allowed_methods(vec!["GET"])
-                .allow_any_header()
-                .send_wildcard()
+            .wrap(
+                Cors::default()
+                    .allow_any_origin()
+                    .allowed_methods(vec!["GET"])
+                    .allow_any_header()
+                    .send_wildcard(),
             )
             .wrap(Logger::default())
             .service(info)
             .service(admin::reload)
             .service(admin::sign)
             .service(
-                web::resource([
-                    "/{album_id}/cover",
-                    "/{album_id}/{disc_id}/cover",
-                ])
-                    .route(web::get().to(cover))
+                web::resource(["/{album_id}/cover", "/{album_id}/{disc_id}/cover"])
+                    .route(web::get().to(cover)),
             )
-            .service(web::resource("/{album_id}/{disc_id}/{track_id}")
-                .route(web::get().to(audio))
-                .route(web::head().to(audio_head))
+            .service(
+                web::resource("/{album_id}/{disc_id}/{track_id}")
+                    .route(web::get().to(audio))
+                    .route(web::head().to(audio_head)),
             )
             .service(albums)
     })
-        .bind(listen)?
-        .run()
-        .await?;
+    .bind(listen)?
+    .run()
+    .await?;
     Ok(())
 }

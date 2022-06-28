@@ -1,7 +1,7 @@
-use std::io::{Read, Write};
-use byteorder::{ReadBytesExt, BigEndian, WriteBytesExt};
 use crate::prelude::*;
+use byteorder::{BigEndian, ReadBytesExt, WriteBytesExt};
 use std::fmt;
+use std::io::{Read, Write};
 
 /// Notes:
 /// FLAC specifies a minimum block size of 16 and a maximum block size of 65535,
@@ -86,7 +86,8 @@ impl Decode for BlockStreamInfo {
 #[async_trait::async_trait]
 impl AsyncDecode for BlockStreamInfo {
     async fn from_async_reader<R>(reader: &mut R) -> Result<Self>
-        where R: AsyncRead + Unpin + Send
+    where
+        R: AsyncRead + Unpin + Send,
     {
         use crate::utils::*;
 
@@ -141,9 +142,11 @@ impl Encode for BlockStreamInfo {
         let bps = self.bits_per_sample - 1;
         writer.write_u48::<BigEndian>(
             // 4 bits of sample rate + 3 bits of channel num + 1 bit bps
-            ((((((self.sample_rate & 0b1111) as u8) << 4) + ((channels & 0b111) << 1) + (bps >> 4)) as u64) << 40) +
-                (((bps & 0b1111) as u64) << 36) +
-                self.total_samples
+            ((((((self.sample_rate & 0b1111) as u8) << 4) + ((channels & 0b111) << 1) + (bps >> 4))
+                as u64)
+                << 40)
+                + (((bps & 0b1111) as u64) << 36)
+                + self.total_samples,
         )?;
         writer.write_all(&self.md5_signature)?;
         Ok(())
@@ -156,15 +159,55 @@ impl fmt::Debug for BlockStreamInfo {
         if let Some(width) = f.width() {
             prefix = " ".repeat(width);
         }
-        writeln!(f, "{prefix}minimum blocksize: {} samples", self.min_block_size, prefix = prefix)?;
-        writeln!(f, "{prefix}maximum blocksize: {} samples", self.max_block_size, prefix = prefix)?;
-        writeln!(f, "{prefix}minimum framesize: {} bytes", self.min_frame_size, prefix = prefix)?;
-        writeln!(f, "{prefix}maximum framesize: {} bytes", self.max_frame_size, prefix = prefix)?;
-        writeln!(f, "{prefix}sample_rate: {} Hz", self.sample_rate, prefix = prefix)?;
+        writeln!(
+            f,
+            "{prefix}minimum blocksize: {} samples",
+            self.min_block_size,
+            prefix = prefix
+        )?;
+        writeln!(
+            f,
+            "{prefix}maximum blocksize: {} samples",
+            self.max_block_size,
+            prefix = prefix
+        )?;
+        writeln!(
+            f,
+            "{prefix}minimum framesize: {} bytes",
+            self.min_frame_size,
+            prefix = prefix
+        )?;
+        writeln!(
+            f,
+            "{prefix}maximum framesize: {} bytes",
+            self.max_frame_size,
+            prefix = prefix
+        )?;
+        writeln!(
+            f,
+            "{prefix}sample_rate: {} Hz",
+            self.sample_rate,
+            prefix = prefix
+        )?;
         writeln!(f, "{prefix}channels: {}", self.channels, prefix = prefix)?;
-        writeln!(f, "{prefix}bits-per-sample: {}", self.bits_per_sample, prefix = prefix)?;
-        writeln!(f, "{prefix}total samples: {}", self.total_samples, prefix = prefix)?;
-        writeln!(f, "{prefix}MD5 signature: {}", hex::encode(self.md5_signature), prefix = prefix)?;
+        writeln!(
+            f,
+            "{prefix}bits-per-sample: {}",
+            self.bits_per_sample,
+            prefix = prefix
+        )?;
+        writeln!(
+            f,
+            "{prefix}total samples: {}",
+            self.total_samples,
+            prefix = prefix
+        )?;
+        writeln!(
+            f,
+            "{prefix}MD5 signature: {}",
+            hex::encode(self.md5_signature),
+            prefix = prefix
+        )?;
         Ok(())
     }
 }

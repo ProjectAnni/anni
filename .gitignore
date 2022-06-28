@@ -10,3 +10,6 @@ perf.data.old
 *.db-shm
 *.db-wal
 repo.json
+
+.cargo
+/fleet.toml

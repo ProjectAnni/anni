@@ -1,10 +1,10 @@
-use std::io::{Read, Write};
-use byteorder::{ReadBytesExt, LittleEndian, WriteBytesExt};
-use crate::utils::*;
 use crate::prelude::*;
+use crate::utils::*;
+use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
 use std::collections::HashMap;
 use std::fmt;
 use std::fmt::Display;
+use std::io::{Read, Write};
 
 /// Also known as FLAC tags, the contents of a vorbis comment packet as specified here (without the framing bit).
 /// Note that the vorbis comment spec allows for on the order of 2 ^ 64 bytes of data where as the FLAC metadata block is limited to 2 ^ 24 bytes.
@@ -22,16 +22,13 @@ use std::fmt::Display;
 pub struct BlockVorbisComment {
     // [vendor_length] = read an unsigned integer of 32 bits
     // vendor_length: u32,
-
     /// [vendor_string] = read a UTF-8 vector as [vendor_length] octets
     pub vendor_string: String,
 
     // [user_comment_list_length] = read an unsigned integer of 32 bits
     // comment_number: u32,
-
     /// iterate [user_comment_list_length] times
     pub comments: Vec<UserComment>,
-
     // [framing_bit] = read a single bit as boolean
     // if ( [framing_bit] unset or end of packet ) then ERROR
 }
@@ -89,7 +86,8 @@ impl Decode for BlockVorbisComment {
 #[async_trait::async_trait]
 impl AsyncDecode for BlockVorbisComment {
     async fn from_async_reader<R>(reader: &mut R) -> Result<Self>
-        where R: AsyncRead + Unpin + Send
+    where
+        R: AsyncRead + Unpin + Send,
     {
         let vendor_length = reader.read_u32_le().await?;
         let vendor_string = take_string_async(reader, vendor_length as usize).await?;
@@ -125,11 +123,23 @@ impl fmt::Debug for BlockVorbisComment {
         if let Some(width) = f.width() {
             prefix = " ".repeat(width);
         }
-        writeln!(f, "{prefix}vendor string: {}", self.vendor_string, prefix = prefix)?;
+        writeln!(
+            f,
+            "{prefix}vendor string: {}",
+            self.vendor_string,
+            prefix = prefix
+        )?;
         writeln!(f, "{prefix}comments: {}", self.len(), prefix = prefix)?;
         for (i, c) in self.comments.iter().enumerate() {
             write!(f, "{}", prefix)?;
-            writeln!(f, "{prefix}comment[{}]: {}={}", i, c.key_raw(), c.value(), prefix = prefix)?;
+            writeln!(
+                f,
+                "{prefix}comment[{}]: {}={}",
+                i,
+                c.key_raw(),
+                c.value(),
+                prefix = prefix
+            )?;
         }
         Ok(())
     }
@@ -219,7 +229,8 @@ impl Decode for UserComment {
 #[async_trait::async_trait]
 impl AsyncDecode for UserComment {
     async fn from_async_reader<R>(reader: &mut R) -> Result<Self>
-        where R: AsyncRead + Unpin + Send
+    where
+        R: AsyncRead + Unpin + Send,
     {
         let length = reader.read_u32_le().await?;
         let comment = take_string_async(reader, length as usize).await?;
@@ -236,51 +247,96 @@ impl Encode for UserComment {
 }
 
 pub trait UserCommentExt {
-    fn title<S>(value: S) -> Self where S: Display;
-    fn artist<S>(value: S) -> Self where S: Display;
-    fn album<S>(value: S) -> Self where S: Display;
-    fn date<S>(value: S) -> Self where S: Display;
-    fn track_number<S>(value: S) -> Self where S: Display;
-    fn track_total<S>(value: S) -> Self where S: Display;
-    fn disc_number<S>(value: S) -> Self where S: Display;
-    fn disc_total<S>(value: S) -> Self where S: Display;
-    fn album_artist<S>(value: S) -> Self where S: Display;
+    fn title<S>(value: S) -> Self
+    where
+        S: Display;
+    fn artist<S>(value: S) -> Self
+    where
+        S: Display;
+    fn album<S>(value: S) -> Self
+    where
+        S: Display;
+    fn date<S>(value: S) -> Self
+    where
+        S: Display;
+    fn track_number<S>(value: S) -> Self
+    where
+        S: Display;
+    fn track_total<S>(value: S) -> Self
+    where
+        S: Display;
+    fn disc_number<S>(value: S) -> Self
+    where
+        S: Display;
+    fn disc_total<S>(value: S) -> Self
+    where
+        S: Display;
+    fn album_artist<S>(value: S) -> Self
+    where
+        S: Display;
 }
 
 impl UserCommentExt for UserComment {
-    fn title<S>(value: S) -> Self where S: Display {
+    fn title<S>(value: S) -> Self
+    where
+        S: Display,
+    {
         Self::new(format!("TITLE={}", value))
     }
 
-    fn artist<S>(value: S) -> Self where S: Display {
+    fn artist<S>(value: S) -> Self
+    where
+        S: Display,
+    {
         Self::new(format!("ARTIST={}", value))
     }
 
-    fn album<S>(value: S) -> Self where S: Display {
+    fn album<S>(value: S) -> Self
+    where
+        S: Display,
+    {
         Self::new(format!("ALBUM={}", value))
     }
 
-    fn date<S>(value: S) -> Self where S: Display {
+    fn date<S>(value: S) -> Self
+    where
+        S: Display,
+    {
         Self::new(format!("DATE={}", value))
     }
 
-    fn track_number<S>(value: S) -> Self where S: Display {
+    fn track_number<S>(value: S) -> Self
+    where
+        S: Display,
+    {
         Self::new(format!("TRACKNUMBER={}", value))
     }
 
-    fn track_total<S>(value: S) -> Self where S: Display {
+    fn track_total<S>(value: S) -> Self
+    where
+        S: Display,
+    {
         Self::new(format!("TRACKTOTAL={}", value))
     }
 
-    fn disc_number<S>(value: S) -> Self where S: Display {
+    fn disc_number<S>(value: S) -> Self
+    where
+        S: Display,
+    {
         Self::new(format!("DISCNUMBER={}", value))
     }
 
-    fn disc_total<S>(value: S) -> Self where S: Display {
+    fn disc_total<S>(value: S) -> Self
+    where
+        S: Display,
+    {
         Self::new(format!("DISCTOTAL={}", value))
     }
 
-    fn album_artist<S>(value: S) -> Self where S: Display {
+    fn album_artist<S>(value: S) -> Self
+    where
+        S: Display,
+    {
         Self::new(format!("ALBUMARTIST={}", value))
     }
 }

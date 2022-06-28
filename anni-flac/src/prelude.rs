@@ -13,7 +13,8 @@ pub(crate) use tokio::io::{AsyncRead, AsyncReadExt};
 #[async_trait::async_trait]
 pub trait AsyncDecode: Sized {
     async fn from_async_reader<R>(reader: &mut R) -> Result<Self>
-        where R: AsyncRead + Unpin + Send;
+    where
+        R: AsyncRead + Unpin + Send;
 }
 
 pub trait Encode: Sized {

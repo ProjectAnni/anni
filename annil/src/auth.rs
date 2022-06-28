@@ -83,9 +83,9 @@ impl AnnilClaims {
 pub struct AnnilAuth;
 
 impl<S> Transform<S, ServiceRequest> for AnnilAuth
-    where
-        S: Service<ServiceRequest, Response=ServiceResponse, Error=Error>,
-        S::Future: 'static,
+where
+    S: Service<ServiceRequest, Response = ServiceResponse, Error = Error>,
+    S::Future: 'static,
 {
     type Response = ServiceResponse;
     type Error = Error;
@@ -103,9 +103,9 @@ pub struct AnnilAuthMiddleware<S> {
 }
 
 impl<S> Service<ServiceRequest> for AnnilAuthMiddleware<S>
-    where
-        S: Service<ServiceRequest, Response=ServiceResponse, Error=Error>,
-        S::Future: 'static,
+where
+    S: Service<ServiceRequest, Response = ServiceResponse, Error = Error>,
+    S::Future: 'static,
 {
     type Response = ServiceResponse;
     type Error = Error;
@@ -167,7 +167,9 @@ impl<S> Service<ServiceRequest> for AnnilAuthMiddleware<S>
                         if let Ok(token) = data.share_key.verify_token::<AnnilClaims>(
                             &auth,
                             Some(VerificationOptions {
-                                required_key_id: Some(data.share_key.key_id().as_deref().unwrap().to_string()),
+                                required_key_id: Some(
+                                    data.share_key.key_id().as_deref().unwrap().to_string(),
+                                ),
                                 ..Default::default()
                             }),
                         ) {

@@ -1,4 +1,4 @@
-use std::io::{Write, Read};
+use std::io::{Read, Write};
 
 pub trait Decode: Sized {
     type Err;
