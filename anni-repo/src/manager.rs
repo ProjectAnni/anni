@@ -3,6 +3,7 @@ use anni_common::fs;
 use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
+use indexmap::IndexSet;
 
 /// A simple repository visitor. Can perform simple operations on the repository.
 pub struct RepositoryManager {
@@ -118,8 +119,8 @@ impl RepositoryManager {
 
     /// Load album with given path.
     fn load_album<P>(&self, path: P) -> RepoResult<Album>
-    where
-        P: AsRef<Path>,
+        where
+            P: AsRef<Path>,
     {
         let input = fs::read_to_string(path.as_ref())?;
         Album::from_str(&input)
@@ -152,8 +153,8 @@ impl RepositoryManager {
             // multiple albums with the same catalog exists
             let count = fs::PathWalker::new(&folder, false)
                 .filter(|p|
-                // p.extension is toml
-                p.extension() == Some("toml".as_ref()))
+                    // p.extension is toml
+                    p.extension() == Some("toml".as_ref()))
                 .count();
             let new_file_name = format!("{catalog}.{count}.toml");
             fs::write(folder.join(new_file_name), album.to_string())?;
@@ -190,7 +191,7 @@ pub struct OwnedRepositoryManager {
     /// All available tags.
     tags: HashSet<RepoTag>,
     /// Parent to child tag relation
-    tags_relation: HashMap<TagRef, HashSet<TagRef>>,
+    tags_relation: HashMap<TagRef, IndexSet<TagRef>>,
     /// Tag -> File
     tag_path: HashMap<TagRef, PathBuf>,
 
@@ -227,7 +228,7 @@ impl<'repo> OwnedRepositoryManager {
         &self.albums
     }
 
-    pub fn albums_iter(&self) -> impl Iterator<Item = &Album> {
+    pub fn albums_iter(&self) -> impl Iterator<Item=&Album> {
         self.albums.values()
     }
 
@@ -254,10 +255,10 @@ impl<'repo> OwnedRepositoryManager {
         self.tag_path.get(tag)
     }
 
-    pub fn child_tags(&self, tag: &TagRef) -> HashSet<&TagRef> {
+    pub fn child_tags(&self, tag: &TagRef) -> IndexSet<&TagRef> {
         self.tags_relation
             .get(tag)
-            .map_or(HashSet::new(), |children| children.iter().collect())
+            .map_or(IndexSet::new(), |children| children.iter().collect())
     }
 
     pub fn albums_tagged_by(&self, tag: &TagRef) -> Option<&Vec<String>> {
@@ -268,7 +269,7 @@ impl<'repo> OwnedRepositoryManager {
         if let Some(children) = self.tags_relation.get_mut(&parent) {
             children.insert(child);
         } else {
-            let mut set = HashSet::new();
+            let mut set = IndexSet::new();
             set.insert(child);
             self.tags_relation.insert(parent, set);
         }
@@ -408,7 +409,7 @@ impl<'repo> OwnedRepositoryManager {
     pub fn check_tags_loop(&self) -> Option<Vec<TagRef>> {
         fn dfs<'tag, 'func>(
             tag: &'tag TagRef,
-            tags_relation: &'tag HashMap<TagRef, HashSet<TagRef>>,
+            tags_relation: &'tag HashMap<TagRef, IndexSet<TagRef>>,
             current: &'func mut HashMap<&'tag TagRef, bool>,
             visited: &'func mut HashMap<&'tag TagRef, bool>,
             mut path: Vec<&'tag TagRef>,
@@ -465,8 +466,8 @@ impl<'repo> OwnedRepositoryManager {
 
     #[cfg(feature = "db-write")]
     pub fn to_database<P>(&self, database_path: P) -> RepoResult<()>
-    where
-        P: AsRef<Path>,
+        where
+            P: AsRef<Path>,
     {
         use std::time::{SystemTime, UNIX_EPOCH};
 
