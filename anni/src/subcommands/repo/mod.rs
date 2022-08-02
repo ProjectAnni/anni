@@ -9,9 +9,13 @@ use anni_repo::library::{album_info, disc_info, file_name};
 use anni_repo::prelude::*;
 use anni_repo::{OwnedRepositoryManager, RepositoryManager};
 use anni_vgmdb::VGMClient;
+use chrono::Datelike;
 use clap::{crate_version, ArgEnum, Args, Subcommand};
 use clap_handler::{handler, Context, Handler};
 use cuna::Cuna;
+use musicbrainz_rs::entity::artist_credit::ArtistCredit;
+use musicbrainz_rs::entity::release::Release;
+use musicbrainz_rs::Fetch;
 use ptree::TreeBuilder;
 use std::io::Read;
 use std::path::PathBuf;
@@ -215,6 +219,8 @@ pub enum RepoGetSubcommand {
     VGMdb(RepoGetVGMdb),
     #[clap(name = "cue")]
     Cue(RepoGetCue),
+    #[clap(name = "musicbrainz")]
+    Musicbrainz(RepoGetMusicbrainz),
 }
 
 async fn search_album(keyword: &str) -> anyhow::Result<Album> {
@@ -361,6 +367,90 @@ fn repo_get_cue(
     } else {
         let catalog = album.catalog().to_owned();
         manager.add_album(&catalog, &album, false)?;
+    }
+    Ok(())
+}
+
+#[derive(Args, Debug, Clone)]
+pub struct RepoGetMusicbrainz {
+    #[clap(long)]
+    id: String,
+    catalog: String,
+}
+
+#[handler(RepoGetMusicbrainz)]
+fn repo_get_musicbrainz(
+    options: &RepoGetMusicbrainz,
+    manager: &RepositoryManager,
+    get: &RepoGetAction,
+) -> anyhow::Result<()> {
+    let release = Release::fetch()
+        .id(&options.id)
+        .with_release_groups()
+        .with_recordings()
+        .with_artist_credits()
+        .execute()?;
+    let release_date = release
+        .date
+        .map(|date| AnniDate::new(date.year() as u32, date.month() as u8, date.day() as u8))
+        .unwrap(); // todo: properly deal with unavalible date
+    let to_artist = |artists: Vec<ArtistCredit>| {
+        artists
+            .iter()
+            .fold(String::new(), |acc, artist| {
+                format!("{}{}、", acc, artist.name)
+            })
+            .trim_end_matches('、')
+            .to_string()
+    };
+    let artist = release
+        .release_group
+        .and_then(|rg| rg.artist_credit)
+        .map(to_artist)
+        .unwrap_or_default();
+    let mut album = Album::new(
+        release.title,
+        None,
+        artist,
+        release_date,
+        options.catalog.to_owned(),
+        Default::default(),
+    );
+
+    release.media.into_iter().flatten().for_each(|media| {
+        let mut disc = Disc::new(
+            options.catalog.to_owned(),
+            Some(media.title),
+            None,
+            None,
+            Default::default(),
+        );
+
+        media.tracks.into_iter().flatten().for_each(|track| {
+            let track_type = TrackType::guess(&track.title);
+            disc.push_track(Track::new(
+                track.title,
+                InheritableValue::own(
+                    track
+                        .recording
+                        .artist_credit
+                        .map(to_artist)
+                        .unwrap_or_default(),
+                ),
+                match track_type {
+                    Some(track_type) => InheritableValue::own(track_type),
+                    None => InheritableValue::default(),
+                },
+                Default::default(),
+            ));
+        });
+        album.push_disc(disc);
+    });
+
+    if get.print {
+        println!("{}", album.to_string());
+    } else {
+        manager.add_album(&options.catalog, &album, false)?;
     }
     Ok(())
 }

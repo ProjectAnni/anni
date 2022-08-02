@@ -9,6 +9,8 @@ members = [
     "third_party/google-drive3"
 ]
 
-# Remove this patch after https://github.com/rusqlite/rusqlite/pull/1010 was merged
 [patch.crates-io]
+# Remove this patch after https://github.com/rusqlite/rusqlite/pull/1010 was merged
 rusqlite = { git = "https://github.com/ProjectAnni/rusqlite", branch = "wasm32-unknown-unknown" }
+# Remove this patch after https://github.com/oknozor/musicbrainz_rs/pull/75 was merged
+musicbrainz_rs = { git = "https://github.com/ProjectAnni/musicbrainz_rs", branch = "release_with_artist_credit"}
