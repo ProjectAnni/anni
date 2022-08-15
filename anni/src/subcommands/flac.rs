@@ -7,7 +7,7 @@ use clap_handler::{handler, Handler};
 use std::io::Write;
 
 #[derive(Args, Handler, Debug, Clone)]
-#[clap(about = ll!("flac"))]
+#[clap(about = ll ! ("flac"))]
 pub struct FlacSubcommand {
     #[clap(subcommand)]
     action: FlacAction,
@@ -15,16 +15,17 @@ pub struct FlacSubcommand {
 
 #[derive(Subcommand, Handler, Debug, Clone)]
 pub enum FlacAction {
-    #[clap(about = ll!("flac-export"))]
+    #[clap(about = ll ! ("flac-export"))]
     Export(FlacExportAction),
     RemoveID3(FlacRemoveID3Action),
+    RemoveUUID(FlacRemoveUUIDAction),
 }
 
 #[derive(Args, Debug, Clone)]
 pub struct FlacExportAction {
     #[clap(arg_enum)]
     #[clap(short = 't', long = "type", default_value = "tag")]
-    #[clap(help = ll!{"flac-export-type"})]
+    #[clap(help = ll ! {"flac-export-type"})]
     export_type: FlacExportType,
 
     #[clap(short = 'n', long)]
@@ -35,7 +36,7 @@ pub struct FlacExportAction {
     picture_type: PictureType,
 
     #[clap(short, long, default_value = "-")]
-    #[clap(help = ll!{"export-to"})]
+    #[clap(help = ll ! {"export-to"})]
     output: crate::args::ActionFile,
 
     #[clap(required = true)]
@@ -145,6 +146,27 @@ fn flac_remove_id3(me: &FlacRemoveID3Action) -> anyhow::Result<()> {
             } else {
                 info!("No ID3 tag found in {}", path.display());
             }
+        }
+    }
+    Ok(())
+}
+
+#[derive(Args, Debug, Clone)]
+pub struct FlacRemoveUUIDAction {
+    #[clap(required = true)]
+    filename: Vec<InputPath<FlacInputFile>>,
+}
+
+#[handler(FlacRemoveUUIDAction)]
+fn flac_remove_uuid(me: &FlacRemoveUUIDAction) -> anyhow::Result<()> {
+    for filenames in me.filename.iter() {
+        for path in filenames.iter() {
+            debug!("Opening {}", path.display());
+            let mut header = FlacHeader::from_file(&path)?;
+            header.comments_mut()
+                .comments
+                .retain(|c| uuid::Uuid::try_parse(&c.key_raw()).is_err());
+            header.save(Some(&path))?;
         }
     }
     Ok(())
