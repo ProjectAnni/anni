@@ -31,7 +31,7 @@ pub enum InfoParseError {
 }
 
 static ALBUM_INFO: Lazy<Regex> = Lazy::new(|| {
-    Regex::new(r"^\[(\d{4}|\d{2})-?(\d{2})-?(\d{2})]\[([^]]+)] (.+?)(?: \[(\d+) Discs])?$").unwrap()
+    Regex::new(r"^\[(\d{4}|\d{2})-?(\d{2})-?(\d{2})]\[([^]]+)] (.+?)(?:【([^】]+)】)?(?: \[(\d+) Discs])?$").unwrap()
 });
 static DISC_INFO: Lazy<Regex> =
     Lazy::new(|| Regex::new(r"^\[([^]]+)] (.+) \[Disc (\d+)]$").unwrap());
@@ -50,8 +50,8 @@ pub fn disc_info(path: &str) -> Result<(String, String, usize), InfoParseError> 
     ))
 }
 
-// Date, catalog, title, disc_count
-pub fn album_info(path: &str) -> Result<(AnniDate, String, String, usize), InfoParseError> {
+// Date, catalog, title, edition, disc_count
+pub fn album_info(path: &str) -> Result<(AnniDate, String, String, Option<String>, usize), InfoParseError> {
     let r = ALBUM_INFO.captures(path).ok_or(InfoParseError::NotMatch)?;
     if r.len() == 0 {
         return Err(InfoParseError::NoCaptureGroup);
@@ -65,7 +65,8 @@ pub fn album_info(path: &str) -> Result<(AnniDate, String, String, usize), InfoP
         ),
         r.get(4).unwrap().as_str().replace('/', "／"),
         r.get(5).unwrap().as_str().replace('/', "／"),
-        usize::from_str(r.get(6).map(|r| r.as_str()).unwrap_or("1")).unwrap(),
+        r.get(6).map(|x| x.as_str().to_string()),
+        usize::from_str(r.get(7).map(|r| r.as_str()).unwrap_or("1")).unwrap(),
     ))
 }
 
@@ -73,18 +74,37 @@ pub fn album_info(path: &str) -> Result<(AnniDate, String, String, usize), InfoP
 mod tests {
     #[test]
     fn test_album_info() {
-        let (date, catalog, title, disc_count) =
+        let (date, catalog, title, edition, disc_count) =
             super::album_info("[220302][SMCL-753] 彩色硝子").unwrap();
         assert_eq!(date.to_string(), "2022-03-02");
         assert_eq!(catalog, "SMCL-753");
         assert_eq!(title, "彩色硝子");
+        assert_eq!(edition, None);
         assert_eq!(disc_count, 1);
 
-        let (date, catalog, title, disc_count) =
+        let (date, catalog, title, edition, disc_count) =
             super::album_info("[2022-03-02][SMCL-753] 彩色硝子 [1 Discs]").unwrap();
         assert_eq!(date.to_string(), "2022-03-02");
         assert_eq!(catalog, "SMCL-753");
         assert_eq!(title, "彩色硝子");
+        assert_eq!(edition, None);
+        assert_eq!(disc_count, 1);
+
+        let (date, catalog, title, edition, disc_count) =
+            super::album_info("[2022-03-02][SMCL-753] 彩色硝子【Edition】").unwrap();
+        assert_eq!(date.to_string(), "2022-03-02");
+        assert_eq!(catalog, "SMCL-753");
+        assert_eq!(title, "彩色硝子");
+        assert_eq!(edition, Some("Edition".to_string()));
+        assert_eq!(disc_count, 1);
+
+        let (date, catalog, title, edition, disc_count) =
+            super::album_info("[2022-03-02][SMCL-753] 彩色硝子【Edition】 [1 Discs]").unwrap();
+        assert_eq!(date.to_string(), "2022-03-02");
+        assert_eq!(catalog, "SMCL-753");
+        assert_eq!(title, "彩色硝子");
+        assert_eq!(edition, Some("Edition".to_string()));
+        assert_eq!(edition, None);
         assert_eq!(disc_count, 1);
     }
 }

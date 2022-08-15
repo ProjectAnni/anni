@@ -436,12 +436,13 @@ impl AnniProvider for DriveBackend {
             drop(permit);
             for file in list.files.unwrap() {
                 let name = file.name.unwrap();
-                if let Ok((release_date, catalog, title, disc_count)) = album_info(&name) {
+                if let Ok((release_date, catalog, title, edition, disc_count)) = album_info(&name) {
                     let album_id = self.repo.lock().match_album(
                         &catalog,
                         &release_date,
                         disc_count as u8,
                         &title,
+                        edition.as_deref(),
                     )?;
                     match album_id {
                         Some(album_id) => {

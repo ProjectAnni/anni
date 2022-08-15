@@ -114,13 +114,14 @@ impl CommonConventionProvider {
         log::debug!("Walking dir: {}", dir.display());
         let mut dir = self.fs.children(&dir).await?;
         while let Some(entry) = dir.next().await {
-            if let Ok((release_date, catalog, title, disc_count)) = album_info(&entry.name) {
+            if let Ok((release_date, catalog, title, edition, disc_count)) = album_info(&entry.name) {
                 log::debug!("Found album {} at: {:?}", catalog, entry.path);
                 let album_id = self.repo.lock().match_album(
                     &catalog,
                     &release_date,
                     disc_count as u8,
                     &title,
+                    edition.as_deref(),
                 )?;
                 match album_id {
                     Some(album_id) => {

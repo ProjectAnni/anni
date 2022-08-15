@@ -257,7 +257,7 @@ pub fn library_apply_tag(
                 .get(folder_name.as_ref())
                 .ok_or_else(|| anyhow::anyhow!("Album {} not found", folder_name))?;
             apply_strict(&path, album)?;
-        } else if let Ok((release_date, catalog, album_title, disc_count)) =
+        } else if let Ok((release_date, catalog, album_title, edition, disc_count)) =
             album_info(&folder_name)
         {
             debug!(target: "repo|apply", "Release date: {}, Catalog: {}, Title: {}", release_date, catalog, album_title);
@@ -267,7 +267,7 @@ pub fn library_apply_tag(
             let albums = if albums.len() > 1 {
                 albums
                     .into_iter()
-                    .filter(|a| a.title() == album_title)
+                    .filter(|a| a.title_raw() == album_title && a.edition_raw() == edition.as_deref())
                     .collect()
             } else {
                 albums

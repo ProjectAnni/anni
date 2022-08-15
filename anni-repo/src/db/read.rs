@@ -32,6 +32,7 @@ impl RepoDatabaseRead {
         release_date: &crate::models::AnniDate,
         disc_count: u8,
         album_title: &str,
+        _edition: Option<&str>,
     ) -> RepoResult<Option<Uuid>> {
         log::trace!("Catalog: {catalog}, Title: {album_title}, Release date: {release_date}, Discs: {disc_count}");
         let mut stmt = self.conn.prepare(
