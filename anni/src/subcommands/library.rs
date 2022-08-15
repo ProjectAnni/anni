@@ -279,7 +279,8 @@ pub fn library_apply_tag(
 
             // get track metadata & compare with album folder
             let album = albums.into_iter().nth(0).unwrap();
-            if album.title() != album_title
+            if album.title_raw() != album_title
+                || album.edition_raw() != edition.as_deref()
                 || album.catalog() != catalog
                 || album.release_date() != &release_date
             {
