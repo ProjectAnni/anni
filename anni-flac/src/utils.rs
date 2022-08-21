@@ -34,7 +34,7 @@ pub(crate) async fn take_to_end_async<R: AsyncRead + Unpin>(
 
 pub(crate) fn take_string<R: Read>(reader: &mut R, len: usize) -> Result<String> {
     let r = take(reader, len)?;
-    Ok(String::from_utf8(r)?)
+    Ok(String::from_utf8_lossy(&r).to_string())
 }
 
 #[cfg(feature = "async")]
@@ -43,7 +43,7 @@ pub(crate) async fn take_string_async<R: AsyncRead + Unpin>(
     len: usize,
 ) -> Result<String> {
     let r = take_async(reader, len).await?;
-    Ok(String::from_utf8(r)?)
+    Ok(String::from_utf8_lossy(&r).to_string())
 }
 
 pub(crate) fn skip<R: Read>(reader: &mut R, len: usize) -> std::io::Result<u64> {
