@@ -401,7 +401,7 @@ fn repo_get_musicbrainz(
     let release_date = release
         .date
         .map(|date| AnniDate::new(date.year() as u32, date.month() as u8, date.day() as u8))
-        .unwrap(); // todo: properly deal with unavalible date
+        .unwrap(); // todo: properly deal with unavailable date
     let to_artist = |artists: Vec<ArtistCredit>| {
         artists
             .iter()
@@ -428,7 +428,7 @@ fn repo_get_musicbrainz(
     release.media.into_iter().flatten().for_each(|media| {
         let mut disc = Disc::new(
             options.catalog.to_owned(),
-            Some(media.title),
+            media.title,
             None,
             None,
             Default::default(),

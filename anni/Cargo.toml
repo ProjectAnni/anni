@@ -36,7 +36,7 @@ anyhow = "1.0"
 cuna = "0.6.3"
 id3 = "1"
 anni-vgmdb = "0.3.0"
-musicbrainz_rs = "0.4"
+musicbrainz_rs = { version = "0.4", default-features = false, features = ["rustls"] }
 
 uuid = { version = "1", features = ["v4"] }
 alphanumeric-sort = "1.4.4"
@@ -45,6 +45,6 @@ colored = "2.0.0"
 chrono = "0.4"
 
 [dependencies.reqwest]
-version = "0.11"
+version = "0.11.11"
 default-features = false
 features = ["json", "rustls-tls"]
