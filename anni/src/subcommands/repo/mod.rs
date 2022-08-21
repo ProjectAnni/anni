@@ -123,7 +123,8 @@ fn repo_add(me: &RepoAddAction, manager: &RepositoryManager) -> anyhow::Result<(
         }
 
         for dir in directories.iter() {
-            let files = fs::get_ext_files(PathBuf::from(dir), "flac", false)?.unwrap();
+            let mut files = fs::get_ext_files(PathBuf::from(dir), "flac", false)?.unwrap();
+            alphanumeric_sort::sort_path_slice(&mut files);
             let mut disc = if discs > 1 {
                 let (catalog, disc_title, _) = disc_info(&*file_name(dir)?)?;
                 Disc::new(
