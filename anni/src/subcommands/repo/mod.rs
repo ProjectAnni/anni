@@ -5,7 +5,7 @@ use crate::{ball, fl, ll};
 use anni_common::fs;
 use anni_common::inherit::InheritableValue;
 use anni_flac::FlacHeader;
-use anni_repo::library::{album_info, disc_info, file_name};
+use anni_repo::library::{album_info, disc_info, file_name, file_stem};
 use anni_repo::prelude::*;
 use anni_repo::{OwnedRepositoryManager, RepositoryManager};
 use anni_vgmdb::VGMClient;
@@ -145,7 +145,7 @@ fn repo_add(me: &RepoAddAction, manager: &RepositoryManager) -> anyhow::Result<(
                 let mut track = stream_to_track(&header);
                 // use filename as default track name
                 if track.title().is_empty() {
-                    track.set_title(file_name(path)?.to_string());
+                    track.set_title(file_stem(path)?.to_string());
                 }
 
                 // auto audio type for instrumental, drama and radio
