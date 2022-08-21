@@ -22,7 +22,7 @@ pub fn file_name<P: AsRef<Path>>(path: P) -> std::io::Result<String> {
 
 #[derive(Error, Debug)]
 pub enum InfoParseError {
-    #[error("no match found")]
+    #[error("no match found: ${0}")]
     NotMatch(String),
     #[error("no capture group matched")]
     NoCaptureGroup,
