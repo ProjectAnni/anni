@@ -20,6 +20,7 @@ use ptree::TreeBuilder;
 use std::io::Read;
 use std::path::PathBuf;
 use std::str::FromStr;
+use regex::Regex;
 
 #[derive(Args, Debug, Clone, Handler)]
 #[clap(about = ll ! {"repo"})]
@@ -146,7 +147,13 @@ fn repo_add(me: &RepoAddAction, manager: &RepositoryManager) -> anyhow::Result<(
                 let mut track = stream_to_track(&header);
                 // use filename as default track name
                 if track.title().is_empty() {
-                    track.set_title(file_stem(path)?.to_string());
+                    let reg = Regex::new(r#"^\d{2,3}(?:\s?[.-]\s?|\s)(.+)$"#).unwrap();
+                    let input = file_stem(path)?;
+                    let title = reg.captures(&input)
+                        .and_then(|c| c.get(1))
+                        .map(|r| r.as_str().to_string())
+                        .unwrap_or_else(|| input);
+                    track.set_title(title);
                 }
 
                 // auto audio type for instrumental, drama and radio
