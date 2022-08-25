@@ -15,7 +15,7 @@ pub struct WorkspaceInitAction {
 }
 
 #[handler(WorkspaceInitAction)]
-pub fn handle_workspace_init(me: WorkspaceInitAction) -> anyhow::Result<()> {
+fn handle_workspace_init(me: WorkspaceInitAction) -> anyhow::Result<()> {
     let dot_anni = me.path.join(".anni");
     if dot_anni.exists() {
         anyhow::bail!("Workspace already exists in {}", dot_anni.display());
@@ -38,7 +38,7 @@ pub fn handle_workspace_init(me: WorkspaceInitAction) -> anyhow::Result<()> {
     // config.toml
     let config_path = dot_anni.join("config.toml");
     if me.repo_config {
-        // symlink .anni/repo/repo.toml to .anni/config.toml to reuse config file
+        // symlink .anni/config.toml to .anni/repo/repo.toml to reuse config file
         let repo_config = repo_path.join("repo.toml");
         if !repo_config.exists() {
             anyhow::bail!("Repo config was not found at {}", repo_config.display());

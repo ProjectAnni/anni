@@ -2,6 +2,7 @@ use crate::decode::raw_to_string;
 pub use std::fs::*;
 use std::io;
 use std::path::{Path, PathBuf};
+use path_absolutize::*;
 
 pub struct PathWalker {
     path: Vec<PathBuf>,
@@ -178,9 +179,22 @@ pub fn remove_file<P: AsRef<Path>>(input: P, trashcan: bool) -> io::Result<()> {
     }
 }
 
-pub fn symlink_file<P: AsRef<Path>>(from: P, to: P) -> io::Result<()> {
+pub fn symlink_file<P: AsRef<Path>, Q: AsRef<Path>>(from: P, to: Q) -> io::Result<()> {
+    let link = path_diff(from, to.as_ref().parent().unwrap())?;
     #[cfg(unix)]
-    return std::os::unix::fs::symlink(from, to);
+    return std::os::unix::fs::symlink(link, to);
     #[cfg(windows)]
-    return std::os::windows::fs::symlink_file(from, to);
+    return std::os::windows::fs::symlink_file(link, to);
+}
+
+pub fn symlink_dir<P: AsRef<Path>, Q: AsRef<Path>>(from: P, to: Q) -> io::Result<()> {
+    let link = path_diff(from, to.as_ref().parent().unwrap())?;
+    #[cfg(unix)]
+    return std::os::unix::fs::symlink(link, to);
+    #[cfg(windows)]
+    return std::os::windows::fs::symlink_dir(from, to);
+}
+
+pub fn path_diff<P: AsRef<Path>, Q: AsRef<Path>>(path: P, base: Q) -> io::Result<PathBuf> {
+    Ok(pathdiff::diff_paths(path.as_ref().absolutize()?, base.as_ref().absolutize()?).unwrap())
 }

@@ -13,6 +13,8 @@ anyhow = "1.0"
 byteorder = "1"
 thiserror = "1.0"
 chardetng = "0.1.17"
+path-absolutize = "3.0.13"
+pathdiff = "0.2.1"
 log = "0.4.0"
 anni-artist = { git = "https://github.com/ProjectAnni/anni-artist" }
 
