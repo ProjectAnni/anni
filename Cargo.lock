@@ -302,6 +302,7 @@ dependencies = [
  "rust-embed",
  "serde 1.0.137",
  "serde_json",
+ "tempfile",
  "tokio",
  "toml",
  "uuid",

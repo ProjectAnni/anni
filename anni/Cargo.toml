@@ -48,3 +48,6 @@ chrono = "0.4"
 version = "0.11.11"
 default-features = false
 features = ["json", "rustls-tls"]
+
+[dev-dependencies]
+tempfile = "3.2.0"
