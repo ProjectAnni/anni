@@ -192,7 +192,7 @@ pub fn symlink_dir<P: AsRef<Path>, Q: AsRef<Path>>(from: P, to: Q) -> io::Result
     #[cfg(unix)]
     return std::os::unix::fs::symlink(link, to);
     #[cfg(windows)]
-    return std::os::windows::fs::symlink_dir(from, to);
+    return std::os::windows::fs::symlink_dir(link, to);
 }
 
 pub fn path_diff<P: AsRef<Path>, Q: AsRef<Path>>(path: P, base: Q) -> io::Result<PathBuf> {
