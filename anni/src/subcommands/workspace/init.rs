@@ -1,7 +1,7 @@
-use std::path::PathBuf;
 use anni_common::fs;
 use clap::Args;
 use clap_handler::handler;
+use std::path::PathBuf;
 
 #[derive(Args, Debug, Clone)]
 // #[clap(about = ll!("workspace-init"))]
@@ -55,7 +55,7 @@ fn handle_workspace_init(me: WorkspaceInitAction) -> anyhow::Result<()> {
 
 #[cfg(test)]
 mod test {
-    use super::{WorkspaceInitAction};
+    use super::WorkspaceInitAction;
     use clap_handler::Handler;
 
     #[tokio::test]
@@ -63,19 +63,23 @@ mod test {
         let path = tempfile::tempdir()?;
         let repo = "https://github.com/ProjectAnni/repo";
 
-
         WorkspaceInitAction {
             repo: Some(repo.to_string()),
             repo_config: true,
             path: path.path().to_path_buf(),
-        }.run().await?;
+        }
+        .run()
+        .await?;
 
         let dot_anni = path.path().join(".anni");
 
         assert!(dot_anni.join("objects").exists());
         assert!(dot_anni.join("config.toml").exists());
         assert!(dot_anni.join("repo/repo.toml").exists());
-        assert_eq!(dot_anni.join("config.toml").read_link()?, dot_anni.join("repo/repo.toml"));
+        assert_eq!(
+            dot_anni.join("config.toml").read_link()?,
+            dot_anni.join("repo/repo.toml")
+        );
 
         Ok(())
     }

@@ -73,6 +73,11 @@ library = 提供音频仓库的管理功能
 library-tag = 将元数据仓库中的数据应用到专辑
 library-link = 以符号链接将约定目录格式转换为严格目录格式
 
+
+## Workspace
+workspace = 管理音频整理工作空间
+
+
 ## Completions
 completions = 生成 Shell 的补全脚本
 completions-shell = 生成补全脚本的 Shell

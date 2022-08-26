@@ -1,10 +1,10 @@
-use std::num::NonZeroU8;
-use std::path::PathBuf;
-use clap::Args;
-use clap_handler::handler;
+use crate::workspace::find_dot_anni;
 use anni_common::fs;
 use anni_provider::strict_album_path;
-use crate::workspace::find_dot_anni;
+use clap::Args;
+use clap_handler::handler;
+use std::num::NonZeroU8;
+use std::path::PathBuf;
 
 #[derive(Args, Debug, Clone)]
 pub struct WorkspaceCreateAction {
@@ -22,7 +22,9 @@ pub struct WorkspaceCreateAction {
 fn handle_workspace_create(me: WorkspaceCreateAction) -> anyhow::Result<()> {
     let root = find_dot_anni()?;
 
-    let album_id = me.album_id.unwrap_or_else(|| uuid::Uuid::new_v4().to_string());
+    let album_id = me
+        .album_id
+        .unwrap_or_else(|| uuid::Uuid::new_v4().to_string());
     let name = me.name.as_deref().unwrap_or_else(|| &album_id);
     let disc_num = me.disc_num.get();
 

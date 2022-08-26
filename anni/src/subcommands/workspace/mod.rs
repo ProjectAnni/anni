@@ -1,17 +1,16 @@
-mod init;
 mod create;
+mod init;
 
-use init::*;
 use create::*;
+use init::*;
 
-use clap_handler::Handler;
 use clap::{Args, Subcommand};
+use clap_handler::Handler;
 use std::path::PathBuf;
 
 #[derive(Args, Handler, Debug, Clone)]
-// #[clap(about = ll!("workspace"))]
+#[clap(about = ll!("workspace"))]
 #[clap(alias = "ws")]
-// #[handler_inject(workspace)]
 pub struct WorkspaceSubcommand {
     #[clap(subcommand)]
     action: WorkspaceAction,
@@ -35,6 +34,8 @@ pub fn find_dot_anni() -> anyhow::Result<PathBuf> {
         if dot_anni.exists() {
             return Ok(dot_anni);
         }
-        path = path.parent().ok_or_else(|| anyhow::anyhow!("Could not find .anni in current directory or any parent"))?;
+        path = path.parent().ok_or_else(|| {
+            anyhow::anyhow!("Could not find .anni in current directory or any parent")
+        })?;
     }
 }

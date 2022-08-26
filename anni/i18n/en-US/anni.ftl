@@ -74,6 +74,10 @@ library = Anni Audio library manager.
 library-tag = Apply metadata from repository to album.
 library-link = Link library to strict format.
 
+## Workspace
+workspace = Manage audio and metadata workspace.
+
+
 ## Completions
 completions = Generate shell completion.
 completions-shell = Shell to generate completion.
