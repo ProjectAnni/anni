@@ -25,7 +25,6 @@ fn handle_workspace_create(me: WorkspaceCreateAction) -> anyhow::Result<()> {
     let album_id = me
         .album_id
         .unwrap_or_else(|| uuid::Uuid::new_v4().to_string());
-    let name = me.name.as_deref().unwrap_or_else(|| &album_id);
     let disc_num = me.disc_num.get();
 
     // 1. create directory in .anni/objects
@@ -33,7 +32,10 @@ fn handle_workspace_create(me: WorkspaceCreateAction) -> anyhow::Result<()> {
     fs::create_dir_all(&anni_album_path)?;
 
     // 2. create directory in userland
-    let user_album_path = me.path.join(name);
+    let user_album_path = match me.name {
+        Some(name) => me.path.join(name),
+        None => me.path,
+    };
     fs::create_dir_all(&user_album_path)?;
     fs::symlink_dir(&anni_album_path, &user_album_path.join(".album"))?;
 
