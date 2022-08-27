@@ -111,7 +111,7 @@ pub fn get_ext_files<P: AsRef<Path>, T: AsRef<str>>(
     dir: P,
     ext: T,
     recursive: bool,
-) -> io::Result<Option<Vec<PathBuf>>> {
+) -> io::Result<Vec<PathBuf>> {
     let mut result = Vec::new();
     if is_dir(dir.as_ref())? {
         for file in PathWalker::new(dir.as_ref(), recursive) {
@@ -125,11 +125,7 @@ pub fn get_ext_files<P: AsRef<Path>, T: AsRef<str>>(
             }
         }
     }
-    if result.is_empty() {
-        Ok(None)
-    } else {
-        Ok(Some(result))
-    }
+    Ok(result)
 }
 
 pub fn get_ext_file<P: AsRef<Path>, T: AsRef<str>>(

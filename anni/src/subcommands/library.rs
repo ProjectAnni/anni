@@ -14,7 +14,7 @@ use clap_handler::{handler, Context, Handler};
 use std::path::PathBuf;
 
 #[derive(Args, Debug, Clone, Handler)]
-#[clap(about = ll!("library"))]
+#[clap(about = ll ! ("library"))]
 #[clap(alias = "lib")]
 #[handler_inject(library_fields)]
 pub struct LibrarySubcommand {
@@ -37,7 +37,7 @@ impl LibrarySubcommand {
 pub enum LibraryAction {
     New(LibraryNewAlbumAction),
     #[clap(name = "tag", alias = "apply")]
-    #[clap(about = ll!{"library-tag"})]
+    #[clap(about = ll ! {"library-tag"})]
     ApplyTag(LibraryApplyTagAction),
     Link(LibraryLinkAction),
 }
@@ -113,10 +113,14 @@ fn apply_strict(directory: &PathBuf, album: &Album) -> anyhow::Result<()> {
         let disc_dir = directory.join(disc_name);
         debug!(target: "library|tag", "Disc dir: {}", disc_dir.display());
 
-        let mut files = fs::get_ext_files(disc_dir, "flac", false)?.unwrap();
+        let mut files = fs::get_ext_files(disc_dir, "flac", false)?;
         alphanumeric_sort::sort_path_slice(&mut files);
         let tracks = disc.tracks();
         let track_total = tracks.len();
+
+        if files.len() != track_total {
+            bail!("files.len() != tracks.len()!");
+        }
 
         for (track_num, (file, track)) in files.iter().zip(tracks).enumerate() {
             let track_num = track_num + 1;
@@ -180,7 +184,7 @@ fn apply_convention(directory: &PathBuf, album: Album) -> anyhow::Result<()> {
             bail!("Disc directory does not exist: {:?}", disc_dir);
         }
 
-        let files = fs::get_ext_files(disc_dir, "flac", false)?.unwrap();
+        let files = fs::get_ext_files(disc_dir, "flac", false)?;
         let tracks = disc.tracks();
         if files.len() != tracks.len() {
             bail!(
@@ -258,7 +262,7 @@ pub fn library_apply_tag(
                 .ok_or_else(|| anyhow::anyhow!("Album {} not found", folder_name))?;
             apply_strict(&path, album)?;
         } else if let Ok((release_date, catalog, album_title, edition, disc_count)) =
-            album_info(&folder_name)
+        album_info(&folder_name)
         {
             debug!(target: "repo|apply", "Release date: {}, Catalog: {}, Title: {}", release_date, catalog, album_title);
 
@@ -342,7 +346,7 @@ pub async fn library_link(me: LibraryLinkAction, manager: RepositoryManager) -> 
         RepoDatabaseRead::new(&repo_path.to_string_lossy().to_string())?,
         Box::new(LocalFileSystemProvider),
     )
-    .await?;
+        .await?;
     for (album_id, album_from) in provider.albums {
         // 4. create album_id folder
         let album_to = strict_album_path(&to, &album_id, me.layer);
