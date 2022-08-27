@@ -175,6 +175,7 @@ pub fn remove_file<P: AsRef<Path>>(input: P, trashcan: bool) -> io::Result<()> {
     }
 }
 
+/// Create symbolic link at `to` pointing to `from`
 pub fn symlink_file<P: AsRef<Path>, Q: AsRef<Path>>(from: P, to: Q) -> io::Result<()> {
     let link = path_diff(from, to.as_ref().parent().unwrap())?;
     #[cfg(unix)]
@@ -183,6 +184,7 @@ pub fn symlink_file<P: AsRef<Path>, Q: AsRef<Path>>(from: P, to: Q) -> io::Resul
     return std::os::windows::fs::symlink_file(link, to);
 }
 
+/// Create symbolic link at `to` pointing to `from`
 pub fn symlink_dir<P: AsRef<Path>, Q: AsRef<Path>>(from: P, to: Q) -> io::Result<()> {
     let link = path_diff(from, to.as_ref().parent().unwrap())?;
     #[cfg(unix)]

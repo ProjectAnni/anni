@@ -1,15 +1,18 @@
+mod add;
 mod create;
 mod init;
 
+use add::*;
 use create::*;
 use init::*;
 
 use clap::{Args, Subcommand};
 use clap_handler::Handler;
 use std::path::PathBuf;
+use crate::ll;
 
 #[derive(Args, Handler, Debug, Clone)]
-#[clap(about = ll!("workspace"))]
+#[clap(about = ll ! ("workspace"))]
 #[clap(alias = "ws")]
 pub struct WorkspaceSubcommand {
     #[clap(subcommand)]
@@ -20,7 +23,7 @@ pub struct WorkspaceSubcommand {
 pub enum WorkspaceAction {
     Init(WorkspaceInitAction),
     Create(WorkspaceCreateAction),
-    // Add,
+    Add(WorkspaceAddAction),
     // Update,
     // Publish,
 }
