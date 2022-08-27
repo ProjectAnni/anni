@@ -29,6 +29,9 @@ fn handle_workspace_create(me: WorkspaceCreateAction) -> anyhow::Result<()> {
 
     // 1. create directory in .anni/objects
     let anni_album_path = strict_album_path(&root.join("objects"), &album_id, 2);
+    if anni_album_path.exists() {
+        anyhow::bail!("Album with the same album id already exists");
+    }
     fs::create_dir_all(&anni_album_path)?;
 
     // 2. create directory in userland
