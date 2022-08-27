@@ -97,8 +97,8 @@ pub struct RepoAddAction {
 }
 
 #[handler(RepoAddAction)]
-fn repo_add(me: &RepoAddAction, manager: &RepositoryManager) -> anyhow::Result<()> {
-    for to_add in me.directories.iter() {
+fn repo_add(me: RepoAddAction, manager: &RepositoryManager) -> anyhow::Result<()> {
+    for to_add in me.directories.into_iter() {
         let last = file_name(&to_add)?;
         if !is_album_folder(&last) {
             ball!("repo-invalid-album", name = last);
@@ -114,8 +114,7 @@ fn repo_add(me: &RepoAddAction, manager: &RepositoryManager) -> anyhow::Result<(
             Default::default(),
         );
 
-        let directories = fs::get_subdirectories(to_add)?;
-        let mut directories: Vec<_> = directories.iter().map(|r| r.as_path()).collect();
+        let mut directories = fs::get_subdirectories(&to_add)?;
         if discs == 1 {
             directories.push(to_add);
         }

@@ -153,7 +153,8 @@ pub fn get_subdirectories<P: AsRef<Path>>(dir: P) -> std::io::Result<Vec<PathBuf
     let mut dir: Vec<_> = read_dir(dir.as_ref())?.map(|r| r.unwrap()).collect();
     dir.sort_by_key(|e| e.path());
     for dir in dir.iter() {
-        if is_dir(dir.path())? {
+        let dir_type = dir.file_type()?;
+        if dir_type.is_dir() {
             ret.push(dir.path());
         }
     }

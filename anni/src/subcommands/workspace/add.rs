@@ -36,21 +36,9 @@ fn handle_workspace_add(me: WorkspaceAddAction) -> anyhow::Result<()> {
     }
 
     // iterate over me.path to find all discs
-    let mut flac_in_album_root = false;
-    let mut discs = vec![];
-    for entry in fs::read_dir(&me.path)? {
-        let entry = entry?;
-        let file_type = entry.file_type()?;
-        if file_type.is_file() {
-            if entry.path().extension().unwrap_or_default() == "flac" {
-                // flac file in root directory, there should be only one disc
-                flac_in_album_root = true;
-            }
-        } else if file_type.is_dir() {
-            // multiple discs exist
-            discs.push(entry.path());
-        }
-    }
+    let flac_in_album_root = fs::get_ext_file(&me.path, "flac", true)?.is_some();
+    let mut discs = fs::get_subdirectories(&me.path)?;
+
     // if there's only one disc, then there should be no sub directories, [true, true]
     // if there are multiple discs, then there should be no flac files in the root directory, [false, false]
     // other conditions are invalid
