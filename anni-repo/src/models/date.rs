@@ -1,6 +1,6 @@
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use std::fmt::{Display, Formatter};
-use toml::Value;
+use toml_edit::easy::Value;
 
 #[derive(PartialEq, Debug, Clone)]
 pub struct AnniDate {
@@ -11,12 +11,12 @@ pub struct AnniDate {
 
 impl Serialize for AnniDate {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: Serializer,
+        where
+            S: Serializer,
     {
         if self.month > 0 && self.day > 0 {
             use std::str::FromStr;
-            let date = toml::value::Datetime::from_str(&self.to_string()).unwrap();
+            let date = toml_edit::easy::value::Datetime::from_str(&self.to_string()).unwrap();
             Value::serialize(&Value::Datetime(date), serializer)
         } else {
             let mut result = format!("{:04}", self.year);
@@ -30,8 +30,8 @@ impl Serialize for AnniDate {
 
 impl<'de> Deserialize<'de> for AnniDate {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where
-        D: Deserializer<'de>,
+        where
+            D: Deserializer<'de>,
     {
         use serde::de;
 

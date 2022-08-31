@@ -23,7 +23,7 @@ impl FromStr for Repository {
     type Err = Error;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        let val: Repository = toml::from_str(s).map_err(|e| Error::TomlParseError {
+        let val: Repository = toml_edit::easy::from_str(s).map_err(|e| Error::TomlParseError {
             target: "Repository",
             input: s.to_string(),
             err: e,
@@ -34,7 +34,7 @@ impl FromStr for Repository {
 
 impl ToString for Repository {
     fn to_string(&self) -> String {
-        toml::to_string(&self).unwrap()
+        toml_edit::easy::to_string(&self).unwrap()
     }
 }
 

@@ -6,7 +6,7 @@ pub enum Error {
     TomlParseError {
         target: &'static str,
         input: String,
-        err: toml::de::Error,
+        err: toml_edit::easy::de::Error,
     },
 
     #[error("failed to initialize repository: {0}")]
