@@ -127,7 +127,7 @@ impl RepositoryManager {
     }
 
     /// Load album(s) with given catalog.
-    pub fn load_albums(&self, catalog: &str) -> anyhow::Result<Vec<Album>> {
+    pub fn load_albums(&self, catalog: &str) -> RepoResult<Vec<Album>> {
         Ok(self
             .album_paths(catalog)?
             .into_iter()
@@ -349,7 +349,7 @@ impl<'repo> OwnedRepositoryManager {
     fn load_album_tags(&mut self) -> RepoResult<()> {
         self.album_tags.clear();
 
-        let mut has_problem = false;
+        let mut problems = vec![];
         for path in self.repo.all_album_paths()? {
             let album = self.repo.load_album(&path)?;
             let album_id = album.album_id();
@@ -362,7 +362,6 @@ impl<'repo> OwnedRepositoryManager {
                     album.album_id(),
                     catalog,
                 );
-                has_problem = true;
             } else {
                 for tag in tags {
                     if !self.tags.contains(&RepoTag::Ref(tag.clone())) {
@@ -372,7 +371,7 @@ impl<'repo> OwnedRepositoryManager {
                             album_id.to_string(),
                             catalog
                         );
-                        has_problem = true;
+                        problems.push(Error::RepoTagsUndefined(vec![tag.clone()]));
                     }
 
                     if !self.album_tags.contains_key(tag) {
@@ -389,7 +388,7 @@ impl<'repo> OwnedRepositoryManager {
                     "Duplicated album id detected: {}",
                     album_with_same_id.album_id()
                 );
-                has_problem = true;
+                problems.push(Error::RepoDuplicatedAlbumId(album_id.to_string()));
             }
             self.album_path.insert(
                 album_id.to_string(),
@@ -397,12 +396,10 @@ impl<'repo> OwnedRepositoryManager {
             );
         }
 
-        if !has_problem {
+        if problems.is_empty() {
             Ok(())
         } else {
-            Err(Error::RepoInitError(anyhow::anyhow!(
-                "Problems detected in album tags"
-            )))
+            Err(Error::MultipleErrors(problems))
         }
     }
 

@@ -9,20 +9,17 @@ pub enum Error {
         err: toml_edit::easy::de::Error,
     },
 
-    #[error("failed to initialize repository: {0}")]
-    RepoInitError(anyhow::Error),
-
     #[error("album with the same catalog already exists: {0}")]
     RepoAlbumExists(String),
 
-    #[error("failed to load album {album:?} in repository: {err:?}")]
-    RepoAlbumLoadError { album: String, err: anyhow::Error },
+    #[error("duplicated album: {0}")]
+    RepoDuplicatedAlbumId(String),
 
-    #[error("failed to load tags from {file:?}: {err:?}")]
-    RepoTagLoadError {
-        file: std::path::PathBuf,
-        err: anyhow::Error,
-    },
+    #[error("failed to load album {album:?} in repository")]
+    RepoAlbumLoadError { album: String },
+
+    #[error("failed to load tags from {file:?}")]
+    RepoTagLoadError { file: std::path::PathBuf },
 
     #[error("duplicated tag {tag} defined in {path}")]
     RepoTagDuplicate {
@@ -47,4 +44,7 @@ pub enum Error {
     #[cfg(feature = "git")]
     #[error(transparent)]
     GitError(#[from] git2::Error),
+
+    #[error("multiple errors detected: {0:#?}")]
+    MultipleErrors(Vec<Error>),
 }

@@ -9,7 +9,6 @@ default = ["trash"]
 arc = []
 
 [dependencies]
-anyhow = "1.0"
 byteorder = "1"
 thiserror = "1.0"
 chardetng = "0.1.17"
