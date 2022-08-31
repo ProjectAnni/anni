@@ -1,9 +1,9 @@
 use crate::prelude::*;
 use anni_common::fs;
+use indexmap::IndexSet;
 use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
-use indexmap::IndexSet;
 
 /// A simple repository visitor. Can perform simple operations on the repository.
 pub struct RepositoryManager {
@@ -119,8 +119,8 @@ impl RepositoryManager {
 
     /// Load album with given path.
     fn load_album<P>(&self, path: P) -> RepoResult<Album>
-        where
-            P: AsRef<Path>,
+    where
+        P: AsRef<Path>,
     {
         let input = fs::read_to_string(path.as_ref())?;
         Album::from_str(&input)
@@ -228,7 +228,7 @@ impl<'repo> OwnedRepositoryManager {
         &self.albums
     }
 
-    pub fn albums_iter(&self) -> impl Iterator<Item=&Album> {
+    pub fn albums_iter(&self) -> impl Iterator<Item = &Album> {
         self.albums.values()
     }
 
@@ -449,14 +449,14 @@ impl<'repo> OwnedRepositoryManager {
             // if !visited[tag]
             if !visited.get(&tag).map_or(false, |x| *x) {
                 let (loop_detected, path) = dfs(
-                    &tag,
+                    tag,
                     &self.tags_relation,
                     &mut current,
                     &mut visited,
                     Default::default(),
                 );
                 if loop_detected {
-                    return Some(path.into_iter().map(|p| p.clone()).collect());
+                    return Some(path.into_iter().cloned().collect());
                 }
             }
         }
@@ -466,8 +466,8 @@ impl<'repo> OwnedRepositoryManager {
 
     #[cfg(feature = "db-write")]
     pub fn to_database<P>(&self, database_path: P) -> RepoResult<()>
-        where
-            P: AsRef<Path>,
+    where
+        P: AsRef<Path>,
     {
         use std::time::{SystemTime, UNIX_EPOCH};
 

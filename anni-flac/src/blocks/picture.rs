@@ -200,7 +200,7 @@ impl BlockPicture {
 /// The picture type according to the ID3v2 APIC frame:
 /// Others are reserved and should not be used. There may only be one each of picture type 1 and 2 in a file.
 #[repr(u32)]
-#[derive(Copy, Clone, Debug, FromPrimitive, PartialEq)]
+#[derive(Copy, Clone, Debug, FromPrimitive, PartialEq, Eq)]
 pub enum PictureType {
     /// 0 - Other
     Other,

@@ -8905,7 +8905,10 @@ where
                         let size = reader.seek(io::SeekFrom::End(0)).unwrap();
                         reader.seek(io::SeekFrom::Start(0)).unwrap();
                         if size > 5497558138880 {
-                            return Err(client::Error::UploadSizeLimitExceeded(size, 5497558138880));
+                            return Err(client::Error::UploadSizeLimitExceeded(
+                                size,
+                                5497558138880,
+                            ));
                         }
                         let upload_result = {
                             let url_str = &res
@@ -11522,7 +11525,10 @@ where
                         let size = reader.seek(io::SeekFrom::End(0)).unwrap();
                         reader.seek(io::SeekFrom::Start(0)).unwrap();
                         if size > 5497558138880 {
-                            return Err(client::Error::UploadSizeLimitExceeded(size, 5497558138880));
+                            return Err(client::Error::UploadSizeLimitExceeded(
+                                size,
+                                5497558138880,
+                            ));
                         }
                         let upload_result = {
                             let url_str = &res

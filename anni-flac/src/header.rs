@@ -97,21 +97,15 @@ impl FlacHeader {
     }
 
     fn block_of(&self, id: u8) -> Option<&MetadataBlock> {
-        for block in self.blocks.iter() {
-            if u8::from(&block.data) == id {
-                return Some(block);
-            }
-        }
-        None
+        self.blocks
+            .iter()
+            .find(|&block| u8::from(&block.data) == id)
     }
 
     fn block_of_mut(&mut self, id: u8) -> Option<&mut MetadataBlock> {
-        for block in self.blocks.iter_mut() {
-            if u8::from(&block.data) == id {
-                return Some(block);
-            }
-        }
-        None
+        self.blocks
+            .iter_mut()
+            .find(|block| u8::from(&block.data) == id)
     }
 
     pub fn comments(&self) -> Option<&BlockVorbisComment> {

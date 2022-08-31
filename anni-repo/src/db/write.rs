@@ -228,7 +228,7 @@ COMMIT;
             .conn
             .prepare("SELECT tag_id FROM repo_tag WHERE rowid = ?")?;
         let id = stmt
-            .query_map([self.conn.last_insert_rowid()], |row| Ok(row.get(0)?))?
+            .query_map([self.conn.last_insert_rowid()], |row| row.get(0))?
             .next()
             .unwrap()?;
         Ok(id)

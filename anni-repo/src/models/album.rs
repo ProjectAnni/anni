@@ -46,11 +46,12 @@ impl FromStr for Album {
     type Err = Error;
 
     fn from_str(toml_str: &str) -> Result<Self, Self::Err> {
-        let mut album: Album = toml_edit::easy::from_str(toml_str).map_err(|e| Error::TomlParseError {
-            target: "Album",
-            input: toml_str.to_string(),
-            err: e,
-        })?;
+        let mut album: Album =
+            toml_edit::easy::from_str(toml_str).map_err(|e| Error::TomlParseError {
+                target: "Album",
+                input: toml_str.to_string(),
+                err: e,
+            })?;
 
         album.inherit();
         Ok(album)
@@ -254,9 +255,9 @@ pub struct Disc {
 
 impl Disc {
     pub fn new<I, T>(catalog: String, title: I, artist: I, disc_type: T, tags: Vec<TagRef>) -> Self
-        where
-            I: Into<InheritableValue<String>>,
-            T: Into<InheritableValue<TrackType>>,
+    where
+        I: Into<InheritableValue<String>>,
+        T: Into<InheritableValue<TrackType>>,
     {
         Disc {
             title: title.into(),
@@ -382,9 +383,9 @@ pub struct Track {
 
 impl Track {
     pub fn new<I, T>(title: String, artist: I, track_type: T, tags: Vec<TagRef>) -> Self
-        where
-            I: Into<InheritableValue<String>>,
-            T: Into<InheritableValue<TrackType>>,
+    where
+        I: Into<InheritableValue<String>>,
+        T: Into<InheritableValue<TrackType>>,
     {
         Track {
             title,
@@ -430,7 +431,7 @@ impl Track {
     }
 }
 
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum TrackType {
     Normal,

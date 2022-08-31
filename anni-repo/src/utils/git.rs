@@ -73,7 +73,7 @@ fn do_fetch<'a>(
     }
 
     let fetch_head = repo.find_reference("FETCH_HEAD")?;
-    Ok(repo.reference_to_annotated_commit(&fetch_head)?)
+    repo.reference_to_annotated_commit(&fetch_head)
 }
 
 fn fast_forward(
@@ -174,7 +174,7 @@ fn do_merge<'a>(
     } else if analysis.0.is_normal() {
         // do a normal merge
         let head_commit = repo.reference_to_annotated_commit(&repo.head()?)?;
-        normal_merge(&repo, &head_commit, &fetch_commit)?;
+        normal_merge(repo, &head_commit, &fetch_commit)?;
     }
     Ok(())
 }
@@ -183,5 +183,5 @@ pub(crate) fn pull<P: AsRef<Path>>(root: P, remote_branch: &str) -> Result<(), g
     let repo = Repository::open(root.as_ref())?;
     let mut remote = repo.find_remote("origin")?;
     let fetch_commit = do_fetch(&repo, &[remote_branch], &mut remote)?;
-    do_merge(&repo, &remote_branch, fetch_commit)
+    do_merge(&repo, remote_branch, fetch_commit)
 }

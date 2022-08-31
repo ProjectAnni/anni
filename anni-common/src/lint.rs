@@ -33,8 +33,8 @@ pub struct AnniLinterTextFormat<T> {
     warnings: Vec<Diagnostic<T>>,
 }
 
-impl<T> AnniLinterTextFormat<T> {
-    pub fn new() -> Self {
+impl<T> Default for AnniLinterTextFormat<T> {
+    fn default() -> Self {
         Self {
             errors: Vec::new(),
             warnings: Vec::new(),
@@ -78,6 +78,6 @@ impl<T> AnniLinter<T> for AnniLinterTextFormat<T> {
             );
         }
 
-        return self.errors.is_empty();
+        self.errors.is_empty()
     }
 }

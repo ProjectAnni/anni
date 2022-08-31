@@ -31,7 +31,7 @@ fn repo_lint(manager: RepositoryManager, me: &RepoLintAction) -> anyhow::Result<
     info!(target: "anni", "{}", fl!("repo-validate-start"));
 
     let mut report: Box<dyn AnniLinter<MetadataDiagnosticTarget>> = match me.format {
-        RepoLintFormat::Text => Box::new(AnniLinterTextFormat::new()),
+        RepoLintFormat::Text => Box::new(AnniLinterTextFormat::default()),
         RepoLintFormat::ReviewDogJsonLines => Box::new(AnniLinterReviewDogJsonLineFormat::new()),
     };
 

@@ -163,7 +163,8 @@ fn flac_remove_uuid(me: &FlacRemoveUUIDAction) -> anyhow::Result<()> {
         for path in filenames.iter() {
             debug!("Opening {}", path.display());
             let mut header = FlacHeader::from_file(&path)?;
-            header.comments_mut()
+            header
+                .comments_mut()
                 .comments
                 .retain(|c| uuid::Uuid::try_parse(&c.key_raw()).is_err());
             header.save(Some(&path))?;

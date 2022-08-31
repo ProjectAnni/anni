@@ -1,12 +1,12 @@
+use crate::workspace::find_dot_anni;
 use anni_common::fs;
 use anyhow::bail;
 use clap::Args;
 use clap_handler::handler;
-use std::path::PathBuf;
 use colored::Colorize;
 use inquire::Confirm;
 use ptree::TreeBuilder;
-use crate::workspace::find_dot_anni;
+use std::path::PathBuf;
 
 #[derive(Args, Debug, Clone)]
 pub struct WorkspaceAddAction {
@@ -44,7 +44,10 @@ fn handle_workspace_add(me: WorkspaceAddAction) -> anyhow::Result<()> {
     // other conditions are invalid
     if flac_in_album_root ^ discs.is_empty() {
         // both files and discs are empty, or both are not empty
-        trace!("flac_in_album_root: {flac_in_album_root}, discs: {:?}", discs);
+        trace!(
+            "flac_in_album_root: {flac_in_album_root}, discs: {:?}",
+            discs
+        );
         bail!("Ambiguous album structure");
     }
 
@@ -61,46 +64,57 @@ fn handle_workspace_add(me: WorkspaceAddAction) -> anyhow::Result<()> {
         tracks: Vec<PathBuf>,
     }
     alphanumeric_sort::sort_path_slice(&mut discs);
-    let discs = discs.into_iter().enumerate().map(|(index, disc)| {
-        let index = index + 1;
+    let discs = discs
+        .into_iter()
+        .enumerate()
+        .map(|(index, disc)| {
+            let index = index + 1;
 
-        // iterate over all flac files
-        let mut files = fs::read_dir(&disc)?
-            .filter_map(|e|
-                e.ok().and_then(|e| {
-                    let path = e.path();
-                    if e.file_type().ok()?.is_file() {
-                        if let Some(ext) = path.extension() {
-                            if ext == "flac" {
-                                return Some(path);
+            // iterate over all flac files
+            let mut files = fs::read_dir(&disc)?
+                .filter_map(|e| {
+                    e.ok().and_then(|e| {
+                        let path = e.path();
+                        if e.file_type().ok()?.is_file() {
+                            if let Some(ext) = path.extension() {
+                                if ext == "flac" {
+                                    return Some(path);
+                                }
                             }
                         }
-                    }
-                    None
+                        None
+                    })
                 })
-            )
-            .collect::<Vec<_>>();
-        alphanumeric_sort::sort_path_slice(&mut files);
+                .collect::<Vec<_>>();
+            alphanumeric_sort::sort_path_slice(&mut files);
 
-        let disc_cover = disc.join("cover.jpg");
-        if !disc_cover.exists() {
-            bail!("Disc cover not found in disc {index}!");
-        }
+            let disc_cover = disc.join("cover.jpg");
+            if !disc_cover.exists() {
+                bail!("Disc cover not found in disc {index}!");
+            }
 
-        Ok(Disc {
-            index,
-            path: disc,
-            cover: disc_cover,
-            tracks: files,
+            Ok(Disc {
+                index,
+                path: disc,
+                cover: disc_cover,
+                tracks: files,
+            })
         })
-    }).collect::<anyhow::Result<Vec<_>>>()?;
+        .collect::<anyhow::Result<Vec<_>>>()?;
 
     if !me.skip_check {
         // print album tree
-        let album_name = me.path.canonicalize()?.file_name().map(|p| p.to_string_lossy().to_string()).unwrap_or_else(|| "Album".to_string());
+        let album_name = me
+            .path
+            .canonicalize()?
+            .file_name()
+            .map(|p| p.to_string_lossy().to_string())
+            .unwrap_or_else(|| "Album".to_string());
         let mut tree = TreeBuilder::new(album_name);
         for disc in discs.iter() {
-            let disc_name = disc.path.file_name()
+            let disc_name = disc
+                .path
+                .file_name()
                 .map(|s| s.to_string_lossy().to_string())
                 .unwrap_or_else(|| {
                     if flac_in_album_root {
@@ -121,7 +135,10 @@ fn handle_workspace_add(me: WorkspaceAddAction) -> anyhow::Result<()> {
         ptree::print_tree(&tree.build())?;
 
         // user confirm
-        match Confirm::new("Is the album structure correct?").with_default(true).prompt() {
+        match Confirm::new("Is the album structure correct?")
+            .with_default(true)
+            .prompt()
+        {
             Err(_) | Ok(false) => bail!("Aborted"),
             _ => {}
         }

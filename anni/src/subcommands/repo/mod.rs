@@ -17,13 +17,13 @@ use musicbrainz_rs::entity::artist_credit::ArtistCredit;
 use musicbrainz_rs::entity::release::Release;
 use musicbrainz_rs::Fetch;
 use ptree::TreeBuilder;
+use regex::Regex;
 use std::io::Read;
 use std::path::PathBuf;
 use std::str::FromStr;
-use regex::Regex;
 
 #[derive(Args, Debug, Clone, Handler)]
-#[clap(about = ll ! {"repo"})]
+#[clap(about = ll!{"repo"})]
 #[handler_inject(repo_fields)]
 pub struct RepoSubcommand {
     #[clap(long, env = "ANNI_REPO")]
@@ -152,7 +152,8 @@ fn repo_add(me: RepoAddAction, manager: &RepositoryManager) -> anyhow::Result<()
                 if track.title().is_empty() {
                     let reg = Regex::new(r#"^\d{2,3}(?:\s?[.-]\s?|\s)(.+)$"#).unwrap();
                     let input = file_stem(path)?;
-                    let title = reg.captures(&input)
+                    let title = reg
+                        .captures(&input)
                         .and_then(|c| c.get(1))
                         .map(|r| r.as_str().to_string())
                         .unwrap_or_else(|| input);

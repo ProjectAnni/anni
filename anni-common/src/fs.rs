@@ -1,8 +1,8 @@
 use crate::decode::raw_to_string;
+use path_absolutize::*;
 pub use std::fs::*;
 use std::io;
 use std::path::{Path, PathBuf};
-use path_absolutize::*;
 
 pub struct PathWalker {
     path: Vec<PathBuf>,

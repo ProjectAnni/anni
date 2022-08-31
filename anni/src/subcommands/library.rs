@@ -262,7 +262,7 @@ pub fn library_apply_tag(
                 .ok_or_else(|| anyhow::anyhow!("Album {} not found", folder_name))?;
             apply_strict(&path, album)?;
         } else if let Ok((release_date, catalog, album_title, edition, disc_count)) =
-        album_info(&folder_name)
+            album_info(&folder_name)
         {
             debug!(target: "repo|apply", "Release date: {}, Catalog: {}, Title: {}", release_date, catalog, album_title);
 
@@ -271,7 +271,9 @@ pub fn library_apply_tag(
             let albums = if albums.len() > 1 {
                 albums
                     .into_iter()
-                    .filter(|a| a.title_raw() == album_title && a.edition_raw() == edition.as_deref())
+                    .filter(|a| {
+                        a.title_raw() == album_title && a.edition_raw() == edition.as_deref()
+                    })
                     .collect()
             } else {
                 albums
@@ -346,7 +348,7 @@ pub async fn library_link(me: LibraryLinkAction, manager: RepositoryManager) -> 
         RepoDatabaseRead::new(&repo_path.to_string_lossy().to_string())?,
         Box::new(LocalFileSystemProvider),
     )
-        .await?;
+    .await?;
     for (album_id, album_from) in provider.albums {
         // 4. create album_id folder
         let album_to = strict_album_path(&to, &album_id, me.layer);

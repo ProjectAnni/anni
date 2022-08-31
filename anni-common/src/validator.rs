@@ -55,12 +55,13 @@ impl std::fmt::Debug for Validator {
 pub struct ValidatorList(Vec<Validator>);
 
 impl ValidatorList {
-    pub fn new(validators: &[&str]) -> Result<Self, ()> {
+    pub fn new(validators: &[&str]) -> Option<Self> {
         validators
             .iter()
             .map(|v| Validator::from_str(v))
             .collect::<Result<_, _>>()
-            .map(|e| ValidatorList(e))
+            .map(ValidatorList)
+            .ok()
     }
 
     pub fn validate(&self, input: &str) -> Vec<(&'static str, ValidateResult)> {
@@ -100,10 +101,7 @@ impl ValidateResult {
     }
 
     pub fn is_pass(&self) -> bool {
-        match self {
-            Self::Pass => true,
-            _ => false,
-        }
+        matches!(self, Self::Pass)
     }
 
     pub fn into_message(self) -> String {
@@ -201,14 +199,17 @@ pub fn tidal_replace(input: &str) -> String {
 #[cfg(test)]
 mod tests {
     use crate::validator::{
-        date_validator, middle_dot_replace, middle_dot_validator, trim_validator,
+        date_validator, middle_dot_replace, middle_dot_validator, trim_validator, ValidateResult,
     };
 
     #[test]
     fn trim_exist() {
-        assert!(!trim_validator("  1234").valid);
-        assert!(!trim_validator("1234   ").valid);
-        assert!(!trim_validator("\n1234").valid);
+        assert!(matches!(trim_validator("  1234"), ValidateResult::Error(_)));
+        assert!(matches!(
+            trim_validator("1234   "),
+            ValidateResult::Error(_)
+        ));
+        assert!(matches!(trim_validator("\n1234"), ValidateResult::Error(_)));
     }
 
     #[test]

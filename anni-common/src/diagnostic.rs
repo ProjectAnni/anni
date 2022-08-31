@@ -102,7 +102,7 @@ impl DiagnosticLocation {
     pub fn end_line(&self) -> Option<u32> {
         self.range
             .as_ref()
-            .and_then(|r| r.end.as_ref().and_then(|p| Some(p.line)))
+            .and_then(|r| r.end.as_ref().map(|p| p.line))
     }
 
     pub fn end_column(&self) -> Option<u32> {

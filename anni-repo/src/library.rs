@@ -51,7 +51,9 @@ static DISC_INFO: Lazy<Regex> =
 
 // catalog, title, disc_id
 pub fn disc_info(path: &str) -> Result<(String, String, usize), InfoParseError> {
-    let r = DISC_INFO.captures(path).ok_or_else(|| InfoParseError::NotMatch(path.to_string()))?;
+    let r = DISC_INFO
+        .captures(path)
+        .ok_or_else(|| InfoParseError::NotMatch(path.to_string()))?;
     if r.len() == 0 {
         return Err(InfoParseError::NoCaptureGroup);
     }
@@ -64,8 +66,12 @@ pub fn disc_info(path: &str) -> Result<(String, String, usize), InfoParseError> 
 }
 
 // Date, catalog, title, edition, disc_count
-pub fn album_info(path: &str) -> Result<(AnniDate, String, String, Option<String>, usize), InfoParseError> {
-    let r = ALBUM_INFO.captures(path).ok_or_else(|| InfoParseError::NotMatch(path.to_string()))?;
+pub fn album_info(
+    path: &str,
+) -> Result<(AnniDate, String, String, Option<String>, usize), InfoParseError> {
+    let r = ALBUM_INFO
+        .captures(path)
+        .ok_or_else(|| InfoParseError::NotMatch(path.to_string()))?;
     if r.len() == 0 {
         return Err(InfoParseError::NoCaptureGroup);
     }
