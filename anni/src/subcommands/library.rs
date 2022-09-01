@@ -14,7 +14,7 @@ use clap_handler::{handler, Context, Handler};
 use std::path::PathBuf;
 
 #[derive(Args, Debug, Clone, Handler)]
-#[clap(about = ll ! ("library"))]
+#[clap(about = ll!("library"))]
 #[clap(alias = "lib")]
 #[handler_inject(library_fields)]
 pub struct LibrarySubcommand {
@@ -37,7 +37,7 @@ impl LibrarySubcommand {
 pub enum LibraryAction {
     New(LibraryNewAlbumAction),
     #[clap(name = "tag", alias = "apply")]
-    #[clap(about = ll ! {"library-tag"})]
+    #[clap(about = ll!{"library-tag"})]
     ApplyTag(LibraryApplyTagAction),
     Link(LibraryLinkAction),
 }

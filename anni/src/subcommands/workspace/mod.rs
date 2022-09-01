@@ -1,9 +1,11 @@
 mod add;
 mod create;
+mod fix;
 mod init;
 
 use add::*;
 use create::*;
+use fix::*;
 use init::*;
 
 use crate::ll;
@@ -12,7 +14,7 @@ use clap_handler::Handler;
 use std::path::PathBuf;
 
 #[derive(Args, Handler, Debug, Clone)]
-#[clap(about = ll ! ("workspace"))]
+#[clap(about = ll!("workspace"))]
 #[clap(alias = "ws")]
 pub struct WorkspaceSubcommand {
     #[clap(subcommand)]
@@ -26,6 +28,7 @@ pub enum WorkspaceAction {
     Add(WorkspaceAddAction),
     // Update,
     // Publish,
+    Fix(WorkspaceFixAction),
 }
 
 pub fn find_dot_anni() -> anyhow::Result<PathBuf> {

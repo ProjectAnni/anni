@@ -1,3 +1,5 @@
+#![feature(try_blocks)]
+
 use crate::subcommands::*;
 use clap::{AppSettings, Parser};
 use clap_handler::Handler;

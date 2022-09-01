@@ -27,7 +27,7 @@ use std::str::FromStr;
 #[handler_inject(repo_fields)]
 pub struct RepoSubcommand {
     #[clap(long, env = "ANNI_REPO")]
-    #[clap(help = ll ! {"repo-root"})]
+    #[clap(help = ll!{"repo-root"})]
     root: PathBuf,
 
     #[clap(subcommand)]
@@ -44,23 +44,23 @@ impl RepoSubcommand {
 
 #[derive(Subcommand, Handler, Debug, Clone)]
 pub enum RepoAction {
-    #[clap(about = ll ! {"repo-clone"})]
+    #[clap(about = ll!{"repo-clone"})]
     Clone(RepoCloneAction),
-    #[clap(about = ll ! {"repo-add"})]
+    #[clap(about = ll!{"repo-add"})]
     Add(RepoAddAction),
-    #[clap(about = ll ! {"repo-import"})]
+    #[clap(about = ll!{"repo-import"})]
     Import(RepoImportAction),
-    #[clap(about = ll ! {"repo-get"})]
+    #[clap(about = ll!{"repo-get"})]
     Get(RepoGetAction),
-    #[clap(about = ll ! {"repo-edit"})]
+    #[clap(about = ll!{"repo-edit"})]
     Edit(RepoEditAction),
-    #[clap(about = ll ! {"repo-validate"})]
+    #[clap(about = ll!{"repo-validate"})]
     #[clap(alias = "validate")]
     Lint(lint::RepoLintAction),
-    #[clap(about = ll ! {"repo-print"})]
+    #[clap(about = ll!{"repo-print"})]
     Print(RepoPrintAction),
     #[clap(name = "db")]
-    #[clap(about = ll ! {"repo-db"})]
+    #[clap(about = ll!{"repo-db"})]
     Database(RepoDatabaseAction),
 }
 
@@ -86,7 +86,7 @@ fn repo_clone(me: RepoCloneAction) -> anyhow::Result<()> {
 #[derive(Args, Debug, Clone)]
 pub struct RepoAddAction {
     #[clap(short = 'e', long)]
-    #[clap(help = ll ! ("repo-add-edit"))]
+    #[clap(help = ll!("repo-add-edit"))]
     open_editor: bool,
 
     #[clap(short = 'D', long = "duplicate")]
@@ -219,7 +219,7 @@ fn repo_import(me: &RepoImportAction, manager: &RepositoryManager) -> anyhow::Re
 #[derive(Args, Handler, Debug, Clone)]
 pub struct RepoGetAction {
     #[clap(long, global = true)]
-    #[clap(help = ll ! {"repo-get-print"})]
+    #[clap(help = ll!{"repo-get-print"})]
     print: bool,
     #[clap(subcommand)]
     subcommand: RepoGetSubcommand,
@@ -313,9 +313,9 @@ fn repo_get_vgmdb(
 
 #[derive(Args, Debug, Clone)]
 pub struct RepoGetCue {
-    #[clap(short = 'k', long, help = ll ! {"repo-get-cue-keyword"})]
+    #[clap(short = 'k', long, help = ll!{"repo-get-cue-keyword"})]
     keyword: Option<String>,
-    #[clap(short = 'c', long, help = ll ! {"repo-get-cue-catalog"})]
+    #[clap(short = 'c', long, help = ll!{"repo-get-cue-catalog"})]
     catalog: Option<String>,
 
     path: PathBuf,
@@ -502,18 +502,18 @@ fn repo_edit(me: &RepoEditAction, manager: &RepositoryManager) -> anyhow::Result
 pub struct RepoPrintAction {
     #[clap(arg_enum)]
     #[clap(short = 't', long = "type", default_value = "title")]
-    #[clap(help = ll ! ("repo-print-type"))]
+    #[clap(help = ll!("repo-print-type"))]
     print_type: RepoPrintType,
 
     #[clap(long = "no-generated-by", alias = "no-gb", parse(from_flag = std::ops::Not::not))]
-    #[clap(help = ll ! ("repo-print-clean"))]
+    #[clap(help = ll!("repo-print-clean"))]
     add_generated_by: bool,
 
-    #[clap(help = ll ! ("repo-print-input"))]
+    #[clap(help = ll!("repo-print-input"))]
     input: String,
 
     #[clap(short, long, default_value = "-")]
-    #[clap(help = ll ! {"export-to"})]
+    #[clap(help = ll!{"export-to"})]
     output: ActionFile,
 }
 
@@ -672,7 +672,7 @@ fn is_album_folder(input: &str) -> bool {
 // Repo database
 #[derive(Args, Debug, Clone)]
 pub struct RepoDatabaseAction {
-    #[clap(help = ll ! {"export-to"})]
+    #[clap(help = ll!{"export-to"})]
     output: PathBuf,
 }
 
