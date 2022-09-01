@@ -14,7 +14,7 @@ pub struct Config {
 impl Config {
     pub fn from_file<P: AsRef<Path>>(config_path: P) -> anyhow::Result<Self> {
         let string = fs::read_to_string(config_path)?;
-        let result = toml_edit::easy::from_str(&string)?;
+        let result = toml::from_str(&string)?;
         Ok(result)
     }
 }

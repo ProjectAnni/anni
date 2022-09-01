@@ -288,7 +288,7 @@ impl<'repo> OwnedRepositoryManager {
         // iterate over tag files
         for tag_file in tags_path {
             let text = fs::read_to_string(&tag_file)?;
-            let tags = toml_edit::easy::from_str::<Tags>(&text)
+            let tags = toml::from_str::<Tags>(&text)
                 .map_err(|e| Error::TomlParseError {
                     target: "Tags",
                     input: text,

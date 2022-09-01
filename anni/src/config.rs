@@ -27,5 +27,5 @@ where
 {
     let file = CONFIG_ROOT.join(format!("{}.toml", name));
     let file = read_to_string(file)?;
-    Ok(toml_edit::easy::from_str(&file)?)
+    Ok(toml::from_str(&file)?)
 }

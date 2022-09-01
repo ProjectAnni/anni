@@ -46,12 +46,11 @@ impl FromStr for Album {
     type Err = Error;
 
     fn from_str(toml_str: &str) -> Result<Self, Self::Err> {
-        let mut album: Album =
-            toml_edit::easy::from_str(toml_str).map_err(|e| Error::TomlParseError {
-                target: "Album",
-                input: toml_str.to_string(),
-                err: e,
-            })?;
+        let mut album: Album = toml::from_str(toml_str).map_err(|e| Error::TomlParseError {
+            target: "Album",
+            input: toml_str.to_string(),
+            err: e,
+        })?;
 
         album.inherit();
         Ok(album)
@@ -60,7 +59,7 @@ impl FromStr for Album {
 
 impl ToString for Album {
     fn to_string(&self) -> String {
-        toml_edit::easy::to_string(&self).unwrap()
+        toml::to_string(&self).unwrap()
     }
 }
 

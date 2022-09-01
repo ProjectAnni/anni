@@ -2,7 +2,7 @@ use core::slice;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use std::fmt::{Display, Formatter};
 use std::hash::{Hash, Hasher};
-use toml_edit::easy::Value;
+use toml::Value;
 
 /// RepoTag is a wrapper type for the actual tag used in anni metadata repository.
 /// All part of code other than serialize/deserialize part should use this type

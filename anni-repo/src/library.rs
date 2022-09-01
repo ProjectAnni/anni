@@ -4,6 +4,7 @@ use regex::Regex;
 use std::path::Path;
 use std::str::FromStr;
 use thiserror::Error;
+use toml::value::DatetimeParseError;
 
 pub fn file_name<P: AsRef<Path>>(path: P) -> std::io::Result<String> {
     let path = if path.as_ref().is_absolute() {
@@ -40,7 +41,7 @@ pub enum InfoParseError {
     #[error("no capture group matched")]
     NoCaptureGroup,
     #[error("invalid datetime")]
-    InvalidDateTime,
+    InvalidDateTime(#[from] DatetimeParseError),
 }
 
 static ALBUM_INFO: Lazy<Regex> = Lazy::new(|| {
