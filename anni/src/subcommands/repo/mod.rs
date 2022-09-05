@@ -404,7 +404,7 @@ fn repo_get_musicbrainz(
         .execute()?;
     let release_date = release
         .date
-        .map(|date| AnniDate::new(date.year() as u32, date.month() as u8, date.day() as u8))
+        .map(|date| AnniDate::new(date.year() as u16, date.month() as u8, date.day() as u8))
         .unwrap(); // todo: properly deal with unavailable date
     let to_artist = |artists: Vec<ArtistCredit>| {
         artists

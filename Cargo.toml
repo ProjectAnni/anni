@@ -14,3 +14,5 @@ members = [
 rusqlite = { git = "https://github.com/ProjectAnni/rusqlite", branch = "wasm32-unknown-unknown" }
 # Remove this patch after https://github.com/oknozor/musicbrainz_rs/pull/75 was merged
 musicbrainz_rs = { git = "https://github.com/ProjectAnni/musicbrainz_rs", branch = "main" }
+# Remove this patch after https://github.com/ordian/toml_edit/pull/334 was merged
+toml_edit = { git = "https://github.com/ProjectAnni/toml_edit", branch = "master" }

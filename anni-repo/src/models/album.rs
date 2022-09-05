@@ -4,6 +4,7 @@ use serde::{Deserialize, Serialize};
 use std::borrow::Cow;
 use std::collections::{HashMap, HashSet};
 use std::str::FromStr;
+use toml_edit::easy as toml;
 use uuid::Uuid;
 
 #[derive(Serialize, Deserialize)]
@@ -59,7 +60,7 @@ impl FromStr for Album {
 
 impl ToString for Album {
     fn to_string(&self) -> String {
-        toml::to_string(&self).unwrap()
+        toml::to_string_pretty(&self).unwrap()
     }
 }
 

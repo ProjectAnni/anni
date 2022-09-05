@@ -402,7 +402,6 @@ dependencies = [
  "serde_with",
  "sqlite-vfs",
  "thiserror",
- "toml",
  "toml_edit",
  "uuid",
  "wasm-bindgen",
@@ -3975,12 +3974,12 @@ dependencies = [
 [[package]]
 name = "toml_edit"
 version = "0.14.4"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5376256e44f2443f8896ac012507c19a012df0fe8758b55246ae51a2279db51f"
+source = "git+https://github.com/ProjectAnni/toml_edit?branch=master#b215cf7a1b5372ee47bf7fe7320a81615a264716"
 dependencies = [
  "combine",
  "indexmap",
  "itertools",
+ "serde 1.0.137",
 ]
 
 [[package]]

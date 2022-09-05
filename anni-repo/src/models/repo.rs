@@ -1,6 +1,7 @@
 use crate::prelude::*;
 use serde::{Deserialize, Serialize};
 use std::str::FromStr;
+use toml_edit::easy as toml;
 
 #[derive(Serialize, Deserialize)]
 pub struct Repository {
@@ -34,7 +35,7 @@ impl FromStr for Repository {
 
 impl ToString for Repository {
     fn to_string(&self) -> String {
-        toml::to_string(&self).unwrap()
+        toml::to_string_pretty(&self).unwrap()
     }
 }
 

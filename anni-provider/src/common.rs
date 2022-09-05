@@ -238,11 +238,7 @@ pub enum ProviderError {
     GeneralError,
 }
 
-pub fn strict_album_path(
-    root: &std::path::PathBuf,
-    album_id: &str,
-    layer: usize,
-) -> std::path::PathBuf {
+pub fn strict_album_path(root: &PathBuf, album_id: &str, layer: usize) -> PathBuf {
     let mut res = root.clone();
     for i in 0..layer {
         res.push(match &album_id[i * 2..=i * 2 + 1].trim_start_matches('0') {

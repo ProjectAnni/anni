@@ -165,7 +165,7 @@ impl CachePool {
                     let mut map = self.last_used.write();
                     map.get(&key).unwrap().clone()
                 };
-                mutex.lock().await;
+                let _ = mutex.lock().await;
             }
             // update last_used time
             self.last_used.write().get(&key).unwrap();
