@@ -1,4 +1,4 @@
-use crate::workspace::find_dot_anni;
+use crate::workspace::utils::find_dot_anni;
 use anni_common::fs;
 use anyhow::bail;
 use clap::Args;

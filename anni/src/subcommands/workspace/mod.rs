@@ -1,17 +1,20 @@
 mod add;
+mod config;
 mod create;
 mod fix;
 mod init;
+mod publish;
+mod utils;
 
 use add::*;
 use create::*;
 use fix::*;
 use init::*;
+use publish::*;
 
 use crate::ll;
 use clap::{Args, Subcommand};
 use clap_handler::Handler;
-use std::path::PathBuf;
 
 #[derive(Args, Handler, Debug, Clone)]
 #[clap(about = ll!("workspace"))]
@@ -27,21 +30,6 @@ pub enum WorkspaceAction {
     Create(WorkspaceCreateAction),
     Add(WorkspaceAddAction),
     // Update,
-    // Publish,
+    Publish(WorkspacePublishAction),
     Fix(WorkspaceFixAction),
-}
-
-pub fn find_dot_anni() -> anyhow::Result<PathBuf> {
-    let path = std::env::current_dir()?;
-
-    let mut path = path.as_path();
-    loop {
-        let dot_anni = path.join(".anni");
-        if dot_anni.exists() {
-            return Ok(dot_anni);
-        }
-        path = path.parent().ok_or_else(|| {
-            anyhow::anyhow!("Could not find .anni in current directory or any parent")
-        })?;
-    }
 }

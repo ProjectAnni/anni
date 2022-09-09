@@ -1,10 +1,8 @@
-use crate::workspace::find_dot_anni;
+use crate::workspace::utils::{find_dot_anni, get_workspace_album_real_path};
 use anni_common::fs;
-use anni_provider::strict_album_path;
 use clap::{Args, Subcommand};
 use clap_handler::{handler, Handler};
 use std::path::{Path, PathBuf};
-use uuid::Uuid;
 
 #[derive(Args, Handler, Debug, Clone)]
 pub struct WorkspaceFixAction {
@@ -29,27 +27,12 @@ fn handle_workspace_fix_link(me: WorkspaceFixLinkAction) -> anyhow::Result<()> {
 
     for path in me.path {
         let album_path = path.join(".album");
-        let anni_album_path: anyhow::Result<_> = try {
-            // 1. find .album
-            if !album_path.is_symlink() {
-                bail!("Album directory is not a symlink");
+        let anni_album_path = get_workspace_album_real_path(&root, &path).and_then(|p| {
+            if !p.exists() {
+                fs::create_dir_all(&p)?;
             }
-
-            // 2. get album_id
-            let real_path = fs::read_link(&album_path)?;
-            let album_id = real_path.file_name().unwrap().to_string_lossy();
-            if Uuid::parse_str(&album_id).is_err() {
-                bail!("Invalid album id detected");
-            }
-
-            // 3. return album_id
-            let anni_album_path = strict_album_path(&root.join("objects"), &album_id, 2);
-            if !anni_album_path.exists() {
-                fs::create_dir_all(&anni_album_path)?;
-            }
-
-            anni_album_path
-        };
+            Ok(p)
+        });
 
         let result = anni_album_path.and_then(|anni_album_path| {
             // 4. remove .album
