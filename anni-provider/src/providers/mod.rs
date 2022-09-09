@@ -1,5 +1,5 @@
 pub use convention::CommonConventionProvider;
-pub use drive::DriveBackend;
+pub use drive::DriveProvider;
 pub use proxy::ProxyBackend;
 pub use strict::CommonStrictProvider;
 

@@ -17,7 +17,7 @@ use actix_web::{web, App, HttpServer};
 use anni_provider::cache::{Cache, CachePool};
 use anni_provider::fs::LocalFileSystemProvider;
 use anni_provider::providers::drive::DriveProviderSettings;
-use anni_provider::providers::{CommonConventionProvider, CommonStrictProvider, DriveBackend};
+use anni_provider::providers::{CommonConventionProvider, CommonStrictProvider, DriveProvider};
 use anni_provider::{AnniProvider, RepoDatabaseRead};
 use anni_repo::{setup_git2, RepositoryManager};
 use jwt_simple::prelude::HS256Key;
@@ -71,11 +71,12 @@ fn open_db(p: &str) -> anyhow::Result<RepoDatabaseRead> {
 
 async fn init_state(config: Config) -> anyhow::Result<web::Data<AppState>> {
     // init metadata
-    let database_path = if config
-        .providers
-        .iter()
-        .all(|(_, conf)| matches!(conf.item, ProviderItem::File { strict: true, .. }))
-    {
+    let database_path = if config.providers.iter().all(|(_, conf)| {
+        matches!(
+            conf.item,
+            ProviderItem::File { strict: true, .. } | ProviderItem::Drive { strict: true, .. }
+        )
+    }) {
         None
     } else {
         // proxy settings
@@ -130,6 +131,7 @@ async fn init_state(config: Config) -> anyhow::Result<web::Data<AppState>> {
                 corpora,
                 initial_token_path,
                 token_path,
+                strict,
             } => {
                 if let Some(initial_token_path) = initial_token_path {
                     if initial_token_path.exists() && !token_path.exists() {
@@ -137,14 +139,18 @@ async fn init_state(config: Config) -> anyhow::Result<web::Data<AppState>> {
                     }
                 }
                 Box::new(
-                    DriveBackend::new(
+                    DriveProvider::new(
                         Default::default(),
                         DriveProviderSettings {
                             corpora: corpora.to_string(),
                             drive_id: drive_id.clone(),
                             token_path: token_path.clone(),
                         },
-                        open_db(database_path.as_ref().unwrap())?,
+                        if *strict {
+                            None
+                        } else {
+                            Some(open_db(database_path.as_ref().unwrap())?)
+                        },
                     )
                     .await?,
                 )

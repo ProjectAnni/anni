@@ -211,7 +211,7 @@ impl DriveClient {
     }
 }
 
-pub struct DriveBackend {
+pub struct DriveProvider {
     /// Google Drive API Client
     client: DriveClient,
     /// HashMap mapping album_id and folder_id
@@ -228,14 +228,17 @@ pub struct DriveBackend {
     files: DashMap<String, String>,
     /// file_id <-> (extension, filesize)
     audios: DashMap<String, (String, usize)>,
-    repo: Mutex<RepoDatabaseRead>,
+
+    // properties
+    strict: bool,
+    repo: Mutex<Option<RepoDatabaseRead>>,
 }
 
-impl DriveBackend {
+impl DriveProvider {
     pub async fn new(
         auth: DriveAuth,
         settings: DriveProviderSettings,
-        repo: RepoDatabaseRead,
+        repo: Option<RepoDatabaseRead>,
     ) -> Result<Self, ProviderError> {
         let mut this = Self {
             client: DriveClient::new(auth, settings).await?,
@@ -243,6 +246,7 @@ impl DriveBackend {
             discs: Default::default(),
             files: Default::default(),
             audios: Default::default(),
+            strict: repo.is_none(),
             repo: Mutex::new(repo),
         };
         this.reload().await?;
@@ -260,8 +264,14 @@ impl DriveBackend {
                 .unwrap()
                 .iter()
                 .filter_map(|file| {
-                    let (_, _, disc_index) = disc_info(file.name.as_deref().unwrap()).ok()?;
-                    return Some((disc_index, file.id.as_deref().unwrap().to_string()));
+                    let file_id = file.id.as_deref().unwrap().to_string();
+                    return if self.strict {
+                        let disc_index: usize = file.name.as_ref().unwrap().parse().ok()?;
+                        Some((disc_index, file_id))
+                    } else {
+                        let (_, _, disc_index) = disc_info(file.name.as_deref().unwrap()).ok()?;
+                        Some((disc_index, file_id))
+                    };
                 })
                 .collect();
             discs.sort();
@@ -293,7 +303,7 @@ impl DriveBackend {
 }
 
 #[async_trait]
-impl AnniProvider for DriveBackend {
+impl AnniProvider for DriveProvider {
     async fn albums(&self) -> Result<HashSet<Cow<str>>, ProviderError> {
         Ok(self
             .folders
@@ -322,30 +332,36 @@ impl AnniProvider for DriveBackend {
 
             // get audio file id
             let permit = self.client.semaphore.acquire().await.unwrap();
+            let q = if self.strict {
+                format!("trashed = false and name = '{track_id}.flac' and '{folder_id}' in parents")
+            } else {
+                format!("trashed = false and name contains '{track_id:02}.' and '{folder_id}' in parents")
+            };
             let (_, list) = self
                 .client
                 .prepare_list()
-                .q(&format!(
-                    "trashed = false and name contains '{:02}.' and '{}' in parents",
-                    track_id, folder_id
-                ))
+                .q(&q)
                 .param("fields", "nextPageToken, files(id,name,fileExtension,size)")
                 .doit()
                 .await?;
             drop(permit);
 
             let files = list.files.unwrap();
-            let id = files.iter().reduce(|a, b| {
-                if a.name
-                    .as_ref()
-                    .unwrap()
-                    .starts_with(&format!("{:02}.", track_id))
-                {
-                    a
-                } else {
-                    b
-                }
-            });
+            let id = if self.strict {
+                Some(files.first().ok_or_else(|| ProviderError::FileNotFound)?)
+            } else {
+                files.iter().reduce(|a, b| {
+                    if a.name
+                        .as_ref()
+                        .unwrap()
+                        .starts_with(&format!("{:02}.", track_id))
+                    {
+                        a
+                    } else {
+                        b
+                    }
+                })
+            };
             if let Some(file) = id {
                 let id = file.id.as_ref().unwrap();
                 self.audios.insert(
@@ -420,7 +436,10 @@ impl AnniProvider for DriveBackend {
         self.discs.clear();
         self.files.clear();
         self.audios.clear();
-        self.repo.lock().reload()?;
+
+        if let Some(repo) = &mut *self.repo.lock() {
+            repo.reload()?;
+        }
 
         let mut page_token = String::new();
         loop {
@@ -429,33 +448,47 @@ impl AnniProvider for DriveBackend {
                 .client
                 .prepare_list()
                 .page_token(&page_token)
-                .q("mimeType = 'application/vnd.google-apps.folder' and trashed = false")
+                .q(if self.strict {
+                    "mimeType = 'application/vnd.google-apps.folder' and name != '0' and name != '1' and name != '2' and name != '3' and name != '4' and name != '5' and name != '6' and name != '7' and name != '8' and name != '9' and trashed = false"
+                } else {
+                    "mimeType = 'application/vnd.google-apps.folder' and trashed = false"
+                })
                 .param("fields", "nextPageToken, files(id,name)")
                 .doit()
                 .await?;
             drop(permit);
             for file in list.files.unwrap() {
                 let name = file.name.unwrap();
-                if let Ok((release_date, catalog, title, edition, disc_count)) = album_info(&name) {
-                    let album_id = self.repo.lock().match_album(
-                        &catalog,
-                        &release_date,
-                        disc_count as u8,
-                        &title,
-                        edition.as_deref(),
-                    )?;
-                    match album_id {
-                        Some(album_id) => {
-                            self.folders.insert(album_id.to_string(), file.id.unwrap());
-                            if disc_count > 1 {
-                                self.discs.insert(album_id.to_string(), None);
+                if self.strict {
+                    if name.len() != 36 {
+                        continue;
+                    }
+                    self.folders.insert(name.to_string(), file.id.unwrap());
+                    self.discs.insert(name, None);
+                } else {
+                    if let Ok((release_date, catalog, title, edition, disc_count)) =
+                        album_info(&name)
+                    {
+                        let album_id = self.repo.lock().as_ref().unwrap().match_album(
+                            &catalog,
+                            &release_date,
+                            disc_count as u8,
+                            &title,
+                            edition.as_deref(),
+                        )?;
+                        match album_id {
+                            Some(album_id) => {
+                                self.folders.insert(album_id.to_string(), file.id.unwrap());
+                                if disc_count > 1 {
+                                    self.discs.insert(album_id.to_string(), None);
+                                }
+                            }
+                            None => {
+                                log::warn!("Album ID not found for {}, ignoring...", catalog);
                             }
                         }
-                        None => {
-                            log::warn!("Album ID not found for {}, ignoring...", catalog);
-                        }
-                    }
-                };
+                    };
+                }
             }
             if list.next_page_token.is_none() {
                 break;
