@@ -334,7 +334,7 @@ pub async fn library_link(me: LibraryLinkAction, manager: RepositoryManager) -> 
 
     if !me.incremental {
         // 1. recreate `to` folder
-        fs::remove_dir_all(&to)?; // this function only remove sym link and does not remove the underlying file
+        fs::remove_dir_all(&to, true)?; // this function only remove sym link and does not remove the underlying file
         fs::create_dir_all(&to)?;
     }
 

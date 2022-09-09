@@ -37,10 +37,13 @@ impl PathWalker {
             let mut dir: Vec<_> = read_dir(path).unwrap().map(|r| r.unwrap()).collect();
             dir.sort_by_key(|e| e.path());
             for entry in dir.iter() {
-                if is_dir(entry.path()).unwrap() {
+                let metadata = entry.metadata().unwrap();
+                if metadata.is_dir() {
                     self.path.push(entry.path());
-                } else {
+                } else if metadata.is_file() {
                     self.files.push(entry.path());
+                } else {
+                    // symlink, ignore it
                 }
             }
             self.path.remove(0);
@@ -173,6 +176,15 @@ pub fn remove_file<P: AsRef<Path>>(input: P, trashcan: bool) -> io::Result<()> {
         trash::delete(input.as_ref()).map_err(|e| io::Error::new(io::ErrorKind::Other, e))
     } else {
         std::fs::remove_file(input)
+    }
+}
+
+#[cfg(feature = "trash")]
+pub fn remove_dir_all<P: AsRef<Path>>(input: P, trashcan: bool) -> io::Result<()> {
+    if trashcan {
+        trash::delete(input.as_ref()).map_err(|e| io::Error::new(io::ErrorKind::Other, e))
+    } else {
+        std::fs::remove_dir_all(input)
     }
 }
 

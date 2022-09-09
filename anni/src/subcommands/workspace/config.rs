@@ -20,7 +20,7 @@ pub struct WorkspaceConfigInner {
 #[derive(Serialize, Deserialize)]
 pub struct LibraryConfig {
     pub path: PathBuf,
-    pub layers: Option<u8>,
+    pub layers: Option<usize>,
 }
 
 impl WorkspaceConfig {
