@@ -228,7 +228,7 @@ async fn main() -> anyhow::Result<()> {
                     .allow_any_header()
                     .send_wildcard(),
             )
-            .wrap(Logger::default())
+            .wrap(Logger::default().exclude("/info"))
             .service(info)
             .service(admin::reload)
             .service(admin::sign)

@@ -5,15 +5,15 @@ authors = ["Yesterday17 <mmf@mmf.moe>"]
 edition = "2018"
 
 [dependencies]
-actix-web = { version = "4.0.1", features = ["rustls"] }
-actix-cors = "0.6.1"
+actix-web = { version = "4.1.0", features = ["rustls"] }
+actix-cors = "0.6.2"
+actix-utils = "3.0.0"
 
 anni-provider = { path = "../anni-provider" }
-actix-utils = "3.0.0"
 parking_lot = "0.12.0"
 
 tokio = { version = "1", features = ["full"] }
-tokio-util = { version = "0.7.2", features = ["io"] }
+tokio-util = { version = "0.7.4", features = ["io"] }
 futures = "0.3"
 anyhow = { version = "1.0", features = ["backtrace"] }
 thiserror = "1.0"
@@ -22,8 +22,8 @@ anni-flac = { path = "../anni-flac", features = ["async"] }
 anni-repo = { path = "../anni-repo", features = ["git", "db-write"] }
 
 serde = { version = "1.0", features = ["derive"] }
-toml = "0.5"
-log = "0.4.0"
+toml_edit = { version = "0.14.4", features = ["easy"] }
+log = "0.4"
 env_logger = "0.9.0"
 jwt-simple = "0.11.0"
 uuid = "1"
