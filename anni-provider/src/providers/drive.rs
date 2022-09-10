@@ -167,6 +167,7 @@ impl DriveClient {
             .files()
             .get(file_id)
             .supports_all_drives(true)
+            .acknowledge_abuse(true)
             .param("alt", "media")
             .range(range.to_range_header())
             .doit()
@@ -454,6 +455,7 @@ impl AnniProvider for DriveProvider {
                     "mimeType = 'application/vnd.google-apps.folder' and trashed = false"
                 })
                 .param("fields", "nextPageToken, files(id,name)")
+                .page_size(1000)
                 .doit()
                 .await?;
             drop(permit);
