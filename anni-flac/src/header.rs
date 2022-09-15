@@ -10,12 +10,12 @@ use std::path::{Path, PathBuf};
 
 pub struct FlacHeader {
     pub blocks: Vec<MetadataBlock>,
-    input_file: Option<PathBuf>,
+    pub path: PathBuf,
     frame_offset: usize,
 }
 
 impl FlacHeader {
-    pub fn parse<R: Read>(reader: &mut R) -> Result<FlacHeader> {
+    pub fn parse<R: Read>(reader: &mut R, path: PathBuf) -> Result<FlacHeader> {
         if reader.read_u8()? != b'f'
             || reader.read_u8()? != b'L'
             || reader.read_u8()? != b'a'
@@ -41,13 +41,13 @@ impl FlacHeader {
         }
         Ok(FlacHeader {
             blocks,
-            input_file: None,
+            path: path,
             frame_offset,
         })
     }
 
     #[cfg(feature = "async")]
-    pub async fn parse_async<R>(reader: &mut R) -> Result<FlacHeader>
+    pub async fn parse_async<R>(reader: &mut R, path: PathBuf) -> Result<FlacHeader>
     where
         R: AsyncRead + Unpin + Send,
     {
@@ -76,15 +76,14 @@ impl FlacHeader {
         }
         Ok(FlacHeader {
             blocks,
-            input_file: None,
+            path: path,
             frame_offset,
         })
     }
 
     pub fn from_file<P: AsRef<Path>>(filename: P) -> Result<FlacHeader> {
         let mut file = File::open(filename.as_ref())?;
-        let mut header = Self::parse(&mut file)?;
-        header.input_file = Some(filename.as_ref().to_path_buf());
+        let header = Self::parse(&mut file, filename.as_ref().to_path_buf())?;
         Ok(header)
     }
 
@@ -145,11 +144,7 @@ impl FlacHeader {
     }
 
     pub fn save<P: AsRef<Path>>(&mut self, output: Option<P>) -> Result<()> {
-        let input_path = self
-            .input_file
-            .as_deref()
-            .expect("No input path provided!")
-            .to_path_buf();
+        let input_path = self.path.to_path_buf();
         let output_path = match output {
             Some(p) => p.as_ref().to_path_buf(),
             None => input_path.clone(),

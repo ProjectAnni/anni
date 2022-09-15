@@ -1,11 +1,13 @@
 mod lint;
+mod watch;
 
 use crate::args::ActionFile;
+use crate::repo::watch::RepoWatchAction;
 use crate::{ball, fl, ll};
 use anni_common::fs;
 use anni_common::inherit::InheritableValue;
 use anni_flac::FlacHeader;
-use anni_repo::library::{album_info, disc_info, file_name, file_stem};
+use anni_repo::library::{album_info, disc_info, file_name};
 use anni_repo::prelude::*;
 use anni_repo::{OwnedRepositoryManager, RepositoryManager};
 use anni_vgmdb::VGMClient;
@@ -17,7 +19,6 @@ use musicbrainz_rs::entity::artist_credit::ArtistCredit;
 use musicbrainz_rs::entity::release::Release;
 use musicbrainz_rs::Fetch;
 use ptree::TreeBuilder;
-use regex::Regex;
 use std::io::Read;
 use std::path::PathBuf;
 use std::str::FromStr;
@@ -62,6 +63,8 @@ pub enum RepoAction {
     #[clap(name = "db")]
     #[clap(about = ll!{"repo-db"})]
     Database(RepoDatabaseAction),
+    // TODO: repo watch
+    // Watch(RepoWatchAction),
 }
 
 #[derive(Args, Debug, Clone)]
@@ -147,24 +150,7 @@ fn repo_add(me: RepoAddAction, manager: &RepositoryManager) -> anyhow::Result<()
             };
             for path in files.iter() {
                 let header = FlacHeader::from_file(path)?;
-                let mut track = stream_to_track(&header);
-                // use filename as default track name
-                if track.title().is_empty() {
-                    let reg = Regex::new(r#"^\d{2,3}(?:\s?[.-]\s?|\s)(.+)$"#).unwrap();
-                    let input = file_stem(path)?;
-                    let title = reg
-                        .captures(&input)
-                        .and_then(|c| c.get(1))
-                        .map(|r| r.as_str().to_string())
-                        .unwrap_or_else(|| input);
-                    track.set_title(title);
-                }
-
-                // auto audio type for instrumental, drama and radio
-                if let Some(track_type) = TrackType::guess(track.title()) {
-                    track.set_track_type(track_type);
-                }
-
+                let track = header.into();
                 disc.push_track(track); // use push_track here to avoid metadata inherit
             }
             disc.fmt(false);
@@ -642,24 +628,6 @@ pub enum RepoPrintType {
     Cue,
     Toml,
     TagTree,
-}
-
-pub(crate) fn stream_to_track(stream: &FlacHeader) -> Track {
-    match stream.comments() {
-        Some(comment) => {
-            let map = comment.to_map();
-            Track::new(
-                map.get("TITLE")
-                    .map(|v| v.value())
-                    .unwrap_or("")
-                    .to_string(),
-                map.get("ARTIST").map(|v| v.value().to_string()),
-                None,
-                Default::default(),
-            )
-        }
-        None => Track::empty(),
-    }
 }
 
 fn is_album_folder(input: &str) -> bool {

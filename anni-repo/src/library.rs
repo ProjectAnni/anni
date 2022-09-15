@@ -19,7 +19,7 @@ pub fn file_name<P: AsRef<Path>>(path: P) -> std::io::Result<String> {
         .to_owned())
 }
 
-pub fn file_stem<P: AsRef<Path>>(path: P) -> std::io::Result<String> {
+pub(crate) fn file_stem<P: AsRef<Path>>(path: P) -> std::io::Result<String> {
     let path = if path.as_ref().is_absolute() {
         path.as_ref().to_path_buf()
     } else {

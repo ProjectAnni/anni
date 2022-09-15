@@ -480,3 +480,41 @@ fn is_artists_empty(artists: &InheritableValue<HashMap<String, String>>) -> bool
         InheritableValue::Inherited(_) => true,
     }
 }
+
+#[cfg(feature = "flac")]
+impl From<anni_flac::FlacHeader> for Track {
+    fn from(stream: anni_flac::FlacHeader) -> Self {
+        use crate::library::file_stem;
+        use regex::Regex;
+
+        match stream.comments() {
+            Some(comment) => {
+                let map = comment.to_map();
+                let title = map
+                    .get("TITLE")
+                    .map(|v| v.value().to_owned())
+                    .or_else(|| {
+                        // use filename as default track name
+                        let reg = Regex::new(r#"^\d{2,3}(?:\s?[.-]\s?|\s)(.+)$"#).unwrap();
+                        let input = file_stem(&stream.path).ok()?;
+                        let filename = reg
+                            .captures(&input)
+                            .and_then(|c| c.get(1))
+                            .map(|r| r.as_str().to_string())
+                            .unwrap_or_else(|| input);
+                        Some(filename)
+                    })
+                    .unwrap_or_default();
+                // auto audio type for instrumental, drama and radio
+                let track_type = TrackType::guess(&title);
+                Track::new(
+                    title,
+                    map.get("ARTIST").map(|v| v.value().to_string()),
+                    track_type,
+                    Default::default(),
+                )
+            }
+            None => Track::empty(),
+        }
+    }
+}

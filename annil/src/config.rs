@@ -108,6 +108,7 @@ pub enum ProviderItem {
         drive_id: Option<String>,
         initial_token_path: Option<PathBuf>,
         token_path: PathBuf,
+        #[serde(default)]
         strict: bool,
     },
 }

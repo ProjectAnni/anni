@@ -10,7 +10,7 @@ use std::path::PathBuf;
 
 #[derive(Args, Debug, Clone)]
 pub struct WorkspaceAddAction {
-    #[clap(short = 't', long)]
+    #[clap(short = 'i', long)]
     import_tags: bool,
     #[clap(short = 'y', long = "yes")]
     skip_check: bool,
@@ -21,7 +21,7 @@ pub struct WorkspaceAddAction {
 #[handler(WorkspaceAddAction)]
 fn handle_workspace_add(me: WorkspaceAddAction) -> anyhow::Result<()> {
     // validate workspace structure
-    let _ = find_dot_anni()?;
+    let root = find_dot_anni()?;
 
     // validate album path
     let album_path = me.path.join(".album");
@@ -178,6 +178,8 @@ fn handle_workspace_add(me: WorkspaceAddAction) -> anyhow::Result<()> {
     // import tags if necessary
     if me.import_tags {
         // TODO: import tag from strict album directory
+        // let repo = anni_repo::RepositoryManager::new(root.join("repo"))?;
+        // repo.add_album("@", &album, true)?;
         unimplemented!();
     }
 
