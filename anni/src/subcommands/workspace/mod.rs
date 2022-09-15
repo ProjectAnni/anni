@@ -4,6 +4,7 @@ mod create;
 mod fix;
 mod init;
 mod publish;
+mod rm;
 mod utils;
 
 use add::*;
@@ -11,6 +12,7 @@ use create::*;
 use fix::*;
 use init::*;
 use publish::*;
+use rm::*;
 
 use crate::ll;
 use clap::{Args, Subcommand};
@@ -29,6 +31,7 @@ pub enum WorkspaceAction {
     Init(WorkspaceInitAction),
     Create(WorkspaceCreateAction),
     Add(WorkspaceAddAction),
+    Rm(WorkspaceRmAction),
     // Update,
     Publish(WorkspacePublishAction),
     Fix(WorkspaceFixAction),
