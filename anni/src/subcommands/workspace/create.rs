@@ -14,6 +14,8 @@ pub struct WorkspaceCreateAction {
     album_id: Option<String>,
     #[clap(short = 'd', long, default_value = "1")]
     disc_num: NonZeroU8,
+    #[clap(short = 'f', long)]
+    force: bool,
 
     path: PathBuf,
 }
@@ -27,22 +29,27 @@ fn handle_workspace_create(me: WorkspaceCreateAction) -> anyhow::Result<()> {
         .unwrap_or_else(|| uuid::Uuid::new_v4().to_string());
     let disc_num = me.disc_num.get();
 
-    // 1. create directory in .anni/objects
+    // 1. check whether the target path exists
+    let user_album_path = match me.name {
+        Some(name) => me.path.join(name),
+        None => me.path,
+    };
+    if user_album_path.exists() && !me.force {
+        bail!("Target path already exists");
+    }
+
+    // 2. create directory in .anni/objects
     let anni_album_path = strict_album_path(&root.join("objects"), &album_id, 2);
     if anni_album_path.exists() {
         anyhow::bail!("Album with the same album id already exists");
     }
     fs::create_dir_all(&anni_album_path)?;
 
-    // 2. create directory in userland
-    let user_album_path = match me.name {
-        Some(name) => me.path.join(name),
-        None => me.path,
-    };
+    // 3. create directory in userland
     fs::create_dir_all(&user_album_path)?;
     fs::symlink_dir(&anni_album_path, &user_album_path.join(".album"))?;
 
-    // 3. create disc directories
+    // 4. create disc directories
     if disc_num == 1 {
         // if there's only one disc, it's not necessary to create nested disc directories
     } else {
