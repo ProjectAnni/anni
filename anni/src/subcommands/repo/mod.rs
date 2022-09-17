@@ -7,7 +7,7 @@ use crate::{ball, fl, ll};
 use anni_common::fs;
 use anni_common::inherit::InheritableValue;
 use anni_flac::FlacHeader;
-use anni_repo::library::{disc_info, file_name, AlbumInfo};
+use anni_repo::library::{file_name, AlbumInfo, DiscInfo};
 use anni_repo::prelude::*;
 use anni_repo::{OwnedRepositoryManager, RepositoryManager};
 use anni_vgmdb::VGMClient;
@@ -139,7 +139,11 @@ fn repo_add(me: RepoAddAction, manager: &RepositoryManager) -> anyhow::Result<()
 
             alphanumeric_sort::sort_path_slice(&mut files);
             let mut disc = if disc_count > 1 {
-                let (catalog, disc_title, _) = disc_info(&*file_name(dir)?)?;
+                let DiscInfo {
+                    catalog,
+                    title: disc_title,
+                    ..
+                } = DiscInfo::from_str(&*file_name(dir)?)?;
                 Disc::new(
                     catalog,
                     if album_title != disc_title {

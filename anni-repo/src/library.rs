@@ -49,22 +49,6 @@ static ALBUM_INFO: Lazy<Regex> = Lazy::new(|| {
 static DISC_INFO: Lazy<Regex> =
     Lazy::new(|| Regex::new(r"^\[([^]]+)] (.+) \[Disc (\d+)]$").unwrap());
 
-// catalog, title, disc_id
-pub fn disc_info(path: &str) -> Result<(String, String, usize), InfoParseError> {
-    let r = DISC_INFO
-        .captures(path)
-        .ok_or_else(|| InfoParseError::NotMatch(path.to_string()))?;
-    if r.len() == 0 {
-        return Err(InfoParseError::NoCaptureGroup);
-    }
-
-    Ok((
-        r.get(1).unwrap().as_str().to_owned(),
-        r.get(2).unwrap().as_str().to_owned(),
-        usize::from_str(r.get(3).unwrap().as_str()).unwrap(),
-    ))
-}
-
 pub struct AlbumInfo {
     pub release_date: AnniDate,
     pub catalog: String,
@@ -94,6 +78,31 @@ impl FromStr for AlbumInfo {
             title: r.get(5).unwrap().as_str().replace('/', "／"),
             edition: r.get(6).map(|x| x.as_str().to_string()),
             disc_count: usize::from_str(r.get(7).map(|r| r.as_str()).unwrap_or("1")).unwrap(),
+        })
+    }
+}
+
+pub struct DiscInfo {
+    pub catalog: String,
+    pub title: String,
+    pub disc_id: usize,
+}
+
+impl FromStr for DiscInfo {
+    type Err = InfoParseError;
+
+    fn from_str(path: &str) -> Result<Self, Self::Err> {
+        let r = DISC_INFO
+            .captures(path)
+            .ok_or_else(|| InfoParseError::NotMatch(path.to_string()))?;
+        if r.len() == 0 {
+            return Err(InfoParseError::NoCaptureGroup);
+        }
+
+        Ok(DiscInfo {
+            catalog: r.get(1).unwrap().as_str().replace('/', "／"),
+            title: r.get(2).unwrap().as_str().replace('/', "／"),
+            disc_id: usize::from_str(r.get(3).unwrap().as_str()).unwrap(),
         })
     }
 }
