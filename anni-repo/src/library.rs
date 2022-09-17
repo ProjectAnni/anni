@@ -65,28 +65,37 @@ pub fn disc_info(path: &str) -> Result<(String, String, usize), InfoParseError> 
     ))
 }
 
-// Date, catalog, title, edition, disc_count
-pub fn album_info(
-    path: &str,
-) -> Result<(AnniDate, String, String, Option<String>, usize), InfoParseError> {
-    let r = ALBUM_INFO
-        .captures(path)
-        .ok_or_else(|| InfoParseError::NotMatch(path.to_string()))?;
-    if r.len() == 0 {
-        return Err(InfoParseError::NoCaptureGroup);
-    }
+pub struct AlbumInfo {
+    pub release_date: AnniDate,
+    pub catalog: String,
+    pub title: String,
+    pub edition: Option<String>,
+    pub disc_count: usize,
+}
 
-    Ok((
-        AnniDate::from_parts(
-            r.get(1).unwrap().as_str(),
-            r.get(2).unwrap().as_str(),
-            r.get(3).unwrap().as_str(),
-        ),
-        r.get(4).unwrap().as_str().replace('/', "／"),
-        r.get(5).unwrap().as_str().replace('/', "／"),
-        r.get(6).map(|x| x.as_str().to_string()),
-        usize::from_str(r.get(7).map(|r| r.as_str()).unwrap_or("1")).unwrap(),
-    ))
+impl FromStr for AlbumInfo {
+    type Err = InfoParseError;
+
+    fn from_str(path: &str) -> Result<Self, Self::Err> {
+        let r = ALBUM_INFO
+            .captures(path)
+            .ok_or_else(|| InfoParseError::NotMatch(path.to_string()))?;
+        if r.len() == 0 {
+            return Err(InfoParseError::NoCaptureGroup);
+        }
+
+        Ok(AlbumInfo {
+            release_date: AnniDate::from_parts(
+                r.get(1).unwrap().as_str(),
+                r.get(2).unwrap().as_str(),
+                r.get(3).unwrap().as_str(),
+            ),
+            catalog: r.get(4).unwrap().as_str().replace('/', "／"),
+            title: r.get(5).unwrap().as_str().replace('/', "／"),
+            edition: r.get(6).map(|x| x.as_str().to_string()),
+            disc_count: usize::from_str(r.get(7).map(|r| r.as_str()).unwrap_or("1")).unwrap(),
+        })
+    }
 }
 
 #[cfg(test)]

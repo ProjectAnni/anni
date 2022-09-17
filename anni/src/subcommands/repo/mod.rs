@@ -7,7 +7,7 @@ use crate::{ball, fl, ll};
 use anni_common::fs;
 use anni_common::inherit::InheritableValue;
 use anni_flac::FlacHeader;
-use anni_repo::library::{album_info, disc_info, file_name};
+use anni_repo::library::{disc_info, file_name, AlbumInfo};
 use anni_repo::prelude::*;
 use anni_repo::{OwnedRepositoryManager, RepositoryManager};
 use anni_vgmdb::VGMClient;
@@ -107,7 +107,13 @@ fn repo_add(me: RepoAddAction, manager: &RepositoryManager) -> anyhow::Result<()
             ball!("repo-invalid-album", name = last);
         }
 
-        let (release_date, catalog, album_title, edition, discs) = album_info(&last)?;
+        let AlbumInfo {
+            release_date,
+            catalog,
+            title: album_title,
+            edition,
+            disc_count,
+        } = AlbumInfo::from_str(&last)?;
         let mut album = Album::new(
             album_title.clone(),
             edition,
@@ -118,10 +124,10 @@ fn repo_add(me: RepoAddAction, manager: &RepositoryManager) -> anyhow::Result<()
         );
 
         let mut directories = fs::get_subdirectories(&to_add)?;
-        if discs == 1 {
+        if disc_count == 1 {
             directories.push(to_add);
         }
-        if discs != directories.len() {
+        if disc_count != directories.len() {
             bail!("Subdirectory count != disc number!")
         }
 
@@ -132,7 +138,7 @@ fn repo_add(me: RepoAddAction, manager: &RepositoryManager) -> anyhow::Result<()
             }
 
             alphanumeric_sort::sort_path_slice(&mut files);
-            let mut disc = if discs > 1 {
+            let mut disc = if disc_count > 1 {
                 let (catalog, disc_title, _) = disc_info(&*file_name(dir)?)?;
                 Disc::new(
                     catalog,
@@ -468,7 +474,7 @@ fn repo_edit(me: &RepoEditAction, manager: &RepositoryManager) -> anyhow::Result
             ball!("repo-invalid-album", name = last);
         }
 
-        let (_, catalog, ..) = album_info(&last)?;
+        let AlbumInfo { catalog, .. } = AlbumInfo::from_str(&last)?;
         debug!(target: "repo|edit", "Catalog: {}", catalog);
         for file in manager.album_paths(&catalog)? {
             edit::edit_file(&file)?;

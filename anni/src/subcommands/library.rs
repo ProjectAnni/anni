@@ -6,12 +6,13 @@ use anni_provider::fs::LocalFileSystemProvider;
 use anni_provider::providers::CommonConventionProvider;
 use anni_provider::strict_album_path;
 use anni_repo::db::RepoDatabaseRead;
-use anni_repo::library::{album_info, file_name};
+use anni_repo::library::{file_name, AlbumInfo};
 use anni_repo::prelude::*;
 use anni_repo::RepositoryManager;
 use clap::{Args, Subcommand};
 use clap_handler::{handler, Context, Handler};
 use std::path::PathBuf;
+use std::str::FromStr;
 
 #[derive(Args, Debug, Clone, Handler)]
 #[clap(about = ll!("library"))]
@@ -261,8 +262,13 @@ pub fn library_apply_tag(
                 .get(folder_name.as_ref())
                 .ok_or_else(|| anyhow::anyhow!("Album {} not found", folder_name))?;
             apply_strict(&path, album)?;
-        } else if let Ok((release_date, catalog, album_title, edition, disc_count)) =
-            album_info(&folder_name)
+        } else if let Ok(AlbumInfo {
+            release_date,
+            catalog,
+            title: album_title,
+            edition,
+            disc_count,
+        }) = AlbumInfo::from_str(&folder_name)
         {
             debug!(target: "repo|apply", "Release date: {}, Catalog: {}, Title: {}", release_date, catalog, album_title);
 

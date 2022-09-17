@@ -3,12 +3,13 @@ use crate::{
     ResourceReader, Result,
 };
 use anni_repo::db::RepoDatabaseRead;
-use anni_repo::library::{album_info, disc_info};
+use anni_repo::library::{disc_info, AlbumInfo};
 use async_trait::async_trait;
 use parking_lot::Mutex;
 use std::borrow::Cow;
 use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;
+use std::str::FromStr;
 use tokio_stream::StreamExt;
 
 pub struct CommonConventionProvider {
@@ -114,7 +115,13 @@ impl CommonConventionProvider {
         log::debug!("Walking dir: {}", dir.display());
         let mut dir = self.fs.children(&dir).await?;
         while let Some(entry) = dir.next().await {
-            if let Ok((release_date, catalog, title, edition, disc_count)) = album_info(&entry.name)
+            if let Ok(AlbumInfo {
+                release_date,
+                catalog,
+                title,
+                edition,
+                disc_count,
+            }) = AlbumInfo::from_str(&entry.name)
             {
                 log::debug!("Found album {} at: {:?}", catalog, entry.path);
                 let album_id = self.repo.lock().match_album(
