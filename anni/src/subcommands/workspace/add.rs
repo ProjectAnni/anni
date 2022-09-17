@@ -29,6 +29,13 @@ fn handle_workspace_add(me: WorkspaceAddAction) -> anyhow::Result<()> {
         bail!("Album directory not found at {}", album_path.display());
     }
 
+    // check current state of the album
+    // whether album_path is empty
+    let is_empty = album_path.read_dir()?.next().is_none();
+    if !is_empty {
+        bail!("Can not add an album that is already committed to workspace.");
+    }
+
     // validate album cover
     let album_cover = me.path.join("cover.jpg");
     if !album_cover.exists() {
