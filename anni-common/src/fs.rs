@@ -1,13 +1,15 @@
 use crate::decode::raw_to_string;
 use path_absolutize::*;
 pub use std::fs::*;
-use std::io;
 use std::path::{Path, PathBuf};
+use std::{fs, io};
 
 pub struct PathWalker {
     path: Vec<PathBuf>,
     files: Vec<PathBuf>,
     recursive: bool,
+    // whether to treat symlink as regular file
+    symlink: bool,
 }
 
 impl Iterator for PathWalker {
@@ -43,14 +45,20 @@ impl PathWalker {
                 } else if metadata.is_file() {
                     self.files.push(entry.path());
                 } else {
-                    // symlink, ignore it
+                    // symlink
+                    if self.symlink {
+                        // if it's a file, add it to files
+                        if fs::metadata(entry.path()).unwrap().is_file() {
+                            self.files.push(entry.path());
+                        }
+                    }
                 }
             }
             self.path.remove(0);
         }
     }
 
-    pub fn new<P: AsRef<Path>>(p: P, recursive: bool) -> Self {
+    pub fn new<P: AsRef<Path>>(p: P, recursive: bool, symlink: bool) -> Self {
         let mut path = Vec::new();
         let mut files = Vec::new();
         if is_dir(&p).unwrap() {
@@ -62,6 +70,7 @@ impl PathWalker {
             path,
             files,
             recursive: true,
+            symlink,
         };
         walker.extract_path();
         walker.recursive = recursive;
@@ -117,7 +126,7 @@ pub fn get_ext_files<P: AsRef<Path>, T: AsRef<str>>(
 ) -> io::Result<Vec<PathBuf>> {
     let mut result = Vec::new();
     if is_dir(dir.as_ref())? {
-        for file in PathWalker::new(dir.as_ref(), recursive) {
+        for file in PathWalker::new(dir.as_ref(), recursive, true) {
             let file_ext = file
                 .extension()
                 .unwrap_or_default()
@@ -137,7 +146,7 @@ pub fn get_ext_file<P: AsRef<Path>, T: AsRef<str>>(
     recursive: bool,
 ) -> io::Result<Option<PathBuf>> {
     if is_dir(dir.as_ref())? {
-        for file in PathWalker::new(dir.as_ref(), recursive) {
+        for file in PathWalker::new(dir.as_ref(), recursive, true) {
             let file_ext = file
                 .extension()
                 .unwrap_or_default()

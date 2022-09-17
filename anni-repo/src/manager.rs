@@ -152,7 +152,7 @@ impl RepositoryManager {
 
         if folder.exists() {
             // multiple albums with the same catalog exists
-            let count = fs::PathWalker::new(&folder, false)
+            let count = fs::PathWalker::new(&folder, false, false)
                 .filter(|p|
                     // p.extension is toml
                     p.extension() == Some("toml".as_ref()))
@@ -279,7 +279,7 @@ impl<'repo> OwnedRepositoryManager {
     /// Load tags into self.tags.
     fn load_tags(&mut self) -> RepoResult<()> {
         // filter out toml files
-        let tags_path = fs::PathWalker::new(self.repo.root.join("tag"), true)
+        let tags_path = fs::PathWalker::new(self.repo.root.join("tag"), true, false)
             .filter(|p| p.extension().map(|e| e == "toml").unwrap_or(false));
 
         // clear tags
