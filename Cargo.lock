@@ -301,6 +301,7 @@ dependencies = [
  "directories-next",
  "edit",
  "env_logger",
+ "google-drive3",
  "i18n-embed",
  "i18n-embed-fl",
  "id3",

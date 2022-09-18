@@ -5,6 +5,7 @@ mod fix;
 mod init;
 mod publish;
 mod rm;
+mod target;
 mod utils;
 
 use add::*;
