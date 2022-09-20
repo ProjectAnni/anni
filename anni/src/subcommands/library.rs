@@ -117,7 +117,7 @@ fn apply_strict(directory: &PathBuf, album: &Album) -> anyhow::Result<()> {
         let mut files = fs::get_ext_files(disc_dir, "flac", false)?;
         alphanumeric_sort::sort_path_slice(&mut files);
         let tracks = disc.iter();
-        let track_total = tracks.len();
+        let track_total = disc.tracks_len();
 
         if files.len() != track_total {
             bail!("files.len() != tracks.len()!");
@@ -187,7 +187,8 @@ fn apply_convention(directory: &PathBuf, album: Album) -> anyhow::Result<()> {
 
         let files = fs::get_ext_files(disc_dir, "flac", false)?;
         let tracks = disc.iter();
-        if files.len() != tracks.len() {
+        let track_total = disc.tracks_len();
+        if files.len() != track_total {
             bail!(
                 "Track number mismatch in Disc {} of {}. Aborted.",
                 disc_num,
@@ -195,7 +196,7 @@ fn apply_convention(directory: &PathBuf, album: Album) -> anyhow::Result<()> {
             );
         }
 
-        for (track_num, (file, track)) in files.iter().zip(&tracks).enumerate() {
+        for (track_num, (file, track)) in files.iter().zip(tracks).enumerate() {
             let track_num = track_num + 1;
 
             let mut flac = FlacHeader::from_file(file)?;
@@ -216,7 +217,7 @@ DISCTOTAL={disc_total}
                 artist = track.artist(),
                 release_date = album.release_date(),
                 track_number = track_num,
-                track_total = tracks.len(),
+                track_total = track_total,
                 disc_number = disc_num,
                 disc_total = disc_total,
             );
@@ -229,7 +230,7 @@ DISCTOTAL={disc_total}
                 comments.push(UserComment::artist(track.artist()));
                 comments.push(UserComment::date(album.release_date()));
                 comments.push(UserComment::track_number(track_num));
-                comments.push(UserComment::track_total(tracks.len()));
+                comments.push(UserComment::track_total(track_total));
                 comments.push(UserComment::disc_number(disc_num));
                 comments.push(UserComment::disc_total(disc_total));
                 flac.save::<String>(None)?;

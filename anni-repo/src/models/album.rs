@@ -342,16 +342,16 @@ impl<'album> DiscRef<'album> {
         self.disc.tags.as_ref()
     }
 
-    pub fn iter<'disc>(&'disc self) -> Vec<TrackRef<'album, 'disc>> {
-        self.disc
-            .tracks
-            .iter()
-            .map(|track| TrackRef {
-                album: self.album,
-                disc: self.disc,
-                track,
-            })
-            .collect()
+    pub fn tracks_len(&self) -> usize {
+        self.disc.tracks.len()
+    }
+
+    pub fn iter<'disc>(&'disc self) -> impl Iterator<Item = TrackRef<'album, 'disc>> {
+        self.disc.tracks.iter().map(move |track| TrackRef {
+            album: self.album,
+            disc: self.disc,
+            track,
+        })
     }
 }
 

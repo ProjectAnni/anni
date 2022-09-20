@@ -471,7 +471,7 @@ REM DATE "{date}"
                             )?;
                         }
 
-                        for (track_id, track) in disc.iter().iter().enumerate() {
+                        for (track_id, track) in disc.iter().enumerate() {
                             let track_id = track_id + 1;
                             write!(
                                 dst,

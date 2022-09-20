@@ -168,7 +168,7 @@ COMMIT;
                     disc.title(),
                     disc.artist(),
                     disc.catalog(),
-                    disc.iter().len(),
+                    disc.tracks_len(),
                     disc.track_type().as_ref(),
                 ],
             )?;
@@ -185,7 +185,7 @@ COMMIT;
                 )?;
             }
 
-            for (track_id, track) in disc.iter().iter().enumerate() {
+            for (track_id, track) in disc.iter().enumerate() {
                 let track_id = track_id + 1;
 
                 // add track info
