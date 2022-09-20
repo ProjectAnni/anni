@@ -51,7 +51,7 @@ fn deserialize_album_toml() {
         album.album_id().to_string(),
         "15006392-e2ae-4204-b7db-e59211f3cdcf".to_string()
     );
-    assert_eq!(album.title(), "夏凪ぎ／宝物になった日【Test】");
+    assert_eq!(album.full_title(), "夏凪ぎ／宝物になった日【Test】");
     assert_eq!(album.artist(), "やなぎなぎ");
     assert_eq!(album.release_date().to_string(), "2020-12-16");
     assert_eq!(album.track_type().as_ref(), "normal");
@@ -62,9 +62,9 @@ fn deserialize_album_toml() {
     assert_eq!(tags[1].name(), "tag2");
 
     // TODO: assert for tags
-    for disc in album.discs() {
+    for disc in album.iter() {
         assert_eq!(disc.catalog(), "KSLA-0178");
-        for (i, track) in disc.tracks().iter().enumerate() {
+        for (i, track) in disc.iter().enumerate() {
             match i {
                 0 => {
                     assert_eq!(track.title(), "夏凪ぎ");
@@ -115,7 +115,10 @@ artist = "やなぎなぎ"
 date = 2020-12-16
 type = "normal"
 catalog = "KSLA-0178"
-tags = ["tag1", "tag2"]
+tags = [
+    "tag1",
+    "tag2",
+]
 
 [[discs]]
 catalog = "KSLA-0178"

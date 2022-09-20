@@ -214,39 +214,84 @@ mod tests {
 
     #[test]
     fn trim_not_exist() {
-        assert!(trim_validator("1234").valid);
+        assert!(matches!(trim_validator("1234"), ValidateResult::Pass));
     }
 
     #[test]
-    fn date_valid() {
-        assert!(date_validator("2021-01-01").valid);
-    }
+    fn test_date_validator() {
+        assert!(matches!(date_validator("2021-01-01"), ValidateResult::Pass));
 
-    #[test]
-    fn date_invalid() {
-        assert!(!date_validator("2020-01-012").valid);
-        assert!(!date_validator("2020~01-01").valid);
-        assert!(!date_validator("?").valid);
+        assert!(matches!(
+            date_validator("2020-01-012"),
+            ValidateResult::Error(_)
+        ));
+        assert!(matches!(
+            date_validator("2020~01-01"),
+            ValidateResult::Error(_)
+        ));
+        assert!(matches!(date_validator("?"), ValidateResult::Error(_)));
     }
 
     #[test]
     fn middle_dot_detect() {
-        assert!(middle_dot_validator("123").valid);
+        assert!(matches!(middle_dot_validator("123"), ValidateResult::Pass));
 
-        assert!(!middle_dot_validator("\u{00B7}").valid);
-        assert!(!middle_dot_validator("\u{0387}").valid);
-        assert!(!middle_dot_validator("\u{16eb}").valid);
-        assert!(!middle_dot_validator("\u{2022}").valid);
-        assert!(!middle_dot_validator("\u{2027}").valid);
-        assert!(!middle_dot_validator("\u{2218}").valid);
-        assert!(!middle_dot_validator("\u{2219}").valid);
-        assert!(!middle_dot_validator("\u{22c5}").valid);
-        assert!(!middle_dot_validator("\u{25e6}").valid);
-        assert!(!middle_dot_validator("\u{2981}").valid);
-        assert!(!middle_dot_validator("\u{2e30}").valid);
-        assert!(!middle_dot_validator("\u{2e31}").valid);
-        assert!(!middle_dot_validator("\u{ff65}").valid);
-        assert!(!middle_dot_validator("\u{10101}").valid);
+        assert!(matches!(
+            middle_dot_validator("\u{00B7}"),
+            ValidateResult::Error(_)
+        ));
+        assert!(matches!(
+            middle_dot_validator("\u{0387}"),
+            ValidateResult::Error(_)
+        ));
+        assert!(matches!(
+            middle_dot_validator("\u{16eb}"),
+            ValidateResult::Error(_)
+        ));
+        assert!(matches!(
+            middle_dot_validator("\u{2022}"),
+            ValidateResult::Error(_)
+        ));
+        assert!(matches!(
+            middle_dot_validator("\u{2027}"),
+            ValidateResult::Error(_)
+        ));
+        assert!(matches!(
+            middle_dot_validator("\u{2218}"),
+            ValidateResult::Error(_)
+        ));
+        assert!(matches!(
+            middle_dot_validator("\u{2219}"),
+            ValidateResult::Error(_)
+        ));
+        assert!(matches!(
+            middle_dot_validator("\u{22c5}"),
+            ValidateResult::Error(_)
+        ));
+        assert!(matches!(
+            middle_dot_validator("\u{25e6}"),
+            ValidateResult::Error(_)
+        ));
+        assert!(matches!(
+            middle_dot_validator("\u{2981}"),
+            ValidateResult::Error(_)
+        ));
+        assert!(matches!(
+            middle_dot_validator("\u{2e30}"),
+            ValidateResult::Error(_)
+        ));
+        assert!(matches!(
+            middle_dot_validator("\u{2e31}"),
+            ValidateResult::Error(_)
+        ));
+        assert!(matches!(
+            middle_dot_validator("\u{ff65}"),
+            ValidateResult::Error(_)
+        ));
+        assert!(matches!(
+            middle_dot_validator("\u{10101}"),
+            ValidateResult::Error(_)
+        ));
     }
 
     #[test]

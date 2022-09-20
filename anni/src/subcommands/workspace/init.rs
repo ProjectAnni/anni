@@ -57,6 +57,8 @@ fn handle_workspace_init(me: WorkspaceInitAction) -> anyhow::Result<()> {
 mod test {
     use super::WorkspaceInitAction;
     use clap_handler::Handler;
+    use std::path::PathBuf;
+    use std::str::FromStr;
 
     #[tokio::test]
     async fn test_init_clone_workspace() -> anyhow::Result<()> {
@@ -78,7 +80,7 @@ mod test {
         assert!(dot_anni.join("repo/repo.toml").exists());
         assert_eq!(
             dot_anni.join("config.toml").read_link()?,
-            dot_anni.join("repo/repo.toml")
+            PathBuf::from_str("repo/repo.toml")?,
         );
 
         Ok(())
