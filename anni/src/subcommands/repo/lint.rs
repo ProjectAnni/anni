@@ -92,9 +92,21 @@ fn validate_album(
         MetadataDiagnosticTarget::album(album_id.clone()),
         Some("title".to_string()),
         &string_validator,
-        album.title().as_ref(),
+        album.title_raw().as_ref(),
         report,
     );
+
+    if let Some(edition) = album.edition() {
+        validate_string(
+            path,
+            MetadataDiagnosticTarget::album(album_id.clone()),
+            Some("edition".to_string()),
+            &string_validator,
+            edition,
+            report,
+        );
+    }
+
     validate_string(
         path,
         MetadataDiagnosticTarget::album(album_id.clone()),
@@ -114,9 +126,9 @@ fn validate_album(
         ));
     }
 
-    validate_disc_catalog(album.discs(), &album_id, path, report);
+    validate_disc_catalog(album.iter().collect(), &album_id, path, report);
 
-    for (disc_id, disc) in album.discs().iter().enumerate() {
+    for (disc_id, disc) in album.iter().enumerate() {
         let disc_id = (disc_id + 1) as u8;
 
         validate_string(
@@ -136,7 +148,7 @@ fn validate_album(
             report,
         );
 
-        for (track_id, track) in disc.tracks().iter().enumerate() {
+        for (track_id, track) in disc.iter().iter().enumerate() {
             let track_id = (track_id + 1) as u8;
 
             validate_string(
@@ -196,7 +208,7 @@ fn validate_string(
 }
 
 fn validate_disc_catalog(
-    discs: &Vec<Disc>,
+    discs: Vec<DiscRef>,
     album_id: &str,
     path: &PathBuf,
     report: &mut dyn AnniLinter<MetadataDiagnosticTarget>,

@@ -11,7 +11,7 @@ use self::oauth2::authenticator::Authenticator;
 use self::oauth2::authenticator_delegate::DefaultInstalledFlowDelegate;
 use crate::utils::read_duration;
 use anni_repo::db::RepoDatabaseRead;
-use anni_repo::library::{AlbumInfo, DiscInfo};
+use anni_repo::library::{AlbumFolderInfo, DiscFolderInfo};
 use dashmap::DashMap;
 use futures::TryStreamExt;
 use google_drive3::api::{FileList, FileListCall};
@@ -270,8 +270,8 @@ impl DriveProvider {
                         let disc_index: usize = file.name.as_ref().unwrap().parse().ok()?;
                         Some((disc_index, file_id))
                     } else {
-                        let DiscInfo { disc_id, .. } =
-                            DiscInfo::from_str(file.name.as_deref().unwrap()).ok()?;
+                        let DiscFolderInfo { disc_id, .. } =
+                            DiscFolderInfo::from_str(file.name.as_deref().unwrap()).ok()?;
                         Some((disc_id, file_id))
                     };
                 })
@@ -469,13 +469,13 @@ impl AnniProvider for DriveProvider {
                     self.folders.insert(name.to_string(), file.id.unwrap());
                     self.discs.insert(name, None);
                 } else {
-                    if let Ok(AlbumInfo {
+                    if let Ok(AlbumFolderInfo {
                         release_date,
                         catalog,
                         title,
                         edition,
                         disc_count,
-                    }) = AlbumInfo::from_str(&name)
+                    }) = AlbumFolderInfo::from_str(&name)
                     {
                         let album_id = self.repo.lock().as_ref().unwrap().match_album(
                             &catalog,

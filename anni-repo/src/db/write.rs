@@ -136,17 +136,17 @@ COMMIT;
             params![
                 album_id,
                 album.title_raw(),
-                album.edition_raw(),
+                album.edition(),
                 album.catalog(),
                 album.artist(),
                 album.release_date().to_string(),
-                album.discs().len(),
+                album.discs_len(),
                 album.track_type().as_ref(),
             ],
         )?;
 
         // add album tags
-        for tag in album.tags_raw() {
+        for tag in album.album_tags() {
             self.conn.execute(
                 "INSERT INTO repo_tag_detail (album_id, tag_id) SELECT ?, tag_id FROM repo_tag WHERE name = ?",
                 params![
@@ -156,7 +156,7 @@ COMMIT;
             )?;
         }
 
-        for (disc_id, disc) in album.discs().iter().enumerate() {
+        for (disc_id, disc) in album.iter().enumerate() {
             let disc_id = disc_id + 1;
 
             // add disc info
@@ -168,7 +168,7 @@ COMMIT;
                     disc.title(),
                     disc.artist(),
                     disc.catalog(),
-                    disc.tracks().len(),
+                    disc.iter().len(),
                     disc.track_type().as_ref(),
                 ],
             )?;
@@ -185,7 +185,7 @@ COMMIT;
                 )?;
             }
 
-            for (track_id, track) in disc.tracks().iter().enumerate() {
+            for (track_id, track) in disc.iter().iter().enumerate() {
                 let track_id = track_id + 1;
 
                 // add track info

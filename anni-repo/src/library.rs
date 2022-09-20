@@ -49,7 +49,7 @@ static ALBUM_INFO: Lazy<Regex> = Lazy::new(|| {
 static DISC_INFO: Lazy<Regex> =
     Lazy::new(|| Regex::new(r"^\[([^]]+)] (.+) \[Disc (\d+)]$").unwrap());
 
-pub struct AlbumInfo {
+pub struct AlbumFolderInfo {
     pub release_date: AnniDate,
     pub catalog: String,
     pub title: String,
@@ -57,7 +57,7 @@ pub struct AlbumInfo {
     pub disc_count: usize,
 }
 
-impl FromStr for AlbumInfo {
+impl FromStr for AlbumFolderInfo {
     type Err = InfoParseError;
 
     fn from_str(path: &str) -> Result<Self, Self::Err> {
@@ -68,7 +68,7 @@ impl FromStr for AlbumInfo {
             return Err(InfoParseError::NoCaptureGroup);
         }
 
-        Ok(AlbumInfo {
+        Ok(AlbumFolderInfo {
             release_date: AnniDate::from_parts(
                 r.get(1).unwrap().as_str(),
                 r.get(2).unwrap().as_str(),
@@ -82,13 +82,13 @@ impl FromStr for AlbumInfo {
     }
 }
 
-pub struct DiscInfo {
+pub struct DiscFolderInfo {
     pub catalog: String,
     pub title: String,
     pub disc_id: usize,
 }
 
-impl FromStr for DiscInfo {
+impl FromStr for DiscFolderInfo {
     type Err = InfoParseError;
 
     fn from_str(path: &str) -> Result<Self, Self::Err> {
@@ -99,7 +99,7 @@ impl FromStr for DiscInfo {
             return Err(InfoParseError::NoCaptureGroup);
         }
 
-        Ok(DiscInfo {
+        Ok(DiscFolderInfo {
             catalog: r.get(1).unwrap().as_str().replace('/', "／"),
             title: r.get(2).unwrap().as_str().replace('/', "／"),
             disc_id: usize::from_str(r.get(3).unwrap().as_str()).unwrap(),

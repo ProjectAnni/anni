@@ -6,7 +6,7 @@ use anni_provider::fs::LocalFileSystemProvider;
 use anni_provider::providers::CommonConventionProvider;
 use anni_provider::strict_album_path;
 use anni_repo::db::RepoDatabaseRead;
-use anni_repo::library::{file_name, AlbumInfo};
+use anni_repo::library::{file_name, AlbumFolderInfo};
 use anni_repo::prelude::*;
 use anni_repo::RepositoryManager;
 use clap::{Args, Subcommand};
@@ -97,7 +97,7 @@ fn apply_strict(directory: &PathBuf, album: &Album) -> anyhow::Result<()> {
         .filter_map(|entry| entry.path().to_str().map(|s| s.to_string()))
         .collect::<Vec<_>>();
     alphanumeric_sort::sort_str_slice(&mut discs);
-    if album.discs().len() != discs.len() {
+    if album.discs_len() != discs.len() {
         bail!("discs.len() != discs.len()!");
     }
     for (index, disc_id) in discs.iter().enumerate() {
@@ -109,14 +109,14 @@ fn apply_strict(directory: &PathBuf, album: &Album) -> anyhow::Result<()> {
 
     let disc_total = discs.len();
 
-    for ((disc_id, disc), disc_name) in album.discs().iter().enumerate().zip(discs) {
+    for ((disc_id, disc), disc_name) in album.iter().enumerate().zip(discs) {
         let disc_num = disc_id + 1;
         let disc_dir = directory.join(disc_name);
         debug!(target: "library|tag", "Disc dir: {}", disc_dir.display());
 
         let mut files = fs::get_ext_files(disc_dir, "flac", false)?;
         alphanumeric_sort::sort_path_slice(&mut files);
-        let tracks = disc.tracks();
+        let tracks = disc.iter();
         let track_total = tracks.len();
 
         if files.len() != track_total {
@@ -165,11 +165,11 @@ DISCTOTAL={disc_total}
 }
 
 fn apply_convention(directory: &PathBuf, album: Album) -> anyhow::Result<()> {
-    let discs = album.discs();
+    let disc_total = album.discs_len();
 
-    for (disc_num, disc) in album.discs().iter().enumerate() {
+    for (disc_num, disc) in album.iter().enumerate() {
         let disc_num = disc_num + 1;
-        let disc_dir = if discs.len() > 1 {
+        let disc_dir = if disc_total > 1 {
             directory.join(format!(
                 "[{catalog}] {title} [Disc {disc_num}]",
                 catalog = disc.catalog(),
@@ -186,7 +186,7 @@ fn apply_convention(directory: &PathBuf, album: Album) -> anyhow::Result<()> {
         }
 
         let files = fs::get_ext_files(disc_dir, "flac", false)?;
-        let tracks = disc.tracks();
+        let tracks = disc.iter();
         if files.len() != tracks.len() {
             bail!(
                 "Track number mismatch in Disc {} of {}. Aborted.",
@@ -195,7 +195,7 @@ fn apply_convention(directory: &PathBuf, album: Album) -> anyhow::Result<()> {
             );
         }
 
-        for (track_num, (file, track)) in files.iter().zip(tracks).enumerate() {
+        for (track_num, (file, track)) in files.iter().zip(&tracks).enumerate() {
             let track_num = track_num + 1;
 
             let mut flac = FlacHeader::from_file(file)?;
@@ -218,7 +218,7 @@ DISCTOTAL={disc_total}
                 track_number = track_num,
                 track_total = tracks.len(),
                 disc_number = disc_num,
-                disc_total = discs.len(),
+                disc_total = disc_total,
             );
             // no comment block exist, or comments is not correct
             if comments.is_none() || comments.unwrap().to_string() != meta {
@@ -231,7 +231,7 @@ DISCTOTAL={disc_total}
                 comments.push(UserComment::track_number(track_num));
                 comments.push(UserComment::track_total(tracks.len()));
                 comments.push(UserComment::disc_number(disc_num));
-                comments.push(UserComment::disc_total(discs.len()));
+                comments.push(UserComment::disc_total(disc_total));
                 flac.save::<String>(None)?;
             }
         }
@@ -262,13 +262,13 @@ pub fn library_apply_tag(
                 .get(folder_name.as_ref())
                 .ok_or_else(|| anyhow::anyhow!("Album {} not found", folder_name))?;
             apply_strict(&path, album)?;
-        } else if let Ok(AlbumInfo {
+        } else if let Ok(AlbumFolderInfo {
             release_date,
             catalog,
             title: album_title,
             edition,
             disc_count,
-        }) = AlbumInfo::from_str(&folder_name)
+        }) = AlbumFolderInfo::from_str(&folder_name)
         {
             debug!(target: "repo|apply", "Release date: {}, Catalog: {}, Title: {}", release_date, catalog, album_title);
 
@@ -277,9 +277,7 @@ pub fn library_apply_tag(
             let albums = if albums.len() > 1 {
                 albums
                     .into_iter()
-                    .filter(|a| {
-                        a.title_raw() == album_title && a.edition_raw() == edition.as_deref()
-                    })
+                    .filter(|a| a.title_raw() == album_title && a.edition() == edition.as_deref())
                     .collect()
             } else {
                 albums
@@ -292,7 +290,7 @@ pub fn library_apply_tag(
             // get track metadata & compare with album folder
             let album = albums.into_iter().nth(0).unwrap();
             if album.title_raw() != album_title
-                || album.edition_raw() != edition.as_deref()
+                || album.edition() != edition.as_deref()
                 || album.catalog() != catalog
                 || album.release_date() != &release_date
             {
@@ -300,7 +298,7 @@ pub fn library_apply_tag(
             }
 
             // check discs & tracks
-            if album.discs().len() != disc_count {
+            if album.discs_len() != disc_count {
                 bail!("discs.len() != disc_count!");
             }
             apply_convention(&path, album)?;

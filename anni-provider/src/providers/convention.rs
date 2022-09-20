@@ -3,7 +3,7 @@ use crate::{
     ResourceReader, Result,
 };
 use anni_repo::db::RepoDatabaseRead;
-use anni_repo::library::{AlbumInfo, DiscInfo};
+use anni_repo::library::{AlbumFolderInfo, DiscFolderInfo};
 use async_trait::async_trait;
 use parking_lot::Mutex;
 use std::borrow::Cow;
@@ -115,13 +115,13 @@ impl CommonConventionProvider {
         log::debug!("Walking dir: {}", dir.display());
         let mut dir = self.fs.children(&dir).await?;
         while let Some(entry) = dir.next().await {
-            if let Ok(AlbumInfo {
+            if let Ok(AlbumFolderInfo {
                 release_date,
                 catalog,
                 title,
                 edition,
                 disc_count,
-            }) = AlbumInfo::from_str(&entry.name)
+            }) = AlbumFolderInfo::from_str(&entry.name)
             {
                 log::debug!("Found album {} at: {:?}", catalog, entry.path);
                 let album_id = self.repo.lock().match_album(
@@ -155,9 +155,9 @@ impl CommonConventionProvider {
         let mut discs = Vec::new();
         let mut dir = self.fs.children(album).await?;
         while let Some(entry) = dir.next().await {
-            if let Ok(DiscInfo {
+            if let Ok(DiscFolderInfo {
                 catalog, disc_id, ..
-            }) = DiscInfo::from_str(&entry.name)
+            }) = DiscFolderInfo::from_str(&entry.name)
             {
                 log::debug!("Found disc {} at: {:?}", catalog, entry.path);
                 if disc_id <= size {

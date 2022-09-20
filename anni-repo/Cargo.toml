@@ -45,7 +45,6 @@ sqlite-vfs = { git = "https://github.com/ProjectAnni/sqlite-vfs" }
 
 [features]
 default = []
-arc = ["anni-common/arc"]
 db = ["db-read", "db-write"]
 db-read = ["rusqlite", "serde_rusqlite"]
 db-write = ["rusqlite"]

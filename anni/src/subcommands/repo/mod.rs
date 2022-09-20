@@ -1,13 +1,12 @@
+mod add;
 mod lint;
 mod watch;
 
 use crate::args::ActionFile;
-use crate::repo::watch::RepoWatchAction;
 use crate::{ball, fl, ll};
+use add::*;
 use anni_common::fs;
-use anni_common::inherit::InheritableValue;
-use anni_flac::FlacHeader;
-use anni_repo::library::{file_name, AlbumInfo, DiscInfo};
+use anni_repo::library::{file_name, AlbumFolderInfo};
 use anni_repo::prelude::*;
 use anni_repo::{OwnedRepositoryManager, RepositoryManager};
 use anni_vgmdb::VGMClient;
@@ -15,6 +14,7 @@ use chrono::Datelike;
 use clap::{crate_version, ArgEnum, Args, Subcommand};
 use clap_handler::{handler, Context, Handler};
 use cuna::Cuna;
+use lint::*;
 use musicbrainz_rs::entity::artist_credit::ArtistCredit;
 use musicbrainz_rs::entity::release::Release;
 use musicbrainz_rs::Fetch;
@@ -22,6 +22,7 @@ use ptree::TreeBuilder;
 use std::io::Read;
 use std::path::PathBuf;
 use std::str::FromStr;
+use watch::*;
 
 #[derive(Args, Debug, Clone, Handler)]
 #[clap(about = ll!{"repo"})]
@@ -57,7 +58,7 @@ pub enum RepoAction {
     Edit(RepoEditAction),
     #[clap(about = ll!{"repo-validate"})]
     #[clap(alias = "validate")]
-    Lint(lint::RepoLintAction),
+    Lint(RepoLintAction),
     #[clap(about = ll!{"repo-print"})]
     Print(RepoPrintAction),
     #[clap(name = "db")]
@@ -83,99 +84,6 @@ fn repo_clone(me: RepoCloneAction) -> anyhow::Result<()> {
     );
     RepositoryManager::clone(&me.url, root)?;
     log::info!("{}", fl!("repo-clone-done"));
-    Ok(())
-}
-
-#[derive(Args, Debug, Clone)]
-pub struct RepoAddAction {
-    #[clap(short = 'e', long)]
-    #[clap(help = ll!("repo-add-edit"))]
-    open_editor: bool,
-
-    #[clap(short = 'D', long = "duplicate")]
-    allow_duplicate: bool,
-
-    #[clap(required = true)]
-    directories: Vec<PathBuf>,
-}
-
-#[handler(RepoAddAction)]
-fn repo_add(me: RepoAddAction, manager: &RepositoryManager) -> anyhow::Result<()> {
-    for to_add in me.directories.into_iter() {
-        let last = file_name(&to_add)?;
-        if !is_album_folder(&last) {
-            ball!("repo-invalid-album", name = last);
-        }
-
-        let AlbumInfo {
-            release_date,
-            catalog,
-            title: album_title,
-            edition,
-            disc_count,
-        } = AlbumInfo::from_str(&last)?;
-        let mut album = Album::new(
-            album_title.clone(),
-            edition,
-            "UnknownArtist".to_string(),
-            release_date,
-            catalog.clone(),
-            Default::default(),
-        );
-
-        let mut directories = fs::get_subdirectories(&to_add)?;
-        if disc_count == 1 {
-            directories.push(to_add);
-        }
-        if disc_count != directories.len() {
-            bail!("Subdirectory count != disc number!")
-        }
-
-        for dir in directories.iter() {
-            let mut files = fs::get_ext_files(PathBuf::from(dir), "flac", false)?;
-            if files.is_empty() {
-                bail!("No FLAC files found in {}", dir.display())
-            }
-
-            alphanumeric_sort::sort_path_slice(&mut files);
-            let mut disc = if disc_count > 1 {
-                let DiscInfo {
-                    catalog,
-                    title: disc_title,
-                    ..
-                } = DiscInfo::from_str(&*file_name(dir)?)?;
-                Disc::new(
-                    catalog,
-                    if album_title != disc_title {
-                        Some(disc_title)
-                    } else {
-                        None
-                    },
-                    None,
-                    None,
-                    Default::default(),
-                )
-            } else {
-                Disc::new(catalog.clone(), None, None, None, Default::default())
-            };
-            for path in files.iter() {
-                let header = FlacHeader::from_file(path)?;
-                let track = header.into();
-                disc.push_track(track); // use push_track here to avoid metadata inherit
-            }
-            disc.fmt(false);
-            album.push_disc(disc); // the same
-        }
-        album.fmt(false);
-        album.inherit();
-
-        manager.add_album(&catalog, &album, me.allow_duplicate)?;
-        if me.open_editor {
-            for file in manager.album_paths(&catalog)? {
-                edit::edit_file(&file)?;
-            }
-        }
-    }
     Ok(())
 }
 
@@ -236,7 +144,7 @@ async fn search_album(keyword: &str) -> anyhow::Result<Album> {
     let search = client.search_albums(keyword).await?;
     let album_got = search.into_album(None).await?;
 
-    let date = {
+    let release_date = {
         let split = album_got.release_date().split('-').collect::<Vec<_>>();
         AnniDate::from_parts(
             split[0],
@@ -245,40 +153,41 @@ async fn search_album(keyword: &str) -> anyhow::Result<Album> {
         )
     };
 
-    let mut album = Album::new(
-        album_got.title().unwrap().to_string(),
-        None,
-        Default::default(),
-        date,
-        album_got.catalog().unwrap_or("").to_string(),
-        Default::default(),
-    );
-
-    for disc_got in &album_got.discs {
-        let mut disc = Disc::new(
-            album_got.catalog().unwrap_or("").to_string(),
-            Some(disc_got.title.to_string()),
-            None,
-            None,
-            Default::default(),
-        );
-
-        for track_got in &disc_got.tracks {
-            let title = track_got.get().unwrap().to_string();
-            let track_type = TrackType::guess(&title);
-            disc.push_track(Track::new(
-                title,
-                InheritableValue::own(String::new()),
-                match track_type {
-                    Some(track_type) => InheritableValue::own(track_type),
-                    None => InheritableValue::default(),
-                },
+    let discs = album_got
+        .discs
+        .iter()
+        .map(|disc_got| {
+            let disc = DiscInfo::new(
+                album_got.catalog().unwrap_or("").to_string(),
+                Some(disc_got.title.to_string()),
+                None,
+                None,
                 Default::default(),
-            ));
-        }
-        album.push_disc(disc);
-    }
-    Ok(album)
+            );
+
+            let tracks = disc_got
+                .tracks
+                .iter()
+                .map(|track| {
+                    let title = track.get().unwrap().to_string();
+                    let track_type = TrackType::guess(&title);
+                    TrackInfo::new(title, Some("".to_string()), track_type, Default::default())
+                })
+                .collect();
+
+            Disc::new(disc, tracks)
+        })
+        .collect();
+
+    Ok(Album::new(
+        AlbumInfo {
+            title: album_got.title().unwrap().to_string().into(),
+            release_date,
+            catalog: album_got.catalog().unwrap_or("").to_string(),
+            ..Default::default()
+        },
+        discs,
+    ))
 }
 
 #[derive(Args, Debug, Clone)]
@@ -357,16 +266,16 @@ fn repo_get_cue(
 
     // set artist if performer exists
     let performer = cue.performer().first();
-    if performer.is_some() && album.artist().is_empty() {
-        album.set_artist(performer.cloned())
+    if let Some(performer) = performer {
+        if album.artist().is_empty() {
+            album.set_artist(performer.to_string());
+        }
     }
 
-    for (file, disc) in cue.files().iter().zip(album.discs_mut()) {
-        for (cue_track, track) in file.tracks.iter().zip(disc.tracks_mut()) {
+    for (file, mut disc) in cue.files().iter().zip(album.iter_mut()) {
+        for (cue_track, mut track) in file.tracks.iter().zip(disc.iter_mut()) {
             let performer = cue_track.performer().first();
-            if performer.is_some() && track.artist().is_empty() {
-                track.set_artist(performer.cloned())
-            }
+            track.set_artist(performer.cloned())
         }
     }
 
@@ -416,44 +325,48 @@ fn repo_get_musicbrainz(
         .and_then(|rg| rg.artist_credit)
         .map(to_artist)
         .unwrap_or_default();
-    let mut album = Album::new(
-        release.title,
-        None,
-        artist,
-        release_date,
-        options.catalog.to_owned(),
-        Default::default(),
-    );
 
-    release.media.into_iter().flatten().for_each(|media| {
-        let mut disc = Disc::new(
-            options.catalog.to_owned(),
-            media.title,
-            None,
-            None,
-            Default::default(),
-        );
-
-        media.tracks.into_iter().flatten().for_each(|track| {
-            let track_type = TrackType::guess(&track.title);
-            disc.push_track(Track::new(
-                track.title,
-                InheritableValue::own(
-                    track
-                        .recording
-                        .artist_credit
-                        .map(to_artist)
-                        .unwrap_or_default(),
-                ),
-                match track_type {
-                    Some(track_type) => InheritableValue::own(track_type),
-                    None => InheritableValue::default(),
-                },
+    let discs = release
+        .media
+        .into_iter()
+        .flatten()
+        .map(|media| {
+            let disc = DiscInfo::new(
+                options.catalog.to_owned(),
+                media.title,
+                None,
+                None,
                 Default::default(),
-            ));
-        });
-        album.push_disc(disc);
-    });
+            );
+
+            let tracks = media
+                .tracks
+                .into_iter()
+                .flatten()
+                .map(|track| {
+                    let track_type = TrackType::guess(&track.title);
+                    TrackInfo::new(
+                        track.title,
+                        track.recording.artist_credit.map(to_artist),
+                        track_type,
+                        Default::default(),
+                    )
+                })
+                .collect();
+            Disc::new(disc, tracks)
+        })
+        .collect();
+
+    let album = Album::new(
+        AlbumInfo {
+            title: release.title,
+            artist,
+            release_date,
+            catalog: options.catalog.to_owned(),
+            ..Default::default()
+        },
+        discs,
+    );
 
     if get.print {
         println!("{}", album.to_string());
@@ -478,7 +391,7 @@ fn repo_edit(me: &RepoEditAction, manager: &RepositoryManager) -> anyhow::Result
             ball!("repo-invalid-album", name = last);
         }
 
-        let AlbumInfo { catalog, .. } = AlbumInfo::from_str(&last)?;
+        let AlbumFolderInfo { catalog, .. } = AlbumFolderInfo::from_str(&last)?;
         debug!(target: "repo|edit", "Catalog: {}", catalog);
         for file in manager.album_paths(&catalog)? {
             edit::edit_file(&file)?;
@@ -535,10 +448,10 @@ fn repo_print(me: RepoPrintAction, manager: RepositoryManager) -> anyhow::Result
             let album = manager.load_albums(catalog)?;
             let album = &album[0];
             match me.print_type {
-                RepoPrintType::Title => writeln!(dst, "{}", album.title())?,
+                RepoPrintType::Title => writeln!(dst, "{}", album.full_title())?,
                 RepoPrintType::Artist => writeln!(dst, "{}", album.artist())?,
                 RepoPrintType::Date => writeln!(dst, "{}", album.release_date())?,
-                RepoPrintType::Cue => match album.discs().iter().nth(disc_id as usize) {
+                RepoPrintType::Cue => match album.iter().nth(disc_id as usize) {
                     Some(disc) => {
                         write!(
                             dst,
@@ -558,7 +471,7 @@ REM DATE "{date}"
                             )?;
                         }
 
-                        for (track_id, track) in disc.tracks().iter().enumerate() {
+                        for (track_id, track) in disc.iter().iter().enumerate() {
                             let track_id = track_id + 1;
                             write!(
                                 dst,
@@ -620,7 +533,7 @@ FILE "{filename}" WAVE
                 if let Some(albums) = manager.albums_tagged_by(&tag) {
                     for album_id in albums {
                         let album = manager.album(album_id).unwrap();
-                        tree.add_empty_child(album.title().to_string());
+                        tree.add_empty_child(album.full_title().to_string());
                     }
                 }
             }
