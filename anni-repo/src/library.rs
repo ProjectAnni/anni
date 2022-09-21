@@ -1,4 +1,4 @@
-use crate::models::AnniDate;
+use crate::models::{AnniDate, DiscInfo};
 use once_cell::sync::Lazy;
 use regex::Regex;
 use std::path::Path;
@@ -87,8 +87,7 @@ impl FromStr for AlbumFolderInfo {
 #[derive(Debug)]
 #[cfg_attr(test, derive(PartialEq))]
 pub struct DiscFolderInfo {
-    pub catalog: String,
-    pub title: String,
+    pub info: DiscInfo,
     pub disc_id: usize,
 }
 
@@ -104,8 +103,13 @@ impl FromStr for DiscFolderInfo {
         }
 
         Ok(DiscFolderInfo {
-            catalog: r.get(1).unwrap().as_str().replace('/', "／"),
-            title: r.get(2).unwrap().as_str().replace('/', "／"),
+            info: DiscInfo::new(
+                r.get(1).unwrap().as_str().replace('/', "／"),
+                Some(r.get(2).unwrap().as_str().replace('/', "／")),
+                None,
+                None,
+                Default::default(),
+            ),
             disc_id: usize::from_str(r.get(3).unwrap().as_str()).unwrap(),
         })
     }
@@ -114,7 +118,7 @@ impl FromStr for DiscFolderInfo {
 #[cfg(test)]
 mod tests {
     use crate::library::{AlbumFolderInfo, DiscFolderInfo};
-    use crate::models::AnniDate;
+    use crate::models::{AnniDate, DiscInfo};
     use std::str::FromStr;
 
     fn album_info(title: &str) -> (AnniDate, String, String, Option<String>, usize) {
@@ -198,8 +202,14 @@ mod tests {
         assert_eq!(
             DiscFolderInfo::from_str("[CATA-001] TITLE [Disc 1]")?,
             DiscFolderInfo {
-                catalog: "CATA-001".to_string(),
-                title: "TITLE".to_string(),
+                info: DiscInfo {
+                    title: Some("title".to_string()),
+                    artist: None,
+                    artists: None,
+                    catalog: "CATA-001".to_string(),
+                    disc_type: None,
+                    tags: vec![]
+                },
                 disc_id: 1,
             }
         );

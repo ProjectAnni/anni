@@ -58,22 +58,8 @@ fn repo_add(me: RepoAddAction, manager: &RepositoryManager) -> anyhow::Result<()
 
                 alphanumeric_sort::sort_path_slice(&mut files);
                 let disc = if disc_count > 1 {
-                    let DiscFolderInfo {
-                        catalog,
-                        title: disc_title,
-                        ..
-                    } = DiscFolderInfo::from_str(&*file_name(dir)?)?;
-                    DiscInfo::new(
-                        catalog,
-                        if album_title != disc_title {
-                            Some(disc_title)
-                        } else {
-                            None
-                        },
-                        None,
-                        None,
-                        Default::default(),
-                    )
+                    let DiscFolderInfo { info, .. } = DiscFolderInfo::from_str(&*file_name(dir)?)?;
+                    info
                 } else {
                     DiscInfo::new(catalog.clone(), None, None, None, Default::default())
                 };
@@ -91,8 +77,8 @@ fn repo_add(me: RepoAddAction, manager: &RepositoryManager) -> anyhow::Result<()
 
         let album = Album::new(
             AlbumInfo {
-                title: album_title.clone().into(),
-                edition: edition.into(),
+                title: album_title,
+                edition,
                 release_date,
                 catalog: catalog.clone(),
                 ..Default::default()

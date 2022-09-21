@@ -155,11 +155,8 @@ impl CommonConventionProvider {
         let mut discs = Vec::new();
         let mut dir = self.fs.children(album).await?;
         while let Some(entry) = dir.next().await {
-            if let Ok(DiscFolderInfo {
-                catalog, disc_id, ..
-            }) = DiscFolderInfo::from_str(&entry.name)
-            {
-                log::debug!("Found disc {} at: {:?}", catalog, entry.path);
+            if let Ok(DiscFolderInfo { info, disc_id }) = DiscFolderInfo::from_str(&entry.name) {
+                log::debug!("Found disc {} at: {:?}", info.catalog, entry.path);
                 if disc_id <= size {
                     discs.push((disc_id, entry));
                 }

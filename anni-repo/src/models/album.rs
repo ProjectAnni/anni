@@ -7,7 +7,7 @@ use std::str::FromStr;
 use toml_edit::easy as toml;
 use uuid::Uuid;
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Debug)]
 #[serde(deny_unknown_fields)]
 pub struct Album {
     #[serde(rename = "album")]
@@ -168,7 +168,7 @@ impl Album {
     // }
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Debug)]
 #[serde(deny_unknown_fields)]
 pub struct AlbumInfo {
     /// Album ID(uuid)
@@ -185,8 +185,9 @@ pub struct AlbumInfo {
     /// Album artist
     pub artist: String,
     /// Album artists
-    #[serde(skip_serializing_if = "HashMap::is_empty")]
-    pub artists: HashMap<String, String>,
+    #[serde(default)]
+    #[serde(skip_serializing_if = "is_artists_empty")]
+    pub artists: Option<HashMap<String, String>>,
     /// Album release date
     #[serde(rename = "date")]
     pub release_date: AnniDate,
@@ -216,7 +217,7 @@ impl Default for AlbumInfo {
     }
 }
 
-#[derive(Serialize, Deserialize, Clone)]
+#[derive(Serialize, Deserialize, Clone, Debug)]
 #[serde(deny_unknown_fields)]
 pub struct Disc {
     #[serde(flatten)]
@@ -238,25 +239,25 @@ impl Deref for Disc {
     }
 }
 
-#[derive(Serialize, Deserialize, Clone)]
+#[derive(Serialize, Deserialize, Clone, Debug)]
 #[serde(deny_unknown_fields)]
 pub struct DiscInfo {
     /// Disc title
-    title: Option<String>,
+    pub title: Option<String>,
     /// Disc artist
-    artist: Option<String>,
+    pub artist: Option<String>,
     /// Disc artists
     #[serde(skip_serializing_if = "is_artists_empty")]
-    artists: Option<HashMap<String, String>>,
+    pub artists: Option<HashMap<String, String>>,
     /// Disc catalog
-    catalog: String,
+    pub catalog: String,
     /// Disc type
     #[serde(rename = "type")]
-    disc_type: Option<TrackType>,
+    pub disc_type: Option<TrackType>,
     /// Disc tags
     #[serde(default)]
     #[serde(skip_serializing_if = "Vec::is_empty")]
-    tags: Vec<TagRef>,
+    pub tags: Vec<TagRef>,
 }
 
 impl DiscInfo {
@@ -371,23 +372,23 @@ impl<'album> DiscRefMut<'album> {
     }
 }
 
-#[derive(Serialize, Deserialize, Clone)]
+#[derive(Serialize, Deserialize, Clone, Debug)]
 #[serde(deny_unknown_fields)]
 pub struct TrackInfo {
     /// Track title
-    title: String,
+    pub title: String,
     /// Track artist
-    artist: Option<String>,
+    pub artist: Option<String>,
     /// Track artists
     #[serde(skip_serializing_if = "is_artists_empty")]
-    artists: Option<HashMap<String, String>>,
+    pub artists: Option<HashMap<String, String>>,
     /// Track type
     #[serde(rename = "type")]
-    track_type: Option<TrackType>,
+    pub track_type: Option<TrackType>,
     /// Track tags
     #[serde(default)]
     #[serde(skip_serializing_if = "Vec::is_empty")]
-    tags: Vec<TagRef>,
+    pub tags: Vec<TagRef>,
 }
 
 impl TrackInfo {
@@ -436,12 +437,12 @@ impl<'a, 'd> TrackRef<'a, 'd> {
         })
     }
 
-    pub fn artists(&self) -> &HashMap<String, String> {
-        self.track.artists.as_ref().unwrap_or_else(|| {
+    pub fn artists(&self) -> Option<&HashMap<String, String>> {
+        self.track.artists.as_ref().or_else(|| {
             self.disc
                 .artists
                 .as_ref()
-                .unwrap_or_else(|| &self.album.artists)
+                .or_else(|| self.album.artists.as_ref())
         })
     }
 

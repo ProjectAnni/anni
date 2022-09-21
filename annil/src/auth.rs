@@ -208,5 +208,5 @@ fn test_sign() {
             }),
         })
         .expect("failed to sign jwt");
-    assert_eq!(jwt, "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpYXQiOjAsInR5cGUiOiJ1c2VyIiwidXNlcl9pZCI6InRlc3QiLCJzaGFyZSI6bnVsbH0.krwh8gkycIVuzPbZ-xZYbRXXzpHD3Lou9OLazsHnmBY");
+    assert_eq!(jwt, "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpYXQiOjAsInR5cGUiOiJ1c2VyIiwidXNlcl9pZCI6InRlc3QifQ.qBXwC9ILW5GEdTUIt6igJTwwLsuCFCi5sAAvruXQuVM");
 }
