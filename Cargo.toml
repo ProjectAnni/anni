@@ -16,3 +16,4 @@ rusqlite = { git = "https://github.com/ProjectAnni/rusqlite", branch = "wasm32-u
 musicbrainz_rs = { git = "https://github.com/ProjectAnni/musicbrainz_rs", branch = "main" }
 # Remove this patch after https://github.com/ordian/toml_edit/pull/334 was merged
 toml_edit = { git = "https://github.com/ProjectAnni/toml_edit", branch = "master" }
+chardetng = { git = "https://github.com/ProjectAnni/chardetng", branch = "master" }

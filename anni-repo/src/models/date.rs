@@ -100,12 +100,12 @@ impl Display for AnniDate {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         if self.day == 0 {
             if self.month == 0 {
-                write!(f, "{:04}", self.year)
+                write!(f, "{}", self.year)
             } else {
-                write!(f, "{:04}-{:02}", self.year, self.month)
+                write!(f, "{}-{:02}", self.year, self.month)
             }
         } else {
-            write!(f, "{:04}-{:02}-{:02}", self.year, self.month, self.day)
+            write!(f, "{}-{:02}-{:02}", self.year, self.month, self.day)
         }
     }
 }
@@ -116,14 +116,27 @@ mod tests {
     fn test_date() {
         use super::*;
 
-        let anni_date = AnniDate::from_parts("19", "01", "30");
-        assert_eq!(anni_date.year, 2019);
-        assert_eq!(anni_date.month, 1);
-        assert_eq!(anni_date.day, 30);
+        let date = AnniDate::from_parts("19", "01", "30");
+        assert_eq!(date.year, 2019);
+        assert_eq!(date.month, 1);
+        assert_eq!(date.day, 30);
+        assert_eq!(date.to_string(), "2019-01-30");
 
-        let anni_date = AnniDate::from_parts("2019", "01", "30");
-        assert_eq!(anni_date.year, 2019);
-        assert_eq!(anni_date.month, 1);
-        assert_eq!(anni_date.day, 30);
+        // though there's no cd released in 201-AD
+        let date = AnniDate::from_parts("201", "1", "31");
+        assert_eq!(date.year, 201);
+        assert_eq!(date.month, 1);
+        assert_eq!(date.day, 31);
+        assert_eq!(date.to_string(), "201-01-31");
+
+        let date = AnniDate::from_parts("1919", "08", "10");
+        assert_eq!(date.year, 1919);
+        assert_eq!(date.month, 8);
+        assert_eq!(date.day, 10);
+
+        let date = AnniDate::from_parts("1982", "08", "10");
+        assert_eq!(date.year, 1982);
+        assert_eq!(date.month, 8);
+        assert_eq!(date.day, 10);
     }
 }

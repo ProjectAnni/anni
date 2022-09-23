@@ -240,6 +240,7 @@ impl Deref for Disc {
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
+#[cfg_attr(test, derive(PartialEq, Eq))]
 #[serde(deny_unknown_fields)]
 pub struct DiscInfo {
     /// Disc title
@@ -318,14 +319,14 @@ impl<'album> DiscRef<'album> {
         self.disc
             .title
             .as_deref()
-            .unwrap_or_else(|| self.album.title.as_str())
+            .unwrap_or(self.album.title.as_str())
     }
 
     pub fn artist(&self) -> &str {
         self.disc
             .artist
             .as_deref()
-            .unwrap_or_else(|| self.album.artist.as_str())
+            .unwrap_or(self.album.artist.as_str())
     }
 
     pub fn catalog(&self) -> &str {
@@ -336,7 +337,7 @@ impl<'album> DiscRef<'album> {
         self.disc
             .disc_type
             .as_ref()
-            .unwrap_or_else(|| &self.album.album_type)
+            .unwrap_or(&self.album.album_type)
     }
 
     pub fn tags(&self) -> &[TagRef] {
