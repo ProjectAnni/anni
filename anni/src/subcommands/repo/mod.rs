@@ -114,7 +114,7 @@ fn repo_import(me: &RepoImportAction, manager: &RepositoryManager) -> anyhow::Re
     match me.format {
         RepoImportFormat::Toml => {
             let album = Album::from_str(&result)?;
-            manager.add_album(album.catalog(), &album, me.allow_duplicate)?;
+            manager.add_album(album, me.allow_duplicate)?;
         }
     }
     Ok(())
@@ -200,18 +200,19 @@ pub struct RepoGetVGMdb {
 
 #[handler(RepoGetVGMdb)]
 fn repo_get_vgmdb(
-    options: &RepoGetVGMdb,
+    options: RepoGetVGMdb,
     manager: &RepositoryManager,
     get: &RepoGetAction,
 ) -> anyhow::Result<()> {
     let catalog = &options.catalog;
 
-    let album = search_album(&options.keyword.as_deref().unwrap_or(catalog)).await?;
+    let mut album = search_album(&options.keyword.as_deref().unwrap_or(catalog)).await?;
 
     if get.print {
-        println!("{}", album.to_string());
+        println!("{}", album.format_to_string());
     } else {
-        manager.add_album(&options.catalog, &album, false)?;
+        album.catalog = options.catalog;
+        manager.add_album(album, false)?;
     }
     Ok(())
 }
@@ -259,7 +260,7 @@ fn repo_get_cue(
 
     if album.catalog().is_empty() {
         match &options.catalog {
-            Some(catalog) => album.set_catalog(catalog.to_string()),
+            Some(catalog) => album.catalog = catalog.to_string(),
             None => ball!("repo-cue-insufficient-information"),
         }
     }
@@ -268,7 +269,7 @@ fn repo_get_cue(
     let performer = cue.performer().first();
     if let Some(performer) = performer {
         if album.artist().is_empty() {
-            album.set_artist(performer.to_string());
+            album.artist = performer.to_string();
         }
     }
 
@@ -280,10 +281,9 @@ fn repo_get_cue(
     }
 
     if get.print {
-        println!("{}", album.to_string());
+        println!("{}", album.format_to_string());
     } else {
-        let catalog = album.catalog().to_owned();
-        manager.add_album(&catalog, &album, false)?;
+        manager.add_album(album, false)?;
     }
     Ok(())
 }
@@ -297,7 +297,7 @@ pub struct RepoGetMusicbrainz {
 
 #[handler(RepoGetMusicbrainz)]
 fn repo_get_musicbrainz(
-    options: &RepoGetMusicbrainz,
+    options: RepoGetMusicbrainz,
     manager: &RepositoryManager,
     get: &RepoGetAction,
 ) -> anyhow::Result<()> {
@@ -357,21 +357,21 @@ fn repo_get_musicbrainz(
         })
         .collect();
 
-    let album = Album::new(
+    let mut album = Album::new(
         AlbumInfo {
             title: release.title,
             artist,
             release_date,
-            catalog: options.catalog.to_owned(),
+            catalog: options.catalog,
             ..Default::default()
         },
         discs,
     );
 
     if get.print {
-        println!("{}", album.to_string());
+        println!("{}", album.format_to_string());
     } else {
-        manager.add_album(&options.catalog, &album, false)?;
+        manager.add_album(album, false)?;
     }
     Ok(())
 }
@@ -445,8 +445,8 @@ fn repo_print(me: RepoPrintAction, manager: RepositoryManager) -> anyhow::Result
             let disc_id = if disc_id > 0 { disc_id - 1 } else { disc_id };
 
             // FIXME: pick the correct album
-            let album = manager.load_albums(catalog)?;
-            let album = &album[0];
+            let mut album = manager.load_albums(catalog)?;
+            let mut album = album.pop().unwrap();
             match me.print_type {
                 RepoPrintType::Title => writeln!(dst, "{}", album.full_title())?,
                 RepoPrintType::Artist => writeln!(dst, "{}", album.artist())?,
@@ -496,7 +496,7 @@ FILE "{filename}" WAVE
                     }
                 },
                 RepoPrintType::Toml => {
-                    write!(dst, "{}", album.to_string())?;
+                    write!(dst, "{}", album.format_to_string())?;
                 }
                 RepoPrintType::TagTree => unreachable!(),
             }

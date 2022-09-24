@@ -203,7 +203,7 @@ mod tests {
             DiscFolderInfo::from_str("[CATA-001] TITLE [Disc 1]")?,
             DiscFolderInfo {
                 info: DiscInfo {
-                    title: Some("title".to_string()),
+                    title: Some("TITLE".to_string()),
                     artist: None,
                     artists: None,
                     catalog: "CATA-001".to_string(),

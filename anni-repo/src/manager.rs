@@ -146,7 +146,8 @@ impl RepositoryManager {
     }
 
     /// Add new album to the repository.
-    pub fn add_album(&self, catalog: &str, album: &Album, allow_duplicate: bool) -> RepoResult<()> {
+    pub fn add_album(&self, mut album: Album, allow_duplicate: bool) -> RepoResult<()> {
+        let catalog = album.catalog();
         let folder = self.default_album_root().join(catalog);
         let file = folder.with_extension("toml");
 
@@ -158,7 +159,7 @@ impl RepositoryManager {
                     p.extension() == Some("toml".as_ref()))
                 .count();
             let new_file_name = format!("{catalog}.{count}.toml");
-            fs::write(folder.join(new_file_name), album.to_string())?;
+            fs::write(folder.join(new_file_name), album.format_to_string())?;
         } else if file.exists() {
             // album with the same catalog exists
             if !allow_duplicate {
@@ -169,10 +170,10 @@ impl RepositoryManager {
             // move the old toml file to folder
             fs::rename(file, folder.join(format!("{catalog}.0.toml")))?;
             // write new toml file
-            fs::write(folder.join(format!("{catalog}.1.toml")), album.to_string())?;
+            fs::write(folder.join(format!("{catalog}.1.toml")), album.format_to_string())?;
         } else {
             // no catalog with given catalog exists
-            fs::write(&file, album.to_string())?;
+            fs::write(&file, album.format_to_string())?;
         }
         Ok(())
     }

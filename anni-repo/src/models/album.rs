@@ -2,7 +2,7 @@ use crate::prelude::*;
 use serde::{Deserialize, Serialize};
 use std::borrow::Cow;
 use std::collections::{HashMap, HashSet};
-use std::ops::Deref;
+use std::ops::{Deref, DerefMut};
 use std::str::FromStr;
 use toml_edit::easy as toml;
 use uuid::Uuid;
@@ -17,7 +17,9 @@ pub struct Album {
 
 impl Album {
     pub fn new(info: AlbumInfo, discs: Vec<Disc>) -> Self {
-        Album { info, discs }
+        let mut album = Album { info, discs };
+        album.format();
+        album
     }
 }
 
@@ -35,17 +37,17 @@ impl FromStr for Album {
     }
 }
 
-impl ToString for Album {
-    fn to_string(&self) -> String {
-        toml::to_string_pretty(&self).unwrap()
-    }
-}
-
 impl Deref for Album {
     type Target = AlbumInfo;
 
     fn deref(&self) -> &Self::Target {
         &self.info
+    }
+}
+
+impl DerefMut for Album {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.info
     }
 }
 
@@ -75,10 +77,6 @@ impl Album {
         self.info.artist.as_ref()
     }
 
-    pub fn set_artist(&mut self, artist: String) {
-        self.info.artist = artist;
-    }
-
     pub fn release_date(&self) -> &AnniDate {
         &self.info.release_date
     }
@@ -89,10 +87,6 @@ impl Album {
 
     pub fn catalog(&self) -> &str {
         self.info.catalog.as_ref()
-    }
-
-    pub fn set_catalog(&mut self, catalog: String) {
-        self.info.catalog = catalog;
     }
 
     pub fn tags(&self) -> Vec<&TagRef> {
@@ -133,39 +127,39 @@ impl Album {
         let album = &self.info;
         self.discs.iter_mut().map(move |disc| DiscRefMut {
             album,
-            disc: &disc.info,
+            disc: &mut disc.info,
             tracks: &mut disc.tracks,
         })
     }
 
-    // // TODO: tests
-    // pub fn fmt(&mut self, inherit: bool) {
-    //     let mut owned_artist = None;
-    //     for disc in self.discs.iter_mut() {
-    //         if disc.artist.is_owned() {
-    //             if let Some(owned_artist) = owned_artist {
-    //                 if owned_artist != disc.artist.as_ref() {
-    //                     return;
-    //                 }
-    //             } else {
-    //                 owned_artist = Some(disc.artist.as_ref())
-    //             }
-    //         } else {
-    //             return;
-    //         }
-    //     }
-    //
-    //     // all owned artists are the same, and self.artist is inherited
-    //     if &self.info.artist == "UnknownArtist" {
-    //         self.info.artist = owned_artist.unwrap().to_string().into();
-    //         for disc in self.discs.iter_mut() {
-    //             disc.artist = None.into();
-    //             if inherit {
-    //                 disc.artist.inherit_from_owned(&self.info.artist);
-    //             }
-    //         }
-    //     }
-    // }
+    pub fn format(&mut self) {
+        self.iter_mut().for_each(|mut disc| disc.format());
+
+        let disc_artist = self
+            .iter()
+            .map(|disc| disc.artist().to_string())
+            .collect::<HashSet<_>>();
+        if disc_artist.len() == 1 {
+            // all artists of the discs are the same, set all artists of discs to None
+            for disc in self.discs.iter_mut() {
+                disc.artist = None;
+            }
+            self.artist = disc_artist.into_iter().next().unwrap();
+        } else {
+            // not the same, set part of them to None
+            let album_artist = self.artist.to_string();
+            for disc in self.discs.iter_mut() {
+                if disc.artist.as_deref() == Some(&album_artist) {
+                    disc.artist = None;
+                }
+            }
+        }
+    }
+
+    pub fn format_to_string(&mut self) -> String {
+        self.format();
+        toml::to_string_pretty(&self).unwrap()
+    }
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -239,6 +233,12 @@ impl Deref for Disc {
     }
 }
 
+impl DerefMut for Disc {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.info
+    }
+}
+
 #[derive(Serialize, Deserialize, Clone, Debug)]
 #[cfg_attr(test, derive(PartialEq, Eq))]
 #[serde(deny_unknown_fields)]
@@ -278,34 +278,6 @@ impl DiscInfo {
             disc_type,
         }
     }
-
-    // pub fn fmt(&mut self, inherit: bool) {
-    //     let mut owned_artist = None;
-    //     for track in self.tracks.iter_mut() {
-    //         if track.artist.is_owned() {
-    //             if let Some(owned_artist) = owned_artist {
-    //                 if owned_artist != track.artist.as_ref() {
-    //                     return;
-    //                 }
-    //             } else {
-    //                 owned_artist = Some(track.artist.as_ref())
-    //             }
-    //         } else {
-    //             return;
-    //         }
-    //     }
-    //
-    //     // all owned artists are the same, and self.artist is inherited
-    //     if self.artist.is_inherited() {
-    //         self.artist = owned_artist.unwrap().to_string().into();
-    //         for track in self.tracks.iter_mut() {
-    //             track.artist = InheritableValue::Inherited(None);
-    //             if inherit {
-    //                 track.artist.inherit_from(&self.artist);
-    //             }
-    //         }
-    //     }
-    // }
 }
 
 #[derive(Clone)]
@@ -359,17 +331,83 @@ impl<'album> DiscRef<'album> {
 
 pub struct DiscRefMut<'album> {
     pub(crate) album: &'album AlbumInfo,
-    pub(crate) disc: &'album DiscInfo,
+    pub(crate) disc: &'album mut DiscInfo,
     pub(crate) tracks: &'album mut Vec<TrackInfo>,
 }
 
 impl<'album> DiscRefMut<'album> {
+    pub fn title(&self) -> &str {
+        self.disc
+            .title
+            .as_deref()
+            .unwrap_or(self.album.title.as_str())
+    }
+
+    pub fn artist(&self) -> &str {
+        self.disc
+            .artist
+            .as_deref()
+            .unwrap_or(self.album.artist.as_str())
+    }
+
+    pub fn catalog(&self) -> &str {
+        self.disc.catalog.as_ref()
+    }
+
+    pub fn track_type(&self) -> &TrackType {
+        self.disc
+            .disc_type
+            .as_ref()
+            .unwrap_or(&self.album.album_type)
+    }
+
+    pub fn tags(&self) -> &[TagRef] {
+        self.disc.tags.as_ref()
+    }
+
+    pub fn tracks_len(&self) -> usize {
+        self.tracks.len()
+    }
+
+    pub fn iter<'disc>(&'disc self) -> impl Iterator<Item = TrackRef<'album, 'disc>> {
+        self.tracks.iter().map(move |track| TrackRef {
+            album: self.album,
+            disc: self.disc,
+            track,
+        })
+    }
+
     pub fn iter_mut(&mut self) -> impl Iterator<Item = TrackRefMut> {
         let album = self.album;
-        let disc = self.disc;
+        let disc = &self.disc;
         self.tracks
             .iter_mut()
             .map(move |track| TrackRefMut { album, disc, track })
+    }
+
+    pub fn format(&mut self) {
+        // format artists
+        let track_artist = self
+            .iter()
+            .map(|disc| disc.artist().to_string())
+            .collect::<HashSet<_>>();
+        if track_artist.len() == 1 {
+            // all track artists are the same, set all of them to None
+            for mut track in self.iter_mut() {
+                track.artist = None;
+            }
+            self.disc.artist = Some(track_artist.into_iter().next().unwrap());
+        } else {
+            // not the same, ignore extraction
+        }
+
+        // format type
+        let disc_type = self.track_type().clone();
+        for mut track in self.iter_mut() {
+            if track.track_type() == &disc_type {
+                track.track_type = None;
+            }
+        }
     }
 }
 
@@ -411,10 +449,6 @@ impl TrackInfo {
     pub fn empty() -> Self {
         TrackInfo::new(String::new(), None, None, Default::default())
     }
-
-    pub fn set_title(&mut self, title: String) {
-        self.title = title;
-    }
 }
 
 #[derive(Clone)]
@@ -424,40 +458,40 @@ pub struct TrackRef<'album, 'disc> {
     pub(crate) track: &'disc TrackInfo,
 }
 
-impl<'a, 'd> TrackRef<'a, 'd> {
-    pub fn title(&self) -> &str {
+impl<'album, 'disc> TrackRef<'album, 'disc>
+where
+    'album: 'disc,
+{
+    pub fn title(&self) -> &'disc str {
         self.track.title.as_ref()
     }
 
-    pub fn artist(&self) -> &str {
+    pub fn artist(&self) -> &'disc str {
         self.track.artist.as_deref().unwrap_or_else(|| {
             self.disc
                 .artist
                 .as_deref()
-                .unwrap_or_else(|| self.album.artist.as_str())
+                .unwrap_or(self.album.artist.as_str())
         })
     }
 
-    pub fn artists(&self) -> Option<&HashMap<String, String>> {
-        self.track.artists.as_ref().or_else(|| {
-            self.disc
-                .artists
-                .as_ref()
-                .or_else(|| self.album.artists.as_ref())
-        })
+    pub fn artists(&self) -> Option<&'disc HashMap<String, String>> {
+        self.track
+            .artists
+            .as_ref()
+            .or_else(|| self.disc.artists.as_ref().or(self.album.artists.as_ref()))
     }
 
-    pub fn track_type(&self) -> &TrackType {
+    pub fn track_type(&self) -> &'disc TrackType {
         self.track.track_type.as_ref().unwrap_or_else(|| {
-            &self
-                .disc
+            self.disc
                 .disc_type
                 .as_ref()
-                .unwrap_or_else(|| &self.album.album_type)
+                .unwrap_or(&self.album.album_type)
         })
     }
 
-    pub fn tags(&self) -> &[TagRef] {
+    pub fn tags(&self) -> &'disc [TagRef] {
         self.track.tags.as_ref()
     }
 }
@@ -468,7 +502,52 @@ pub struct TrackRefMut<'album, 'disc> {
     pub(crate) track: &'disc mut TrackInfo,
 }
 
-impl TrackRefMut<'_, '_> {
+impl Deref for TrackRefMut<'_, '_> {
+    type Target = TrackInfo;
+
+    fn deref(&self) -> &Self::Target {
+        self.track
+    }
+}
+
+impl DerefMut for TrackRefMut<'_, '_> {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        self.track
+    }
+}
+
+impl<'album, 'disc> TrackRefMut<'album, 'disc>
+where
+    'album: 'disc,
+{
+    fn inner(&'album self) -> TrackRef<'album, 'disc> {
+        TrackRef {
+            album: self.album,
+            disc: self.disc,
+            track: self.track,
+        }
+    }
+
+    pub fn title(&self) -> &str {
+        self.inner().title()
+    }
+
+    pub fn artist(&self) -> &str {
+        self.inner().artist()
+    }
+
+    pub fn artists(&self) -> Option<&HashMap<String, String>> {
+        self.inner().artists()
+    }
+
+    pub fn track_type(&self) -> &TrackType {
+        self.inner().track_type()
+    }
+
+    pub fn tags(&self) -> &[TagRef] {
+        self.inner().tags()
+    }
+
     pub fn set_artist(&mut self, artist: Option<String>) {
         if let Some(artist) = artist {
             let artist_str = artist.as_str();
@@ -476,7 +555,7 @@ impl TrackRefMut<'_, '_> {
                 self.disc
                     .artist
                     .as_deref()
-                    .unwrap_or_else(|| self.album.artist.as_str())
+                    .unwrap_or(self.album.artist.as_str())
             });
 
             if artist_str == current_artist_str {
@@ -494,7 +573,7 @@ impl TrackRefMut<'_, '_> {
     }
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, Hash)]
 #[serde(rename_all = "lowercase")]
 pub enum TrackType {
     Normal,

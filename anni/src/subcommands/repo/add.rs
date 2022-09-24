@@ -80,13 +80,13 @@ fn repo_add(me: RepoAddAction, manager: &RepositoryManager) -> anyhow::Result<()
                 title: album_title,
                 edition,
                 release_date,
-                catalog: catalog.clone(),
+                catalog: catalog.to_string(),
                 ..Default::default()
             },
             discs,
         );
 
-        manager.add_album(&catalog, &album, me.allow_duplicate)?;
+        manager.add_album(album, me.allow_duplicate)?;
         if me.open_editor {
             for file in manager.album_paths(&catalog)? {
                 edit::edit_file(&file)?;

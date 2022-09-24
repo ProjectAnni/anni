@@ -104,9 +104,9 @@ fn deserialize_album_toml() {
 
 #[test]
 fn serialize_album() {
-    let album = album_from_str();
+    let mut album = album_from_str();
     assert_eq!(
-        album.to_string(),
+        album.format_to_string(),
         r#"[album]
 album_id = "15006392-e2ae-4204-b7db-e59211f3cdcf"
 title = "夏凪ぎ／宝物になった日"
