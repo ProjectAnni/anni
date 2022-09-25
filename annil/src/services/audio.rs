@@ -93,21 +93,19 @@ pub async fn audio(
         "lossless" => None,
         _ => Some("128k"),
     };
-    let range = req
-        .headers()
-        .get("Range")
-        .and_then(|r| {
-            let range = r.to_str().ok()?;
-            let (_, right) = range.split_once('=')?;
-            let (from, to) = right.split_once('-')?;
-            let range = Range::new(from.parse().ok()?, to.parse().ok());
-            Some(if range.is_full() {
-                Range::new(0, Some(1024))
-            } else {
-                range
-            })
+    let range = req.headers().get("Range").and_then(|r| {
+        let range = r.to_str().ok()?;
+        let (_, right) = range.split_once('=')?;
+        let (from, to) = right.split_once('-')?;
+        let range = Range::new(from.parse().ok()?, to.parse().ok());
+        Some(if range.is_full() {
+            Range::new(0, Some(1023))
+        } else {
+            range
         })
-        .unwrap_or(Range::FULL);
+    });
+    let need_range = range.is_some();
+    let range = range.unwrap_or(Range::FULL);
 
     for provider in data.providers.read().iter() {
         if provider.has_album(&album_id).await {
@@ -126,9 +124,10 @@ pub async fn audio(
             }
 
             let mut audio = audio.unwrap();
-            let mut resp = if !audio.range.is_full() {
+            let mut resp = if need_range && !audio.range.is_full() {
                 let mut resp = HttpResponse::PartialContent();
-                resp.append_header(("Content-Range", audio.range.to_content_range_header()));
+                resp.append_header(("Content-Range", audio.range.to_content_range_header()))
+                    .append_header(("Accept-Ranges", "bytes"));
                 resp
             } else {
                 HttpResponse::Ok()

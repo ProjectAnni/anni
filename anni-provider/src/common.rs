@@ -116,7 +116,7 @@ impl Range {
         } else {
             match (self.end, self.total) {
                 (Some(end), Some(total)) => format!("bytes {}-{}/{}", self.start, end, total),
-                (Some(end), None) => format!("bytes {}-{}", self.start, end),
+                (Some(end), None) => format!("bytes {}-{}/*", self.start, end),
                 _ => format!("bytes {}-", self.start),
             }
         }
@@ -199,7 +199,11 @@ pub trait FileSystemProvider: Sync {
                 size: metadata.1,
                 duration,
             },
-            range,
+            range: Range {
+                start: range.start,
+                end: Some(range.end.unwrap_or(metadata.1 as u64 - 1)),
+                total: Some(metadata.1 as u64),
+            },
             reader,
         })
     }
