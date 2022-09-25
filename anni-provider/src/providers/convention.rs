@@ -73,7 +73,9 @@ impl AnniProvider for CommonConventionProvider {
                 .get(album_id)
                 .ok_or(ProviderError::FileNotFound)?,
         };
-        self.fs.get_file(&folder.path, Range::FULL).await
+        self.fs
+            .get_file(&folder.path.join("cover.jpg"), Range::FULL)
+            .await
     }
 
     async fn reload(&mut self) -> Result<()> {
