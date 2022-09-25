@@ -19,20 +19,6 @@ pub fn file_name<P: AsRef<Path>>(path: P) -> std::io::Result<String> {
         .to_owned())
 }
 
-pub(crate) fn file_stem<P: AsRef<Path>>(path: P) -> std::io::Result<String> {
-    let path = if path.as_ref().is_absolute() {
-        path.as_ref().to_path_buf()
-    } else {
-        path.as_ref().canonicalize()?
-    };
-    Ok(path
-        .file_stem()
-        .ok_or_else(|| std::io::Error::new(std::io::ErrorKind::InvalidInput, "No filename found"))?
-        .to_str()
-        .ok_or_else(|| std::io::Error::new(std::io::ErrorKind::InvalidData, "Invalid UTF-8 path"))?
-        .to_owned())
-}
-
 #[derive(Error, Debug)]
 pub enum InfoParseError {
     #[error("no match found: {0}")]

@@ -139,7 +139,11 @@ impl Album {
             .iter()
             .map(|disc| disc.artist().to_string())
             .collect::<HashSet<_>>();
-        if disc_artist.len() == 1 {
+        if disc_artist.len() == 1
+            && (self.artist == "UnknownArtist"
+                || self.artist == "[Unknown Artist]"
+                || &self.artist == disc_artist.iter().next().unwrap())
+        {
             // all artists of the discs are the same, set all artists of discs to None
             for disc in self.discs.iter_mut() {
                 disc.artist = None;
@@ -199,9 +203,9 @@ impl Default for AlbumInfo {
     fn default() -> Self {
         Self {
             album_id: Uuid::new_v4(),
-            title: "UnknownTitle".to_string().into(),
+            title: "UnknownTitle".to_string(),
             edition: None,
-            artist: "UnknownArtist".to_string().into(),
+            artist: "[Unknown Artist]".to_string(),
             artists: HashMap::new().into(),
             release_date: AnniDate::new(2021, 1, 1),
             album_type: TrackType::Normal,
@@ -320,6 +324,10 @@ impl<'album> DiscRef<'album> {
         self.disc.tracks.len()
     }
 
+    pub fn raw(&self) -> &'album Disc {
+        self.disc
+    }
+
     pub fn iter<'disc>(&'disc self) -> impl Iterator<Item = TrackRef<'album, 'disc>> {
         self.disc.tracks.iter().map(move |track| TrackRef {
             album: self.album,
@@ -402,10 +410,28 @@ impl<'album> DiscRefMut<'album> {
         }
 
         // format type
+        // if all type of the tracks are the same, set the disc type to the same
+        // or, re-use disc type to format part of tracks
         let disc_type = self.track_type().clone();
-        for mut track in self.iter_mut() {
-            if track.track_type() == &disc_type {
+        let all_tracks_type = self
+            .iter()
+            .map(|track| track.track_type())
+            .collect::<HashSet<_>>();
+        if all_tracks_type.len() == 1 {
+            let all_tracks_type = all_tracks_type.into_iter().next().unwrap();
+            if &disc_type != all_tracks_type {
+                self.disc.disc_type = Some(all_tracks_type.clone());
+            }
+
+            // set all tracks type to None
+            for mut track in self.iter_mut() {
                 track.track_type = None;
+            }
+        } else {
+            for mut track in self.iter_mut() {
+                if track.track_type() == &disc_type {
+                    track.track_type = None;
+                }
             }
         }
     }
@@ -493,6 +519,10 @@ where
 
     pub fn tags(&self) -> &'disc [TagRef] {
         self.track.tags.as_ref()
+    }
+
+    pub fn raw(&self) -> &'disc TrackInfo {
+        self.track
     }
 }
 
@@ -626,7 +656,6 @@ fn is_artists_empty(artists: &Option<HashMap<String, String>>) -> bool {
 #[cfg(feature = "flac")]
 impl From<anni_flac::FlacHeader> for TrackInfo {
     fn from(stream: anni_flac::FlacHeader) -> Self {
-        use crate::library::file_stem;
         use regex::Regex;
 
         match stream.comments() {
@@ -638,12 +667,12 @@ impl From<anni_flac::FlacHeader> for TrackInfo {
                     .or_else(|| {
                         // use filename as default track name
                         let reg = Regex::new(r#"^\d{2,3}(?:\s?[.-]\s?|\s)(.+)$"#).unwrap();
-                        let input = file_stem(&stream.path).ok()?;
+                        let input = stream.path.file_stem().and_then(|s| s.to_str())?;
                         let filename = reg
-                            .captures(&input)
+                            .captures(input)
                             .and_then(|c| c.get(1))
                             .map(|r| r.as_str().to_string())
-                            .unwrap_or_else(|| input);
+                            .unwrap_or_else(|| input.to_string());
                         Some(filename)
                     })
                     .unwrap_or_default();
