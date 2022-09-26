@@ -15,7 +15,7 @@ use uuid::Uuid;
 
 #[derive(Args, Debug, Clone)]
 pub struct WorkspaceAddAction {
-    #[clap(short = 't', long)]
+    #[clap(short = 't', long = "tags")]
     import_tags: bool,
     #[clap(short = 'd', long)]
     dry_run: bool,
