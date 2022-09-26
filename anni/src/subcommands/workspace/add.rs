@@ -1,5 +1,8 @@
 use crate::workspace::utils::find_dot_anni;
 use anni_common::fs;
+use anni_flac::error::FlacError;
+use anni_repo::library::{file_name, AlbumFolderInfo};
+use anni_repo::prelude::*;
 use anyhow::bail;
 use clap::Args;
 use clap_handler::handler;
@@ -7,6 +10,7 @@ use colored::Colorize;
 use inquire::Confirm;
 use ptree::TreeBuilder;
 use std::path::PathBuf;
+use std::str::FromStr;
 
 #[derive(Args, Debug, Clone)]
 pub struct WorkspaceAddAction {
@@ -64,7 +68,7 @@ fn handle_workspace_add(me: WorkspaceAddAction) -> anyhow::Result<()> {
     }
 
     // add discs
-    struct Disc {
+    struct WorkspaceDisc {
         index: usize,
         path: PathBuf,
         cover: PathBuf,
@@ -100,7 +104,7 @@ fn handle_workspace_add(me: WorkspaceAddAction) -> anyhow::Result<()> {
                 bail!("Disc cover not found in disc {index}!");
             }
 
-            Ok(Disc {
+            Ok(WorkspaceDisc {
                 index,
                 path: disc,
                 cover: disc_cover,
@@ -164,12 +168,12 @@ fn handle_workspace_add(me: WorkspaceAddAction) -> anyhow::Result<()> {
     }
 
     // move discs
-    for disc in discs.into_iter() {
+    for disc in discs.iter() {
         let anni_disc = album_path.join(disc.index.to_string());
         fs::create_dir_all(&anni_disc)?;
 
         // move tracks
-        for (index, track) in disc.tracks.into_iter().enumerate() {
+        for (index, track) in disc.tracks.iter().enumerate() {
             let index = index + 1;
             let anni_track = anni_disc.join(format!("{index}.flac"));
             fs::rename(&track, &anni_track)?;
@@ -184,10 +188,46 @@ fn handle_workspace_add(me: WorkspaceAddAction) -> anyhow::Result<()> {
 
     // import tags if necessary
     if me.import_tags {
-        // TODO: import tag from strict album directory
-        // let repo = anni_repo::RepositoryManager::new(root.join("repo"))?;
-        // repo.add_album("@", &album, true)?;
-        unimplemented!();
+        // import tag from 'strict' album directory
+        let repo = anni_repo::RepositoryManager::new(root.join("repo"))?;
+        let folder_name = file_name(&me.path)?;
+        let AlbumFolderInfo {
+            release_date,
+            catalog,
+            title,
+            edition,
+            ..
+        } = AlbumFolderInfo::from_str(&folder_name)?;
+        let discs: Vec<_> = discs
+            .into_iter()
+            .map(|disc| {
+                let tracks = disc
+                    .tracks
+                    .into_iter()
+                    .map(|track| {
+                        let flac = anni_flac::FlacHeader::from_file(&track)?;
+                        Ok(flac.into())
+                    })
+                    .collect::<Result<_, FlacError>>()?;
+                Ok(Disc::new(
+                    DiscInfo::new(catalog.clone(), None, None, None, Default::default()),
+                    tracks,
+                ))
+            })
+            .collect::<Result<_, FlacError>>()?;
+        let album = Album::new(
+            AlbumInfo {
+                album_id: Default::default(),
+                title,
+                edition,
+                artist: "UnknownArtist".to_string(),
+                release_date,
+                catalog: catalog.clone(),
+                ..Default::default()
+            },
+            discs,
+        );
+        repo.add_album(album, false)?;
     }
 
     Ok(())
