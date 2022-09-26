@@ -1,4 +1,4 @@
-use crate::workspace::utils::find_dot_anni;
+use crate::workspace::utils::{find_dot_anni, get_workspace_album_real_path};
 use anni_common::fs;
 use anni_flac::error::FlacError;
 use anni_repo::library::{file_name, AlbumFolderInfo};
@@ -11,11 +11,14 @@ use inquire::Confirm;
 use ptree::TreeBuilder;
 use std::path::PathBuf;
 use std::str::FromStr;
+use uuid::Uuid;
 
 #[derive(Args, Debug, Clone)]
 pub struct WorkspaceAddAction {
-    #[clap(short = 'i', long)]
+    #[clap(short = 't', long)]
     import_tags: bool,
+    #[clap(short = 'd', long)]
+    dry_run: bool,
     #[clap(short = 'y', long = "yes")]
     skip_check: bool,
 
@@ -40,6 +43,11 @@ fn handle_workspace_add(me: WorkspaceAddAction) -> anyhow::Result<()> {
         bail!("Can not add an album that is already committed to workspace.");
     }
 
+    // get album id
+    let album_real_path = get_workspace_album_real_path(&root, &me.path)?;
+    let album_id = file_name(&album_real_path)?;
+    let album_id = Uuid::from_str(&album_id)?;
+
     // validate album cover
     let album_cover = me.path.join("cover.jpg");
     if !album_cover.exists() {
@@ -47,7 +55,7 @@ fn handle_workspace_add(me: WorkspaceAddAction) -> anyhow::Result<()> {
     }
 
     // iterate over me.path to find all discs
-    let flac_in_album_root = fs::get_ext_file(&me.path, "flac", true)?.is_some();
+    let flac_in_album_root = fs::get_ext_file(&me.path, "flac", false)?.is_some();
     let mut discs = fs::get_subdirectories(&me.path)?;
 
     // if there's only one disc, then there should be no sub directories, [true, true]
@@ -155,35 +163,37 @@ fn handle_workspace_add(me: WorkspaceAddAction) -> anyhow::Result<()> {
         }
     }
 
-    ////////////////////////////////// Action Below //////////////////////////////////
-    // copy or move album cover
-    let anni_album_cover = album_path.join("cover.jpg");
-    if flac_in_album_root {
-        // cover might be used by discs, copy it
-        fs::copy(&album_cover, &anni_album_cover)?;
-    } else {
-        // move directly
-        fs::rename(&album_cover, &anni_album_cover)?;
-        fs::symlink_file(&anni_album_cover, &album_cover)?;
-    }
-
-    // move discs
-    for disc in discs.iter() {
-        let anni_disc = album_path.join(disc.index.to_string());
-        fs::create_dir_all(&anni_disc)?;
-
-        // move tracks
-        for (index, track) in disc.tracks.iter().enumerate() {
-            let index = index + 1;
-            let anni_track = anni_disc.join(format!("{index}.flac"));
-            fs::rename(&track, &anni_track)?;
-            fs::symlink_file(&anni_track, &track)?;
+    if !me.dry_run {
+        ////////////////////////////////// Action Below //////////////////////////////////
+        // copy or move album cover
+        let anni_album_cover = album_path.join("cover.jpg");
+        if flac_in_album_root {
+            // cover might be used by discs, copy it
+            fs::copy(&album_cover, &anni_album_cover)?;
+        } else {
+            // move directly
+            fs::rename(&album_cover, &anni_album_cover)?;
+            fs::symlink_file(&anni_album_cover, &album_cover)?;
         }
 
-        // move disc cover
-        let anni_disc_cover = anni_disc.join("cover.jpg");
-        fs::rename(&disc.cover, &anni_disc_cover)?;
-        fs::symlink_file(&anni_disc_cover, &disc.cover)?;
+        // move discs
+        for disc in discs.iter() {
+            let anni_disc = album_path.join(disc.index.to_string());
+            fs::create_dir_all(&anni_disc)?;
+
+            // move tracks
+            for (index, track) in disc.tracks.iter().enumerate() {
+                let index = index + 1;
+                let anni_track = anni_disc.join(format!("{index}.flac"));
+                fs::rename(&track, &anni_track)?;
+                fs::symlink_file(&anni_track, &track)?;
+            }
+
+            // move disc cover
+            let anni_disc_cover = anni_disc.join("cover.jpg");
+            fs::rename(&disc.cover, &anni_disc_cover)?;
+            fs::symlink_file(&anni_disc_cover, &disc.cover)?;
+        }
     }
 
     // import tags if necessary
@@ -217,7 +227,7 @@ fn handle_workspace_add(me: WorkspaceAddAction) -> anyhow::Result<()> {
             .collect::<Result<_, FlacError>>()?;
         let album = Album::new(
             AlbumInfo {
-                album_id: Default::default(),
+                album_id,
                 title,
                 edition,
                 artist: "UnknownArtist".to_string(),
