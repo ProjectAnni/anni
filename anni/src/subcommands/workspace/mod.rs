@@ -59,9 +59,6 @@ pub enum WorkspaceAlbumState {
     /// `Committed` album directory.
     /// Controlled part of the album directory is not empty, and User part contains symlinks to the actual file.
     Committed(PathBuf),
-    /// `Finished` album directory.
-    /// Controlled part of the album directory would not change, and User part **does not exist**.
-    Finished,
 
     // Error states
     /// User part of an album exists, but controlled part does not exist, or the symlink is broken.

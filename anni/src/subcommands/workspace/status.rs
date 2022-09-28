@@ -17,7 +17,6 @@ pub async fn handle_workspace_status() -> anyhow::Result<()> {
 
     let mut untracked: Vec<(&Path, &Uuid)> = vec![];
     let mut committed: Vec<(&Path, &Uuid)> = vec![];
-    let mut finished: Vec<&Uuid> = vec![];
     let mut dangling: Vec<(&Path, &Uuid)> = vec![];
     let mut garbage: Vec<&Uuid> = vec![];
     for album in albums.iter() {
@@ -28,7 +27,6 @@ pub async fn handle_workspace_status() -> anyhow::Result<()> {
             WorkspaceAlbumState::Committed(ref p) => {
                 committed.push((p.strip_prefix(&root)?, &album.album_id))
             }
-            WorkspaceAlbumState::Finished => finished.push(&album.album_id),
             WorkspaceAlbumState::Dangling(ref p) => {
                 dangling.push((p.strip_prefix(&root)?, &album.album_id))
             }
@@ -39,7 +37,7 @@ pub async fn handle_workspace_status() -> anyhow::Result<()> {
     if !untracked.is_empty() {
         println!("Untracked albums:");
         for (path, album_id) in untracked {
-            let output = format!("\t[{}]: {}", album_id, path.display()).red();
+            let output = format!("\t[{}]: {}", album_id, path.display()).bright_red();
             println!("{output}");
         }
     }
@@ -57,13 +55,6 @@ pub async fn handle_workspace_status() -> anyhow::Result<()> {
         for (path, album_id) in dangling {
             let output = format!("\t[{}]: {}", album_id, path.display()).red();
             println!("{output}");
-        }
-    }
-
-    if !finished.is_empty() {
-        println!("Finished albums:");
-        for album_id in finished {
-            println!("\t{}", album_id);
         }
     }
 

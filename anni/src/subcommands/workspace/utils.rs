@@ -158,17 +158,11 @@ where
                 if level > 0 {
                     scan_workspace_controlled_directory(albums, path, level - 1)?;
                 } else {
-                    // TODO: identify finished album better
-                    let is_valid_finished_album = fs::read_dir(&path)?.next().is_none();
                     let album_id = file_name(&path)?;
                     let album_id = Uuid::from_str(&album_id)?;
                     albums.entry(album_id).or_insert_with(|| WorkspaceAlbum {
                         album_id,
-                        state: if is_valid_finished_album {
-                            WorkspaceAlbumState::Finished
-                        } else {
-                            WorkspaceAlbumState::Garbage
-                        },
+                        state: WorkspaceAlbumState::Garbage,
                     });
                 }
             }
