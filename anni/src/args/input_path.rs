@@ -78,15 +78,19 @@ impl<T: InputPathOptions> FromStr for InputPath<T> {
 
 impl<T: InputPathOptions> InputPath<T> {
     pub fn iter(&self) -> impl Iterator<Item = PathBuf> {
-        anni_common::fs::PathWalker::new(self.inner.as_path(), T::recursive(), true).filter(
-            |file| match file.extension() {
-                Some(ext) => {
-                    let ext = ext.to_string_lossy().to_string();
-                    T::allow_extension(&ext)
-                }
-                None => false,
-            },
+        anni_common::fs::PathWalker::new(
+            self.inner.as_path(),
+            T::recursive(),
+            true,
+            vec![".anni".to_string()],
         )
+        .filter(|file| match file.extension() {
+            Some(ext) => {
+                let ext = ext.to_string_lossy().to_string();
+                T::allow_extension(&ext)
+            }
+            None => false,
+        })
     }
 }
 

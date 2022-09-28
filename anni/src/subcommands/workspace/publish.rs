@@ -31,7 +31,7 @@ pub fn handle_workspace_publish(me: WorkspacePublishAction) -> anyhow::Result<()
     for path in me.path {
         // validate current path first
         // if normal files exist, abort the operation
-        for file in fs::PathWalker::new(&path, true, false) {
+        for file in fs::PathWalker::new(&path, true, false, Default::default()) {
             let file_name = file.file_name().unwrap_or_default();
             if file_name == ".directory" || file_name == ".DS_Store" {
                 // skip annoying cases

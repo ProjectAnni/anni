@@ -1,5 +1,6 @@
 use crate::decode::raw_to_string;
 use path_absolutize::*;
+use std::ffi::OsString;
 pub use std::fs::*;
 use std::path::{Path, PathBuf};
 use std::{fs, io};
@@ -8,8 +9,9 @@ pub struct PathWalker {
     path: Vec<PathBuf>,
     files: Vec<PathBuf>,
     recursive: bool,
-    // whether to treat symlink as regular file
-    symlink: bool,
+    // whether to treat symlink file as regular file
+    allow_symlink_file: bool,
+    ignores: Vec<OsString>,
 }
 
 impl Iterator for PathWalker {
@@ -40,13 +42,17 @@ impl PathWalker {
             dir.sort_by_key(|e| e.path());
             for entry in dir.iter() {
                 let metadata = entry.metadata().unwrap();
+                if self.ignores.contains(&entry.file_name()) {
+                    continue;
+                }
+
                 if metadata.is_dir() {
                     self.path.push(entry.path());
                 } else if metadata.is_file() {
                     self.files.push(entry.path());
                 } else {
                     // symlink
-                    if self.symlink {
+                    if self.allow_symlink_file {
                         // if it's a file, add it to files
                         if fs::metadata(entry.path()).unwrap().is_file() {
                             self.files.push(entry.path());
@@ -58,7 +64,12 @@ impl PathWalker {
         }
     }
 
-    pub fn new<P: AsRef<Path>>(p: P, recursive: bool, symlink: bool) -> Self {
+    pub fn new<P: AsRef<Path>>(
+        p: P,
+        recursive: bool,
+        allow_symlink_file: bool,
+        ignores: Vec<String>,
+    ) -> Self {
         let mut path = Vec::new();
         let mut files = Vec::new();
         if is_dir(&p).unwrap() {
@@ -70,7 +81,8 @@ impl PathWalker {
             path,
             files,
             recursive: true,
-            symlink,
+            allow_symlink_file,
+            ignores: ignores.into_iter().map(|s| s.into()).collect(),
         };
         walker.extract_path();
         walker.recursive = recursive;
@@ -126,7 +138,7 @@ pub fn get_ext_files<P: AsRef<Path>, T: AsRef<str>>(
 ) -> io::Result<Vec<PathBuf>> {
     let mut result = Vec::new();
     if is_dir(dir.as_ref())? {
-        for file in PathWalker::new(dir.as_ref(), recursive, true) {
+        for file in PathWalker::new(dir.as_ref(), recursive, true, Default::default()) {
             let file_ext = file
                 .extension()
                 .unwrap_or_default()
@@ -146,7 +158,7 @@ pub fn get_ext_file<P: AsRef<Path>, T: AsRef<str>>(
     recursive: bool,
 ) -> io::Result<Option<PathBuf>> {
     if is_dir(dir.as_ref())? {
-        for file in PathWalker::new(dir.as_ref(), recursive, true) {
+        for file in PathWalker::new(dir.as_ref(), recursive, true, Default::default()) {
             let file_ext = file
                 .extension()
                 .unwrap_or_default()

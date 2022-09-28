@@ -153,7 +153,7 @@ impl RepositoryManager {
 
         if folder.exists() {
             // multiple albums with the same catalog exists
-            let count = fs::PathWalker::new(&folder, false, false)
+            let count = fs::PathWalker::new(&folder, false, false, Default::default())
                 .filter(|p|
                     // p.extension is toml
                     p.extension() == Some("toml".as_ref()))
@@ -170,7 +170,10 @@ impl RepositoryManager {
             // move the old toml file to folder
             fs::rename(file, folder.join(format!("{catalog}.0.toml")))?;
             // write new toml file
-            fs::write(folder.join(format!("{catalog}.1.toml")), album.format_to_string())?;
+            fs::write(
+                folder.join(format!("{catalog}.1.toml")),
+                album.format_to_string(),
+            )?;
         } else {
             // no catalog with given catalog exists
             fs::write(&file, album.format_to_string())?;
@@ -280,8 +283,9 @@ impl<'repo> OwnedRepositoryManager {
     /// Load tags into self.tags.
     fn load_tags(&mut self) -> RepoResult<()> {
         // filter out toml files
-        let tags_path = fs::PathWalker::new(self.repo.root.join("tag"), true, false)
-            .filter(|p| p.extension().map(|e| e == "toml").unwrap_or(false));
+        let tags_path =
+            fs::PathWalker::new(self.repo.root.join("tag"), true, false, Default::default())
+                .filter(|p| p.extension().map(|e| e == "toml").unwrap_or(false));
 
         // clear tags
         self.tags.clear();
