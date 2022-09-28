@@ -1,4 +1,5 @@
 #![feature(try_blocks)]
+#![feature(dir_entry_ext2)]
 
 use crate::subcommands::*;
 use clap::{AppSettings, Parser};
