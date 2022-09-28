@@ -82,7 +82,7 @@ pub struct LibraryApplyTagAction {
     directories: Vec<PathBuf>,
 }
 
-fn apply_strict(directory: &PathBuf, album: &Album) -> anyhow::Result<()> {
+pub fn apply_strict(directory: &PathBuf, album: &Album) -> anyhow::Result<()> {
     debug!(target: "library|tag", "Directory: {}", directory.display());
 
     // check disc name
@@ -94,9 +94,16 @@ fn apply_strict(directory: &PathBuf, album: &Album) -> anyhow::Result<()> {
                 .ok()
                 .and_then(|meta| if meta.is_dir() { Some(entry) } else { None })
         })
-        .filter_map(|entry| entry.path().to_str().map(|s| s.to_string()))
+        .filter_map(|entry| {
+            entry
+                .path()
+                .file_name()
+                .and_then(|f| f.to_str().map(|s| s.to_string()))
+        })
         .collect::<Vec<_>>();
     alphanumeric_sort::sort_str_slice(&mut discs);
+    debug!(target: "library|tag", "Discs: {discs:?}");
+
     if album.discs_len() != discs.len() {
         bail!("discs.len() != discs.len()!");
     }

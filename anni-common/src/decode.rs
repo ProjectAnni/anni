@@ -97,6 +97,6 @@ pub fn raw_to_string(input: &[u8]) -> String {
     let mut detector = chardetng::EncodingDetector::new();
     detector.feed(input, true);
     let (result, encoding, _) = detector.guess(None, true).decode(input);
-    log::debug!("Encoding detected: {}", encoding.name());
+    log::trace!("Encoding detected: {}", encoding.name());
     result.into()
 }

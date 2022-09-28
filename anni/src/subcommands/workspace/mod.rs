@@ -7,6 +7,7 @@ mod publish;
 mod rm;
 mod status;
 mod target;
+mod update;
 mod utils;
 
 use add::*;
@@ -17,6 +18,7 @@ use publish::*;
 use rm::*;
 use status::*;
 use std::path::PathBuf;
+use update::*;
 
 use crate::ll;
 use clap::{Args, Subcommand};
@@ -38,7 +40,7 @@ pub enum WorkspaceAction {
     Add(WorkspaceAddAction),
     Rm(WorkspaceRmAction),
     Status(WorkspaceStatusAction),
-    // Update,
+    Update(WorkspaceUpdateAction),
     Publish(WorkspacePublishAction),
     Fsck(WorkspaceFsckAction),
 }

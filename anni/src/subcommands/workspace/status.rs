@@ -1,11 +1,10 @@
 use crate::workspace::utils::{find_workspace_root, scan_workspace};
-use crate::workspace::{WorkspaceAlbum, WorkspaceAlbumState};
+use crate::workspace::WorkspaceAlbumState;
 use clap::Args;
 use clap_handler::handler;
 use colored::Colorize;
-use inquire::Confirm;
 use std::fmt::{Display, Formatter};
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use uuid::Uuid;
 
 #[derive(Args, Debug, Clone)]

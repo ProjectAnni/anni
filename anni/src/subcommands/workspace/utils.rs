@@ -2,6 +2,7 @@ use crate::workspace::{WorkspaceAlbum, WorkspaceAlbumState};
 use anni_common::fs;
 use anni_provider::strict_album_path;
 use anni_repo::library::file_name;
+use anni_repo::RepositoryManager;
 use std::collections::HashMap;
 use std::os::unix::fs::DirEntryExt2;
 use std::path::{Path, PathBuf};
@@ -42,8 +43,7 @@ pub fn get_workspace_album_real_path<P>(root: P, path: P) -> anyhow::Result<Path
 where
     P: AsRef<Path>,
 {
-    let album_path = path.as_ref().join(".album");
-    let album_id = get_album_id(&album_path)?;
+    let album_id = get_album_id(path.as_ref())?;
     match album_id {
         Some(album_id) => Ok(get_workspace_album_path(root, &album_id)
             .ok_or_else(|| anyhow::anyhow!("Album directory does not exist"))?),
@@ -71,7 +71,7 @@ pub fn get_album_id<P>(path: P) -> anyhow::Result<Option<Uuid>>
 where
     P: AsRef<Path>,
 {
-    let album_path = path.as_ref();
+    let album_path = path.as_ref().join(".album");
 
     // 1. validate album path
     // if it does not exist, or is not a symlink, return None
@@ -84,6 +84,14 @@ where
     let album_id = real_path.file_name().unwrap().to_string_lossy();
     let album_id = Uuid::parse_str(&album_id)?;
     Ok(Some(album_id))
+}
+
+pub fn get_workspace_repository_manager<P>(dot_anni: P) -> anyhow::Result<RepositoryManager>
+where
+    P: AsRef<Path>,
+{
+    let root = dot_anni.as_ref().join("repo");
+    Ok(RepositoryManager::new(root)?)
 }
 
 pub fn scan_workspace<P>(root: P) -> anyhow::Result<Vec<WorkspaceAlbum>>
@@ -108,8 +116,7 @@ where
             let metadata = entry.metadata()?;
             if metadata.is_dir() {
                 // look for .album folder
-                let album_path = entry.path().join(".album");
-                match get_album_id(&album_path)? {
+                match get_album_id(entry.path())? {
                     // valid album_id, it's an album directory
                     Some(album_id) => {
                         let album_controlled_path = get_workspace_album_path(&dot_anni, &album_id)

@@ -25,8 +25,7 @@ fn handle_workspace_fsck(me: WorkspaceFsckAction) -> anyhow::Result<()> {
         let metadata = entry.metadata()?;
         if metadata.is_dir() {
             // look for .album folder
-            let album_path = entry.path().join(".album");
-            match get_album_id(&album_path)? {
+            match get_album_id(entry.path())? {
                 // valid album_id, it's an album directory
                 Some(album_id) => {
                     albums_referenced.push(album_id.to_string());
