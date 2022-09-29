@@ -5,6 +5,9 @@ mod watch;
 use crate::args::ActionFile;
 use crate::{ball, fl, ll};
 use add::*;
+use lint::*;
+use watch::*;
+
 use anni_common::fs;
 use anni_repo::library::{file_name, AlbumFolderInfo};
 use anni_repo::prelude::*;
@@ -14,7 +17,6 @@ use chrono::Datelike;
 use clap::{crate_version, ArgEnum, Args, Subcommand};
 use clap_handler::{handler, Context, Handler};
 use cuna::Cuna;
-use lint::*;
 use musicbrainz_rs::entity::artist_credit::ArtistCredit;
 use musicbrainz_rs::entity::release::Release;
 use musicbrainz_rs::Fetch;
@@ -22,7 +24,6 @@ use ptree::TreeBuilder;
 use std::io::Read;
 use std::path::PathBuf;
 use std::str::FromStr;
-use watch::*;
 
 #[derive(Args, Debug, Clone, Handler)]
 #[clap(about = ll!{"repo"})]
@@ -64,8 +65,7 @@ pub enum RepoAction {
     #[clap(name = "db")]
     #[clap(about = ll!{"repo-db"})]
     Database(RepoDatabaseAction),
-    // TODO: repo watch
-    // Watch(RepoWatchAction),
+    Watch(RepoWatchAction),
 }
 
 #[derive(Args, Debug, Clone)]

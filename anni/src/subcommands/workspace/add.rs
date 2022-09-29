@@ -1,3 +1,4 @@
+use crate::ll;
 use crate::workspace::utils::{
     find_dot_anni, get_workspace_album_real_path, get_workspace_repository_manager,
 };
@@ -18,10 +19,13 @@ use uuid::Uuid;
 #[derive(Args, Debug, Clone)]
 pub struct WorkspaceAddAction {
     #[clap(short = 't', long = "tags")]
+    #[clap(help = ll!("workspace-add-import-tags"))]
     import_tags: bool,
     #[clap(short = 'd', long)]
+    #[clap(help = ll!("workspace-add-dry-run"))]
     dry_run: bool,
     #[clap(short = 'y', long = "yes")]
+    #[clap(help = ll!("workspace-add-skip-check"))]
     skip_check: bool,
 
     path: PathBuf,

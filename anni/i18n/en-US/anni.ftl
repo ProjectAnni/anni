@@ -76,6 +76,19 @@ library-link = Link library to strict format.
 
 ## Workspace
 workspace = Manage audio and metadata workspace.
+workspace-init = Initialize workspace.
+workspace-create = Create new albums in workspace.
+
+workspace-add = Make an album controlled by workspace.
+workspace-add-import-tags=Import metadata from audio files while adding.
+workspace-add-dry-run=Do not actually move files or make symlinks.
+workspace-add-skip-check=Skip check for album structure.
+
+workspace-rm = Remove an album from workspace.
+workspace-status = Print status of workspace.
+workspace-update = Update albums in workspace.
+workspace-publish = Publish albums from workspace to audio library.
+workspace-fsck = Check and fix workspace.
 
 
 ## Completions

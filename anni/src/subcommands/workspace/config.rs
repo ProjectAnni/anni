@@ -39,6 +39,7 @@ impl WorkspaceConfig {
             .and_then(|p| self.libraries.get(p))
     }
 
+    #[allow(dead_code)]
     pub fn get_library(&self, name: &str) -> Option<&LibraryConfig> {
         self.libraries.get(name)
     }
