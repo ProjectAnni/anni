@@ -42,7 +42,7 @@ pub struct AppState {
 
 struct LazyDb {
     metadata: MetadataConfig,
-    db_path: Option<String>,
+    db_path: Option<PathBuf>,
 }
 
 impl LazyDb {
@@ -58,7 +58,7 @@ impl LazyDb {
             Some(ref p) => p,
             None => {
                 let p = init_metadata(&self.metadata)?;
-                self.db_path.insert(p.to_string_lossy().into_owned())
+                self.db_path.insert(p)
             }
         };
         Ok(RepoDatabaseRead::new(db)?)
