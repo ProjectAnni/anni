@@ -1,10 +1,11 @@
 use crate::workspace::utils::{
-    find_dot_anni, get_album_id, get_workspace_album_path, get_workspace_album_real_path,
+    find_workspace_root, get_workspace_album_path, get_workspace_album_path_or_create,
+    scan_workspace,
 };
+use crate::workspace::WorkspaceAlbumState;
 use anni_common::fs;
 use clap::Args;
 use clap_handler::handler;
-use std::path::{Path, PathBuf};
 
 #[derive(Args, Debug, Clone)]
 pub struct WorkspaceFsckAction {
@@ -16,111 +17,62 @@ pub struct WorkspaceFsckAction {
 
 #[handler(WorkspaceFsckAction)]
 fn handle_workspace_fsck(me: WorkspaceFsckAction) -> anyhow::Result<()> {
-    let root = find_dot_anni()?;
+    let root = find_workspace_root()?;
+    let dot_anni = root.join(".anni");
 
-    let mut albums_referenced = Vec::new();
+    if me.fix_dangling {
+        let albums = scan_workspace(&root)?;
+        for album in albums {
+            if let WorkspaceAlbumState::Dangling(album_path) = album.state {
+                let result: anyhow::Result<()> = try {
+                    let dot_album = album_path.join(".album");
+                    let real_path = get_workspace_album_path_or_create(&dot_anni, &album.album_id)?;
+                    fs::remove_file(&dot_album, false)?;
+                    fs::symlink_dir(&real_path, &dot_album)?;
+                };
 
-    for entry in fs::read_dir(&root)? {
-        let entry = entry?;
-        let metadata = entry.metadata()?;
-        if metadata.is_dir() {
-            // look for .album folder
-            match get_album_id(entry.path())? {
-                // valid album_id, it's an album directory
-                Some(album_id) => {
-                    albums_referenced.push(album_id.to_string());
-                    let r = get_workspace_album_path(&root, &album_id);
-                    // TODO
+                if let Err(e) = result {
+                    log::error!(
+                        "Error while fixing album at {}: {}",
+                        album_path.display(),
+                        e
+                    );
                 }
-                // symlink not found, scan recursively
-                None => {}
             }
         }
     }
 
-    fn remove_empty_directories<P>(parent: P, level: u8) -> anyhow::Result<()>
-    where
-        P: AsRef<Path>,
-    {
-        let parent = parent.as_ref();
-        for entry in fs::read_dir(parent)? {
-            let entry = entry?;
-            let path = entry.path();
-            if path.is_dir() {
-                if level > 0 {
-                    remove_empty_directories(&path, level - 1)?;
-                }
+    if me.gc {
+        let albums = scan_workspace(&root)?;
+        for album in albums {
+            if let WorkspaceAlbumState::Garbage = album.state {
+                let result: anyhow::Result<()> = try {
+                    if let Some(real_path) = get_workspace_album_path(&dot_anni, &album.album_id) {
+                        // 1. remove garbage album directory
+                        fs::remove_dir_all(&real_path, true)?;
 
-                if fs::read_dir(&path)?.next().is_none() {
-                    fs::remove_dir(&path)?;
+                        // 2. try to remove parent
+                        if let Some(parent) = real_path.parent() {
+                            if parent.read_dir()?.next().is_none() {
+                                fs::remove_dir_all(&parent, true)?;
+
+                                // 3. try to remove parent's parent
+                                if let Some(parent) = parent.parent() {
+                                    if parent.read_dir()?.next().is_none() {
+                                        fs::remove_dir_all(&parent, true)?;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                };
+
+                if let Err(e) = result {
+                    log::error!("Error while collecting garbage: {}", e);
                 }
             }
         }
-        Ok(())
     }
 
     Ok(())
 }
-
-// fn handle_workspace_fix_link(me: WorkspaceFixLinkAction) -> anyhow::Result<()> {
-//     let root = find_dot_anni()?;
-//
-//     for path in me.path {
-//         let album_path = path.join(".album");
-//         let anni_album_path = get_workspace_album_real_path(&root, &path).and_then(|p| {
-//             if !p.exists() {
-//                 fs::create_dir_all(&p)?;
-//             }
-//             Ok(p)
-//         });
-//
-//         let result = anni_album_path.and_then(|anni_album_path| {
-//             // 4. remove .album
-//             fs::remove_file(&album_path, false)?;
-//
-//             // 5. relink .album
-//             fs::symlink_dir(&anni_album_path, &album_path)?;
-//
-//             Ok(())
-//         });
-//
-//         if let Err(e) = result {
-//             log::error!("Error while fixing album at {}: {}", path.display(), e);
-//         }
-//     }
-//
-//     Ok(())
-// }
-//
-// #[derive(Args, Debug, Clone)]
-// pub struct WorkspaceFixCleanAction;
-//
-// fn handle_workspace_fix_clean() -> anyhow::Result<()> {
-//     let root = find_dot_anni()?;
-//
-//     fn remove_empty_directories<P>(parent: P, level: u8) -> anyhow::Result<()>
-//     where
-//         P: AsRef<Path>,
-//     {
-//         let parent = parent.as_ref();
-//         for entry in fs::read_dir(parent)? {
-//             let entry = entry?;
-//             let path = entry.path();
-//             if path.is_dir() {
-//                 if level > 0 {
-//                     remove_empty_directories(&path, level - 1)?;
-//                 }
-//
-//                 if fs::read_dir(&path)?.next().is_none() {
-//                     fs::remove_dir(&path)?;
-//                 }
-//             }
-//         }
-//         Ok(())
-//     }
-//
-//     // iterate over objects, find empty folders
-//     remove_empty_directories(&root.join("objects"), 2)?;
-//
-//     Ok(())
-// }

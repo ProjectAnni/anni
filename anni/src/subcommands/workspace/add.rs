@@ -1,4 +1,6 @@
-use crate::workspace::utils::{find_dot_anni, get_workspace_album_real_path};
+use crate::workspace::utils::{
+    find_dot_anni, get_workspace_album_real_path, get_workspace_repository_manager,
+};
 use anni_common::fs;
 use anni_flac::error::FlacError;
 use anni_repo::library::{file_name, AlbumFolderInfo};
@@ -28,7 +30,7 @@ pub struct WorkspaceAddAction {
 #[handler(WorkspaceAddAction)]
 fn handle_workspace_add(me: WorkspaceAddAction) -> anyhow::Result<()> {
     // validate workspace structure
-    let root = find_dot_anni()?;
+    let dot_anni = find_dot_anni()?;
 
     // validate album path
     let album_path = me.path.join(".album");
@@ -44,7 +46,7 @@ fn handle_workspace_add(me: WorkspaceAddAction) -> anyhow::Result<()> {
     }
 
     // get album id
-    let album_real_path = get_workspace_album_real_path(&root, &me.path)?;
+    let album_real_path = get_workspace_album_real_path(&dot_anni, &me.path)?;
     let album_id = file_name(&album_real_path)?;
     let album_id = Uuid::from_str(&album_id)?;
 
@@ -199,7 +201,7 @@ fn handle_workspace_add(me: WorkspaceAddAction) -> anyhow::Result<()> {
     // import tags if necessary
     if me.import_tags {
         // import tag from 'strict' album directory
-        let repo = anni_repo::RepositoryManager::new(root.join("repo"))?;
+        let repo = get_workspace_repository_manager(&dot_anni)?;
         let folder_name = file_name(&me.path)?;
         let AlbumFolderInfo {
             release_date,

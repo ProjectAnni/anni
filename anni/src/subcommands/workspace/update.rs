@@ -1,7 +1,6 @@
 use crate::library::apply_strict;
 use crate::workspace::utils::{
-    find_dot_anni, find_workspace_root, get_album_id, get_workspace_album_path,
-    get_workspace_repository_manager,
+    find_dot_anni, get_album_id, get_workspace_album_path, get_workspace_repository_manager,
 };
 use clap::Args;
 use clap_handler::handler;

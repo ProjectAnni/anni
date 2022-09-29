@@ -38,13 +38,13 @@ pub fn find_workspace_root() -> anyhow::Result<PathBuf> {
     })
 }
 
-pub fn get_workspace_album_real_path<P>(root: P, path: P) -> anyhow::Result<PathBuf>
+pub fn get_workspace_album_real_path<P>(dot_anni: P, path: P) -> anyhow::Result<PathBuf>
 where
     P: AsRef<Path>,
 {
     let album_id = get_album_id(path.as_ref())?;
     match album_id {
-        Some(album_id) => Ok(get_workspace_album_path(root, &album_id)
+        Some(album_id) => Ok(get_workspace_album_path(dot_anni, &album_id)
             .ok_or_else(|| anyhow::anyhow!("Album directory does not exist"))?),
         None => bail!("Album directory does not exist, or is not a symlink"),
     }
@@ -60,6 +60,20 @@ where
     } else {
         None
     }
+}
+
+pub fn get_workspace_album_path_or_create<P>(
+    dot_anni: P,
+    album_id: &Uuid,
+) -> anyhow::Result<PathBuf>
+where
+    P: AsRef<Path>,
+{
+    let path = strict_album_path(&dot_anni.as_ref().join("objects"), &album_id.to_string(), 2);
+    if !path.exists() {
+        fs::create_dir_all(&path)?;
+    }
+    Ok(path)
 }
 
 /// Get album id from symlink target
