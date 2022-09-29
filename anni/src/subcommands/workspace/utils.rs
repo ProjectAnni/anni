@@ -4,7 +4,6 @@ use anni_provider::strict_album_path;
 use anni_repo::library::file_name;
 use anni_repo::RepositoryManager;
 use std::collections::HashMap;
-use std::os::unix::fs::DirEntryExt2;
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
 use uuid::Uuid;
@@ -109,7 +108,7 @@ where
     {
         for entry in fs::read_dir(path.as_ref())? {
             let entry = entry?;
-            if entry.file_name_ref() == ".anni" {
+            if entry.file_name() == ".anni" {
                 continue;
             }
 
