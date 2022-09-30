@@ -61,7 +61,7 @@ impl ServerConfig {
     }
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Clone)]
 pub struct MetadataConfig {
     pub repo: String,
     pub branch: String,

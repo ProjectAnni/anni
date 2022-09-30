@@ -40,66 +40,77 @@ pub struct AppState {
     etag: RwLock<String>,
 }
 
-fn init_metadata(config: &Config) -> anyhow::Result<PathBuf> {
+struct LazyDb {
+    metadata: MetadataConfig,
+    db_path: Option<PathBuf>,
+}
+
+impl LazyDb {
+    pub fn new(config: &Config) -> Self {
+        Self {
+            metadata: config.metadata.clone(),
+            db_path: None,
+        }
+    }
+
+    pub fn open(&mut self) -> anyhow::Result<RepoDatabaseRead> {
+        let db = match self.db_path {
+            Some(ref p) => p,
+            None => {
+                let p = init_metadata(&self.metadata)?;
+                self.db_path.insert(p)
+            }
+        };
+        Ok(RepoDatabaseRead::new(db)?)
+    }
+}
+
+fn init_metadata(metadata: &MetadataConfig) -> anyhow::Result<PathBuf> {
     log::info!("Fetching metadata repository...");
-    let repo_root = config.metadata.base.join("repo");
+    let repo_root = metadata.base.join("repo");
     let repo = if !repo_root.exists() {
-        log::debug!("Cloning metadata repository from {}", config.metadata.repo);
-        RepositoryManager::clone(&config.metadata.repo, repo_root)?
-    } else if config.metadata.pull {
+        log::debug!("Cloning metadata repository from {}", metadata.repo);
+        RepositoryManager::clone(&metadata.repo, repo_root)?
+    } else if metadata.pull {
         log::debug!(
             "Updating metadata repository at branch: {}",
-            config.metadata.branch
+            metadata.branch
         );
-        RepositoryManager::pull(repo_root, &config.metadata.branch)?
+        RepositoryManager::pull(repo_root, &metadata.branch)?
     } else {
         log::debug!("Loading metadata repository at {}", repo_root.display());
         RepositoryManager::new(repo_root)?
     };
     log::debug!("Generating metadata database...");
     let repo = repo.into_owned_manager()?;
-    let database_path = config.metadata.base.join("repo.db");
+    let database_path = metadata.base.join("repo.db");
     repo.to_database(&database_path)?;
     log::info!("Metadata repository fetched.");
 
     Ok(database_path)
 }
 
-fn open_db(p: &str) -> anyhow::Result<RepoDatabaseRead> {
-    Ok(RepoDatabaseRead::new(p)?)
-}
-
 async fn init_state(config: Config) -> anyhow::Result<web::Data<AppState>> {
-    // init metadata
-    let database_path = if config.providers.iter().all(|(_, conf)| {
-        matches!(
-            conf.item,
-            ProviderItem::File { strict: true, .. } | ProviderItem::Drive { strict: true, .. }
-        )
-    }) {
-        None
-    } else {
-        // proxy settings
-        if let Some(proxy) = &config.metadata.proxy {
-            // if metadata.proxy is an empty string, do not use proxy
-            if proxy.is_empty() {
-                setup_git2(None);
-            } else {
-                // otherwise, set proxy in config file
-                setup_git2(Some(proxy.clone()));
-            }
-            // if no proxy was provided, use default behavior (http_proxy)
+    // proxy settings
+    if let Some(proxy) = &config.metadata.proxy {
+        // if metadata.proxy is an empty string, do not use proxy
+        if proxy.is_empty() {
+            setup_git2(None);
+        } else {
+            // otherwise, set proxy in config file
+            setup_git2(Some(proxy.clone()));
         }
-
-        Some(init_metadata(&config)?.to_string_lossy().into_owned())
-    };
+        // if no proxy was provided, use default behavior (http_proxy)
+    }
+    // init metadata
+    let mut db = LazyDb::new(&config);
 
     log::info!("Start initializing providers...");
     let now = SystemTime::now();
     let mut providers = Vec::with_capacity(config.providers.len());
     let mut caches = HashMap::new();
 
-    for (provider_name, provider_config) in config.providers.iter() {
+    for (provider_name, provider_config) in config.providers.iter().filter(|(_, cfg)| cfg.enable) {
         log::debug!("Initializing provider: {}", provider_name);
         let mut provider: Box<dyn AnniProvider + Send + Sync> = match &provider_config.item {
             ProviderItem::File {
@@ -109,7 +120,7 @@ async fn init_state(config: Config) -> anyhow::Result<web::Data<AppState>> {
             } => Box::new(
                 CommonConventionProvider::new(
                     PathBuf::from(root),
-                    open_db(database_path.as_ref().unwrap())?,
+                    db.open()?,
                     Box::new(LocalFileSystemProvider),
                 )
                 .await?,
@@ -146,11 +157,7 @@ async fn init_state(config: Config) -> anyhow::Result<web::Data<AppState>> {
                             drive_id: drive_id.clone(),
                             token_path: token_path.clone(),
                         },
-                        if *strict {
-                            None
-                        } else {
-                            Some(open_db(database_path.as_ref().unwrap())?)
-                        },
+                        if *strict { None } else { Some(db.open()?) },
                     )
                     .await?,
                 )
