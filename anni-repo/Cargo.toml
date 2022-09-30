@@ -2,7 +2,7 @@
 name = "anni-repo"
 version = "0.1.0"
 authors = ["Yesterday17 <mmf@mmf.moe>"]
-edition = "2018"
+edition = "2021"
 
 description = "Operate on anni metadata repository."
 repository = "https://github.com/ProjectAnni/anni"

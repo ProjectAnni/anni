@@ -13,7 +13,7 @@ documentation = "https://docs.rs/google-drive3/3.0.0+20220225"
 license = "MIT"
 keywords = ["drive", "google", "protocol", "web", "api"]
 autobins = false
-edition = "2018"
+edition = "2021"
 
 
 [dependencies]

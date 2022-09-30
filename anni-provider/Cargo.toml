@@ -2,7 +2,7 @@
 name = "anni-provider"
 version = "0.1.1"
 authors = ["Yesterday17 <mmf@mmf.moe>"]
-edition = "2018"
+edition = "2021"
 
 [dependencies]
 tokio = { version = "1", features = ["time"] }

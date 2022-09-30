@@ -2,7 +2,7 @@
 name = "anni-flac"
 version = "0.2.2"
 authors = ["Yesterday17 <mmf@mmf.moe>"]
-edition = "2018"
+edition = "2021"
 
 [dependencies]
 hex = "0.4"
