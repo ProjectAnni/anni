@@ -7,7 +7,7 @@ use clap_handler::handler;
 #[clap(about = ll!("completions"))]
 #[clap(alias = "comp")]
 pub struct CompletionsSubcommand {
-    #[clap(arg_enum)]
+    #[clap(value_enum)]
     #[clap(help = ll!("completions-shell"))]
     shell: CompletionShell,
 }

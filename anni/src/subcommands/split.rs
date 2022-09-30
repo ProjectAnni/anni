@@ -3,7 +3,7 @@ use std::io::{Read, Write};
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
 
-use clap::{ArgEnum, Args};
+use clap::{ArgAction, Args, ValueEnum};
 
 use anni_common::decode::{token, u16_le, u32_le, DecodeError};
 use anni_common::encode::{btoken_w, u16_le_w, u32_le_w};
@@ -20,28 +20,28 @@ use std::fmt::{Display, Formatter};
 #[derive(Args, Debug, Clone)]
 #[clap(about = ll!("split"))]
 pub struct SplitSubcommand {
-    #[clap(arg_enum)]
+    #[clap(value_enum)]
     #[clap(short, long, default_value = "wav")]
-    #[clap(help = ll!{"split-format-input"})]
+    #[clap(help = ll!("split-format-input"))]
     input_format: SplitFormat,
 
-    #[clap(arg_enum)]
+    #[clap(value_enum)]
     #[clap(short, long, default_value = "flac")]
-    #[clap(help = ll!{"split-format-output"})]
+    #[clap(help = ll!("split-format-output"))]
     output_format: SplitOutputFormat,
 
     #[clap(long = "clean")]
-    #[clap(help = ll!{"split-clean"})]
+    #[clap(help = ll!("split-clean"))]
     clean: bool,
 
-    #[clap(long = "no-import-cover", parse(from_flag = std::ops::Not::not))]
-    #[clap(help = ll!{"split-no-import-cover"})]
+    #[clap(long = "no-import-cover", action = ArgAction::SetTrue)]
+    #[clap(help = ll!("split-no-import-cover"))]
     import_cover: bool,
 
-    #[clap(long = "keep", parse(from_flag = std::ops::Not::not))]
+    #[clap(long = "keep", action = ArgAction::SetTrue)]
     remove_after_success: bool,
 
-    #[clap(long = "no-trashcan", parse(from_flag = std::ops::Not::not))]
+    #[clap(long = "no-trashcan", action = ArgAction::SetTrue)]
     trashcan: bool,
 
     #[clap(long = "dry-run")]
@@ -173,7 +173,7 @@ impl SplitSubcommand {
     }
 }
 
-#[derive(ArgEnum, Debug, Clone)]
+#[derive(ValueEnum, Debug, Clone)]
 pub enum SplitFormat {
     Wav,
     Flac,
@@ -281,7 +281,7 @@ impl Display for SplitFormat {
     }
 }
 
-#[derive(ArgEnum, Debug, Clone)]
+#[derive(ValueEnum, Debug, Clone)]
 enum SplitOutputFormat {
     Flac,
     Wav,

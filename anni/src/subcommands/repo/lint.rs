@@ -4,7 +4,7 @@ use anni_common::lint::{AnniLinter, AnniLinterReviewDogJsonLineFormat, AnniLinte
 use anni_common::validator::{ValidateResult, ValidatorList};
 use anni_repo::prelude::*;
 use anni_repo::RepositoryManager;
-use clap::{ArgEnum, Args};
+use clap::{Args, ValueEnum};
 use clap_handler::handler;
 use std::collections::HashSet;
 use std::path::PathBuf;
@@ -12,13 +12,13 @@ use std::path::PathBuf;
 #[derive(Args, Debug, Clone)]
 pub struct RepoLintAction {
     #[clap(short, long)]
-    #[clap(arg_enum, default_value = "text")]
+    #[clap(value_enum, default_value = "text")]
     format: RepoLintFormat,
 
     albums: Vec<String>,
 }
 
-#[derive(ArgEnum, Clone, Debug)]
+#[derive(ValueEnum, Clone, Debug)]
 pub enum RepoLintFormat {
     Text,
     // Markdown,

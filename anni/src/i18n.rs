@@ -58,7 +58,7 @@ pub trait ClapI18n {
     fn long_about_ll(self, key: &'static str) -> Self;
 }
 
-impl ClapI18n for clap::Command<'_> {
+impl ClapI18n for clap::Command {
     fn about_ll(self, key: &'static str) -> Self {
         self.about(Box::leak(LOCALIZATION_LOADER.get(key).into_boxed_str()) as &'static str)
     }
@@ -68,7 +68,7 @@ impl ClapI18n for clap::Command<'_> {
     }
 }
 
-impl ClapI18n for clap::Arg<'_> {
+impl ClapI18n for clap::Arg {
     fn about_ll(self, key: &'static str) -> Self {
         self.help(Box::leak(LOCALIZATION_LOADER.get(key).into_boxed_str()) as &'static str)
     }

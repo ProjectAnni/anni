@@ -1,7 +1,7 @@
 #![feature(try_blocks)]
 
 use crate::subcommands::*;
-use clap::{AppSettings, Parser};
+use clap::Parser;
 use clap_handler::Handler;
 use log::LevelFilter;
 
@@ -17,10 +17,9 @@ extern crate anyhow;
 extern crate log;
 
 #[derive(Parser, Handler, Debug, Clone)]
-#[clap(name = "Project Anni", version = env ! ("ANNI_VERSION"), author)]
+#[clap(name = "Project Anni", version = env!("ANNI_VERSION"), author)]
 #[clap(about = ll!("anni-about"))]
-#[clap(global_setting = AppSettings::DeriveDisplayOrder)]
-#[clap(global_setting = AppSettings::InferSubcommands)]
+#[clap(infer_subcommands = true)]
 pub struct AnniArguments {
     #[clap(subcommand)]
     subcommand: AnniSubcommand,

@@ -2,7 +2,7 @@ use crate::args::{FlacInputFile, InputPath};
 use crate::ll;
 use anni_flac::blocks::PictureType;
 use anni_flac::{FlacHeader, MetadataBlockData};
-use clap::{ArgEnum, Args, Subcommand};
+use clap::{Args, Subcommand, ValueEnum};
 use clap_handler::{handler, Handler};
 use std::io::Write;
 
@@ -23,20 +23,20 @@ pub enum FlacAction {
 
 #[derive(Args, Debug, Clone)]
 pub struct FlacExportAction {
-    #[clap(arg_enum)]
+    #[clap(value_enum)]
     #[clap(short = 't', long = "type", default_value = "tag")]
-    #[clap(help = ll!{"flac-export-type"})]
+    #[clap(help = ll!("flac-export-type"))]
     export_type: FlacExportType,
 
     #[clap(short = 'n', long)]
-    // #[clap(about = ll!{"flac-export-block-num"})]
+    // #[clap(about = ll!("flac-export-block-num"))]
     block_num: Option<u8>,
 
     #[clap(long, default_value = "cover")]
     picture_type: PictureType,
 
     #[clap(short, long, default_value = "-")]
-    #[clap(help = ll!{"export-to"})]
+    #[clap(help = ll!("export-to"))]
     output: crate::args::ActionFile,
 
     #[clap(required = true)]
@@ -105,7 +105,7 @@ impl FlacExportAction {
     }
 }
 
-#[derive(ArgEnum, Debug, PartialEq, Clone)]
+#[derive(ValueEnum, Debug, PartialEq, Clone)]
 pub enum FlacExportType {
     /// Block Info
     Info,
@@ -116,12 +116,12 @@ pub enum FlacExportType {
     /// Block Cue
     Cue,
     /// Block Comment
-    #[clap(alias = "tag")]
+    #[value(alias = "tag")]
     Comment,
     /// Block Picture
     Picture,
     /// List All
-    #[clap(alias = "all")]
+    #[value(alias = "all")]
     List,
 }
 

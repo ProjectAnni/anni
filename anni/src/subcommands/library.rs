@@ -38,7 +38,7 @@ impl LibrarySubcommand {
 pub enum LibraryAction {
     New(LibraryNewAlbumAction),
     #[clap(name = "tag", alias = "apply")]
-    #[clap(about = ll!{"library-tag"})]
+    #[clap(about = ll!("library-tag"))]
     ApplyTag(LibraryApplyTagAction),
     Link(LibraryLinkAction),
 }
