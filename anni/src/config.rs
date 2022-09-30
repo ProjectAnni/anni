@@ -1,11 +1,10 @@
 use anni_common::fs::read_to_string;
 use directories_next::ProjectDirs;
+use once_cell::sync::Lazy;
 use serde::de::DeserializeOwned;
 use std::path::PathBuf;
 
-lazy_static::lazy_static! {
-    pub static ref CONFIG_ROOT: PathBuf = init_config();
-}
+static CONFIG_ROOT: Lazy<PathBuf> = Lazy::new(|| init_config());
 
 fn init_config() -> PathBuf {
     let config = std::env::var("ANNI_ROOT").map(PathBuf::from).unwrap_or({

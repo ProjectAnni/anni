@@ -2,6 +2,7 @@ use i18n_embed::{
     fluent::{fluent_language_loader, FluentLanguageLoader},
     DesktopLanguageRequester, LanguageLoader,
 };
+use once_cell::sync::Lazy;
 use rust_embed::RustEmbed;
 
 #[derive(RustEmbed)]
@@ -19,9 +20,7 @@ fn init_i18n() -> FluentLanguageLoader {
     loader
 }
 
-lazy_static::lazy_static! {
-    pub static ref LOCALIZATION_LOADER: FluentLanguageLoader = init_i18n();
-}
+pub static LOCALIZATION_LOADER: Lazy<FluentLanguageLoader> = Lazy::new(|| init_i18n());
 
 #[macro_export]
 macro_rules! fl {

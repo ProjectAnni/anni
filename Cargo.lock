@@ -306,11 +306,11 @@ dependencies = [
  "i18n-embed-fl",
  "id3",
  "inquire",
- "lazy_static 1.4.0",
  "log 0.4.17",
  "musicbrainz_rs",
  "notify",
  "notify-debouncer-mini",
+ "once_cell",
  "pretty_env_logger",
  "ptree",
  "regex",
@@ -337,8 +337,8 @@ dependencies = [
  "anni-artist",
  "byteorder",
  "chardetng",
- "lazy_static 1.4.0",
  "log 0.4.17",
+ "once_cell",
  "path-absolutize",
  "pathdiff",
  "regex",
@@ -800,11 +800,10 @@ checksum = "3d7b894f5411737b7867f4827955924d7c254fc9f4d91a6aad6b097804b1018b"
 [[package]]
 name = "colored"
 version = "2.0.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b3616f750b84d8f0de8a58bda93e08e2a81ad3f523089b05f1dffecab48c6cbd"
+source = "git+https://github.com/ProjectAnni/colored?branch=master#1d6b88d1f7f8704b4dc44bf9042478c0568833dc"
 dependencies = [
  "atty",
- "lazy_static 1.4.0",
+ "once_cell",
  "winapi",
 ]
 
@@ -2646,9 +2645,9 @@ dependencies = [
 
 [[package]]
 name = "once_cell"
-version = "1.14.0"
+version = "1.15.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2f7254b99e31cad77da24b08ebf628882739a608578bb1bcdfc1f9c21260d7c0"
+checksum = "e82dad04139b71a90c080c8463fe0dc7902db5192d939bd0950f074d014339e1"
 
 [[package]]
 name = "opaque-debug"

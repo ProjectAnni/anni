@@ -20,7 +20,7 @@ thiserror = "1.0"
 anni-common = { path = "../anni-common", default-features = false }
 uuid = { version = "1", features = ["v4", "serde"] }
 log = "0.4"
-once_cell = "1.12.0"
+once_cell = "1"
 pathdiff = "0.2.1"
 indexmap = "1.9.1"
 
