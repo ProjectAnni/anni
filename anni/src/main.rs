@@ -18,8 +18,9 @@ extern crate log;
 
 #[derive(Parser, Handler, Debug, Clone)]
 #[clap(name = "Project Anni", version = env ! ("ANNI_VERSION"), author)]
-#[clap(about = ll!{"anni-about"})]
+#[clap(about = ll!("anni-about"))]
 #[clap(global_setting = AppSettings::DeriveDisplayOrder)]
+#[clap(global_setting = AppSettings::InferSubcommands)]
 pub struct AnniArguments {
     #[clap(subcommand)]
     subcommand: AnniSubcommand,

@@ -14,7 +14,6 @@ use std::sync::Arc;
 
 #[derive(Args, Debug, Clone, Handler)]
 #[clap(about = ll!("convention"))]
-#[clap(alias = "conv")]
 #[handler_inject(convention_rules)]
 pub struct ConventionSubcommand {
     #[clap(subcommand)]
