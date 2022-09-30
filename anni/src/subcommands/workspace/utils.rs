@@ -42,12 +42,9 @@ pub fn get_workspace_album_real_path<P>(dot_anni: P, path: P) -> anyhow::Result<
 where
     P: AsRef<Path>,
 {
-    let album_id = get_album_id(path.as_ref())?;
-    match album_id {
-        Some(album_id) => Ok(get_workspace_album_path(dot_anni, &album_id)
-            .ok_or_else(|| anyhow::anyhow!("Album directory does not exist"))?),
-        None => bail!("Album directory does not exist, or is not a symlink"),
-    }
+    let album_id = do_get_album_id(path.as_ref())?;
+    Ok(get_workspace_album_path(dot_anni, &album_id)
+        .ok_or_else(|| anyhow::anyhow!("Album directory does not exist"))?)
 }
 
 pub fn get_workspace_album_path<P>(dot_anni: P, album_id: &Uuid) -> Option<PathBuf>
@@ -97,6 +94,17 @@ where
     let album_id = real_path.file_name().unwrap().to_string_lossy();
     let album_id = Uuid::parse_str(&album_id)?;
     Ok(Some(album_id))
+}
+
+pub fn do_get_album_id<P>(path: P) -> anyhow::Result<Uuid>
+where
+    P: AsRef<Path>,
+{
+    let album_id = get_album_id(path.as_ref())?;
+    match album_id {
+        Some(album_id) => Ok(album_id),
+        None => bail!("Album directory does not exist, or is not a symlink"),
+    }
 }
 
 pub fn get_workspace_repository_manager<P>(dot_anni: P) -> anyhow::Result<RepositoryManager>

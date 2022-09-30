@@ -1,10 +1,11 @@
+use crate::ll;
 use anni_common::fs;
 use clap::Args;
 use clap_handler::handler;
 use std::path::PathBuf;
 
 #[derive(Args, Debug, Clone)]
-// #[clap(about = ll!("workspace-init"))]
+#[clap(about = ll!("workspace-init"))]
 pub struct WorkspaceInitAction {
     #[clap(long)]
     repo: Option<String>,

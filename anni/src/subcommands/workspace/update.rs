@@ -1,6 +1,6 @@
 use crate::library::apply_strict;
 use crate::workspace::utils::{
-    find_dot_anni, get_album_id, get_workspace_album_path, get_workspace_repository_manager,
+    do_get_album_id, find_dot_anni, get_workspace_album_path, get_workspace_repository_manager,
 };
 use clap::Args;
 use clap_handler::handler;
@@ -18,7 +18,7 @@ pub struct WorkspaceUpdateAction {
 pub async fn handle_workspace_update(me: WorkspaceUpdateAction) -> anyhow::Result<()> {
     let dot_anni = find_dot_anni()?;
 
-    let album_id = get_album_id(&me.path)?.expect("Invalid album id");
+    let album_id = do_get_album_id(&me.path)?;
     let album_path = get_workspace_album_path(&dot_anni, &album_id).expect("Album path not found");
 
     if me.tags {
