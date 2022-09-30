@@ -3,17 +3,21 @@ use crate::prelude::RepoResult;
 use rusqlite::{params, Connection, OpenFlags, Params};
 use serde::de::DeserializeOwned;
 use serde_rusqlite::from_rows;
+use std::path::{Path, PathBuf};
 use uuid::Uuid;
 
 pub struct RepoDatabaseRead {
-    uri: String,
+    uri: PathBuf,
     conn: Connection,
 }
 
 impl RepoDatabaseRead {
-    pub fn new(path: &str) -> RepoResult<RepoDatabaseRead> {
+    pub fn new<P>(path: P) -> RepoResult<RepoDatabaseRead>
+    where
+        P: AsRef<Path>,
+    {
         Ok(Self {
-            uri: path.to_string(),
+            uri: path.as_ref().to_path_buf(),
             conn: Connection::open_with_flags(path, OpenFlags::SQLITE_OPEN_READ_ONLY)?,
         })
     }
@@ -21,7 +25,7 @@ impl RepoDatabaseRead {
     #[cfg(target_arch = "wasm32")]
     pub fn new_with_vfs(path: &str, vfs: &str) -> RepoResult<RepoDatabaseRead> {
         Ok(Self {
-            uri: path.to_string(),
+            uri: path.as_ref().to_path_buf(),
             conn: Connection::open_with_flags_and_vfs(path, OpenFlags::SQLITE_OPEN_READ_ONLY, vfs)?,
         })
     }

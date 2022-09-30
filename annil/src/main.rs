@@ -11,6 +11,7 @@ use crate::error::AnnilError;
 use crate::provider::AnnilProvider;
 use crate::services::*;
 use crate::utils::compute_etag;
+
 use actix_cors::Cors;
 use actix_web::middleware::Logger;
 use actix_web::{web, App, HttpServer};
@@ -35,7 +36,7 @@ pub struct AppState {
     admin_token: String,
 
     version: String,
-    metadata: MetadataConfig,
+    metadata: Option<MetadataConfig>,
     last_update: RwLock<u64>,
     etag: RwLock<String>,
 }
@@ -46,9 +47,9 @@ struct LazyDb {
 }
 
 impl LazyDb {
-    pub fn new(config: &Config) -> Self {
+    pub fn new(metadata: &MetadataConfig) -> Self {
         Self {
-            metadata: config.metadata.clone(),
+            metadata: metadata.clone(),
             db_path: None,
         }
     }
@@ -92,18 +93,23 @@ fn init_metadata(metadata: &MetadataConfig) -> anyhow::Result<PathBuf> {
 
 async fn init_state(config: Config) -> anyhow::Result<web::Data<AppState>> {
     // proxy settings
-    if let Some(proxy) = &config.metadata.proxy {
-        // if metadata.proxy is an empty string, do not use proxy
-        if proxy.is_empty() {
-            setup_git2(None);
-        } else {
-            // otherwise, set proxy in config file
-            setup_git2(Some(proxy.clone()));
+    let mut db = if let Some(metadata) = &config.metadata {
+        if let Some(proxy) = &metadata.proxy {
+            // if metadata.proxy is an empty string, do not use proxy
+            if proxy.is_empty() {
+                setup_git2(None);
+            } else {
+                // otherwise, set proxy in config file
+                setup_git2(Some(proxy.clone()));
+            }
+            // if no proxy was provided, use default behavior (http_proxy)
         }
-        // if no proxy was provided, use default behavior (http_proxy)
-    }
-    // init metadata
-    let mut db = LazyDb::new(&config);
+
+        // init metadata
+        Some(LazyDb::new(metadata))
+    } else {
+        None
+    };
 
     log::info!("Start initializing providers...");
     let now = SystemTime::now();
@@ -112,57 +118,102 @@ async fn init_state(config: Config) -> anyhow::Result<web::Data<AppState>> {
 
     for (provider_name, provider_config) in config.providers.iter().filter(|(_, cfg)| cfg.enable) {
         log::debug!("Initializing provider: {}", provider_name);
-        let mut provider: Box<dyn AnniProvider + Send + Sync> = match &provider_config.item {
-            ProviderItem::File {
-                root,
-                strict: false,
-                ..
-            } => Box::new(
-                CommonConventionProvider::new(
-                    PathBuf::from(root),
-                    db.open()?,
-                    Box::new(LocalFileSystemProvider),
-                )
-                .await?,
-            ),
-            ProviderItem::File {
-                root,
-                strict: true,
-                layer,
-            } => Box::new(
-                CommonStrictProvider::new(
-                    PathBuf::from(root),
-                    *layer,
-                    Box::new(LocalFileSystemProvider),
-                )
-                .await?,
-            ),
-            ProviderItem::Drive {
-                drive_id,
-                corpora,
-                initial_token_path,
-                token_path,
-                strict,
-            } => {
-                if let Some(initial_token_path) = initial_token_path {
-                    if initial_token_path.exists() && !token_path.exists() {
-                        let _ = std::fs::copy(initial_token_path, token_path.clone());
-                    }
-                }
-                Box::new(
-                    DriveProvider::new(
-                        Default::default(),
-                        DriveProviderSettings {
-                            corpora: corpora.to_string(),
-                            drive_id: drive_id.clone(),
-                            token_path: token_path.clone(),
-                        },
-                        if *strict { None } else { Some(db.open()?) },
+        let mut provider: Box<dyn AnniProvider + Send + Sync> =
+            match (&provider_config.item, &mut db) {
+                (
+                    ProviderItem::File {
+                        root,
+                        strict: false,
+                        ..
+                    },
+                    Some(db),
+                ) => Box::new(
+                    CommonConventionProvider::new(
+                        PathBuf::from(root),
+                        db.open()?,
+                        Box::new(LocalFileSystemProvider),
                     )
                     .await?,
-                )
-            }
-        };
+                ),
+                (
+                    ProviderItem::File {
+                        root,
+                        strict: true,
+                        layer,
+                    },
+                    _,
+                ) => Box::new(
+                    CommonStrictProvider::new(
+                        PathBuf::from(root),
+                        *layer,
+                        Box::new(LocalFileSystemProvider),
+                    )
+                    .await?,
+                ),
+                (
+                    ProviderItem::Drive {
+                        drive_id,
+                        corpora,
+                        initial_token_path,
+                        token_path,
+                        strict: false,
+                    },
+                    Some(db),
+                ) => {
+                    if let Some(initial_token_path) = initial_token_path {
+                        if initial_token_path.exists() && !token_path.exists() {
+                            let _ = std::fs::copy(initial_token_path, token_path.clone());
+                        }
+                    }
+                    Box::new(
+                        DriveProvider::new(
+                            Default::default(),
+                            DriveProviderSettings {
+                                corpora: corpora.to_string(),
+                                drive_id: drive_id.clone(),
+                                token_path: token_path.clone(),
+                            },
+                            Some(db.open()?),
+                        )
+                        .await?,
+                    )
+                }
+                (
+                    ProviderItem::Drive {
+                        drive_id,
+                        corpora,
+                        initial_token_path,
+                        token_path,
+                        strict: true,
+                    },
+                    _,
+                ) => {
+                    if let Some(initial_token_path) = initial_token_path {
+                        if initial_token_path.exists() && !token_path.exists() {
+                            let _ = std::fs::copy(initial_token_path, token_path.clone());
+                        }
+                    }
+                    Box::new(
+                        DriveProvider::new(
+                            Default::default(),
+                            DriveProviderSettings {
+                                corpora: corpora.to_string(),
+                                drive_id: drive_id.clone(),
+                                token_path: token_path.clone(),
+                            },
+                            None,
+                        )
+                        .await?,
+                    )
+                }
+                (_, None) => {
+                    log::error!(
+                        "Metadata is not configured, but provider {} requires it.",
+                        provider_name
+                    );
+                    continue;
+                }
+            };
         if let Some(cache) = provider_config.cache() {
             log::debug!(
                 "Cache configuration detected: root = {}, max-size = {}",
@@ -221,7 +272,7 @@ async fn main() -> anyhow::Result<()> {
             .nth(1)
             .unwrap_or_else(|| "config.toml".to_owned()),
     )?;
-    let listen = config.server.listen("0.0.0.0:3614").to_string();
+    let listen = config.server.listen().to_string();
     let state = init_state(config).await?;
 
     HttpServer::new(move || {

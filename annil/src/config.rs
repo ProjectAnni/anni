@@ -6,7 +6,7 @@ use std::path::{Path, PathBuf};
 #[derive(Deserialize)]
 pub struct Config {
     pub server: ServerConfig,
-    pub metadata: MetadataConfig,
+    pub metadata: Option<MetadataConfig>,
     #[serde(rename = "backends")]
     pub providers: HashMap<String, ProviderConfig>,
 }
@@ -25,7 +25,7 @@ pub struct ServerConfig {
     /// Server name
     pub name: String,
     /// Port to listen on
-    listen: Option<String>,
+    listen: String,
     /// HMAC key for JWT
     #[serde(rename = "hmac-key")]
     key: String,
@@ -36,12 +36,8 @@ pub struct ServerConfig {
 }
 
 impl ServerConfig {
-    pub fn listen(&self, default: &'static str) -> &str {
-        if let Some(listen) = &self.listen {
-            listen.as_str()
-        } else {
-            default
-        }
+    pub fn listen(&self) -> &str {
+        self.listen.as_str()
     }
 
     pub fn key(&self) -> &str {

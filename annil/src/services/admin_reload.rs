@@ -6,13 +6,15 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 #[post("/admin/reload")]
 async fn reload(data: web::Data<AppState>) -> impl Responder {
-    if data.metadata.pull {
-        let repo = RepositoryManager::pull(data.metadata.base.join("repo"), &data.metadata.branch)
-            .unwrap();
-        let repo = repo.into_owned_manager().unwrap();
+    if let Some(metadata) = &data.metadata {
+        if metadata.pull {
+            let repo =
+                RepositoryManager::pull(metadata.base.join("repo"), &metadata.branch).unwrap();
+            let repo = repo.into_owned_manager().unwrap();
 
-        let database_path = data.metadata.base.join("repo.db");
-        repo.to_database(&database_path).unwrap();
+            let database_path = metadata.base.join("repo.db");
+            repo.to_database(&database_path).unwrap();
+        }
     }
 
     for provider in data.providers.write().iter_mut() {
