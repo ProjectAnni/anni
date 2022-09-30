@@ -12,9 +12,6 @@ members = [
 [patch.crates-io]
 # Remove this patch after https://github.com/rusqlite/rusqlite/pull/1010 was merged
 rusqlite = { git = "https://github.com/ProjectAnni/rusqlite", branch = "wasm32-unknown-unknown" }
-# https://github.com/oknozor/musicbrainz_rs/pull/75 has been merged
-# Remove this patch after release
-musicbrainz_rs = { git = "https://github.com/ProjectAnni/musicbrainz_rs", branch = "main" }
 # Remove this patch after https://github.com/ordian/toml_edit/pull/334 was merged
 toml_edit = { git = "https://github.com/ProjectAnni/toml_edit", branch = "master" }
 #Remove this patch after https://github.com/hsivonen/chardetng/pull/10 was merged

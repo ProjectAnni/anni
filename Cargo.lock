@@ -2423,14 +2423,13 @@ dependencies = [
 [[package]]
 name = "musicbrainz_rs"
 version = "0.4.0"
-source = "git+https://github.com/ProjectAnni/musicbrainz_rs?branch=main#58b2f1b964f26434dba1dc3791a8b905ae1befa8"
+source = "git+https://github.com/ProjectAnni/musicbrainz_rs#9c5327d449eb77432ca1f538629ec43372f02724"
 dependencies = [
  "chrono",
- "lazy_static 1.4.0",
  "lucene_query_builder",
+ "once_cell",
  "reqwest",
  "serde 1.0.144",
- "serde_derive",
  "serde_json",
 ]
 
