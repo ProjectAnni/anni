@@ -77,9 +77,9 @@ library-link = 以符号链接将约定目录格式转换为严格目录格式
 ## Workspace
 workspace = 管理音频整理工作空间
 workspace-init = 初始化工作空间
-workspace-create = 创建新专辑
+workspace-create = 在工作空间中创建新专辑
 
-workspace-add = 将专辑状态从未跟踪转换为已提交
+workspace-add = 将工作空间中专辑对状态从未跟踪转换为已跟踪
 workspace-add-import-tags=从音频文件中导入元数据
 workspace-add-dry-run=仅展示，不实际移动文件或创建链接
 workspace-add-skip-check=跳过对专辑结构的检查

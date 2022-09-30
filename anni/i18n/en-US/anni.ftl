@@ -79,7 +79,7 @@ workspace = Manage audio and metadata workspace.
 workspace-init = Initialize workspace.
 workspace-create = Create new albums in workspace.
 
-workspace-add = Make an album controlled by workspace.
+workspace-add = Make an album stashed by workspace.
 workspace-add-import-tags=Import metadata from audio files while adding.
 workspace-add-dry-run=Do not actually move files or make symlinks.
 workspace-add-skip-check=Skip check for album structure.
