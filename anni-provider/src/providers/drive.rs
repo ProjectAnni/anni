@@ -5,6 +5,7 @@ use google_drive3::{
 };
 use std::borrow::Cow;
 use std::collections::{HashMap, HashSet};
+use std::num::NonZeroU8;
 use std::path::{Path, PathBuf};
 
 use self::oauth2::authenticator::Authenticator;
@@ -286,13 +287,13 @@ impl DriveProvider {
         Ok(())
     }
 
-    fn get_parent_folder(&self, album_id: &str, disc_id: Option<u8>) -> Cow<str> {
+    fn get_parent_folder(&self, album_id: &str, disc_id: Option<NonZeroU8>) -> Cow<str> {
         match disc_id {
             Some(disc_id) => {
                 if self.discs.contains_key(album_id) {
                     Cow::Owned(
                         self.discs.get(album_id).unwrap().as_deref().unwrap()
-                            [(disc_id - 1) as usize]
+                            [(disc_id.get() - 1) as usize]
                             .clone(),
                     )
                 } else {
@@ -317,8 +318,8 @@ impl AnniProvider for DriveProvider {
     async fn get_audio(
         &self,
         album_id: &str,
-        disc_id: u8,
-        track_id: u8,
+        disc_id: NonZeroU8,
+        track_id: NonZeroU8,
         range: Range,
     ) -> Result<AudioResourceReader, ProviderError> {
         // catalog not found
@@ -404,12 +405,12 @@ impl AnniProvider for DriveProvider {
     async fn get_cover(
         &self,
         album_id: &str,
-        disc_id: Option<u8>,
+        disc_id: Option<NonZeroU8>,
     ) -> Result<ResourceReader, ProviderError> {
         // album_id not found
         if !self.folders.contains_key(album_id) ||
             // disc not found
-            (disc_id.is_some() && !matches!(disc_id, Some(1)) && !self.discs.contains_key(album_id))
+            (disc_id.is_some() && disc_id != NonZeroU8::new(1) && !self.discs.contains_key(album_id))
         {
             return Err(ProviderError::FileNotFound);
         }

@@ -1,6 +1,7 @@
 use anni_provider::{AnniProvider, ProviderError, ResourceReader};
 use std::borrow::Cow;
 use std::collections::HashSet;
+use std::num::NonZeroU8;
 use std::ops::{Deref, DerefMut};
 
 pub struct AnnilProvider {
@@ -34,7 +35,7 @@ impl AnnilProvider {
     pub async fn get_cover(
         &self,
         album_id: &str,
-        disc_id: Option<u8>,
+        disc_id: Option<NonZeroU8>,
     ) -> Result<ResourceReader, ProviderError> {
         self.inner.get_cover(album_id, disc_id).await
     }

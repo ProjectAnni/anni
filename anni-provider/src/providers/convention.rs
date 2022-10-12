@@ -8,6 +8,7 @@ use async_trait::async_trait;
 use parking_lot::Mutex;
 use std::borrow::Cow;
 use std::collections::{HashMap, HashSet};
+use std::num::NonZeroU8;
 use std::path::PathBuf;
 use std::str::FromStr;
 use tokio_stream::StreamExt;
@@ -53,8 +54,8 @@ impl AnniProvider for CommonConventionProvider {
     async fn get_audio(
         &self,
         album_id: &str,
-        disc_id: u8,
-        track_id: u8,
+        disc_id: NonZeroU8,
+        track_id: NonZeroU8,
         range: Range,
     ) -> Result<AudioResourceReader> {
         let disc = self.get_disc(album_id, disc_id)?;
@@ -65,7 +66,11 @@ impl AnniProvider for CommonConventionProvider {
         self.fs.get_audio_file(&file.path, range).await
     }
 
-    async fn get_cover(&self, album_id: &str, disc_id: Option<u8>) -> Result<ResourceReader> {
+    async fn get_cover(
+        &self,
+        album_id: &str,
+        disc_id: Option<NonZeroU8>,
+    ) -> Result<ResourceReader> {
         let folder = match disc_id {
             Some(disc_id) => self.get_disc(album_id, disc_id)?,
             _ => self
@@ -87,11 +92,11 @@ impl AnniProvider for CommonConventionProvider {
 }
 
 impl CommonConventionProvider {
-    pub fn get_disc(&self, album_id: &str, disc_id: u8) -> Result<&FileEntry> {
+    pub fn get_disc(&self, album_id: &str, disc_id: NonZeroU8) -> Result<&FileEntry> {
         if let Some(album) = self.albums.get(album_id) {
             if let Some(folders) = self.discs.get(album_id) {
                 folders
-                    .get(disc_id as usize)
+                    .get((disc_id.get() - 1) as usize)
                     .ok_or(ProviderError::FileNotFound)
             } else {
                 Ok(album)

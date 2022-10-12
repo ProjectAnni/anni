@@ -1,6 +1,7 @@
 use async_trait::async_trait;
 use std::borrow::Cow;
 use std::collections::HashSet;
+use std::num::NonZeroU8;
 use std::path::PathBuf;
 use std::pin::Pin;
 use thiserror::Error;
@@ -142,7 +143,12 @@ pub trait AnniProvider: Sync {
     }
 
     /// Get audio info describing basic information of the audio file.
-    async fn get_audio_info(&self, album_id: &str, disc_id: u8, track_id: u8) -> Result<AudioInfo> {
+    async fn get_audio_info(
+        &self,
+        album_id: &str,
+        disc_id: NonZeroU8,
+        track_id: NonZeroU8,
+    ) -> Result<AudioInfo> {
         Ok(self
             .get_audio(album_id, disc_id, track_id, Range::FLAC_HEADER)
             .await?
@@ -153,13 +159,14 @@ pub trait AnniProvider: Sync {
     async fn get_audio(
         &self,
         album_id: &str,
-        disc_id: u8,
-        track_id: u8,
+        disc_id: NonZeroU8,
+        track_id: NonZeroU8,
         range: Range,
     ) -> Result<AudioResourceReader>;
 
     /// Returns a cover of corresponding album
-    async fn get_cover(&self, album_id: &str, disc_id: Option<u8>) -> Result<ResourceReader>;
+    async fn get_cover(&self, album_id: &str, disc_id: Option<NonZeroU8>)
+        -> Result<ResourceReader>;
 
     /// Reloads the provider for new albums
     async fn reload(&mut self) -> Result<()>;

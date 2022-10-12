@@ -6,6 +6,7 @@ use parking_lot::RwLock;
 use std::borrow::Cow;
 use std::collections::HashSet;
 use std::future::Future;
+use std::num::NonZeroU8;
 use std::path::{Path, PathBuf};
 use std::pin::Pin;
 use std::sync::Arc;
@@ -43,8 +44,8 @@ impl AnniProvider for Cache {
     async fn get_audio_info(
         &self,
         album_id: &str,
-        disc_id: u8,
-        track_id: u8,
+        disc_id: NonZeroU8,
+        track_id: NonZeroU8,
     ) -> Result<AudioInfo, ProviderError> {
         // audio info request are passed to the inner provider directly
         self.inner.get_audio_info(album_id, disc_id, track_id).await
@@ -53,8 +54,8 @@ impl AnniProvider for Cache {
     async fn get_audio(
         &self,
         album_id: &str,
-        disc_id: u8,
-        track_id: u8,
+        disc_id: NonZeroU8,
+        track_id: NonZeroU8,
         range: Range,
     ) -> Result<AudioResourceReader, ProviderError> {
         self.pool
@@ -74,7 +75,7 @@ impl AnniProvider for Cache {
     async fn get_cover(
         &self,
         album_id: &str,
-        disc_id: Option<u8>,
+        disc_id: Option<NonZeroU8>,
     ) -> Result<ResourceReader, ProviderError> {
         // TODO: cache cover
         self.inner.get_cover(album_id, disc_id).await

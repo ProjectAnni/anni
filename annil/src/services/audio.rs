@@ -4,6 +4,7 @@ use actix_web::web::Query;
 use actix_web::{web, HttpRequest, HttpResponse, Responder, ResponseError};
 use anni_provider::Range;
 use serde::Deserialize;
+use std::num::NonZeroU8;
 use std::process::Stdio;
 use tokio_util::io::ReaderStream;
 
@@ -30,7 +31,7 @@ impl AudioQuery {
 
 pub async fn audio_head(
     claim: AnnilClaims,
-    path: web::Path<(String, u8, u8)>,
+    path: web::Path<(String, NonZeroU8, NonZeroU8)>,
     data: web::Data<AppState>,
     query: Query<AudioQuery>,
 ) -> impl Responder {
@@ -76,7 +77,7 @@ pub async fn audio_head(
 /// Get audio in an album with {album_id}, {disc_id} and {track_id}
 pub async fn audio(
     claim: AnnilClaims,
-    path: web::Path<(String, u8, u8)>,
+    path: web::Path<(String, NonZeroU8, NonZeroU8)>,
     data: web::Data<AppState>,
     query: Query<AudioQuery>,
     req: HttpRequest,

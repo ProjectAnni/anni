@@ -1,3 +1,5 @@
+use std::num::NonZeroU8;
+
 use crate::AppState;
 use actix_web::http::header::CACHE_CONTROL;
 use actix_web::{web, HttpResponse, Responder};
@@ -7,7 +9,7 @@ use tokio_util::io::ReaderStream;
 #[derive(Deserialize)]
 pub struct CoverPath {
     album_id: String,
-    disc_id: Option<u8>,
+    disc_id: Option<NonZeroU8>,
 }
 
 /// Get audio cover of an album with {album_id} and optional {disc_id}

@@ -6,6 +6,7 @@ use async_trait::async_trait;
 use futures::StreamExt;
 use std::borrow::Cow;
 use std::collections::{HashMap, HashSet, VecDeque};
+use std::num::NonZeroU8;
 use std::path::PathBuf;
 use uuid::Uuid;
 
@@ -46,8 +47,8 @@ impl AnniProvider for CommonStrictProvider {
     async fn get_audio(
         &self,
         album_id: &str,
-        disc_id: u8,
-        track_id: u8,
+        disc_id: NonZeroU8,
+        track_id: NonZeroU8,
         range: Range,
     ) -> Result<AudioResourceReader> {
         let disc = self.get_disc(album_id, disc_id).await?;
@@ -58,7 +59,11 @@ impl AnniProvider for CommonStrictProvider {
         self.fs.get_audio_file(&file.path, range).await
     }
 
-    async fn get_cover(&self, album_id: &str, disc_id: Option<u8>) -> Result<ResourceReader> {
+    async fn get_cover(
+        &self,
+        album_id: &str,
+        disc_id: Option<NonZeroU8>,
+    ) -> Result<ResourceReader> {
         match disc_id {
             Some(disc_id) => {
                 let disc = self.get_disc(album_id, disc_id).await?;
@@ -90,7 +95,7 @@ impl AnniProvider for CommonStrictProvider {
 }
 
 impl CommonStrictProvider {
-    pub async fn get_disc(&self, album_id: &str, disc_id: u8) -> Result<FileEntry> {
+    pub async fn get_disc(&self, album_id: &str, disc_id: NonZeroU8) -> Result<FileEntry> {
         let folder = self
             .folders
             .get(album_id)

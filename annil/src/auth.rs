@@ -2,6 +2,7 @@ use actix_web::{web, FromRequest, HttpMessage, HttpRequest};
 use jwt_simple::prelude::*;
 use serde::{Deserialize, Serialize};
 
+use std::num::NonZeroU8;
 use std::task::{Context, Poll};
 
 use crate::error::AnnilError;
@@ -52,7 +53,12 @@ impl FromRequest for AnnilClaims {
 }
 
 impl AnnilClaims {
-    pub(crate) fn can_fetch(&self, album_id: &str, disc_id: u8, track_id: u8) -> bool {
+    pub(crate) fn can_fetch(
+        &self,
+        album_id: &str,
+        disc_id: NonZeroU8,
+        track_id: NonZeroU8,
+    ) -> bool {
         match &self {
             AnnilClaims::User(_) => true,
             AnnilClaims::Share(s) => {
@@ -62,7 +68,7 @@ impl AnnilClaims {
                         // disc_id exist
                         Some(disc) => {
                             // return whether track_id exist in list
-                            disc.contains(&track_id)
+                            disc.contains(&track_id.get())
                         }
                         // disc_id does not exist
                         None => false,

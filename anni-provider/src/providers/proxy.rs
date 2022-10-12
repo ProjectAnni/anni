@@ -5,6 +5,7 @@ use futures::TryStreamExt;
 use reqwest::Response;
 use std::borrow::Cow;
 use std::collections::HashSet;
+use std::num::NonZeroU8;
 
 pub struct ProxyBackend {
     url: String,
@@ -57,8 +58,8 @@ impl AnniProvider for ProxyBackend {
     async fn get_audio_info(
         &self,
         album_id: &str,
-        disc_id: u8,
-        track_id: u8,
+        disc_id: NonZeroU8,
+        track_id: NonZeroU8,
     ) -> Result<AudioInfo, ProviderError> {
         let response = self
             .head(&format!(
@@ -73,8 +74,8 @@ impl AnniProvider for ProxyBackend {
     async fn get_audio(
         &self,
         album_id: &str,
-        disc_id: u8,
-        track_id: u8,
+        disc_id: NonZeroU8,
+        track_id: NonZeroU8,
         range: Range,
     ) -> Result<AudioResourceReader, ProviderError> {
         let response = self
@@ -105,7 +106,7 @@ impl AnniProvider for ProxyBackend {
     async fn get_cover(
         &self,
         album_id: &str,
-        disc_id: Option<u8>,
+        disc_id: Option<NonZeroU8>,
     ) -> Result<ResourceReader, ProviderError> {
         let path = match disc_id {
             Some(disc_id) => format!("/{}/{}/cover", album_id, disc_id),
