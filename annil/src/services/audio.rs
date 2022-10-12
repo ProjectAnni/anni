@@ -1,5 +1,8 @@
 use crate::{AnnilClaims, AnnilError, AppState};
-use actix_web::http::header::{ACCEPT_RANGES, ACCESS_CONTROL_EXPOSE_HEADERS, CACHE_CONTROL};
+use actix_web::body::SizedStream;
+use actix_web::http::header::{
+    ACCEPT_RANGES, ACCESS_CONTROL_EXPOSE_HEADERS, CACHE_CONTROL, CONTENT_LENGTH, CONTENT_RANGE,
+};
 use actix_web::web::Query;
 use actix_web::{web, HttpRequest, HttpResponse, Responder, ResponseError};
 use anni_provider::Range;
@@ -61,7 +64,8 @@ pub async fn audio_head(
                             format!("audio/{}", info.extension)
                         });
                     if !transcode {
-                        resp.append_header((ACCEPT_RANGES, "bytes"));
+                        resp.append_header((ACCEPT_RANGES, "bytes"))
+                            .append_header((CONTENT_LENGTH, info.size));
                     }
                     resp.finish()
                 }
@@ -120,52 +124,65 @@ pub async fn audio(
                 .get_audio(&album_id, disc_id, track_id, range)
                 .await
                 .map_err(|_| AnnilError::NotFound);
-            if let Err(e) = audio {
-                return e.error_response();
-            }
 
-            let mut audio = audio.unwrap();
-            let mut resp = if need_range && !audio.range.is_full() {
-                let mut resp = HttpResponse::PartialContent();
-                resp.append_header(("Content-Range", audio.range.to_content_range_header()))
-                    .append_header(("Accept-Ranges", "bytes"));
-                resp
-            } else {
-                HttpResponse::Ok()
-            };
+            return match audio {
+                Ok(mut audio) => {
+                    let mut resp = if need_range && !audio.range.is_full() {
+                        let mut resp = HttpResponse::PartialContent();
+                        resp.append_header((CONTENT_RANGE, audio.range.to_content_range_header()))
+                            .append_header((ACCEPT_RANGES, "bytes"));
+                        resp
+                    } else {
+                        HttpResponse::Ok()
+                    };
 
-            resp.append_header(("X-Origin-Type", format!("audio/{}", audio.info.extension)))
-                .append_header(("X-Origin-Size", audio.info.size))
-                .append_header(("X-Duration-Seconds", audio.info.duration))
-                .append_header(("X-Audio-Quality", query.quality(claim.is_guest())))
-                .append_header((
-                    ACCESS_CONTROL_EXPOSE_HEADERS,
-                    "X-Origin-Type, X-Origin-Size, X-Duration-Seconds, X-Audio-Quality",
-                ))
-                .content_type(match bitrate {
-                    Some(_) => "audio/aac".to_string(),
-                    None => format!("audio/{}", audio.info.extension),
-                });
+                    resp.append_header((
+                        "X-Origin-Type",
+                        format!("audio/{}", audio.info.extension),
+                    ))
+                    .append_header(("X-Origin-Size", audio.info.size))
+                    .append_header(("X-Duration-Seconds", audio.info.duration))
+                    .append_header(("X-Audio-Quality", query.quality(claim.is_guest())))
+                    .append_header((
+                        ACCESS_CONTROL_EXPOSE_HEADERS,
+                        "X-Origin-Type, X-Origin-Size, X-Duration-Seconds, X-Audio-Quality",
+                    ));
 
-            return match bitrate {
-                Some(bitrate) => {
-                    let mut process = tokio::process::Command::new("ffmpeg")
-                        .args(&[
-                            "-i", "pipe:0", "-map", "0:0", "-b:a", bitrate, "-f", "adts", "-",
-                        ])
-                        .stdin(Stdio::piped())
-                        .stdout(Stdio::piped())
-                        .stderr(Stdio::null())
-                        .spawn()
-                        .unwrap();
-                    let stdout = process.stdout.take().unwrap();
-                    tokio::spawn(async move {
-                        let mut stdin = process.stdin.as_mut().unwrap();
-                        let _ = tokio::io::copy(&mut audio.reader, &mut stdin).await;
-                    });
-                    resp.streaming(ReaderStream::new(stdout))
+                    match bitrate {
+                        Some(bitrate) => {
+                            let mut process = tokio::process::Command::new("ffmpeg")
+                                .args(&[
+                                    "-i", "pipe:0", "-map", "0:0", "-b:a", bitrate, "-f", "adts",
+                                    "-",
+                                ])
+                                .stdin(Stdio::piped())
+                                .stdout(Stdio::piped())
+                                .stderr(Stdio::null())
+                                .spawn()
+                                .unwrap();
+                            let stdout = process.stdout.take().unwrap();
+                            tokio::spawn(async move {
+                                let mut stdin = process.stdin.as_mut().unwrap();
+                                let _ = tokio::io::copy(&mut audio.reader, &mut stdin).await;
+                            });
+                            resp.content_type("audio/aac".to_string())
+                                .streaming(ReaderStream::new(stdout))
+                        }
+                        // streaming(ReaderStream::new(audio.reader))
+                        None => {
+                            let size = audio.range.length();
+                            if size > 0 {
+                                resp.append_header((CONTENT_LENGTH, size));
+                            }
+                            resp.content_type(format!("audio/{}", audio.info.extension))
+                                .body(SizedStream::new(
+                                    audio.info.size as u64,
+                                    ReaderStream::new(audio.reader),
+                                ))
+                        }
+                    }
                 }
-                None => resp.streaming(ReaderStream::new(audio.reader)),
+                Err(e) => e.error_response(), // TODO: continue to retry remaining providers
             };
         }
     }
