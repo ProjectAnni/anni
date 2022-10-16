@@ -51,14 +51,17 @@ pub enum WorkspaceAction {
     Fsck(WorkspaceFsckAction),
 }
 
-#[derive(Debug)]
+#[derive(Debug, serde::Serialize)]
 pub struct WorkspaceAlbum {
     pub album_id: uuid::Uuid,
+    #[serde(flatten)]
     pub state: WorkspaceAlbumState,
 }
 
 /// State of album directory in workspace
-#[derive(Debug)]
+#[derive(Debug, serde::Serialize)]
+#[serde(tag = "type", content = "path")]
+#[serde(rename_all = "kebab-case")]
 pub enum WorkspaceAlbumState {
     // Normal states
     /// `Untracked` album directory.

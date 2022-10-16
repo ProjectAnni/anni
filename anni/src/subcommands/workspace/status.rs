@@ -11,6 +11,8 @@ use uuid::Uuid;
 pub struct WorkspaceStatusAction {
     #[clap(short = 'a', long)]
     album_id: bool,
+    #[clap(short = 'j', long)]
+    json: bool,
 }
 
 struct DisplayUuid<'uuid> {
@@ -40,67 +42,72 @@ pub async fn handle_workspace_status(me: WorkspaceStatusAction) -> anyhow::Resul
     let root = find_workspace_root()?;
     let albums = scan_workspace(&root)?;
 
-    let mut untracked: Vec<(&Path, DisplayUuid)> = vec![];
-    let mut committed: Vec<(&Path, DisplayUuid)> = vec![];
-    let mut dangling: Vec<(&Path, DisplayUuid)> = vec![];
-    let mut garbage: Vec<DisplayUuid> = vec![];
-    for album in albums.iter() {
-        match album.state {
-            WorkspaceAlbumState::Untracked(ref p) => untracked.push((
-                p.strip_prefix(&root)?,
-                DisplayUuid::new(&album.album_id, me.album_id),
-            )),
-            WorkspaceAlbumState::Committed(ref p) => committed.push((
-                p.strip_prefix(&root)?,
-                DisplayUuid::new(&album.album_id, me.album_id),
-            )),
-            WorkspaceAlbumState::Dangling(ref p) => dangling.push((
-                p.strip_prefix(&root)?,
-                DisplayUuid::new(&album.album_id, me.album_id),
-            )),
-            WorkspaceAlbumState::Garbage => {
-                garbage.push(DisplayUuid::new(&album.album_id, me.album_id))
+    if me.json {
+        let json = serde_json::to_string(&albums)?;
+        println!("{json}");
+    } else {
+        let mut untracked: Vec<(&Path, DisplayUuid)> = vec![];
+        let mut committed: Vec<(&Path, DisplayUuid)> = vec![];
+        let mut dangling: Vec<(&Path, DisplayUuid)> = vec![];
+        let mut garbage: Vec<DisplayUuid> = vec![];
+        for album in albums.iter() {
+            match album.state {
+                WorkspaceAlbumState::Untracked(ref p) => untracked.push((
+                    p.strip_prefix(&root)?,
+                    DisplayUuid::new(&album.album_id, me.album_id),
+                )),
+                WorkspaceAlbumState::Committed(ref p) => committed.push((
+                    p.strip_prefix(&root)?,
+                    DisplayUuid::new(&album.album_id, me.album_id),
+                )),
+                WorkspaceAlbumState::Dangling(ref p) => dangling.push((
+                    p.strip_prefix(&root)?,
+                    DisplayUuid::new(&album.album_id, me.album_id),
+                )),
+                WorkspaceAlbumState::Garbage => {
+                    garbage.push(DisplayUuid::new(&album.album_id, me.album_id))
+                }
             }
         }
-    }
 
-    if !untracked.is_empty() {
-        println!("Untracked albums:");
-        for (path, album_id) in untracked {
-            let album_id = format!("[{album_id}]").bold();
-            let output = format!("{album_id}: {}", path.display()).bright_red();
-            println!("\t{output}");
+        if !untracked.is_empty() {
+            println!("Untracked albums:");
+            for (path, album_id) in untracked {
+                let album_id = format!("[{album_id}]").bold();
+                let output = format!("{album_id}: {}", path.display()).bright_red();
+                println!("\t{output}");
+            }
+            println!();
         }
-        println!();
-    }
 
-    if !committed.is_empty() {
-        println!("Committed albums:");
-        for (path, album_id) in committed {
-            let album_id = format!("[{album_id}]").bold();
-            let output = format!("{album_id}: {}", path.display()).green();
-            println!("\t{output}");
+        if !committed.is_empty() {
+            println!("Committed albums:");
+            for (path, album_id) in committed {
+                let album_id = format!("[{album_id}]").bold();
+                let output = format!("{album_id}: {}", path.display()).green();
+                println!("\t{output}");
+            }
+            println!();
         }
-        println!();
-    }
 
-    if !dangling.is_empty() {
-        println!("Dangling albums:");
-        for (path, album_id) in dangling {
-            let album_id = format!("[{album_id}]").bold();
-            let output = format!("{album_id}: {}", path.display()).red();
-            println!("\t{output}");
+        if !dangling.is_empty() {
+            println!("Dangling albums:");
+            for (path, album_id) in dangling {
+                let album_id = format!("[{album_id}]").bold();
+                let output = format!("{album_id}: {}", path.display()).red();
+                println!("\t{output}");
+            }
+            println!();
         }
-        println!();
-    }
 
-    if !garbage.is_empty() {
-        println!("Garbage albums:");
-        for album_id in garbage {
-            let output = format!("{}", album_id).white();
-            println!("\t{output}");
+        if !garbage.is_empty() {
+            println!("Garbage albums:");
+            for album_id in garbage {
+                let output = format!("{}", album_id).white();
+                println!("\t{output}");
+            }
+            println!();
         }
-        println!();
     }
 
     Ok(())
