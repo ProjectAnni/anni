@@ -95,7 +95,7 @@ pub async fn handle_workspace_status(me: WorkspaceStatusAction) -> anyhow::Resul
     }
 
     if !garbage.is_empty() {
-        println!("Finished albums:");
+        println!("Garbage albums:");
         for album_id in garbage {
             let output = format!("{}", album_id).white();
             println!("\t{output}");
