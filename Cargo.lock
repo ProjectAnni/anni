@@ -405,6 +405,7 @@ dependencies = [
  "rusqlite",
  "serde 1.0.144",
  "serde-wasm-bindgen",
+ "serde_json",
  "serde_rusqlite",
  "serde_with",
  "sqlite-vfs",

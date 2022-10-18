@@ -93,22 +93,40 @@ FILE "{filename}" WAVE
                 _ => unreachable!(),
             }
         }
-        RepoPrintType::Toml => {
-            if let Ok(album_id) = Uuid::parse_str(&me.input) {
+        RepoPrintType::Toml | RepoPrintType::Json => {
+            let text = if let Ok(album_id) = Uuid::parse_str(&me.input) {
                 // me.input -> album_id
                 let album_id = album_id.to_string();
                 let manager = manager.into_owned_manager()?;
-                let root = manager.repo.root();
-                let album = manager.album_path(&album_id).expect("Album not found!");
-                let album = root.join(album);
-                let album = anni_common::fs::read_to_string(&album)?;
-                write!(dst, "{album}")?;
+
+                match me.print_type {
+                    RepoPrintType::Toml => {
+                        let root = manager.repo.root();
+                        let album = manager.album_path(&album_id).expect("Album not found!");
+                        let album = root.join(album);
+                        anni_common::fs::read_to_string(&album)?
+                    }
+                    RepoPrintType::Json => {
+                        let album = manager.album(&album_id).expect("Album not found!");
+                        let album: serde_json::Value = album.into();
+                        serde_json::to_string(&album)?
+                    }
+                    _ => unreachable!(),
+                }
             } else {
                 // me.input -> catalog
                 let album = manager.load_albums(&me.input)?;
-                let album = toml::to_string_pretty(&album[0])?;
-                write!(dst, "{album}")?;
-            }
+                match me.print_type {
+                    RepoPrintType::Toml => toml::to_string_pretty(&album[0])?,
+                    RepoPrintType::Json => {
+                        let album: serde_json::Value =
+                            album.get(0).expect("Album not found!").into();
+                        serde_json::to_string(&album)?
+                    }
+                    _ => unreachable!(),
+                }
+            };
+            write!(dst, "{text}")?;
         }
         RepoPrintType::TagTree => {
             // print tag
@@ -159,5 +177,6 @@ pub enum RepoPrintType {
     Date,
     Cue,
     Toml,
+    Json,
     TagTree,
 }

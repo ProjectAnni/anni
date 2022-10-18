@@ -248,8 +248,10 @@ impl DerefMut for Disc {
 #[serde(deny_unknown_fields)]
 pub struct DiscInfo {
     /// Disc title
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub title: Option<String>,
     /// Disc artist
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub artist: Option<String>,
     /// Disc artists
     #[serde(skip_serializing_if = "is_artists_empty")]
@@ -258,6 +260,7 @@ pub struct DiscInfo {
     pub catalog: String,
     /// Disc type
     #[serde(rename = "type")]
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub disc_type: Option<TrackType>,
     /// Disc tags
     #[serde(default)]
@@ -443,12 +446,14 @@ pub struct TrackInfo {
     /// Track title
     pub title: String,
     /// Track artist
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub artist: Option<String>,
     /// Track artists
     #[serde(skip_serializing_if = "is_artists_empty")]
     pub artists: Option<HashMap<String, String>>,
     /// Track type
     #[serde(rename = "type")]
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub track_type: Option<TrackType>,
     /// Track tags
     #[serde(default)]
@@ -687,5 +692,48 @@ impl From<anni_flac::FlacHeader> for TrackInfo {
             }
             None => TrackInfo::empty(),
         }
+    }
+}
+
+#[cfg(feature = "json")]
+impl From<&Album> for serde_json::Value {
+    fn from(album: &Album) -> Self {
+        let discs: Vec<serde_json::Value> = album.discs.iter().map(|d| d.into()).collect();
+        let mut value = serde_json::json!({
+            "album_id": album.album_id(),
+            "title": album.title_raw(),
+            "catalog": album.catalog(),
+            "artist": album.artist(),
+            "date": album.release_date().to_string(),
+            "type": album.track_type(),
+            "discs": discs,
+        });
+
+        let obj = value.as_object_mut().unwrap();
+        if let Some(artists) = &album.artists {
+            obj.insert(
+                "artists".to_string(),
+                serde_json::to_value(&artists).unwrap(),
+            );
+        }
+        if let Some(edition) = album.edition() {
+            obj.insert(
+                "edition".to_string(),
+                serde_json::to_value(&edition).unwrap(),
+            );
+        }
+        let tags = album.album_tags();
+        if !tags.is_empty() {
+            obj.insert("tags".to_string(), serde_json::to_value(&tags).unwrap());
+        }
+
+        value
+    }
+}
+
+#[cfg(feature = "json")]
+impl From<&Disc> for serde_json::Value {
+    fn from(disc: &Disc) -> Self {
+        serde_json::to_value(&disc).unwrap()
     }
 }
