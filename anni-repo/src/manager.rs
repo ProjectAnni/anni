@@ -184,6 +184,10 @@ impl RepositoryManager {
     pub fn into_owned_manager(self) -> RepoResult<OwnedRepositoryManager> {
         OwnedRepositoryManager::new(self)
     }
+
+    pub fn root(&self) -> &Path {
+        self.root.as_path()
+    }
 }
 
 /// A repository manager which own full copy of a repo.
@@ -225,8 +229,8 @@ impl<'repo> OwnedRepositoryManager {
         self.albums.get(album_id)
     }
 
-    pub fn album_path(&self, album_id: &str) -> Option<&PathBuf> {
-        self.album_path.get(album_id)
+    pub fn album_path(&self, album_id: &str) -> Option<&Path> {
+        self.album_path.get(album_id).map(|p| p.as_path())
     }
 
     pub fn albums(&self) -> &HashMap<String, Album> {

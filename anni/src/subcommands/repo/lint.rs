@@ -7,7 +7,7 @@ use anni_repo::RepositoryManager;
 use clap::{Args, ValueEnum};
 use clap_handler::handler;
 use std::collections::HashSet;
-use std::path::PathBuf;
+use std::path::Path;
 
 #[derive(Args, Debug, Clone)]
 pub struct RepoLintAction {
@@ -77,18 +77,17 @@ fn repo_lint(manager: RepositoryManager, me: &RepoLintAction) -> anyhow::Result<
     Ok(())
 }
 
-fn validate_album(
-    album: &Album,
-    path: &PathBuf,
-    report: &mut dyn AnniLinter<MetadataDiagnosticTarget>,
-) {
+fn validate_album<P>(album: &Album, path: P, report: &mut dyn AnniLinter<MetadataDiagnosticTarget>)
+where
+    P: AsRef<Path>,
+{
     let album_id = album.album_id().to_string();
 
     let string_validator = ValidatorList::new(&["trim", "dot", "tidle"]).unwrap();
     let artist_validator = ValidatorList::new(&["trim", "dot", "tidle", "artist"]).unwrap();
 
     validate_string(
-        path,
+        path.as_ref(),
         MetadataDiagnosticTarget::album(album_id.clone()),
         Some("title".to_string()),
         &string_validator,
@@ -98,7 +97,7 @@ fn validate_album(
 
     if let Some(edition) = album.edition() {
         validate_string(
-            path,
+            path.as_ref(),
             MetadataDiagnosticTarget::album(album_id.clone()),
             Some("edition".to_string()),
             &string_validator,
@@ -108,7 +107,7 @@ fn validate_album(
     }
 
     validate_string(
-        path,
+        path.as_ref(),
         MetadataDiagnosticTarget::album(album_id.clone()),
         Some("artist".to_string()),
         &artist_validator,
@@ -122,17 +121,17 @@ fn validate_album(
                 message: "Unknown artist".to_string(),
                 target: MetadataDiagnosticTarget::album(album_id.clone()),
             },
-            DiagnosticLocation::simple(path.display().to_string()),
+            DiagnosticLocation::simple(path.as_ref().display().to_string()),
         ));
     }
 
-    validate_disc_catalog(album.iter().collect(), &album_id, path, report);
+    validate_disc_catalog(album.iter().collect(), &album_id, path.as_ref(), report);
 
     for (disc_id, disc) in album.iter().enumerate() {
         let disc_id = (disc_id + 1) as u8;
 
         validate_string(
-            path,
+            path.as_ref(),
             MetadataDiagnosticTarget::disc(album_id.clone(), disc_id),
             Some("title".to_string()),
             &string_validator,
@@ -140,7 +139,7 @@ fn validate_album(
             report,
         );
         validate_string(
-            path,
+            path.as_ref(),
             MetadataDiagnosticTarget::disc(album_id.clone(), disc_id),
             Some("artist".to_string()),
             &artist_validator,
@@ -152,7 +151,7 @@ fn validate_album(
             let track_id = (track_id + 1) as u8;
 
             validate_string(
-                path,
+                path.as_ref(),
                 MetadataDiagnosticTarget::track(album_id.clone(), disc_id, track_id),
                 Some("title".to_string()),
                 &string_validator,
@@ -160,7 +159,7 @@ fn validate_album(
                 report,
             );
             validate_string(
-                path,
+                path.as_ref(),
                 MetadataDiagnosticTarget::track(album_id.clone(), disc_id, track_id),
                 Some("artist".to_string()),
                 &artist_validator,
@@ -171,14 +170,16 @@ fn validate_album(
     }
 }
 
-fn validate_string(
-    path: &PathBuf,
+fn validate_string<P>(
+    path: P,
     target: MetadataDiagnosticTarget,
     _field: Option<String>,
     validator: &ValidatorList,
     value: &str,
     report: &mut dyn AnniLinter<MetadataDiagnosticTarget>,
-) {
+) where
+    P: AsRef<Path>,
+{
     validator
         .validate(value)
         .into_iter()
@@ -196,7 +197,7 @@ fn validate_string(
                             message,
                             target: target.clone(),
                         },
-                        location: DiagnosticLocation::simple(path.display().to_string()),
+                        location: DiagnosticLocation::simple(path.as_ref().display().to_string()),
                         code: Some(DiagnosticCode::new(format!("{}", ty))),
                         source: None,
                         suggestions: vec![],
@@ -207,12 +208,14 @@ fn validate_string(
         });
 }
 
-fn validate_disc_catalog(
+fn validate_disc_catalog<P>(
     discs: Vec<DiscRef>,
     album_id: &str,
-    path: &PathBuf,
+    path: P,
     report: &mut dyn AnniLinter<MetadataDiagnosticTarget>,
-) {
+) where
+    P: AsRef<Path>,
+{
     let mut catalogs = HashSet::new();
     discs.iter().zip(1..).for_each(|(disc, disc_id)| {
         if !catalogs.insert(disc.catalog()) {
@@ -221,7 +224,7 @@ fn validate_disc_catalog(
                     target: MetadataDiagnosticTarget::disc(album_id.to_string(), disc_id),
                     message: format!("Duplicate catalog {}", disc.catalog()),
                 },
-                DiagnosticLocation::simple(path.display().to_string()),
+                DiagnosticLocation::simple(path.as_ref().display().to_string()),
             ))
         }
     });
