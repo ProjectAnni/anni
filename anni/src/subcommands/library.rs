@@ -6,7 +6,7 @@ use anni_provider::fs::LocalFileSystemProvider;
 use anni_provider::providers::CommonConventionProvider;
 use anni_provider::strict_album_path;
 use anni_repo::db::RepoDatabaseRead;
-use anni_repo::library::{file_name, AlbumFolderInfo};
+use anni_repo::library::AlbumFolderInfo;
 use anni_repo::prelude::*;
 use anni_repo::RepositoryManager;
 use clap::{Args, Subcommand};
@@ -36,44 +36,10 @@ impl LibrarySubcommand {
 
 #[derive(Subcommand, Debug, Clone, Handler)]
 pub enum LibraryAction {
-    New(LibraryNewAlbumAction),
     #[clap(name = "tag", alias = "apply")]
     #[clap(about = ll!("library-tag"))]
     ApplyTag(LibraryApplyTagAction),
     Link(LibraryLinkAction),
-}
-
-#[derive(Args, Debug, Clone)]
-pub struct LibraryNewAlbumAction {
-    #[clap(short = 'n', long, default_value = "1")]
-    disc_num: u8,
-
-    #[clap(default_value = ".")]
-    path: PathBuf,
-}
-
-#[handler(LibraryNewAlbumAction)]
-pub fn library_new_album(me: &LibraryNewAlbumAction) -> anyhow::Result<()> {
-    if me.disc_num == 0 {
-        anyhow::bail!("disc_num must be > 0");
-    }
-
-    let basename = file_name(me.path.as_path())?;
-    let album_path = if is_uuid(&basename) {
-        me.path.to_path_buf()
-    } else {
-        let album_id = uuid::Uuid::new_v4().to_string();
-        let album_path = me.path.join(album_id);
-        fs::create_dir(&album_path)?;
-        album_path
-    };
-
-    for i in 1..=me.disc_num {
-        let disc_path = album_path.join(format!("{}", i));
-        fs::create_dir(&disc_path)?;
-    }
-
-    Ok(())
 }
 
 #[derive(Args, Debug, Clone)]
