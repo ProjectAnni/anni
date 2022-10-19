@@ -58,8 +58,7 @@ pub enum RepoAction {
     Get(RepoGetAction),
     #[clap(about = ll!("repo-edit"))]
     Edit(RepoEditAction),
-    #[clap(about = ll!("repo-validate"))]
-    #[clap(alias = "validate")]
+    #[clap(about = ll!("repo-lint"))]
     Lint(RepoLintAction),
     #[clap(about = ll!("repo-print"))]
     Print(RepoPrintAction),

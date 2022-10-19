@@ -28,7 +28,7 @@ pub enum RepoLintFormat {
 
 #[handler(RepoLintAction)]
 fn repo_lint(manager: RepositoryManager, me: &RepoLintAction) -> anyhow::Result<()> {
-    info!(target: "anni", "{}", fl!("repo-validate-start"));
+    info!(target: "anni", "{}", fl!("repo-lint-start"));
 
     let mut report: Box<dyn AnniLinter<MetadataDiagnosticTarget>> = match me.format {
         RepoLintFormat::Text => Box::new(AnniLinterTextFormat::default()),
@@ -70,10 +70,10 @@ fn repo_lint(manager: RepositoryManager, me: &RepoLintAction) -> anyhow::Result<
     }
 
     if !report.flush() {
-        ball!("repo-validate-failed");
+        ball!("repo-lint-failed");
     }
 
-    info!(target: "anni", "{}", fl!("repo-validate-end"));
+    info!(target: "anni", "{}", fl!("repo-lint-end"));
     Ok(())
 }
 

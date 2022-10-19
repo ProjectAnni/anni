@@ -43,9 +43,9 @@ repo-album-info-mismatch = Album info mismatch with folder.
 repo-import = Import album to repository.
 repo-import-format = Format of album metadata file.
 
-repo-validate-start = Start validating repository.
-repo-validate-end = End validating repository.
-repo-validate-failed = Validation failed.
+repo-lint-start = Start validating repository.
+repo-lint-end = End validating repository.
+repo-lint-failed = Validation failed.
 repo-catalog-filename-mismatch = Album catalog '{$album_catalog}' does not match filename.
 repo-invalid-artist = Invalid artist: {$artist}
 
@@ -56,7 +56,7 @@ repo-get-cue-catalog = Specify catalog when it does not exist.
 repo-cue-insufficient-information = Insufficient information from CUE file.
 
 repo-edit = Open text editor for an album if metadata exists.
-repo-validate = Check whether data in repository is valid.
+repo-lint = Check whether data in repository is valid.
 
 repo-print = Print metadata information of given catalog.
 repo-print-type = Print type.

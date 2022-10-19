@@ -5,7 +5,6 @@ use clap_handler::handler;
 
 #[derive(Args, Debug, Clone)]
 #[clap(about = ll!("completions"))]
-#[clap(alias = "comp")]
 pub struct CompletionsSubcommand {
     #[clap(value_enum)]
     #[clap(help = ll!("completions-shell"))]

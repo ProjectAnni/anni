@@ -16,7 +16,6 @@ use std::str::FromStr;
 
 #[derive(Args, Debug, Clone, Handler)]
 #[clap(about = ll!("library"))]
-#[clap(alias = "lib")]
 #[handler_inject(library_fields)]
 pub struct LibrarySubcommand {
     #[clap(long = "repo", env = "ANNI_REPO")]

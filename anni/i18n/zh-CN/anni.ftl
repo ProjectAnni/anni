@@ -42,9 +42,9 @@ repo-album-info-mismatch = 专辑信息与专辑目录不一致
 repo-import = 导入专辑
 repo-import-format = 导入专辑的数据格式
 
-repo-validate-start = 仓库校验开始
-repo-validate-end = 仓库校验结束
-repo-validate-failed = 仓库校验失败
+repo-lint-start = 仓库校验开始
+repo-lint-end = 仓库校验结束
+repo-lint-failed = 仓库校验失败
 repo-catalog-filename-mismatch = 专辑 {$album_catalog} 的品番与文件名不一致
 repo-invalid-artist = 艺术家名称不可用：{$artist}
 
@@ -55,7 +55,7 @@ repo-get-cue-catalog = 当 catalog 不存在时，手动指定
 repo-cue-insufficient-information = CUE 文件未能提供足够的信息
 
 repo-edit = 当元数据仓库中存在该专辑时，打开仓库中对应的文件
-repo-validate = 检查仓库数据的合法性
+repo-lint = 检查仓库数据的合法性
 
 repo-print = 根据品番输出元数据仓库中的数据
 repo-print-type = 输出数据的类型
