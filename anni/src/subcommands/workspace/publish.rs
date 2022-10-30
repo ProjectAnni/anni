@@ -14,12 +14,15 @@ pub struct WorkspacePublishAction {
     #[clap(short = 'w', long = "write")]
     write: bool,
 
+    #[clap(short = 'u', long = "uuid")]
+    parse_path_as_uuid: bool,
+
     // publish_to: Option<PathBuf>,
     path: Vec<PathBuf>,
 }
 
 #[handler(WorkspacePublishAction)]
-pub async fn handle_workspace_publish(me: WorkspacePublishAction) -> anyhow::Result<()> {
+pub async fn handle_workspace_publish(mut me: WorkspacePublishAction) -> anyhow::Result<()> {
     let root = find_dot_anni()?;
     let config = super::config::WorkspaceConfig::new(&root)?;
 
@@ -30,6 +33,16 @@ pub async fn handle_workspace_publish(me: WorkspacePublishAction) -> anyhow::Res
     if !publish_to.path.exists() {
         fs::create_dir_all(&publish_to.path)?;
     }
+
+    me.path.iter_mut().for_each(|path| {
+        if me.parse_path_as_uuid {
+            let uuid = path.file_name().unwrap().to_str().unwrap();
+            let album_path =
+                get_workspace_album_path(&root, &uuid.parse().expect("Failed to parse uuid"))
+                    .expect("Failed to find album path");
+            *path = album_path;
+        }
+    });
 
     for path in me.path {
         // validate current path first
