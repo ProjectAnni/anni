@@ -1,10 +1,12 @@
 use crate::subcommands::workspace::update::WorkspaceUpdateAction;
+use crate::subcommands::workspace::WorkspaceAlbumState;
 use crate::workspace::utils::*;
 use anni_common::fs;
 use anni_provider::strict_album_path;
 use anni_repo::library::file_name;
 use clap::Args;
 use clap_handler::handler;
+use std::collections::HashMap;
 use std::path::PathBuf;
 
 #[derive(Args, Debug, Clone)]
@@ -34,13 +36,24 @@ pub async fn handle_workspace_publish(mut me: WorkspacePublishAction) -> anyhow:
         fs::create_dir_all(&publish_to.path)?;
     }
 
+    let map = if me.parse_path_as_uuid {
+        let scan_result = scan_workspace(&root)?;
+        let mut map = HashMap::new();
+        for album in scan_result.into_iter() {
+            if let WorkspaceAlbumState::Committed(album_path) = album.state {
+                map.insert(album.album_id, album_path);
+            }
+        }
+        map
+    } else {
+        HashMap::new()
+    };
     me.path.iter_mut().for_each(|path| {
         if me.parse_path_as_uuid {
             let uuid = path.file_name().unwrap().to_str().unwrap();
-            let album_path =
-                get_workspace_album_path(&root, &uuid.parse().expect("Failed to parse uuid"))
-                    .expect("Failed to find album path");
-            *path = album_path;
+            let uuid = uuid.parse().expect("Failed to parse uuid");
+            let album_path = map.get(&uuid).expect("Failed to find album path");
+            *path = album_path.clone();
         }
     });
 
