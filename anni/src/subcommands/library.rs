@@ -1,7 +1,7 @@
 use crate::{ball, ll};
 use anni_common::fs;
-use anni_flac::blocks::{UserComment, UserCommentExt};
-use anni_flac::FlacHeader;
+use anni_flac::blocks::{BlockPicture, PictureType, UserComment, UserCommentExt};
+use anni_flac::{FlacHeader, MetadataBlock, MetadataBlockData};
 use anni_provider::fs::LocalFileSystemProvider;
 use anni_provider::providers::CommonConventionProvider;
 use anni_provider::strict_album_path;
@@ -47,7 +47,7 @@ pub struct LibraryApplyTagAction {
     directories: Vec<PathBuf>,
 }
 
-pub fn apply_strict(directory: &PathBuf, album: &Album) -> anyhow::Result<()> {
+pub fn apply_strict(directory: &PathBuf, album: &Album, apply_cover: bool) -> anyhow::Result<()> {
     debug!(target: "library|tag", "Directory: {}", directory.display());
 
     // check disc name
@@ -117,6 +117,8 @@ DISCTOTAL={disc_total}
                 track_number = track_num,
                 disc_number = disc_num,
             );
+
+            let mut modified = false;
             // no comment block exist, or comments is not correct
             if comments.is_none() || comments.unwrap().to_string() != meta {
                 let comments = flac.comments_mut();
@@ -129,6 +131,26 @@ DISCTOTAL={disc_total}
                 comments.push(UserComment::track_total(track_total));
                 comments.push(UserComment::disc_number(disc_num));
                 comments.push(UserComment::disc_total(disc_total));
+                modified = true;
+            }
+
+            if apply_cover {
+                let cover_path = file.with_file_name("cover.jpg");
+                if cover_path.exists() {
+                    let picture =
+                        BlockPicture::new(cover_path, PictureType::CoverFront, String::new())?;
+                    flac.blocks
+                        .retain(|block| !matches!(block.data, MetadataBlockData::Picture(_)));
+                    flac.blocks
+                        .push(MetadataBlock::new(MetadataBlockData::Picture(picture)));
+                    modified = true;
+                } else {
+                    // warning
+                    warn!("cover.jpg not found: {}", file.display());
+                }
+            }
+
+            if modified {
                 flac.save::<String>(None)?;
             }
         }
@@ -234,7 +256,7 @@ pub fn library_apply_tag(
                 .albums()
                 .get(folder_name.as_ref())
                 .ok_or_else(|| anyhow::anyhow!("Album {} not found", folder_name))?;
-            apply_strict(&path, album)?;
+            apply_strict(&path, album, true)?;
         } else if let Ok(AlbumFolderInfo {
             release_date,
             catalog,

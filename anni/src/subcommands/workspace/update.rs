@@ -11,6 +11,9 @@ pub struct WorkspaceUpdateAction {
     #[clap(short = 't', long)]
     tags: bool,
 
+    #[clap(short = 'c', long)]
+    cover: bool,
+
     path: PathBuf,
 }
 
@@ -25,7 +28,7 @@ pub async fn handle_workspace_update(me: WorkspaceUpdateAction) -> anyhow::Resul
         let repo = get_workspace_repository_manager(&dot_anni)?;
         let repo = repo.into_owned_manager()?;
         let album = repo.album(&album_id.to_string()).expect("Album not found");
-        apply_strict(&album_path, album)?;
+        apply_strict(&album_path, album, me.cover)?;
     }
 
     Ok(())
