@@ -49,14 +49,25 @@ pub async fn handle_workspace_publish(mut me: WorkspacePublishAction) -> anyhow:
     } else {
         HashMap::new()
     };
-    me.path.iter_mut().for_each(|path| {
-        if me.parse_path_as_uuid {
-            let uuid = path.file_name().unwrap().to_str().unwrap();
-            let uuid = uuid.parse().expect("Failed to parse uuid");
-            let album_path = map.get(&uuid).expect("Failed to find album path");
-            *path = album_path.clone();
-        }
-    });
+    me.path = me
+        .path
+        .into_iter()
+        .filter_map(|path| {
+            if me.parse_path_as_uuid {
+                let uuid = path.file_name().unwrap().to_str().unwrap();
+                let uuid = uuid.parse().expect("Failed to parse uuid");
+
+                let album_path = map.get(&uuid).cloned();
+                if album_path.is_none() {
+                    warn!("Album with uuid {} is not found in workspace", uuid);
+                }
+
+                album_path
+            } else {
+                Some(path)
+            }
+        })
+        .collect();
 
     for path in me.path {
         // validate current path first
