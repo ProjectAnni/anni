@@ -25,8 +25,9 @@ pub struct WorkspacePublishAction {
 
 #[handler(WorkspacePublishAction)]
 pub async fn handle_workspace_publish(mut me: WorkspacePublishAction) -> anyhow::Result<()> {
-    let root = find_dot_anni()?;
-    let config = super::config::WorkspaceConfig::new(&root)?;
+    let root = find_workspace_root()?;
+    let dot_anni = find_dot_anni()?;
+    let config = super::config::WorkspaceConfig::new(&dot_anni)?;
 
     let publish_to = config
         .publish_to()
@@ -75,17 +76,17 @@ pub async fn handle_workspace_publish(mut me: WorkspacePublishAction) -> anyhow:
             // }
         }
 
-        let album_path = get_workspace_album_real_path(&root, &path)?;
-        let album_id = file_name(&album_path)?;
-
         if me.write {
             let update = WorkspaceUpdateAction {
                 tags: true,
                 cover: true,
-                path: album_path.clone(),
+                path: path.clone(),
             };
             update.run().await?;
         }
+
+        let album_path = get_workspace_album_real_path(&dot_anni, &path)?;
+        let album_id = file_name(&album_path)?;
 
         if let Some(layers) = publish_to.layers {
             // publish as strict
