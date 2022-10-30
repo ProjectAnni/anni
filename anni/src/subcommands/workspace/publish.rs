@@ -1,3 +1,4 @@
+use crate::subcommands::workspace::update::WorkspaceUpdateAction;
 use crate::workspace::utils::*;
 use anni_common::fs;
 use anni_provider::strict_album_path;
@@ -10,13 +11,15 @@ use std::path::PathBuf;
 pub struct WorkspacePublishAction {
     // #[clap(long)]
     // copy: bool,
+    #[clap(short = 'w', long = "write")]
+    write: bool,
 
     // publish_to: Option<PathBuf>,
     path: Vec<PathBuf>,
 }
 
 #[handler(WorkspacePublishAction)]
-pub fn handle_workspace_publish(me: WorkspacePublishAction) -> anyhow::Result<()> {
+pub async fn handle_workspace_publish(me: WorkspacePublishAction) -> anyhow::Result<()> {
     let root = find_dot_anni()?;
     let config = super::config::WorkspaceConfig::new(&root)?;
 
@@ -48,6 +51,15 @@ pub fn handle_workspace_publish(me: WorkspacePublishAction) -> anyhow::Result<()
 
         let album_path = get_workspace_album_real_path(&root, &path)?;
         let album_id = file_name(&album_path)?;
+
+        if me.write {
+            let update = WorkspaceUpdateAction {
+                tags: true,
+                cover: true,
+                path: album_path.clone(),
+            };
+            update.run().await?;
+        }
 
         if let Some(layers) = publish_to.layers {
             // publish as strict

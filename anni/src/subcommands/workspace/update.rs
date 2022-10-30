@@ -9,12 +9,12 @@ use std::path::PathBuf;
 #[derive(Args, Debug, Clone)]
 pub struct WorkspaceUpdateAction {
     #[clap(short = 't', long)]
-    tags: bool,
+    pub tags: bool,
 
     #[clap(short = 'c', long)]
-    cover: bool,
+    pub cover: bool,
 
-    path: PathBuf,
+    pub path: PathBuf,
 }
 
 #[handler(WorkspaceUpdateAction)]
