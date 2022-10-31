@@ -168,17 +168,13 @@ pub async fn audio(
                             resp.content_type("audio/aac".to_string())
                                 .streaming(ReaderStream::new(stdout))
                         }
-                        // streaming(ReaderStream::new(audio.reader))
                         None => {
                             let size = audio.range.length();
                             if size > 0 {
                                 resp.append_header((CONTENT_LENGTH, size));
                             }
                             resp.content_type(format!("audio/{}", audio.info.extension))
-                                .body(SizedStream::new(
-                                    audio.info.size as u64,
-                                    ReaderStream::new(audio.reader),
-                                ))
+                                .body(SizedStream::new(size, ReaderStream::new(audio.reader)))
                         }
                     }
                 }
