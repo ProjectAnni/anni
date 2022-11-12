@@ -205,11 +205,13 @@ pub struct OwnedRepositoryManager {
     tag_path: HashMap<TagRef, PathBuf>,
 
     album_tags: HashMap<TagRef, Vec<String>>,
+    /// AlbumID -> Album
     albums: HashMap<String, Album>,
+    /// AlbumID -> Album Path
     album_path: HashMap<String, PathBuf>,
 }
 
-impl<'repo> OwnedRepositoryManager {
+impl OwnedRepositoryManager {
     pub fn new(repo: RepositoryManager) -> RepoResult<Self> {
         let mut repo = Self {
             repo,
@@ -242,7 +244,7 @@ impl<'repo> OwnedRepositoryManager {
     }
 
     pub fn tag(&self, tag: &TagRef) -> Option<&Tag> {
-        // avoid string copy with RepoTag::from_ref
+        // SAFETY: avoid string copy with RepoTag::from_ref
         // since we own the reference of tag, it would not be dropped
         // so the following code is safe
         let tag_ref = unsafe { RepoTag::from_ref(tag) };
