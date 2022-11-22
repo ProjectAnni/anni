@@ -23,7 +23,7 @@ async fn reload(data: web::Data<AppState>) -> impl Responder {
         }
     }
 
-    *data.etag.write() = compute_etag(&data.providers.read()).await;
+    *data.etag.write() = Some(compute_etag(&data.providers.read()).await);
     *data.last_update.write() = SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .unwrap()

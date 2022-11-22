@@ -2,7 +2,7 @@ use std::num::NonZeroU8;
 
 use crate::AppState;
 use actix_web::http::header::CACHE_CONTROL;
-use actix_web::{web, HttpResponse, Responder};
+use actix_web::{routes, web, HttpResponse, Responder};
 use serde::Deserialize;
 use tokio_util::io::ReaderStream;
 
@@ -13,6 +13,9 @@ pub struct CoverPath {
 }
 
 /// Get audio cover of an album with {album_id} and optional {disc_id}
+#[routes]
+#[get("/{album_id}/cover")]
+#[get("/{album_id}/{disc_id}/cover")]
 pub async fn cover(path: web::Path<CoverPath>, data: web::Data<AppState>) -> impl Responder {
     let CoverPath { album_id, disc_id } = path.into_inner();
     for provider in data.providers.read().iter() {

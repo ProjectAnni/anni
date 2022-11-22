@@ -1,5 +1,6 @@
-use crate::{json, AppState};
+use crate::AppState;
 use actix_web::{get, web, HttpResponse, Responder};
+use jwt_simple::reexports::serde_json::json;
 
 #[get("/info")]
 pub async fn info(data: web::Data<AppState>) -> impl Responder {

@@ -5,9 +5,9 @@ authors = ["Yesterday17 <mmf@mmf.moe>"]
 edition = "2021"
 
 [dependencies]
-actix-web = { version = "4.1.0", features = ["rustls"] }
-actix-cors = "0.6.2"
-actix-utils = "3.0.0"
+actix-web = { version = "4.2.1", features = ["rustls"] }
+actix-cors = "0.6.4"
+actix-utils = "3.0.1"
 
 anni-provider = { path = "../anni-provider" }
 parking_lot = "0.12.0"

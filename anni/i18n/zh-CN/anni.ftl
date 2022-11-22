@@ -88,6 +88,7 @@ workspace-rm = 从工作空间中移除专辑
 workspace-status = 显示工作空间中所有专辑的状态
 workspace-update = 更新工作空间中的专辑
 workspace-publish = 将工作空间中的专辑发布到音频仓库
+workspace-serve = 将工作空间作为 http 服务启动
 workspace-fsck = 检查并修复工作空间
 
 

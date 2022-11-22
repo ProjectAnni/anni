@@ -5,6 +5,7 @@ mod fsck;
 mod init;
 mod publish;
 mod rm;
+mod serve;
 mod status;
 mod target;
 mod update;
@@ -20,6 +21,7 @@ use status::*;
 use update::*;
 
 use crate::ll;
+use crate::subcommands::workspace::serve::WorkspaceServeAction;
 use clap::{Args, Subcommand};
 use clap_handler::Handler;
 
@@ -47,6 +49,8 @@ pub enum WorkspaceAction {
     Update(WorkspaceUpdateAction),
     #[clap(about = ll!("workspace-publish"))]
     Publish(WorkspacePublishAction),
+    #[clap(about = ll!("workspace-serve"))]
+    Serve(WorkspaceServeAction),
     #[clap(about = ll!("workspace-fsck"))]
     Fsck(WorkspaceFsckAction),
 }

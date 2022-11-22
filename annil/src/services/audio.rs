@@ -1,4 +1,6 @@
-use crate::{AnnilClaims, AnnilError, AppState};
+use crate::auth::AnnilClaims;
+use crate::error::AnnilError;
+use crate::AppState;
 use actix_web::body::SizedStream;
 use actix_web::http::header::{
     ACCEPT_RANGES, ACCESS_CONTROL_EXPOSE_HEADERS, CACHE_CONTROL, CONTENT_LENGTH, CONTENT_RANGE,

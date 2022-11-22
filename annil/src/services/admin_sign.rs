@@ -1,5 +1,5 @@
-use crate::auth::{UserClaim, UserShare};
-use crate::{AnnilClaims, AppState};
+use crate::auth::{AnnilClaims, UserClaim, UserShare};
+use crate::AppState;
 use actix_web::{post, web, HttpResponse, Responder};
 use jwt_simple::prelude::*;
 

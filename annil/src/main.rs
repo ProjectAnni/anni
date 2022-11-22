@@ -1,16 +1,8 @@
-mod auth;
-mod config;
-mod error;
-mod provider;
-mod services;
-mod utils;
-
-use crate::auth::{AnnilAuth, AnnilClaims};
-use crate::config::{Config, MetadataConfig, ProviderItem};
-use crate::error::AnnilError;
-use crate::provider::AnnilProvider;
-use crate::services::*;
-use crate::utils::compute_etag;
+use annil::auth::AnnilAuth;
+use annil::config::{Config, MetadataConfig, ProviderItem};
+use annil::provider::AnnilProvider;
+use annil::services::*;
+use annil::utils::compute_etag;
 
 use actix_cors::Cors;
 use actix_web::middleware::Logger;
@@ -21,25 +13,13 @@ use anni_provider::providers::drive::DriveProviderSettings;
 use anni_provider::providers::{CommonConventionProvider, CommonStrictProvider, DriveProvider};
 use anni_provider::{AnniProvider, RepoDatabaseRead};
 use anni_repo::{setup_git2, RepositoryManager};
+use annil::AppState;
 use jwt_simple::prelude::HS256Key;
-use jwt_simple::reexports::serde_json::json;
 use parking_lot::RwLock;
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::{SystemTime, UNIX_EPOCH};
-
-pub struct AppState {
-    providers: RwLock<Vec<AnnilProvider>>,
-    key: HS256Key,
-    share_key: HS256Key,
-    admin_token: String,
-
-    version: String,
-    metadata: Option<MetadataConfig>,
-    last_update: RwLock<u64>,
-    etag: RwLock<String>,
-}
 
 struct LazyDb {
     metadata: MetadataConfig,
@@ -256,7 +236,7 @@ async fn init_state(config: Config) -> anyhow::Result<web::Data<AppState>> {
         version,
         metadata: config.metadata,
         last_update: RwLock::new(last_update),
-        etag: RwLock::new(etag),
+        etag: RwLock::new(Some(etag)),
     }))
 }
 
@@ -290,10 +270,7 @@ async fn main() -> anyhow::Result<()> {
             .service(info)
             .service(admin::reload)
             .service(admin::sign)
-            .service(
-                web::resource(["/{album_id}/cover", "/{album_id}/{disc_id}/cover"])
-                    .route(web::get().to(cover)),
-            )
+            .service(cover)
             .service(
                 web::resource("/{album_id}/{disc_id}/{track_id}")
                     .route(web::get().to(audio))

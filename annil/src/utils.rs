@@ -1,6 +1,6 @@
 use crate::AnnilProvider;
 
-pub(crate) async fn compute_etag(providers: &[AnnilProvider]) -> String {
+pub async fn compute_etag(providers: &[AnnilProvider]) -> String {
     let mut etag = 0;
     for provider in providers {
         for album in provider.albums().await {

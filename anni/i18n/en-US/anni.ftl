@@ -88,6 +88,7 @@ workspace-rm = Remove an album from workspace.
 workspace-status = Print status of workspace.
 workspace-update = Update albums in workspace.
 workspace-publish = Publish albums from workspace to audio library.
+workspace-serve = Serve workspace as a remote service.
 workspace-fsck = Check and fix workspace.
 
 
