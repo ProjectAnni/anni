@@ -28,6 +28,10 @@ pub struct WorkspaceAddAction {
     #[clap(help = ll!("workspace-add-skip-check"))]
     skip_check: bool,
 
+    #[clap(short = 'e', long = "editor")]
+    #[clap(help = ll!("workspace-add-open-editor"))]
+    open_editor: bool,
+
     path: PathBuf,
 }
 
@@ -244,6 +248,10 @@ fn handle_workspace_add(me: WorkspaceAddAction) -> anyhow::Result<()> {
             discs,
         );
         repo.add_album(album, false)?;
+    }
+
+    if me.open_editor {
+        edit::edit_file(&album_path)?;
     }
 
     Ok(())

@@ -83,6 +83,7 @@ workspace-add = Make an album stashed by workspace.
 workspace-add-import-tags=Import metadata from audio files while adding.
 workspace-add-dry-run=Do not actually move files or make symlinks.
 workspace-add-skip-check=Skip check for album structure.
+workspace-add-open-editor=Open text editor after album metadata file is crated.
 
 workspace-rm = Remove an album from workspace.
 workspace-status = Print status of workspace.

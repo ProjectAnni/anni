@@ -83,6 +83,7 @@ workspace-add = 将工作空间中专辑对状态从未跟踪转换为已跟踪
 workspace-add-import-tags=从音频文件中导入元数据
 workspace-add-dry-run=仅展示，不实际移动文件或创建链接
 workspace-add-skip-check=跳过对专辑结构的检查
+workspace-add-open-editor=导入完成后通过文本编辑器打开元数据文件
 
 workspace-rm = 从工作空间中移除专辑
 workspace-status = 显示工作空间中所有专辑的状态
