@@ -1,5 +1,6 @@
 use core::slice;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
+use std::collections::HashMap;
 use std::fmt::{Display, Formatter};
 use std::hash::{Hash, Hasher};
 use toml_edit::easy::Value;
@@ -87,7 +88,7 @@ impl TagRef {
     pub fn extend_simple(self, parents: Vec<TagRef>, tag_type: TagType) -> Tag {
         Tag {
             name: self.0,
-            alias: vec![],
+            names: Default::default(),
             tag_type,
             parents,
             children: Default::default(),
@@ -137,9 +138,9 @@ impl Hash for TagRef {
 pub struct Tag {
     /// Tag name
     name: String,
-    /// Tag alias
+    /// Tag localized name
     #[serde(default)]
-    alias: Vec<String>,
+    names: HashMap<String, String>,
     #[serde(rename = "type")]
     tag_type: TagType,
     /// Tag parents
@@ -222,12 +223,12 @@ impl Tag {
         &self.name
     }
 
-    pub fn tag_type(&self) -> &TagType {
-        &self.tag_type
+    pub fn names(&self) -> impl Iterator<Item = (&String, &String)> {
+        self.names.iter()
     }
 
-    pub fn alias(&self) -> &[String] {
-        &self.alias
+    pub fn tag_type(&self) -> &TagType {
+        &self.tag_type
     }
 
     pub fn parents(&self) -> &[TagRef] {

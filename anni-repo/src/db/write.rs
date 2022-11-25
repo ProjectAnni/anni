@@ -234,10 +234,10 @@ COMMIT;
         Ok(id)
     }
 
-    fn add_alias(&self, tag_id: i32, alias: &str) -> RepoResult<()> {
+    fn add_i18n(&self, tag_id: i32, language_id: &str, localized_name: &str) -> RepoResult<()> {
         self.conn.execute(
-            "INSERT INTO repo_tag_alias (tag_id, alias) VALUES (?, ?)",
-            params![tag_id, alias,],
+            "INSERT INTO repo_tag_i18n (tag_id, alias) VALUES (?, ?)",
+            params![tag_id, language_id, localized_name],
         )?;
         Ok(())
     }
@@ -261,9 +261,9 @@ COMMIT;
             let id = self.add_tag(tag.name(), tag.tag_type())?;
             tag_id.insert(tag.get_ref(), id);
 
-            // add alias
-            for alias in tag.alias() {
-                self.add_alias(id, alias)?;
+            // add i18n
+            for (language_id, localized_name) in tag.names() {
+                self.add_i18n(id, language_id, localized_name)?;
             }
 
             // children are listed in tags now

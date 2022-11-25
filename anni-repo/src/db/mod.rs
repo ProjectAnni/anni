@@ -1,6 +1,6 @@
 mod rows;
 
-pub const DB_VERSION: &str = "1";
+pub const DB_VERSION: &str = "1.1";
 
 #[cfg(feature = "db-read")]
 mod read;
