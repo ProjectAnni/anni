@@ -1,4 +1,6 @@
 #![feature(try_blocks)]
+#![allow(incomplete_features)]
+#![feature(async_fn_in_trait)]
 
 use crate::subcommands::*;
 use clap::Parser;

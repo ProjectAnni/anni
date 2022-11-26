@@ -4,11 +4,11 @@ mod drive;
 mod file;
 
 pub trait WorkspaceTarget {
-    fn mkdir<P>(&self, path: P) -> anyhow::Result<()>
+    async fn mkdir<P>(&self, path: P) -> std::io::Result<()>
     where
         P: AsRef<Path>;
 
-    fn copy<P>(&self, src: P, dst: P) -> anyhow::Result<()>
+    async fn copy<P>(&self, src: P, dst: P) -> std::io::Result<()>
     where
         P: AsRef<Path>;
 }
