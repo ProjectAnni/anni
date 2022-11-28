@@ -60,12 +60,9 @@ impl Range {
     }
 
     /// get the length of the range
-    /// if the range is full, returns 0
-    pub fn length(&self) -> u64 {
-        match self.end {
-            Some(end) => end - self.start + 1,
-            None => 0,
-        }
+    /// if the range is full, returns None
+    pub fn length(&self) -> Option<u64> {
+        self.end.map(|end| end - self.start + 1)
     }
 
     /// return length limited by a limit(usually actual file size)
@@ -97,7 +94,14 @@ impl Range {
     }
 
     pub fn contains_flac_header(&self) -> bool {
-        self.start == 0 && (self.length() == 0 || self.length() >= 42)
+        if self.start == 0 {
+            match self.end {
+                Some(end) => end >= 42,
+                None => true,
+            }
+        } else {
+            false
+        }
     }
 
     pub fn to_range_header(&self) -> Option<String> {

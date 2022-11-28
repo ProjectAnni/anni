@@ -274,10 +274,9 @@ impl CacheReader for Arc<CacheItem> {
             let _ = tokio::io::copy(&mut reader.take(range.start), &mut tokio::io::sink()).await;
         }
         let length = range.length();
-        let reader: ResourceReader = if length == 0 {
-            Box::pin(reader)
-        } else {
-            Box::pin(reader.take(length))
+        let reader: ResourceReader = match length {
+            Some(length) => Box::pin(reader.take(length)),
+            None => Box::pin(reader),
         };
 
         AudioResourceReader {
