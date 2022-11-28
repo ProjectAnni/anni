@@ -72,9 +72,10 @@ CREATE TABLE IF NOT EXISTS "repo_tag_detail" (
   FOREIGN KEY("tag_id") REFERENCES "repo_tag"("tag_id")
 );
 
-CREATE TABLE IF NOT EXISTS "repo_tag_alias" (
+CREATE TABLE IF NOT EXISTS "repo_tag_i18n" (
   "tag_id"    INTEGER NOT NULL,
-  "alias"     TEXT NOT NULL,
+  "language"  TEXT NOT NULL,
+  "name"      TEXT NOT NULL,
   FOREIGN KEY("tag_id") REFERENCES "repo_tag"("tag_id")
 );
 
@@ -236,7 +237,7 @@ COMMIT;
 
     fn add_i18n(&self, tag_id: i32, language_id: &str, localized_name: &str) -> RepoResult<()> {
         self.conn.execute(
-            "INSERT INTO repo_tag_i18n (tag_id, alias) VALUES (?, ?)",
+            "INSERT INTO repo_tag_i18n (tag_id, language, name) VALUES (?, ?, ?)",
             params![tag_id, language_id, localized_name],
         )?;
         Ok(())
