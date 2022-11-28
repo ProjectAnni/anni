@@ -96,7 +96,7 @@ impl Range {
     pub fn contains_flac_header(&self) -> bool {
         if self.start == 0 {
             match self.end {
-                Some(end) => end >= 42,
+                Some(end) => end + 1 >= 42,
                 None => true,
             }
         } else {
