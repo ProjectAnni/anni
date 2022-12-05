@@ -330,7 +330,8 @@ dependencies = [
 [[package]]
 name = "anni-artist"
 version = "0.1.0"
-source = "git+https://github.com/ProjectAnni/anni-artist#b16b6d03a0ed396a7f661e642043403f46d5e2d8"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "dac7bcc4399327bfdf09dc3ff5718b0140d219698de509381cc907584a0e83c9"
 
 [[package]]
 name = "anni-common"
