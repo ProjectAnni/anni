@@ -4,6 +4,10 @@ version = "0.1.1"
 authors = ["Yesterday17 <mmf@mmf.moe>"]
 edition = "2021"
 
+description = "Common library used by Project Anni."
+repository = "https://github.com/ProjectAnni/anni"
+license = "Apache-2.0"
+
 [features]
 default = ["trash"]
 

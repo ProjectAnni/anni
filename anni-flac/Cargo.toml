@@ -4,6 +4,10 @@ version = "0.2.2"
 authors = ["Yesterday17 <mmf@mmf.moe>"]
 edition = "2021"
 
+description = "FLAC parser implemented for Project Anni."
+repository = "https://github.com/ProjectAnni/anni"
+license = "Apache-2.0"
+
 [dependencies]
 hex = "0.4"
 thiserror = "1"
