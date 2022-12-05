@@ -3,12 +3,18 @@ DO NOT EDIT !
 This file was generated automatically from 'src/mako/api/README.md.mako'
 DO NOT EDIT !
 -->
+
 The `google-drive3` library allows access to all features of the *Google drive* service.
 
 This documentation was generated from *drive* crate version *3.0.0+20220225*, where *20220225* is the exact revision of the *drive:v3* schema built by the [mako](http://www.makotemplates.org/) code generator *v3.0.0*.
 
 Everything else about the *drive* *v3* API can be found at the
 [official documentation site](https://developers.google.com/drive/).
+
+# Patch detail
+
+We patched the original crate to add support for `Range` header used by `get` operations.
+
 # Features
 
 Handle the following *Resources* with ease from the central [hub](https://docs.rs/google-drive3/3.0.0+20220225/google_drive3/DriveHub) ... 

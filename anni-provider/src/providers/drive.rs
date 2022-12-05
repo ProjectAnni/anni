@@ -1,8 +1,8 @@
 use crate::{AnniProvider, AudioInfo, AudioResourceReader, ProviderError, Range, ResourceReader};
-use async_trait::async_trait;
-use google_drive3::{
+use anni_google_drive3::{
     hyper, hyper::client::HttpConnector, hyper_rustls::HttpsConnector, oauth2, DriveHub,
 };
+use async_trait::async_trait;
 use std::borrow::Cow;
 use std::collections::{HashMap, HashSet};
 use std::num::NonZeroU8;
@@ -11,12 +11,12 @@ use std::path::{Path, PathBuf};
 use self::oauth2::authenticator::Authenticator;
 use self::oauth2::authenticator_delegate::DefaultInstalledFlowDelegate;
 use crate::utils::read_duration;
+use anni_google_drive3::api::{FileList, FileListCall};
+use anni_google_drive3::hyper_rustls::HttpsConnectorBuilder;
 use anni_repo::db::RepoDatabaseRead;
 use anni_repo::library::{AlbumFolderInfo, DiscFolderInfo};
 use dashmap::DashMap;
 use futures::TryStreamExt;
-use google_drive3::api::{FileList, FileListCall};
-use google_drive3::hyper_rustls::HttpsConnectorBuilder;
 use parking_lot::Mutex;
 use std::str::FromStr;
 use tokio::sync::Semaphore;

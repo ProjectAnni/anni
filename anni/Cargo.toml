@@ -50,7 +50,7 @@ chrono = "0.4"
 inquire = "0.4.0"
 notify = { version = "5.0.0", default-features = false, features = ["macos_kqueue"] }
 notify-debouncer-mini = { version = "0.2.1", default-features = false }
-google-drive3 = { path = "../third_party/google-drive3" }
+anni-google-drive3 = { path = "../third_party/google-drive3" }
 
 [dependencies.reqwest]
 version = "0.11.11"

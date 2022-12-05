@@ -19,7 +19,7 @@ thiserror = "1.0"
 anni-repo = { path = "../anni-repo", features = ["db-read"] }
 log = "0.4"
 
-google-drive3 = { path = "../third_party/google-drive3" }
+anni-google-drive3 = { path = "../third_party/google-drive3" }
 
 uuid = "1"
 sha2 = "0.10.2"

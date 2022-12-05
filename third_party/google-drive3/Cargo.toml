@@ -1,15 +1,10 @@
-# DO NOT EDIT !
-# This file was generated automatically from 'src/mako/Cargo.toml.mako'
-# DO NOT EDIT !
 [package]
-
-name = "google-drive3"
-version = "4.0.0+20220225"
+name = "anni-google-drive3"
+version = "0.1.0+4.0.0-20220225"
 authors = ["Sebastian Thiel <byronimo@gmail.com>"]
-description = "A complete library to interact with drive (protocol v3)"
-repository = "https://github.com/Byron/google-apis-rs/tree/main/gen/drive3"
+description = "Patched library to interact with drive (protocol v3) with range support"
+repository = "https://github.com/ProjectAnni/anni/tree/master/third_party/google-drive3"
 homepage = "https://developers.google.com/drive/"
-documentation = "https://docs.rs/google-drive3/3.0.0+20220225"
 license = "MIT"
 keywords = ["drive", "google", "protocol", "web", "api"]
 autobins = false

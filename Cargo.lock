@@ -289,6 +289,7 @@ dependencies = [
  "alphanumeric-sort",
  "anni-common",
  "anni-flac",
+ "anni-google-drive3",
  "anni-provider",
  "anni-repo",
  "anni-vgmdb",
@@ -303,7 +304,6 @@ dependencies = [
  "directories-next",
  "edit",
  "env_logger",
- "google-drive3",
  "i18n-embed",
  "i18n-embed-fl",
  "id3",
@@ -369,15 +369,33 @@ dependencies = [
 ]
 
 [[package]]
+name = "anni-google-drive3"
+version = "0.1.0+4.0.0-20220225"
+dependencies = [
+ "http",
+ "hyper",
+ "hyper-rustls",
+ "itertools",
+ "mime 0.2.6",
+ "serde 1.0.144",
+ "serde_derive",
+ "serde_json",
+ "tokio",
+ "tower-service",
+ "url 1.7.2",
+ "yup-oauth2",
+]
+
+[[package]]
 name = "anni-provider"
 version = "0.1.1"
 dependencies = [
  "anni-flac",
+ "anni-google-drive3",
  "anni-repo",
  "async-trait",
  "dashmap",
  "futures",
- "google-drive3",
  "hex",
  "log 0.4.17",
  "lru",
@@ -1605,24 +1623,6 @@ dependencies = [
  "log 0.4.17",
  "ureq",
  "url 2.3.1",
-]
-
-[[package]]
-name = "google-drive3"
-version = "4.0.0+20220225"
-dependencies = [
- "http",
- "hyper",
- "hyper-rustls",
- "itertools",
- "mime 0.2.6",
- "serde 1.0.144",
- "serde_derive",
- "serde_json",
- "tokio",
- "tower-service",
- "url 1.7.2",
- "yup-oauth2",
 ]
 
 [[package]]
