@@ -25,7 +25,7 @@ pub struct SeekPoint {
 }
 
 impl SeekPoint {
-    pub fn is_placehoder(&self) -> bool {
+    pub fn is_placeholder(&self) -> bool {
         self.sample_number == 0xFFFFFFFFFFFFFFFF
     }
 }
@@ -117,7 +117,7 @@ impl fmt::Debug for BlockSeekTable {
             prefix = prefix
         )?;
         for (i, p) in self.seek_points.iter().enumerate() {
-            if p.is_placehoder() {
+            if p.is_placeholder() {
                 writeln!(f, "{prefix}point {}: PLACEHOLDER", i, prefix = prefix)?;
             } else {
                 writeln!(
