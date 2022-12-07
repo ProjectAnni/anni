@@ -34,14 +34,14 @@ pub struct SplitSubcommand {
     #[clap(help = ll!("split-clean"))]
     clean: bool,
 
-    #[clap(long = "no-import-cover", action = ArgAction::SetTrue)]
+    #[clap(long = "no-import-cover", action = ArgAction::SetFalse, default_value_t = true)]
     #[clap(help = ll!("split-no-import-cover"))]
     import_cover: bool,
 
-    #[clap(long = "keep", action = ArgAction::SetTrue)]
+    #[clap(long = "keep", action = ArgAction::SetFalse, default_value_t = true)]
     remove_after_success: bool,
 
-    #[clap(long = "no-trashcan", action = ArgAction::SetTrue)]
+    #[clap(long = "no-trashcan", action = ArgAction::SetFalse, default_value_t = true)]
     trashcan: bool,
 
     #[clap(long = "dry-run")]

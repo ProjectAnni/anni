@@ -13,7 +13,7 @@ pub struct RepoPrintAction {
     #[clap(help = ll!("repo-print-type"))]
     print_type: RepoPrintType,
 
-    #[clap(long = "no-generated-by", alias = "no-gb", action = ArgAction::SetTrue)]
+    #[clap(long = "no-generated-by", alias = "no-gb", action = ArgAction::SetFalse)]
     #[clap(help = ll!("repo-print-clean"))]
     add_generated_by: bool,
 
