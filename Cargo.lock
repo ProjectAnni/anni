@@ -302,7 +302,7 @@ dependencies = [
  "cuna",
  "directories-next",
  "edit",
- "env_logger",
+ "env_logger 0.10.0",
  "i18n-embed",
  "i18n-embed-fl",
  "id3",
@@ -460,7 +460,7 @@ dependencies = [
  "anyhow",
  "async-trait",
  "base64",
- "env_logger",
+ "env_logger 0.9.3",
  "futures",
  "jwt-simple",
  "log 0.4.17",
@@ -1292,6 +1292,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "env_logger"
+version = "0.10.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "85cdab6a89accf66733ad5a1693a4dcced6aeff64602b634530dd73c1f3ee9f0"
+dependencies = [
+ "humantime",
+ "is-terminal",
+ "log 0.4.17",
+ "regex",
+ "termcolor",
+]
+
+[[package]]
 name = "errno"
 version = "0.2.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2049,9 +2062,9 @@ dependencies = [
 
 [[package]]
 name = "inquire"
-version = "0.4.0"
+version = "0.5.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d2d96524538683611ed26737e9d91a90a741362773904ea35f322992dfef25b6"
+checksum = "e6055ce38cac9b10ac819ed4a509d92ccbc60808152c19ff9121c98198964272"
 dependencies = [
  "bitflags",
  "crossterm",
@@ -3007,7 +3020,7 @@ name = "pretty_env_logger"
 version = "0.5.0"
 source = "git+https://github.com/ProjectAnni/pretty-env-logger#d002cf18d588cde306cb62b3fffe9a1443a4f094"
 dependencies = [
- "env_logger",
+ "env_logger 0.9.3",
  "log 0.4.17",
 ]
 
