@@ -119,6 +119,8 @@ pub fn scan_workspace<P>(root: P) -> anyhow::Result<Vec<WorkspaceAlbum>>
 where
     P: AsRef<Path>,
 {
+    log::debug!("Scanning workspace at {}", root.as_ref().display());
+
     fn scan_workspace_userland_directory<P1, P2>(
         albums: &mut HashMap<Uuid, WorkspaceAlbum>,
         dot_anni: P1,
@@ -148,12 +150,18 @@ where
                                 album_id,
                                 state: match album_controlled_path {
                                     Some(controlled_path) => {
-                                        if fs::read_dir(controlled_path)?.next().is_some() {
+                                        if !entry.path().join(".album").exists() {
+                                            // symlink is broken
+                                            WorkspaceAlbumState::Dangling(entry.path())
+                                        } else if fs::read_dir(controlled_path)?.next().is_some() {
+                                            // controlled part is not empty
                                             WorkspaceAlbumState::Committed(entry.path())
                                         } else {
+                                            // controlled part is empty
                                             WorkspaceAlbumState::Untracked(entry.path())
                                         }
                                     }
+                                    // controlled part does not exist
                                     None => WorkspaceAlbumState::Dangling(entry.path()),
                                 },
                             },
@@ -167,6 +175,7 @@ where
             }
         }
 
+        log::debug!("Finished scanning workspace at {}", path.as_ref().display());
         Ok(())
     }
 
