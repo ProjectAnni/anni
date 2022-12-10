@@ -35,12 +35,7 @@ pub enum AnniSubcommand {
     Repo(RepoSubcommand),
     Library(LibrarySubcommand),
     Completions(CompletionsSubcommand),
-
-    // backward-compatible subcommand
-    #[clap(hide = true)]
     Workspace(WorkspaceSubcommand),
-    #[clap(flatten)]
-    WorkspaceFlatten(WorkspaceAction),
 }
 
 #[tokio::main]
