@@ -312,7 +312,6 @@ dependencies = [
  "notify",
  "notify-debouncer-mini",
  "once_cell",
- "pretty_env_logger",
  "ptree",
  "regex",
  "reqwest",
@@ -3014,15 +3013,6 @@ name = "precomputed-hash"
 version = "0.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "925383efa346730478fb4838dbe9137d2a47675ad789c546d150a6e1dd4ab31c"
-
-[[package]]
-name = "pretty_env_logger"
-version = "0.5.0"
-source = "git+https://github.com/ProjectAnni/pretty-env-logger#d002cf18d588cde306cb62b3fffe9a1443a4f094"
-dependencies = [
- "env_logger 0.9.3",
- "log 0.4.17",
-]
 
 [[package]]
 name = "proc-macro-error"

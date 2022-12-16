@@ -11,6 +11,7 @@ mod args;
 mod config;
 mod i18n;
 mod subcommands;
+mod utils;
 
 #[macro_use]
 extern crate anyhow;
@@ -46,7 +47,7 @@ async fn main() -> anyhow::Result<()> {
         .filter_module("i18n_embed::requester", LevelFilter::Off)
         .filter_module("sqlx::query", LevelFilter::Warn)
         .parse_env("ANNI_LOG")
-        .format(pretty_env_logger::formatter)
+        .format(utils::log::formatter)
         .init();
 
     // parse arguments
