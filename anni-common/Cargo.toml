@@ -17,7 +17,7 @@ thiserror = "1.0"
 path-absolutize = "3.0.13"
 pathdiff = "0.2.1"
 log = "0.4"
-anni-artist = "0.1.0"
+anni-artist = "0.1.1"
 
 # Remove the dependency for encoding_rs after https://github.com/hsivonen/chardetng/pull/10 was merged
 encoding_rs = { version = "0.8.31", features = ["alloc"] }

@@ -73,7 +73,8 @@ impl RepoDatabaseRead {
         }
     }
 
-    fn query_optional<P, T>(&self, sql: &str, params: P) -> RepoResult<Option<T>>
+    #[doc(hidden)]
+    pub fn query_optional<P, T>(&self, sql: &str, params: P) -> RepoResult<Option<T>>
     where
         P: Params,
         T: DeserializeOwned,
@@ -86,7 +87,8 @@ impl RepoDatabaseRead {
         }
     }
 
-    fn query_list<P, T>(&self, sql: &str, params: P) -> RepoResult<Vec<T>>
+    #[doc(hidden)]
+    pub fn query_list<P, T>(&self, sql: &str, params: P) -> RepoResult<Vec<T>>
     where
         P: Params,
         T: DeserializeOwned,
@@ -135,6 +137,10 @@ impl RepoDatabaseRead {
             "SELECT * FROM repo_track WHERE album_id = ? AND disc_id = ? ORDER BY track_id",
             params![album_id, disc_id],
         )
+    }
+
+    pub fn get_tags(&self) -> RepoResult<Vec<rows::TagRow>> {
+        self.query_list("SELECT * FROM repo_tag", params![])
     }
 
     pub fn get_albums_by_tag(&self, tag: &str, recursive: bool) -> RepoResult<Vec<rows::AlbumRow>> {
