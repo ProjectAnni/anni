@@ -175,7 +175,7 @@ COMMIT;
             )?;
 
             // add disc tags
-            for tag in disc.tags() {
+            for tag in disc.tags_iter() {
                 self.conn.execute(
                     "INSERT INTO repo_tag_detail (album_id, disc_id, tag_id) SELECT ?, ?, tag_id FROM repo_tag WHERE name = ?",
                     params![
@@ -203,7 +203,7 @@ COMMIT;
                 )?;
 
                 // add track tags
-                for tag in track.tags() {
+                for tag in track.tags_iter() {
                     self.conn.execute(
                         "INSERT INTO repo_tag_detail (album_id, disc_id, track_id, tag_id) SELECT ?, ?, ?, tag_id FROM repo_tag WHERE name = ?",
                         params![
@@ -282,7 +282,7 @@ COMMIT;
 
         for (child_id, parents) in relation_deferred {
             for parent in parents {
-                self.add_parent(child_id, tag_id[parent])?;
+                self.add_parent(child_id, tag_id[&parent.0])?;
             }
         }
         Ok(())

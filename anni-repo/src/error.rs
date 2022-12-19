@@ -1,4 +1,4 @@
-use crate::prelude::TagRef;
+use crate::models::TagRef;
 
 #[derive(thiserror::Error, Debug)]
 pub enum Error {
@@ -23,12 +23,15 @@ pub enum Error {
 
     #[error("duplicated tag {tag} defined in {path}")]
     RepoTagDuplicate {
-        tag: TagRef,
+        tag: TagRef<'static>,
         path: std::path::PathBuf,
     },
 
     #[error("undefined tags {0:?}")]
-    RepoTagsUndefined(Vec<TagRef>),
+    RepoTagsUndefined(Vec<TagRef<'static>>),
+
+    #[error("unknown tag type: {0}")]
+    RepoTagUnknownType(String),
 
     #[error(transparent)]
     IOError(#[from] std::io::Error),

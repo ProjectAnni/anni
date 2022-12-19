@@ -89,7 +89,10 @@ impl Album {
         self.info.catalog.as_ref()
     }
 
-    pub fn tags(&self) -> Vec<&TagRef> {
+    pub fn tags<'me, 'tag>(&'me self) -> Vec<&'me TagRef<'tag>>
+    where
+        'tag: 'me,
+    {
         let mut tags = Vec::new();
         tags.append(&mut self.info.tags.iter().collect::<Vec<_>>());
         for disc in self.discs.iter() {
@@ -103,13 +106,14 @@ impl Album {
             }
         }
         tags.into_iter()
+            .map(|t| &t.0)
             .collect::<HashSet<_>>()
             .into_iter()
             .collect()
     }
 
-    pub fn album_tags(&self) -> &[TagRef] {
-        &self.info.tags
+    pub fn album_tags(&self) -> Vec<&TagRef> {
+        self.info.tags.iter().map(|t| &t.0).collect()
     }
 
     pub fn discs_len(&self) -> usize {
@@ -196,7 +200,8 @@ pub struct AlbumInfo {
     pub catalog: String,
     /// Album tags
     #[serde(default)]
-    pub tags: Vec<TagRef>,
+    // TODO: use IndexSet
+    pub tags: Vec<TagString>,
 }
 
 impl Default for AlbumInfo {
@@ -215,7 +220,7 @@ impl Default for AlbumInfo {
     }
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug)]
+#[derive(Serialize, Deserialize, Debug)]
 #[serde(deny_unknown_fields)]
 pub struct Disc {
     #[serde(flatten)]
@@ -243,7 +248,7 @@ impl DerefMut for Disc {
     }
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug)]
+#[derive(Serialize, Deserialize, Debug)]
 #[cfg_attr(test, derive(PartialEq, Eq))]
 #[serde(deny_unknown_fields)]
 pub struct DiscInfo {
@@ -265,7 +270,7 @@ pub struct DiscInfo {
     /// Disc tags
     #[serde(default)]
     #[serde(skip_serializing_if = "Vec::is_empty")]
-    pub tags: Vec<TagRef>,
+    pub tags: Vec<TagString>,
 }
 
 impl DiscInfo {
@@ -274,7 +279,7 @@ impl DiscInfo {
         title: Option<String>,
         artist: Option<String>,
         disc_type: Option<TrackType>,
-        tags: Vec<TagRef>,
+        tags: Vec<TagString>,
     ) -> Self {
         DiscInfo {
             title,
@@ -319,8 +324,8 @@ impl<'album> DiscRef<'album> {
             .unwrap_or(&self.album.album_type)
     }
 
-    pub fn tags(&self) -> &[TagRef] {
-        self.disc.tags.as_ref()
+    pub fn tags_iter(&self) -> impl Iterator<Item = &TagRef> {
+        self.disc.tags.iter().map(|t| &t.0)
     }
 
     pub fn tracks_len(&self) -> usize {
@@ -372,8 +377,8 @@ impl<'album> DiscRefMut<'album> {
             .unwrap_or(&self.album.album_type)
     }
 
-    pub fn tags(&self) -> &[TagRef] {
-        self.disc.tags.as_ref()
+    pub fn tags_iter(&self) -> impl Iterator<Item = &TagRef> {
+        self.disc.tags.iter().map(|t| &t.0)
     }
 
     pub fn tracks_len(&self) -> usize {
@@ -440,7 +445,7 @@ impl<'album> DiscRefMut<'album> {
     }
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug)]
+#[derive(Serialize, Deserialize, Debug)]
 #[serde(deny_unknown_fields)]
 pub struct TrackInfo {
     /// Track title
@@ -458,7 +463,7 @@ pub struct TrackInfo {
     /// Track tags
     #[serde(default)]
     #[serde(skip_serializing_if = "Vec::is_empty")]
-    pub tags: Vec<TagRef>,
+    pub tags: Vec<TagString>,
 }
 
 impl TrackInfo {
@@ -466,7 +471,7 @@ impl TrackInfo {
         title: String,
         artist: Option<String>,
         track_type: Option<TrackType>,
-        tags: Vec<TagRef>,
+        tags: Vec<TagString>,
     ) -> Self {
         TrackInfo {
             title,
@@ -522,8 +527,11 @@ where
         })
     }
 
-    pub fn tags(&self) -> &'disc [TagRef] {
-        self.track.tags.as_ref()
+    pub fn tags_iter<'me, 'tag>(&'me self) -> impl Iterator<Item = &'me TagRef<'tag>>
+    where
+        'tag: 'me,
+    {
+        self.track.tags.iter().map(|t| &t.0)
     }
 
     pub fn raw(&self) -> &'disc TrackInfo {
@@ -579,8 +587,11 @@ where
         self.inner().track_type()
     }
 
-    pub fn tags(&self) -> &[TagRef] {
-        self.inner().tags()
+    pub fn tags_iter<'me, 'tag>(&'me self) -> impl Iterator<Item = &'me TagRef<'tag>>
+    where
+        'tag: 'me,
+    {
+        self.track.tags.iter().map(|t| &t.0)
     }
 
     pub fn set_artist(&mut self, artist: Option<String>) {
