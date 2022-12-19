@@ -243,7 +243,7 @@ impl OwnedRepositoryManager {
         self.albums.values()
     }
 
-    pub fn tag<'me, 'tag>(&'me self, tag: &'me TagRef<'tag>) -> Option<&'me Tag> {
+    pub fn tag(&self, tag: &TagRef<'_>) -> Option<&Tag> {
         self.tags.get(tag)
     }
 
@@ -251,7 +251,7 @@ impl OwnedRepositoryManager {
         &self.tags
     }
 
-    pub fn tag_path(&self, tag: &TagRef<'static>) -> Option<&PathBuf> {
+    pub fn tag_path<'a>(&'a self, tag: &'a TagRef<'_>) -> Option<&'a PathBuf> {
         self.tag_path.get(tag)
     }
 
@@ -319,7 +319,7 @@ impl OwnedRepositoryManager {
                     if !self.tags.insert(full) {
                         // duplicated simple tag
                         return Err(Error::RepoTagDuplicate {
-                            tag: child.clone().into(),
+                            tag: child.clone(),
                             path: tag_file,
                         });
                     }
@@ -331,7 +331,7 @@ impl OwnedRepositoryManager {
                 if !self.tags.insert(tag) {
                     // duplicated
                     return Err(Error::RepoTagDuplicate {
-                        tag: tag_ref.into(),
+                        tag: tag_ref,
                         path: tag_file,
                     });
                 }
@@ -413,7 +413,10 @@ impl OwnedRepositoryManager {
         }
     }
 
-    pub fn check_tags_loop(&self) -> Option<Vec<TagRef<'static>>> {
+    pub fn check_tags_loop<'me, 'tag>(&'me self) -> Option<Vec<&'me TagRef<'tag>>>
+    where
+        'me: 'tag,
+    {
         fn dfs<'tag, 'func>(
             tag: &'tag TagRef<'tag>,
             tags_relation: &'tag HashMap<TagRef<'static>, IndexSet<TagRef<'static>>>,
@@ -463,7 +466,7 @@ impl OwnedRepositoryManager {
                     Default::default(),
                 );
                 if loop_detected {
-                    return Some(path.into_iter().map(|t| t.full_clone()).collect());
+                    return Some(path);
                 }
             }
         }
@@ -500,7 +503,7 @@ impl OwnedRepositoryManager {
         // Creation time
         fs::write(
             database_path.as_ref().with_file_name("repo.json"),
-            &format!(
+            format!(
                 "{{\"last_modified\": {}}}",
                 SystemTime::now()
                     .duration_since(UNIX_EPOCH)

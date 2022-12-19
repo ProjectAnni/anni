@@ -38,7 +38,7 @@ impl<'a> TagRef<'a> {
         &self.tag_type
     }
 
-    pub fn full_clone(&self) -> TagRef<'static> {
+    fn full_clone(&self) -> TagRef<'static> {
         TagRef {
             name: Cow::Owned(self.name.to_string()),
             tag_type: self.tag_type.clone(),
