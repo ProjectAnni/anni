@@ -54,7 +54,7 @@ impl AnniProvider for CommonStrictProvider {
         let disc = self.get_disc(album_id, disc_id).await?;
         let file = self
             .fs
-            .get_file_entry_by_prefix(&disc.path, &format!("{}", track_id))
+            .get_file_entry_by_prefix(&disc.path, &format!("{track_id}."))
             .await?;
         self.fs.get_audio_file(&file.path, range).await
     }
@@ -102,7 +102,7 @@ impl CommonStrictProvider {
             .ok_or(ProviderError::FileNotFound)?;
         let mut folders = self.fs.children(&folder.path).await?;
         while let Some(folder) = folders.next().await {
-            if folder.name == format!("{}", disc_id) {
+            if folder.name == format!("{disc_id}") {
                 return Ok(folder);
             }
         }

@@ -61,7 +61,7 @@ impl AnniProvider for CommonConventionProvider {
         let disc = self.get_disc(album_id, disc_id)?;
         let file = self
             .fs
-            .get_file_entry_by_prefix(&disc.path, &format!("{:02}.", track_id))
+            .get_file_entry_by_prefix(&disc.path, &format!("{track_id:02}."))
             .await?;
         self.fs.get_audio_file(&file.path, range).await
     }

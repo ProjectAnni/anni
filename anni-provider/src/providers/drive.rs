@@ -150,7 +150,7 @@ impl DriveClient {
     async fn list_folder(&self, parent_id: &str) -> Result<FileList, ProviderError> {
         let permit = self.semaphore.acquire().await.unwrap();
         let (_, list) = self.prepare_list()
-            .q(&format!("mimeType = 'application/vnd.google-apps.folder' and trashed = false and '{}' in parents", parent_id))
+            .q(&format!("mimeType = 'application/vnd.google-apps.folder' and trashed = false and '{parent_id}' in parents"))
             .param("fields", "nextPageToken, files(id,name)")
             .doit().await?;
         drop(permit);
@@ -357,7 +357,7 @@ impl AnniProvider for DriveProvider {
                     if a.name
                         .as_ref()
                         .unwrap()
-                        .starts_with(&format!("{:02}.", track_id))
+                        .starts_with(&format!("{track_id:02}."))
                     {
                         a
                     } else {
