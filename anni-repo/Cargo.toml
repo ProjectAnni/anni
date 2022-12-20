@@ -24,6 +24,7 @@ log = "0.4"
 once_cell = "1"
 pathdiff = "0.2.1"
 indexmap = "1.9.1"
+anni-artist = "0.1.1"
 
 # flac
 anni-flac = { version = "0.2.2", path = "../anni-flac", optional = true }

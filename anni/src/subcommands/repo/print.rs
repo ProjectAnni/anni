@@ -132,7 +132,7 @@ FILE "{filename}" WAVE
             // print tag
             let manager = manager.into_owned_manager()?;
 
-            let tag = TagRef::new(me.input);
+            let tag = TagRef::from_str(me.input)?;
             if manager.tag(&tag).is_none() {
                 bail!("Tag not found!");
             }

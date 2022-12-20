@@ -23,6 +23,23 @@ impl<'a> TagRef<'a> {
         TagRef { name, tag_type }
     }
 
+    pub fn from_str<S>(name: S) -> Result<Self, Error>
+    where
+        S: Into<Cow<'a, str>>,
+    {
+        let tag: Cow<'a, str> = name.into();
+        let (tag_type, tag_name) = tag
+            .split_once(":")
+            .map(|(a, b)| (a.to_string(), Cow::Owned(b.to_string())))
+            .map(|(a, b)| (Some(TagType::from_str(&a)), b))
+            .unwrap_or_else(|| (None, tag));
+        let tag_type = tag_type.unwrap_or(Ok(TagType::Default))?;
+        Ok(TagRef {
+            name: tag_name.into(),
+            tag_type,
+        })
+    }
+
     pub fn simple(name: Cow<'a, str>) -> Self {
         TagRef {
             name,
@@ -59,7 +76,10 @@ impl<'a> TagRef<'a> {
 
 impl<'a> Display for TagRef<'a> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}:{}", self.tag_type(), self.name())
+        match &self.tag_type {
+            TagType::Default => write!(f, "{}", self.name()),
+            ty => write!(f, "{}:{}", ty, self.name()),
+        }
     }
 }
 
@@ -85,6 +105,8 @@ impl<'tag> Borrow<TagRef<'tag>> for TagString {
 /// String representation of a tag
 ///
 /// Formatted by `<edition>:<name>`
+///
+/// TODO: remove this type
 #[derive(Debug, PartialEq, Eq)]
 pub struct TagString(pub(crate) TagRef<'static>);
 
@@ -101,8 +123,7 @@ impl Serialize for TagString {
     where
         S: Serializer,
     {
-        let name = self.0.name();
-        Value::String(format!("{}:{name}", self.0.tag_type)).serialize(serializer)
+        Value::String(format!("{}", self.0)).serialize(serializer)
     }
 }
 
@@ -116,18 +137,8 @@ impl<'de> Deserialize<'de> for TagString {
 
         let value = Value::deserialize(deserializer)?;
         if let Value::String(tag) = value {
-            let (tag_type, tag_name) = tag
-                .split_once(":")
-                .map(|(a, b)| (a.to_string(), b.to_string()))
-                .map(|(a, b)| (Some(TagType::from_str(&a)), b))
-                .unwrap_or_else(|| (None, tag));
-            let tag_type = tag_type
-                .unwrap_or(Ok(TagType::Default))
-                .map_err(|e| D::Error::custom(e))?;
-            Ok(Self(TagRef {
-                name: tag_name.into(),
-                tag_type,
-            }))
+            let tag = TagRef::from_str(tag).map_err(|e| D::Error::custom(e))?;
+            Ok(Self(tag))
         } else {
             Err(de::Error::custom("Tag must be a string"))
         }
