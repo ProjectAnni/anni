@@ -29,13 +29,13 @@ impl<'a> TagRef<'a> {
         }
     }
 
-    pub fn from_str<S>(name: S) -> Result<Self, Error>
+    pub fn from_cow_str<S>(name: S) -> Result<Self, Error>
     where
         S: Into<Cow<'a, str>>,
     {
         let tag: Cow<'a, str> = name.into();
-        let (tag_type, tag_name) = tag
-            .split_once(":")
+        let (tag_type, name) = tag
+            .split_once(':')
             .and_then(|(tag_type, tag_name)| {
                 // try to parse tag_type
                 let tag_type = TagType::from_str(tag_type);
@@ -46,11 +46,8 @@ impl<'a> TagRef<'a> {
                     Err(_) => None,
                 }
             })
-            .unwrap_or_else(|| (TagType::Default, tag));
-        Ok(TagRef {
-            name: tag_name.into(),
-            tag_type,
-        })
+            .unwrap_or((TagType::Default, tag));
+        Ok(TagRef { name, tag_type })
     }
 
     pub fn simple(name: Cow<'a, str>) -> Self {
@@ -135,7 +132,7 @@ impl<'tag> Borrow<TagRef<'tag>> for TagString {
 /// Formatted by `<edition>:<name>`
 ///
 /// TODO: remove this type
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, Eq)]
 pub struct TagString(pub(crate) TagRef<'static>);
 
 impl Deref for TagString {
@@ -160,15 +157,14 @@ impl<'de> Deserialize<'de> for TagString {
     where
         D: Deserializer<'de>,
     {
-        use serde::de;
         use serde::de::Error;
 
         let value = Value::deserialize(deserializer)?;
         if let Value::String(tag) = value {
-            let tag = TagRef::from_str(tag).map_err(|e| D::Error::custom(e))?;
+            let tag = TagRef::from_cow_str(tag).map_err(Error::custom)?;
             Ok(Self(tag))
         } else {
-            Err(de::Error::custom("Tag must be a string"))
+            Err(Error::custom("Tag must be a string"))
         }
     }
 }
@@ -185,13 +181,19 @@ impl Hash for TagString {
     }
 }
 
+impl PartialEq for TagString {
+    fn eq(&self, other: &Self) -> bool {
+        self.0 == other.0
+    }
+}
+
 impl From<TagRef<'static>> for TagString {
     fn from(value: TagRef<'static>) -> Self {
         Self(value)
     }
 }
 
-#[derive(Serialize, Deserialize, Debug, PartialEq, Eq)]
+#[derive(Serialize, Deserialize, Debug, Eq)]
 #[serde(deny_unknown_fields)]
 pub struct Tag {
     #[serde(flatten)]
@@ -268,6 +270,12 @@ impl Hash for Tag {
     }
 }
 
+impl PartialEq for Tag {
+    fn eq(&self, other: &Self) -> bool {
+        self.inner == other.inner
+    }
+}
+
 impl Display for Tag {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         Display::fmt(&self.inner, f)
@@ -276,7 +284,7 @@ impl Display for Tag {
 
 impl Tag {
     pub fn name(&self) -> &str {
-        &self.inner.name()
+        self.inner.name()
     }
 
     pub fn names(&self) -> impl Iterator<Item = (&String, &String)> {
@@ -284,7 +292,7 @@ impl Tag {
     }
 
     pub fn tag_type(&self) -> &TagType {
-        &self.inner.tag_type()
+        self.inner.tag_type()
     }
 
     pub fn parents(&self) -> &[TagString] {
