@@ -5,6 +5,7 @@ use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
 use toml_edit::easy as toml;
+use uuid::Uuid;
 
 /// A simple repository visitor. Can perform simple operations on the repository.
 pub struct RepositoryManager {
@@ -74,7 +75,7 @@ impl RepositoryManager {
             for file in files {
                 let file = file?;
                 let path = file.path();
-                if path.is_file() {
+                if path.is_file() && path.ends_with(".toml") {
                     paths.push(path);
                 } else if path.is_dir() {
                     let mut index = 0;
@@ -203,12 +204,14 @@ pub struct OwnedRepositoryManager {
     tags_relation: HashMap<TagRef<'static>, IndexSet<TagRef<'static>>>,
     /// Tag -> File
     tag_path: HashMap<TagRef<'static>, PathBuf>,
+    /// Set of tags with duplicated tag name
+    tag_duplicated: HashSet<String>,
 
-    album_tags: HashMap<TagRef<'static>, Vec<String>>,
+    album_tags: HashMap<TagRef<'static>, Vec<Uuid>>,
     /// AlbumID -> Album
-    albums: HashMap<String, Album>,
+    albums: HashMap<Uuid, Album>,
     /// AlbumID -> Album Path
-    album_path: HashMap<String, PathBuf>,
+    album_path: HashMap<Uuid, PathBuf>,
 }
 
 impl OwnedRepositoryManager {
@@ -218,6 +221,7 @@ impl OwnedRepositoryManager {
             tags: Default::default(),
             tags_relation: Default::default(),
             tag_path: Default::default(),
+            tag_duplicated: Default::default(),
             album_tags: Default::default(),
             albums: Default::default(),
             album_path: Default::default(),
@@ -227,15 +231,15 @@ impl OwnedRepositoryManager {
         Ok(repo)
     }
 
-    pub fn album(&self, album_id: &str) -> Option<&Album> {
+    pub fn album(&self, album_id: &Uuid) -> Option<&Album> {
         self.albums.get(album_id)
     }
 
-    pub fn album_path(&self, album_id: &str) -> Option<&Path> {
+    pub fn album_path(&self, album_id: &Uuid) -> Option<&Path> {
         self.album_path.get(album_id).map(|p| p.as_path())
     }
 
-    pub fn albums(&self) -> &HashMap<String, Album> {
+    pub fn albums(&self) -> &HashMap<Uuid, Album> {
         &self.albums
     }
 
@@ -264,14 +268,31 @@ impl OwnedRepositoryManager {
             .map_or(IndexSet::new(), |children| children.iter().collect())
     }
 
-    pub fn albums_tagged_by<'me, 'tag>(
-        &'me self,
-        tag: &'me TagRef<'tag>,
-    ) -> Option<&'me Vec<String>>
+    pub fn albums_tagged_by<'me, 'tag>(&'me self, tag: &'me TagRef<'tag>) -> Option<&'me Vec<Uuid>>
     where
         'tag: 'me,
     {
         self.album_tags.get(tag)
+    }
+
+    fn add_tag(&mut self, tag: Tag, tag_relative_path: PathBuf) -> Result<(), Error> {
+        // fully duplicated tags are not allowed
+        if self.tags.contains(tag.as_ref()) {
+            return Err(Error::RepoTagDuplicate {
+                tag: tag.get_owned_ref(),
+                path: tag_relative_path,
+            });
+        }
+
+        // for duplicated tags with different type, add to self.tag_duplicated for reference
+        if self.tags.contains(&tag.as_default_ref()) && !self.tag_duplicated.contains(tag.name()) {
+            self.tag_duplicated.insert(tag.name().to_string());
+        }
+
+        let tag_ref = tag.get_owned_ref();
+        self.tags.insert(tag);
+        self.tag_path.insert(tag_ref, tag_relative_path);
+        Ok(())
     }
 
     fn add_tag_relation(&mut self, parent: TagRef<'static>, child: TagRef<'static>) {
@@ -313,30 +334,14 @@ impl OwnedRepositoryManager {
                 }
 
                 // add children to set
-                for child in tag.children_simple() {
+                for child in tag.simple_children() {
                     let parent = tag.get_owned_ref();
                     let full = child.clone().into_full(vec![parent.into()]);
-                    if !self.tags.insert(full) {
-                        // duplicated simple tag
-                        return Err(Error::RepoTagDuplicate {
-                            tag: child.clone(),
-                            path: tag_file,
-                        });
-                    }
+                    self.add_tag(full, relative_path.clone())?;
                     self.add_tag_relation(tag.get_owned_ref(), child.clone());
-                    self.tag_path.insert(child.clone(), relative_path.clone());
                 }
 
-                let tag_ref = tag.get_owned_ref();
-                if !self.tags.insert(tag) {
-                    // duplicated
-                    return Err(Error::RepoTagDuplicate {
-                        tag: tag_ref,
-                        path: tag_file,
-                    });
-                }
-
-                self.tag_path.insert(tag_ref, relative_path.clone());
+                self.add_tag(tag, relative_path.clone())?;
             }
         }
 
@@ -376,10 +381,7 @@ impl OwnedRepositoryManager {
                 for tag in tags {
                     if !self.tags.contains(tag) {
                         log::error!(
-                            "Orphan tag {} found in album {}, catalog = {}",
-                            tag,
-                            album_id.to_string(),
-                            catalog
+                            "Orphan tag {tag} found in album {album_id}, catalog = {catalog}"
                         );
                         problems.push(Error::RepoTagsUndefined(vec![tag.clone()]));
                     }
@@ -387,13 +389,10 @@ impl OwnedRepositoryManager {
                     if !self.album_tags.contains_key(tag) {
                         self.album_tags.insert(tag.clone(), vec![]);
                     }
-                    self.album_tags
-                        .get_mut(tag)
-                        .unwrap()
-                        .push(album_id.to_string());
+                    self.album_tags.get_mut(tag).unwrap().push(album_id);
                 }
             }
-            if let Some(album_with_same_id) = self.albums.insert(album_id.to_string(), album) {
+            if let Some(album_with_same_id) = self.albums.insert(album_id, album) {
                 log::error!(
                     "Duplicated album id detected: {}",
                     album_with_same_id.album_id()
@@ -401,7 +400,7 @@ impl OwnedRepositoryManager {
                 problems.push(Error::RepoDuplicatedAlbumId(album_id.to_string()));
             }
             self.album_path.insert(
-                album_id.to_string(),
+                album_id,
                 pathdiff::diff_paths(&path, &self.repo.root).unwrap(),
             );
         }
@@ -454,7 +453,7 @@ impl OwnedRepositoryManager {
 
         let mut visited: HashMap<&TagRef, bool> = Default::default();
         let mut current: HashMap<&TagRef, bool> = Default::default();
-        let tags: Vec<_> = self.tags.iter().map(|t| t.get_ref()).collect();
+        let tags: Vec<_> = self.tags.iter().map(|t| t.as_ref()).collect();
         for tag in tags.into_iter() {
             // if !visited[tag]
             if !visited.get(&tag).map_or(false, |x| *x) {

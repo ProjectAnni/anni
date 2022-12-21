@@ -260,7 +260,7 @@ COMMIT;
 
         for tag in tags {
             let id = self.add_tag(tag.name(), tag.tag_type())?;
-            tag_id.insert(tag.get_ref(), id);
+            tag_id.insert(tag.as_ref(), id);
 
             // add i18n
             for (language_id, localized_name) in tag.names() {

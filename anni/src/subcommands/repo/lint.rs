@@ -40,7 +40,7 @@ fn repo_lint(manager: RepositoryManager, me: &RepoLintAction) -> anyhow::Result<
         let manager = manager.into_owned_manager()?;
         // validate all albums
         for album in manager.albums_iter() {
-            let album_path = manager.album_path(&album.album_id().to_string()).unwrap();
+            let album_path = manager.album_path(&album.album_id()).unwrap();
             validate_album(album, album_path, report.as_mut());
         }
         // check tag loop

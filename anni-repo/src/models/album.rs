@@ -182,7 +182,7 @@ pub struct AlbumInfo {
     /// If this field is not None and is not empty, the full title of Album should be {title}【{edition}】
     #[serde(default)]
     #[serde(skip_serializing_if = "Option::is_none")]
-    #[serde(with = "serde_with::rust::string_empty_as_none")]
+    #[serde(deserialize_with = "anni_common::decode::non_empty_str")]
     pub edition: Option<String>,
     /// Album artist
     pub artist: String,

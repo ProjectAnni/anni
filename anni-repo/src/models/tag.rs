@@ -9,7 +9,7 @@ use std::str::FromStr;
 use toml_edit::easy::Value;
 
 /// Simple reference to a tag with its name and edition.
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
+#[derive(Serialize, Deserialize, Clone, Debug, Eq)]
 pub struct TagRef<'a> {
     /// Tag name
     name: Cow<'a, str>,
@@ -19,8 +19,14 @@ pub struct TagRef<'a> {
 }
 
 impl<'a> TagRef<'a> {
-    pub fn new(name: Cow<'a, str>, tag_type: TagType) -> Self {
-        TagRef { name, tag_type }
+    pub fn new<N>(name: N, tag_type: TagType) -> Self
+    where
+        N: Into<Cow<'a, str>>,
+    {
+        TagRef {
+            name: name.into(),
+            tag_type,
+        }
     }
 
     pub fn from_str<S>(name: S) -> Result<Self, Error>
@@ -35,7 +41,7 @@ impl<'a> TagRef<'a> {
                 let tag_type = TagType::from_str(tag_type);
                 match tag_type {
                     // on success, tag type would be extracted
-                    Ok(tag_type) => Some((tag_type, Cow::Owned(tag_name.to_string()))),
+                    Ok(tag_type) => Some((tag_type, Cow::Owned(tag_name.trim().to_string()))),
                     // on failure, DEFAULT would be used
                     Err(_) => None,
                 }
@@ -92,8 +98,23 @@ impl<'a> Display for TagRef<'a> {
 
 impl<'a> Hash for TagRef<'a> {
     fn hash<H: Hasher>(&self, state: &mut H) {
+        // we only use tag name for hash
+        // if two tags have the same name, they would have the same hash value
+        // at this time, PartialEq would be used to check whether they are the same
+        // aka hash collision
         state.write(self.name.as_bytes());
-        // TODO: write tag type
+    }
+}
+
+impl<'a> PartialEq for TagRef<'a> {
+    fn eq(&self, other: &Self) -> bool {
+        // tag type is used to check whether two tags are the same
+        // specially, when using TagType::Default, all types of tags would match
+        let type_match = match self.tag_type() {
+            TagType::Default => true,
+            ty => ty == other.tag_type(),
+        };
+        type_match && self.name() == other.name()
     }
 }
 
@@ -270,15 +291,18 @@ impl Tag {
         &self.parents
     }
 
-    pub fn children_simple<'me, 'tag>(&'me self) -> impl Iterator<Item = &'me TagRef<'tag>>
+    pub fn simple_children<'me, 'tag>(&'me self) -> impl Iterator<Item = &'me TagRef<'tag>>
     where
         'tag: 'me,
     {
         self.children.iter().map(|i| &i.0)
     }
 
-    pub fn get_ref(&self) -> &TagRef {
-        &self.inner
+    pub fn as_default_ref(&self) -> TagRef {
+        TagRef {
+            name: Cow::Borrowed(self.name()),
+            tag_type: TagType::Default,
+        }
     }
 
     pub fn get_owned_ref(&self) -> TagRef<'static> {
@@ -286,6 +310,12 @@ impl Tag {
             name: self.inner.name.clone(),
             tag_type: self.inner.tag_type.clone(),
         }
+    }
+}
+
+impl AsRef<TagRef<'static>> for Tag {
+    fn as_ref(&self) -> &TagRef<'static> {
+        &self.inner
     }
 }
 
@@ -306,7 +336,7 @@ mod tests {
 
     #[test]
     fn test_tag_string_serialize() {
-        let tag = TagString(TagRef::new("Test".into(), TagType::Artist));
+        let tag = TagString(TagRef::new("Test", TagType::Artist));
         assert_eq!(tag.to_string(), "artist:Test".to_string());
     }
 

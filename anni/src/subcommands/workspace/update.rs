@@ -27,7 +27,7 @@ pub async fn handle_workspace_update(me: WorkspaceUpdateAction) -> anyhow::Resul
     if me.tags {
         let repo = get_workspace_repository_manager(&dot_anni)?;
         let repo = repo.into_owned_manager()?;
-        let album = repo.album(&album_id.to_string()).expect("Album not found");
+        let album = repo.album(&album_id).expect("Album not found");
         apply_strict(&album_path, album, me.cover)?;
     }
 

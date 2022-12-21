@@ -13,6 +13,7 @@ use clap::{Args, Subcommand};
 use clap_handler::{handler, Context, Handler};
 use std::path::PathBuf;
 use std::str::FromStr;
+use uuid::Uuid;
 
 #[derive(Args, Debug, Clone, Handler)]
 #[clap(about = ll!("library"))]
@@ -254,7 +255,7 @@ pub fn library_apply_tag(
             // strict folder structure, folder name is album_id
             let album = manager
                 .albums()
-                .get(folder_name.as_ref())
+                .get(&Uuid::parse_str(folder_name.as_ref())?)
                 .ok_or_else(|| anyhow::anyhow!("Album {} not found", folder_name))?;
             apply_strict(&path, album, true)?;
         } else if let Ok(AlbumFolderInfo {
