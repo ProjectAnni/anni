@@ -30,10 +30,17 @@ impl<'a> TagRef<'a> {
         let tag: Cow<'a, str> = name.into();
         let (tag_type, tag_name) = tag
             .split_once(":")
-            .map(|(a, b)| (a.to_string(), Cow::Owned(b.to_string())))
-            .map(|(a, b)| (Some(TagType::from_str(&a)), b))
-            .unwrap_or_else(|| (None, tag));
-        let tag_type = tag_type.unwrap_or(Ok(TagType::Default))?;
+            .and_then(|(tag_type, tag_name)| {
+                // try to parse tag_type
+                let tag_type = TagType::from_str(tag_type);
+                match tag_type {
+                    // on success, tag type would be extracted
+                    Ok(tag_type) => Some((tag_type, Cow::Owned(tag_name.to_string()))),
+                    // on failure, DEFAULT would be used
+                    Err(_) => None,
+                }
+            })
+            .unwrap_or_else(|| (TagType::Default, tag));
         Ok(TagRef {
             name: tag_name.into(),
             tag_type,
@@ -315,16 +322,24 @@ mod tests {
 tags = [
   "artist:123",
   "group:456",
+  "implicit-tag-type",
+  "implicit:tag-type with :",
 ]
 "#,
         )
         .unwrap();
-        assert_eq!(tags.len(), 2);
+        assert_eq!(tags.len(), 4);
 
         assert_eq!(tags[0].name, "123");
         assert_eq!(tags[0].tag_type, TagType::Artist);
 
         assert_eq!(tags[1].name, "456");
         assert_eq!(tags[1].tag_type, TagType::Group);
+
+        assert_eq!(tags[2].name, "implicit-tag-type");
+        assert_eq!(tags[2].tag_type, TagType::Default);
+
+        assert_eq!(tags[3].name, "implicit:tag-type with :");
+        assert_eq!(tags[3].tag_type, TagType::Default);
     }
 }
