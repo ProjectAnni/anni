@@ -75,8 +75,12 @@ impl RepositoryManager {
             for file in files {
                 let file = file?;
                 let path = file.path();
-                if path.is_file() && path.ends_with(".toml") {
-                    paths.push(path);
+                if path.is_file() {
+                    if let Some(ext) = path.extension() {
+                        if ext == "toml" {
+                            paths.push(path);
+                        }
+                    }
                 } else if path.is_dir() {
                     let mut index = 0;
                     let catalog = file.file_name();
@@ -511,5 +515,45 @@ impl OwnedRepositoryManager {
             ),
         )?;
         Ok(())
+    }
+
+    #[cfg(feature = "search")]
+    pub fn build_search_index<P>(&self, path: P)
+    where
+        P: AsRef<Path>,
+    {
+        use crate::search::{open_indexer, SearchFields};
+        use tantivy::doc;
+
+        let (
+            index,
+            SearchFields {
+                title,
+                artist,
+                album_id,
+                disc_id,
+                track_id,
+            },
+        ) = open_indexer(path);
+        let mut index_writer = index.writer(100_000_000).unwrap();
+
+        for album in self.albums_iter() {
+            for (disc_id_v, disc) in album.iter().enumerate() {
+                let disc_id_v = disc_id_v + 1;
+                for (track_id_v, track) in disc.iter().enumerate() {
+                    let track_id_v = track_id_v + 1;
+                    index_writer
+                        .add_document(doc!(
+                            title => track.title(),
+                            artist => track.artist(),
+                            album_id => album.album_id.to_string(),
+                            disc_id => disc_id_v as i64,
+                            track_id => track_id_v as i64,
+                        ))
+                        .unwrap();
+                }
+            }
+        }
+        index_writer.commit().unwrap();
     }
 }

@@ -20,7 +20,12 @@ directories-next = "2.0.0"
 
 anni-common = { path = "../anni-common" }
 anni-flac = { path = "../anni-flac" }
-anni-repo = { path = "../anni-repo", features = ["db", "git", "flac"] }
+anni-repo = { path = "../anni-repo", features = [
+    "db",
+    "git",
+    "flac",
+    "search",
+] }
 anni-provider = { path = "../anni-provider" }
 annil = { path = "../annil" }
 clap-handler = { version = "0.1.1", features = ["async"] }
@@ -49,7 +54,11 @@ musicbrainz_rs = { git = "https://github.com/ProjectAnni/musicbrainz_rs", defaul
 
 uuid = { version = "1", features = ["v4"] }
 alphanumeric-sort = "1.4.4"
-ptree = "0.4.0"
+ptree = { version = "0.4.0", default-features = false, features = [
+    "petgraph",
+    "ansi",
+    "value",
+] }
 colored = "2.0.0"
 chrono = "0.4"
 

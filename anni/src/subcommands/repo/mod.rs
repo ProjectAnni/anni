@@ -2,6 +2,7 @@ mod add;
 mod get;
 mod lint;
 mod print;
+mod search;
 mod watch;
 
 use crate::args::ActionFile;
@@ -61,6 +62,7 @@ pub enum RepoAction {
     #[clap(about = ll!("repo-db"))]
     Database(RepoDatabaseAction),
     Watch(RepoWatchAction),
+    Search(search::RepoSearchAction),
 }
 
 #[derive(Args, Debug, Clone)]
