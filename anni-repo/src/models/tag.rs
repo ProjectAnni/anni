@@ -9,7 +9,7 @@ use std::str::FromStr;
 use toml_edit::easy::Value;
 
 /// Simple reference to a tag with its name and edition.
-#[derive(Serialize, Deserialize, Clone, Debug, Eq)]
+#[derive(Serialize, Deserialize, Clone, Debug, Hash, PartialEq, Eq)]
 pub struct TagRef<'a> {
     /// Tag name
     name: Cow<'a, str>,
@@ -46,15 +46,8 @@ impl<'a> TagRef<'a> {
                     Err(_) => None,
                 }
             })
-            .unwrap_or((TagType::Default, tag));
+            .unwrap_or((TagType::Unknown, tag));
         Ok(TagRef { name, tag_type })
-    }
-
-    pub fn simple(name: Cow<'a, str>) -> Self {
-        TagRef {
-            name,
-            tag_type: TagType::Default,
-        }
     }
 
     pub fn name(&self) -> &str {
@@ -87,31 +80,9 @@ impl<'a> TagRef<'a> {
 impl<'a> Display for TagRef<'a> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match &self.tag_type {
-            TagType::Default => write!(f, "{}", self.name()),
+            TagType::Unknown => write!(f, "{}", self.name()),
             ty => write!(f, "{}:{}", ty, self.name()),
         }
-    }
-}
-
-impl<'a> Hash for TagRef<'a> {
-    fn hash<H: Hasher>(&self, state: &mut H) {
-        // we only use tag name for hash
-        // if two tags have the same name, they would have the same hash value
-        // at this time, PartialEq would be used to check whether they are the same
-        // aka hash collision
-        state.write(self.name.as_bytes());
-    }
-}
-
-impl<'a> PartialEq for TagRef<'a> {
-    fn eq(&self, other: &Self) -> bool {
-        // tag type is used to check whether two tags are the same
-        // specially, when using TagType::Default, all types of tags would match
-        let type_match = match self.tag_type() {
-            TagType::Default => true,
-            ty => ty == other.tag_type(),
-        };
-        type_match && self.name() == other.name()
     }
 }
 
@@ -134,6 +105,21 @@ impl<'tag> Borrow<TagRef<'tag>> for TagString {
 /// TODO: remove this type
 #[derive(Debug, Eq)]
 pub struct TagString(pub(crate) TagRef<'static>);
+
+impl TagString {
+    pub(crate) fn resolve(&mut self, tags: &HashMap<String, HashMap<TagType, Tag>>) {
+        if let TagType::Unknown = self.tag_type {
+            if let Some(tags) = tags.get(self.name()) {
+                if tags.len() > 1 {
+                    panic!("Failed to resolve tag")
+                }
+
+                let actual_type = tags.values().next().unwrap().tag_type().clone();
+                self.0.tag_type = actual_type;
+            }
+        }
+    }
+}
 
 impl Deref for TagString {
     type Target = TagRef<'static>;
@@ -212,7 +198,7 @@ pub struct Tag {
     children: Vec<TagString>,
 }
 
-#[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
+#[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Hash, Clone)]
 #[serde(rename_all = "lowercase")]
 pub enum TagType {
     Artist,
@@ -223,8 +209,8 @@ pub enum TagType {
     Radio,
     Game,
     Organization,
-    Default,
     Category,
+    Unknown,
 }
 
 impl FromStr for TagType {
@@ -240,8 +226,8 @@ impl FromStr for TagType {
             "radio" => Self::Radio,
             "game" => Self::Game,
             "organization" => Self::Organization,
-            "default" => Self::Default,
             "category" => Self::Category,
+            "unknown" => Self::Unknown,
             _ => return Err(Error::RepoTagUnknownType(s.to_string())),
         })
     }
@@ -258,7 +244,7 @@ impl Display for TagType {
             TagType::Radio => "radio",
             TagType::Game => "game",
             TagType::Organization => "organization",
-            TagType::Default => "default",
+            TagType::Unknown => "unknown",
             TagType::Category => "category",
         })
     }
@@ -304,13 +290,6 @@ impl Tag {
         'tag: 'me,
     {
         self.children.iter().map(|i| &i.0)
-    }
-
-    pub fn as_default_ref(&self) -> TagRef {
-        TagRef {
-            name: Cow::Borrowed(self.name()),
-            tag_type: TagType::Default,
-        }
     }
 
     pub fn get_owned_ref(&self) -> TagRef<'static> {
@@ -375,9 +354,9 @@ tags = [
         assert_eq!(tags[1].tag_type, TagType::Group);
 
         assert_eq!(tags[2].name, "implicit-tag-type");
-        assert_eq!(tags[2].tag_type, TagType::Default);
+        assert_eq!(tags[2].tag_type, TagType::Unknown);
 
         assert_eq!(tags[3].name, "implicit:tag-type with :");
-        assert_eq!(tags[3].tag_type, TagType::Default);
+        assert_eq!(tags[3].tag_type, TagType::Unknown);
     }
 }

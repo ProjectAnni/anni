@@ -63,7 +63,7 @@ async fn search_album(keyword: &str) -> anyhow::Result<Album> {
                 .map(|track| {
                     let title = track.get().unwrap().to_string();
                     let track_type = TrackType::guess(&title);
-                    TrackInfo::new(title, Some("".to_string()), track_type, Default::default())
+                    Track::new(title, Some("".to_string()), track_type, Default::default())
                 })
                 .collect();
 
@@ -237,7 +237,7 @@ fn repo_get_musicbrainz(
                 .flatten()
                 .map(|track| {
                     let track_type = TrackType::guess(&track.title);
-                    TrackInfo::new(
+                    Track::new(
                         track.title,
                         track.recording.artist_credit.map(to_artist),
                         track_type,

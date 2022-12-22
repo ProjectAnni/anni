@@ -203,13 +203,11 @@ pub struct OwnedRepositoryManager {
     pub repo: RepositoryManager,
 
     /// All available tags.
-    tags: HashSet<Tag>,
+    tags: HashMap<String, HashMap<TagType, Tag>>,
     /// Parent to child tag relation
     tags_relation: HashMap<TagRef<'static>, IndexSet<TagRef<'static>>>,
     /// Tag -> File
     tag_path: HashMap<TagRef<'static>, PathBuf>,
-    /// Set of tags with duplicated tag name
-    tag_duplicated: HashSet<String>,
 
     album_tags: HashMap<TagRef<'static>, Vec<Uuid>>,
     /// AlbumID -> Album
@@ -225,13 +223,12 @@ impl OwnedRepositoryManager {
             tags: Default::default(),
             tags_relation: Default::default(),
             tag_path: Default::default(),
-            tag_duplicated: Default::default(),
             album_tags: Default::default(),
             albums: Default::default(),
             album_path: Default::default(),
         };
         repo.load_tags()?;
-        repo.load_album_tags()?;
+        repo.load_albums()?;
         Ok(repo)
     }
 
@@ -252,11 +249,13 @@ impl OwnedRepositoryManager {
     }
 
     pub fn tag(&self, tag: &TagRef<'_>) -> Option<&Tag> {
-        self.tags.get(tag)
+        self.tags
+            .get(tag.name())
+            .and_then(|tags| tags.get(tag.tag_type()))
     }
 
-    pub fn tags(&self) -> &HashSet<Tag> {
-        &self.tags
+    pub fn tags_iter(&self) -> impl Iterator<Item = &Tag> {
+        self.tags.values().flat_map(|m| m.values())
     }
 
     pub fn tag_path<'a>(&'a self, tag: &'a TagRef<'_>) -> Option<&'a PathBuf> {
@@ -281,20 +280,22 @@ impl OwnedRepositoryManager {
 
     fn add_tag(&mut self, tag: Tag, tag_relative_path: PathBuf) -> Result<(), Error> {
         // fully duplicated tags are not allowed
-        if self.tags.contains(tag.as_ref()) {
+        if let Some(tag) = self.tag(tag.as_ref()) {
             return Err(Error::RepoTagDuplicate {
                 tag: tag.get_owned_ref(),
                 path: tag_relative_path,
             });
         }
 
-        // for duplicated tags with different type, add to self.tag_duplicated for reference
-        if self.tags.contains(&tag.as_default_ref()) && !self.tag_duplicated.contains(tag.name()) {
-            self.tag_duplicated.insert(tag.name().to_string());
-        }
-
+        let map = if let Some(map) = self.tags.get_mut(tag.name()) {
+            map
+        } else {
+            let map = HashMap::with_capacity(1);
+            self.tags.insert(tag.name().to_string(), map);
+            self.tags.get_mut(tag.name()).unwrap()
+        };
         let tag_ref = tag.get_owned_ref();
-        self.tags.insert(tag);
+        map.insert(tag_ref.tag_type().clone(), tag);
         self.tag_path.insert(tag_ref, tag_relative_path);
         Ok(())
     }
@@ -350,8 +351,7 @@ impl OwnedRepositoryManager {
         }
 
         // check tag relationship
-        let all_tags: HashSet<_> = self.tags.iter().map(|t| t.get_owned_ref()).collect();
-        let all_tags: HashSet<_> = all_tags.iter().collect();
+        let all_tags: HashSet<_> = self.tags_iter().map(Tag::as_ref).collect();
         let mut rel_tags: HashSet<_> = self.tags_relation.keys().collect();
         let rel_children: HashSet<_> = self.tags_relation.values().flatten().collect();
         rel_tags.extend(rel_children);
@@ -364,13 +364,14 @@ impl OwnedRepositoryManager {
         Ok(())
     }
 
-    /// Load albums tags.
-    fn load_album_tags(&mut self) -> RepoResult<()> {
+    fn load_albums(&mut self) -> RepoResult<()> {
         self.album_tags.clear();
 
         let mut problems = vec![];
         for path in self.repo.all_album_paths()? {
-            let album = self.repo.load_album(&path)?;
+            let mut album = self.repo.load_album(&path)?;
+            album.resolve_tags(&self.tags);
+
             let album_id = album.album_id();
             let catalog = album.catalog();
             let tags = album.tags();
@@ -382,18 +383,18 @@ impl OwnedRepositoryManager {
                     catalog,
                 );
             } else {
-                for tag in tags {
-                    if !self.tags.contains(tag) {
+                for tag_ref in tags {
+                    if let None = self.tag(tag_ref) {
                         log::error!(
-                            "Orphan tag {tag} found in album {album_id}, catalog = {catalog}"
+                            "Orphan tag {tag_ref} found in album {album_id}, catalog = {catalog}"
                         );
-                        problems.push(Error::RepoTagsUndefined(vec![tag.clone()]));
+                        problems.push(Error::RepoTagsUndefined(vec![tag_ref.clone()]));
                     }
 
-                    if !self.album_tags.contains_key(tag) {
-                        self.album_tags.insert(tag.clone(), vec![]);
+                    if !self.album_tags.contains_key(tag_ref) {
+                        self.album_tags.insert(tag_ref.clone(), vec![]);
                     }
-                    self.album_tags.get_mut(tag).unwrap().push(album_id);
+                    self.album_tags.get_mut(tag_ref).unwrap().push(album_id);
                 }
             }
             if let Some(album_with_same_id) = self.albums.insert(album_id, album) {
@@ -457,7 +458,7 @@ impl OwnedRepositoryManager {
 
         let mut visited: HashMap<&TagRef, bool> = Default::default();
         let mut current: HashMap<&TagRef, bool> = Default::default();
-        let tags: Vec<_> = self.tags.iter().map(|t| t.as_ref()).collect();
+        let tags: Vec<_> = self.tags_iter().map(|t| t.as_ref()).collect();
         for tag in tags.into_iter() {
             // if !visited[tag]
             if !visited.get(&tag).map_or(false, |x| *x) {
@@ -492,7 +493,7 @@ impl OwnedRepositoryManager {
         db.write_info(self.repo.name(), self.repo.edition(), "", "")?;
 
         // Write all tags
-        let tags = self.tags().iter();
+        let tags = self.tags_iter();
         db.add_tags(tags)?;
 
         // Write all albums
@@ -522,20 +523,10 @@ impl OwnedRepositoryManager {
     where
         P: AsRef<Path>,
     {
-        use crate::search::{open_indexer, SearchFields};
-        use tantivy::doc;
+        use crate::search::RepositorySearchManager;
 
-        let (
-            index,
-            SearchFields {
-                title,
-                artist,
-                album_id,
-                disc_id,
-                track_id,
-            },
-        ) = open_indexer(path);
-        let mut index_writer = index.writer(100_000_000).unwrap();
+        let searcher = RepositorySearchManager::create(path).unwrap();
+        let mut index_writer = searcher.index.writer(100_000_000).unwrap();
 
         for album in self.albums_iter() {
             for (disc_id_v, disc) in album.iter().enumerate() {
@@ -543,12 +534,12 @@ impl OwnedRepositoryManager {
                 for (track_id_v, track) in disc.iter().enumerate() {
                     let track_id_v = track_id_v + 1;
                     index_writer
-                        .add_document(doc!(
-                            title => track.title(),
-                            artist => track.artist(),
-                            album_id => album.album_id.to_string(),
-                            disc_id => disc_id_v as i64,
-                            track_id => track_id_v as i64,
+                        .add_document(searcher.build_document(
+                            track.title(),
+                            track.artist(),
+                            &album.album_id,
+                            disc_id_v as i64,
+                            track_id_v as i64,
                         ))
                         .unwrap();
                 }

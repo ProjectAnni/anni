@@ -1,11 +1,7 @@
 use std::path::PathBuf;
 
 use anni_repo::{
-    search::{
-        open_indexer,
-        tantivy::{collector::TopDocs, query::QueryParser, DocAddress, Score},
-        SearchFields,
-    },
+    search::{tantivy::collector::TopDocs, RepositorySearchManager},
     RepositoryManager,
 };
 use clap::Args;
@@ -15,6 +11,11 @@ use clap_handler::handler;
 pub struct RepoSearchAction {
     #[clap(long)]
     path: PathBuf,
+
+    #[clap(long, default_value = "10")]
+    limit: usize,
+    #[clap(long, default_value = "0")]
+    offset: usize,
 
     keyword: Option<String>,
 }
@@ -26,20 +27,31 @@ fn repo_search_action(me: RepoSearchAction, manager: RepositoryManager) -> anyho
     match me.keyword {
         Some(keyword) => {
             // search
-            let (index, SearchFields { title, artist, .. }) = open_indexer(me.path);
-
-            let reader = index.reader().unwrap();
+            let search_manager = RepositorySearchManager::open(me.path)?;
+            let reader = search_manager.index.reader()?;
             let searcher = reader.searcher();
-            let schema = index.schema();
 
-            let query_parser = QueryParser::for_index(&index, vec![title, artist]);
-            let query = query_parser.parse_query(&keyword).unwrap();
-            let top_docs: Vec<(Score, DocAddress)> =
-                searcher.search(&query, &TopDocs::with_limit(10)).unwrap();
+            let query_parser = search_manager.build_query_parser();
+            let query = query_parser.parse_query(&keyword)?;
+            let top_docs: Vec<_> =
+                searcher.search(&query, &TopDocs::with_limit(me.limit).and_offset(me.offset))?;
 
             for (_score, doc_address) in top_docs {
-                let retrieved_doc = searcher.doc(doc_address).unwrap();
-                println!("{}", schema.to_json(&retrieved_doc));
+                let document = searcher.doc(doc_address)?;
+
+                let id = search_manager.deserialize_document(document);
+                let album = manager.album(&id.album_id).expect("Failed to get album");
+                let disc = album
+                    .iter()
+                    .skip((id.disc_id - 1) as usize)
+                    .next()
+                    .expect("Failed to get disc");
+                let track = disc
+                    .iter()
+                    .skip((id.track_id - 1) as usize)
+                    .next()
+                    .expect("Failed to get track");
+                println!("title = {}, artist = {}", track.title(), track.artist());
             }
         }
         None => {

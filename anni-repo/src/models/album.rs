@@ -1,4 +1,5 @@
 use crate::prelude::*;
+use indexmap::IndexSet;
 use serde::{Deserialize, Serialize};
 use std::borrow::Cow;
 use std::collections::{HashMap, HashSet};
@@ -6,6 +7,13 @@ use std::ops::{Deref, DerefMut};
 use std::str::FromStr;
 use toml_edit::easy as toml;
 use uuid::Uuid;
+
+#[derive(Debug)]
+pub struct TrackIdentifier {
+    pub album_id: Uuid,
+    pub disc_id: u32,
+    pub track_id: u32,
+}
 
 #[derive(Serialize, Deserialize, Debug)]
 #[serde(deny_unknown_fields)]
@@ -20,6 +28,13 @@ impl Album {
         let mut album = Album { info, discs };
         album.format();
         album
+    }
+
+    pub(crate) fn resolve_tags(&mut self, tags: &HashMap<String, HashMap<TagType, Tag>>) {
+        self.info.tags.iter_mut().for_each(|tag| tag.resolve(tags));
+        self.discs
+            .iter_mut()
+            .for_each(|disc| disc.resolve_tags(tags));
     }
 }
 
@@ -107,7 +122,7 @@ impl Album {
         }
         tags.into_iter()
             .map(|t| &t.0)
-            .collect::<HashSet<_>>()
+            .collect::<IndexSet<_>>()
             .into_iter()
             .collect()
     }
@@ -225,12 +240,19 @@ impl Default for AlbumInfo {
 pub struct Disc {
     #[serde(flatten)]
     info: DiscInfo,
-    tracks: Vec<TrackInfo>,
+    tracks: Vec<Track>,
 }
 
 impl Disc {
-    pub fn new(info: DiscInfo, tracks: Vec<TrackInfo>) -> Self {
+    pub fn new(info: DiscInfo, tracks: Vec<Track>) -> Self {
         Self { info, tracks }
+    }
+
+    pub(crate) fn resolve_tags(&mut self, tags: &HashMap<String, HashMap<TagType, Tag>>) {
+        self.tags.iter_mut().for_each(|tag| tag.resolve(tags));
+        self.tracks
+            .iter_mut()
+            .for_each(|track| track.resolve_tags(tags));
     }
 }
 
@@ -254,7 +276,7 @@ impl DerefMut for Disc {
 pub struct DiscInfo {
     /// Disc title
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub title: Option<String>,
+    title: Option<String>,
     /// Disc artist
     #[serde(skip_serializing_if = "Option::is_none")]
     pub artist: Option<String>,
@@ -348,7 +370,7 @@ impl<'album> DiscRef<'album> {
 pub struct DiscRefMut<'album> {
     pub(crate) album: &'album AlbumInfo,
     pub(crate) disc: &'album mut DiscInfo,
-    pub(crate) tracks: &'album mut Vec<TrackInfo>,
+    pub(crate) tracks: &'album mut Vec<Track>,
 }
 
 impl<'album> DiscRefMut<'album> {
@@ -447,7 +469,7 @@ impl<'album> DiscRefMut<'album> {
 
 #[derive(Serialize, Deserialize, Debug)]
 #[serde(deny_unknown_fields)]
-pub struct TrackInfo {
+pub struct Track {
     /// Track title
     pub title: String,
     /// Track artist
@@ -466,14 +488,14 @@ pub struct TrackInfo {
     pub tags: Vec<TagString>,
 }
 
-impl TrackInfo {
+impl Track {
     pub fn new(
         title: String,
         artist: Option<String>,
         track_type: Option<TrackType>,
         tags: Vec<TagString>,
     ) -> Self {
-        TrackInfo {
+        Track {
             title,
             artist,
             artists: Default::default(),
@@ -483,7 +505,11 @@ impl TrackInfo {
     }
 
     pub fn empty() -> Self {
-        TrackInfo::new(String::new(), None, None, Default::default())
+        Track::new(String::new(), None, None, Default::default())
+    }
+
+    pub(crate) fn resolve_tags(&mut self, tags: &HashMap<String, HashMap<TagType, Tag>>) {
+        self.tags.iter_mut().for_each(|tag| tag.resolve(tags));
     }
 }
 
@@ -491,7 +517,7 @@ impl TrackInfo {
 pub struct TrackRef<'album, 'disc> {
     pub(crate) album: &'album AlbumInfo,
     pub(crate) disc: &'disc DiscInfo,
-    pub(crate) track: &'disc TrackInfo,
+    pub(crate) track: &'disc Track,
 }
 
 impl<'album, 'disc> TrackRef<'album, 'disc>
@@ -534,7 +560,7 @@ where
         self.track.tags.iter().map(|t| &t.0)
     }
 
-    pub fn raw(&self) -> &'disc TrackInfo {
+    pub fn raw(&self) -> &'disc Track {
         self.track
     }
 }
@@ -542,11 +568,11 @@ where
 pub struct TrackRefMut<'album, 'disc> {
     pub(crate) album: &'album AlbumInfo,
     pub(crate) disc: &'disc DiscInfo,
-    pub(crate) track: &'disc mut TrackInfo,
+    pub(crate) track: &'disc mut Track,
 }
 
 impl Deref for TrackRefMut<'_, '_> {
-    type Target = TrackInfo;
+    type Target = Track;
 
     fn deref(&self) -> &Self::Target {
         self.track
@@ -670,7 +696,7 @@ fn is_artists_empty(artists: &Option<HashMap<String, String>>) -> bool {
 }
 
 #[cfg(feature = "flac")]
-impl From<anni_flac::FlacHeader> for TrackInfo {
+impl From<anni_flac::FlacHeader> for Track {
     fn from(stream: anni_flac::FlacHeader) -> Self {
         use regex::Regex;
 
@@ -694,14 +720,14 @@ impl From<anni_flac::FlacHeader> for TrackInfo {
                     .unwrap_or_default();
                 // auto audio type for instrumental, drama and radio
                 let track_type = TrackType::guess(&title);
-                TrackInfo::new(
+                Track::new(
                     title,
                     map.get("ARTIST").map(|v| v.value().to_string()),
                     track_type,
                     Default::default(),
                 )
             }
-            None => TrackInfo::empty(),
+            None => Track::empty(),
         }
     }
 }
