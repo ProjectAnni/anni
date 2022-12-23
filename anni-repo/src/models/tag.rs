@@ -213,6 +213,23 @@ pub enum TagType {
     Unknown,
 }
 
+impl AsRef<str> for TagType {
+    fn as_ref(&self) -> &str {
+        match self {
+            TagType::Artist => "artist",
+            TagType::Group => "group",
+            TagType::Animation => "animation",
+            TagType::Series => "series",
+            TagType::Project => "project",
+            TagType::Radio => "radio",
+            TagType::Game => "game",
+            TagType::Organization => "organization",
+            TagType::Unknown => "unknown",
+            TagType::Category => "category",
+        }
+    }
+}
+
 impl FromStr for TagType {
     type Err = Error;
 
@@ -235,18 +252,7 @@ impl FromStr for TagType {
 
 impl Display for TagType {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        f.write_str(match self {
-            TagType::Artist => "artist",
-            TagType::Group => "group",
-            TagType::Animation => "animation",
-            TagType::Series => "series",
-            TagType::Project => "project",
-            TagType::Radio => "radio",
-            TagType::Game => "game",
-            TagType::Organization => "organization",
-            TagType::Unknown => "unknown",
-            TagType::Category => "category",
-        })
+        f.write_str(self.as_ref())
     }
 }
 

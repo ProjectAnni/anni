@@ -122,7 +122,7 @@ fn test_repo_album_tags() {
     assert_eq!(album.full_title(), "Title");
     assert_eq!(album.artist(), "Artist");
     assert_eq!(album.release_date().to_string(), "2999-12-31");
-    assert_eq!(album.track_type(), TrackType::Normal);
+    assert_eq!(album.track_type(), &TrackType::Normal);
     assert_eq!(album.catalog(), "album");
     assert_eq!(
         album.tags(),

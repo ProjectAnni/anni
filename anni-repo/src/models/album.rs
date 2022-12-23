@@ -96,8 +96,8 @@ impl Album {
         &self.info.release_date
     }
 
-    pub fn track_type(&self) -> TrackType {
-        self.info.album_type.clone()
+    pub fn track_type(&self) -> &TrackType {
+        &self.info.album_type
     }
 
     pub fn catalog(&self) -> &str {
@@ -328,11 +328,25 @@ impl<'album> DiscRef<'album> {
             .unwrap_or(self.album.title.as_str())
     }
 
+    /// Get raw disc title without inherit
+    pub fn title_raw(&self) -> Option<&str> {
+        self.disc.title.as_deref()
+    }
+
     pub fn artist(&self) -> &str {
         self.disc
             .artist
             .as_deref()
             .unwrap_or(self.album.artist.as_str())
+    }
+
+    /// Get raw disc artist without inherit
+    pub fn artist_raw(&self) -> Option<&str> {
+        self.disc.artist.as_deref()
+    }
+
+    pub fn artists(&self) -> Option<&HashMap<String, String>> {
+        self.disc.artists.as_ref()
     }
 
     pub fn catalog(&self) -> &str {

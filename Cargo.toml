@@ -2,11 +2,12 @@
 members = [
     "anni",
     "annil",
+    "annim",
     "anni-provider",
     "anni-common",
     "anni-flac",
     "anni-repo",
-    "third_party/google-drive3"
+    "third_party/google-drive3",
 ]
 
 [patch.crates-io]
