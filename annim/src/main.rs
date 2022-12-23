@@ -9,7 +9,7 @@ use axum::{
     Extension, Router, Server,
 };
 use model::{build_schema, AppSchema};
-use std::net::SocketAddr;
+use std::{env::args, net::SocketAddr};
 
 async fn graphql_handler(schema: Extension<AppSchema>, req: GraphQLRequest) -> GraphQLResponse {
     schema.execute(req.into_inner()).await.into()
@@ -21,7 +21,8 @@ async fn graphql_playground() -> impl IntoResponse {
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
-    let manager = RepositoryManager::new("/home/yesterday17/音乐/workspace/.anni/repo")?;
+    let path = args().next().expect("Repository path not provided");
+    let manager = RepositoryManager::new(path)?;
     let manager = manager.into_owned_manager()?;
     let schema = build_schema(manager);
 
