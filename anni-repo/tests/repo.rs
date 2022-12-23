@@ -70,7 +70,7 @@ fn test_duplicated_tag_name_but_different_type() {
         .expect("Tag `artist:Test` does not");
     assert_eq!(artist.name(), "Test");
     assert_eq!(
-        artist.names().collect::<Vec<_>>(),
+        artist.names().iter().collect::<Vec<_>>(),
         vec![(&"zh-cn".to_string(), &"Test-artist".to_string())]
     );
 
@@ -79,7 +79,7 @@ fn test_duplicated_tag_name_but_different_type() {
         .expect("Tag `group:Test` does not exist");
     assert_eq!(group.name(), "Test");
     assert_eq!(
-        group.names().collect::<Vec<_>>(),
+        group.names().iter().collect::<Vec<_>>(),
         vec![(&"zh-cn".to_string(), &"Test-group".to_string())]
     );
 }
@@ -102,7 +102,7 @@ fn test_repo_album_tags() {
         .expect("Tag `artist:Test-dup` does not exist");
     assert_eq!(dup_artist.name(), "Test-dup");
     assert_eq!(
-        dup_artist.names().collect::<Vec<_>>(),
+        dup_artist.names().iter().collect::<Vec<_>>(),
         vec![(&"zh-cn".to_string(), &"Test-artist".to_string())]
     );
 
@@ -111,7 +111,7 @@ fn test_repo_album_tags() {
         .expect("Tag `group:Test-dup` does not exist");
     assert_eq!(dup_group.name(), "Test-dup");
     assert_eq!(
-        dup_group.names().collect::<Vec<_>>(),
+        dup_group.names().iter().collect::<Vec<_>>(),
         vec![(&"zh-cn".to_string(), &"Test-group".to_string())]
     );
 

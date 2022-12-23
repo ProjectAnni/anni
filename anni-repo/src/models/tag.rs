@@ -29,7 +29,7 @@ impl<'a> TagRef<'a> {
         }
     }
 
-    pub fn from_cow_str<S>(name: S) -> Result<Self, Error>
+    pub fn from_cow_str<S>(name: S) -> Self
     where
         S: Into<Cow<'a, str>>,
     {
@@ -47,7 +47,7 @@ impl<'a> TagRef<'a> {
                 }
             })
             .unwrap_or((TagType::Unknown, tag));
-        Ok(TagRef { name, tag_type })
+        TagRef { name, tag_type }
     }
 
     pub fn name(&self) -> &str {
@@ -147,7 +147,7 @@ impl<'de> Deserialize<'de> for TagString {
 
         let value = Value::deserialize(deserializer)?;
         if let Value::String(tag) = value {
-            let tag = TagRef::from_cow_str(tag).map_err(Error::custom)?;
+            let tag = TagRef::from_cow_str(tag);
             Ok(Self(tag))
         } else {
             Err(Error::custom("Tag must be a string"))
@@ -279,8 +279,8 @@ impl Tag {
         self.inner.name()
     }
 
-    pub fn names(&self) -> impl Iterator<Item = (&String, &String)> {
-        self.names.iter()
+    pub fn names(&self) -> &HashMap<String, String> {
+        &self.names
     }
 
     pub fn tag_type(&self) -> &TagType {

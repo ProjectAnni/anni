@@ -1,9 +1,7 @@
 use std::{collections::HashMap, ops::Deref};
 
-use anni_repo::{
-    prelude::{Album, DiscRef, TagRef, TrackRef},
-    OwnedRepositoryManager,
-};
+use anni_repo::prelude::*;
+use anni_repo::OwnedRepositoryManager;
 use async_graphql::{Context, EmptyMutation, EmptySubscription, Object, Schema};
 
 pub type AppSchema = Schema<MetadataQuery, EmptyMutation, EmptySubscription>;
@@ -54,7 +52,7 @@ impl<'album> AlbumInfo<'album> {
     // we do not provide album type because it's useless
 
     async fn discs(&self) -> Vec<DiscInfo> {
-        self.0.iter().map(|d| DiscInfo(d)).collect()
+        self.0.iter().map(DiscInfo).collect()
     }
 }
 
@@ -79,13 +77,13 @@ impl<'album> DiscInfo<'album> {
     }
 
     async fn tags(&self) -> Vec<TagInfo> {
-        self.0.tags_iter().map(|t| TagInfo(t)).collect()
+        self.0.tags_iter().map(TagInfo).collect()
     }
 
     // we do not provide disc type because it's useless
 
     async fn tracks<'disc>(&'disc self) -> Vec<TrackInfo<'album, 'disc>> {
-        self.0.iter().map(|t| TrackInfo(t)).collect()
+        self.0.iter().map(TrackInfo).collect()
     }
 }
 
@@ -111,14 +109,14 @@ impl TrackInfo<'_, '_> {
     }
 
     async fn tags(&self) -> Vec<TagInfo> {
-        self.0.tags_iter().map(|t| TagInfo(t)).collect()
+        self.0.tags_iter().map(TagInfo).collect()
     }
 }
 
 struct TagInfo<'tag>(&'tag TagRef<'tag>);
 
 #[Object]
-impl TagInfo<'_> {
+impl<'tag> TagInfo<'tag> {
     async fn name(&self) -> &str {
         self.0.name()
     }
@@ -126,6 +124,44 @@ impl TagInfo<'_> {
     #[graphql(name = "type")]
     async fn tag_type(&self) -> &str {
         self.0.tag_type().as_ref()
+    }
+
+    async fn includes<'ctx>(&'tag self, ctx: &Context<'ctx>) -> Vec<TagInfo<'tag>>
+    where
+        'ctx: 'tag,
+    {
+        let manager = ctx.data_unchecked::<OwnedRepositoryManager>();
+        manager
+            .child_tags(self.0)
+            .into_iter()
+            .map(TagInfo)
+            .collect()
+    }
+
+    #[graphql(flatten)]
+    async fn detail<'ctx>(&self, ctx: &Context<'ctx>) -> TagDetail<'tag>
+    where
+        'ctx: 'tag,
+    {
+        let manager = ctx.data_unchecked::<OwnedRepositoryManager>();
+        TagDetail(manager.tag(self.0).unwrap())
+    }
+}
+
+struct TagDetail<'tag>(&'tag Tag);
+
+#[Object]
+impl<'tag> TagDetail<'tag> {
+    async fn names(&self) -> &HashMap<String, String> {
+        self.0.names()
+    }
+
+    async fn included_by(&self) -> Vec<TagInfo> {
+        self.0
+            .parents()
+            .iter()
+            .map(|t| TagInfo(t.deref()))
+            .collect()
     }
 }
 
@@ -139,8 +175,20 @@ impl MetadataQuery {
         album_id: String,
     ) -> anyhow::Result<Option<AlbumInfo<'ctx>>> {
         let manager = ctx.data_unchecked::<OwnedRepositoryManager>();
-        Ok(manager
-            .album(&album_id.parse()?)
-            .map(|album| AlbumInfo(album)))
+        Ok(manager.album(&album_id.parse()?).map(AlbumInfo))
+    }
+
+    async fn albums_by_tag<'ctx>(&self, ctx: &Context<'ctx>, tag: String) -> Vec<AlbumInfo<'ctx>> {
+        let tag = TagRef::from_cow_str(tag);
+        let manager = ctx.data_unchecked::<OwnedRepositoryManager>();
+        manager
+            .albums_tagged_by(&tag)
+            .map(|ids| {
+                ids.iter()
+                    .map(|album_id| manager.album(album_id).unwrap())
+                    .map(AlbumInfo)
+                    .collect()
+            })
+            .unwrap_or_else(|| Vec::new())
     }
 }
