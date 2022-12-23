@@ -1,0 +1,9 @@
+[[tag]]
+name = "Test"
+type = "artist"
+names.zh-cn = "Test-artist"
+
+[[tag]]
+name = "Test"
+type = "group"
+names.zh-cn = "Test-group"

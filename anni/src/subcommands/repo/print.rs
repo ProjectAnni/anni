@@ -96,7 +96,6 @@ FILE "{filename}" WAVE
         RepoPrintType::Toml | RepoPrintType::Json => {
             let text = if let Ok(album_id) = Uuid::parse_str(&me.input) {
                 // me.input -> album_id
-                let album_id = album_id.to_string();
                 let manager = manager.into_owned_manager()?;
 
                 match me.print_type {
@@ -132,7 +131,7 @@ FILE "{filename}" WAVE
             // print tag
             let manager = manager.into_owned_manager()?;
 
-            let tag = TagRef::new(me.input);
+            let tag = TagRef::from_cow_str(me.input);
             if manager.tag(&tag).is_none() {
                 bail!("Tag not found!");
             }

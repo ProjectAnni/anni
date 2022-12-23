@@ -1,0 +1,26 @@
+[package]
+name = "annim"
+version = "0.1.0"
+authors = ["Yesterday17 <mmf@mmf.moe>"]
+edition = "2021"
+
+[dependencies]
+serde = { version = "1.0", features = ["derive"] }
+uuid = { version = "1", features = ["serde", "v4"] }
+
+tokio = { version = "1", features = ["full"] }
+axum = "0.6.1"
+async-graphql = { version = "5.0.3", features = ["uuid"] }
+async-graphql-axum = "5.0.3"
+
+log = "0.4"
+env_logger = "0.10.0"
+anyhow = "1.0"
+thiserror = "1.0"
+
+anni-repo = { path = "../anni-repo", features = [
+    "db",
+    "git",
+    "flac",
+    "search",
+] }

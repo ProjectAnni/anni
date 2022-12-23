@@ -20,12 +20,21 @@ directories-next = "2.0.0"
 
 anni-common = { path = "../anni-common" }
 anni-flac = { path = "../anni-flac" }
-anni-repo = { path = "../anni-repo", features = ["db", "git", "flac"] }
+anni-repo = { path = "../anni-repo", features = [
+    "db",
+    "git",
+    "flac",
+    "search",
+] }
 anni-provider = { path = "../anni-provider" }
 annil = { path = "../annil" }
 clap-handler = { version = "0.1.1", features = ["async"] }
 
-i18n-embed = { version = "0.13.4", features = ["fluent-system", "desktop-requester", "filesystem-assets"] }
+i18n-embed = { version = "0.13.4", features = [
+    "fluent-system",
+    "desktop-requester",
+    "filesystem-assets",
+] }
 i18n-embed-fl = "0.6.4"
 rust-embed = "6.3.0"
 
@@ -38,16 +47,25 @@ id3 = "1"
 anni-vgmdb = "0.3.1"
 # https://github.com/oknozor/musicbrainz_rs/pull/75 has been merged
 # Remove this patch after release
-musicbrainz_rs = { git = "https://github.com/ProjectAnni/musicbrainz_rs", default-features = false, features = ["rustls", "blocking"] }
+musicbrainz_rs = { git = "https://github.com/ProjectAnni/musicbrainz_rs", default-features = false, features = [
+    "rustls",
+    "blocking",
+] }
 
 uuid = { version = "1", features = ["v4"] }
 alphanumeric-sort = "1.4.4"
-ptree = "0.4.0"
+ptree = { version = "0.4.0", default-features = false, features = [
+    "petgraph",
+    "ansi",
+    "value",
+] }
 colored = "2.0.0"
 chrono = "0.4"
 
 inquire = "0.5.2"
-notify = { version = "5.0.0", default-features = false, features = ["macos_kqueue"] }
+notify = { version = "5.0.0", default-features = false, features = [
+    "macos_kqueue",
+] }
 notify-debouncer-mini = { version = "0.2.1", default-features = false }
 anni-google-drive3 = { path = "../third_party/google-drive3" }
 

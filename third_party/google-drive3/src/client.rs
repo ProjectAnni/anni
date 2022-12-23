@@ -18,7 +18,7 @@ use hyper::header::{HeaderMap, AUTHORIZATION, CONTENT_LENGTH, CONTENT_TYPE, USER
 use hyper::Method;
 use hyper::StatusCode;
 
-use mime::{Attr, Mime, SubLevel, TopLevel, Value};
+use mime::Mime;
 
 use serde_json as json;
 
@@ -316,6 +316,7 @@ pub struct MethodInfo {
     pub http_method: Method,
 }
 
+const MULTIPART_BOUNDARY: &str = "multipart/related; boundary=MDuXWGyeE33QFXGchb2VFWc4Z7945d";
 const BOUNDARY: &str = "MDuXWGyeE33QFXGchb2VFWc4Z7945d";
 
 /// Provides a `Read` interface that converts multiple parts into the protocol
@@ -365,14 +366,7 @@ impl<'a> MultiPartReader<'a> {
     /// Returns the mime-type representing our multi-part message.
     /// Use it with the ContentType header.
     pub fn mime_type(&self) -> Mime {
-        Mime(
-            TopLevel::Multipart,
-            SubLevel::Ext("related".to_string()),
-            vec![(
-                Attr::Ext("boundary".to_string()),
-                Value::Ext(BOUNDARY.to_string()),
-            )],
-        )
+        Mime::from_str(MULTIPART_BOUNDARY).unwrap()
     }
 
     /// Returns true if we are totally used

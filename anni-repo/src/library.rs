@@ -188,14 +188,13 @@ mod tests {
         assert_eq!(
             DiscFolderInfo::from_str("[CATA-001] TITLE [Disc 1]")?,
             DiscFolderInfo {
-                info: DiscInfo {
-                    title: Some("TITLE".to_string()),
-                    artist: None,
-                    artists: None,
-                    catalog: "CATA-001".to_string(),
-                    disc_type: None,
-                    tags: vec![]
-                },
+                info: DiscInfo::new(
+                    "CATA-001".to_string(),
+                    Some("TITLE".to_string()),
+                    None,
+                    None,
+                    vec![]
+                ),
                 disc_id: 1,
             }
         );

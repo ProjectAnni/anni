@@ -9,6 +9,14 @@ pub struct AnniDate {
     day: u8,
 }
 
+impl AnniDate {
+    pub const UNKNOWN: AnniDate = AnniDate {
+        year: 0,
+        month: 0,
+        day: 0,
+    };
+}
+
 impl Serialize for AnniDate {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
@@ -70,7 +78,11 @@ impl<'de> Deserialize<'de> for AnniDate {
 
 impl AnniDate {
     pub fn new(year: u16, month: u8, day: u8) -> Self {
-        Self { year, month, day }
+        if year == 0 {
+            Self::UNKNOWN
+        } else {
+            Self { year, month, day }
+        }
     }
 
     pub fn from_parts(y: &str, m: &str, d: &str) -> Self {

@@ -1,0 +1,18 @@
+[album]
+album_id = "3e5ff166-f800-4433-a413-6cfa3c2b3cdd"
+title = "Title"
+artist = "Artist"
+date = 2999-12-31
+type = "normal"
+catalog = "album"
+tags = ["Test"]
+
+[[discs]]
+catalog = "TEST-0001"
+tags = ["artist: Test-dup"]
+
+[[discs.tracks]]
+title = "Track 1"
+type = "absolute"
+artist = "Artist1"
+tags = ["group: Test-dup"]

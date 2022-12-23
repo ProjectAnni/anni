@@ -3,6 +3,9 @@ pub mod library;
 mod manager;
 pub mod models;
 
+#[cfg(feature = "search")]
+pub mod search;
+
 pub mod prelude {
     pub use crate::error::Error;
     pub use crate::models::*;

@@ -3273,7 +3273,7 @@ where
                 dlg.pre_request();
                 let mut req_builder = hyper::Request::builder()
                     .method(hyper::Method::GET)
-                    .uri(url.clone().into_string())
+                    .uri::<String>(url.clone().into())
                     .header(USER_AGENT, self.hub._user_agent.clone())
                     .header(AUTHORIZATION, format!("Bearer {}", token.as_str()));
 
@@ -3533,7 +3533,7 @@ where
                 dlg.pre_request();
                 let mut req_builder = hyper::Request::builder()
                     .method(hyper::Method::GET)
-                    .uri(url.clone().into_string())
+                    .uri::<String>(url.clone().into())
                     .header(USER_AGENT, self.hub._user_agent.clone())
                     .header(AUTHORIZATION, format!("Bearer {}", token.as_str()));
 
@@ -3876,7 +3876,7 @@ where
                 dlg.pre_request();
                 let mut req_builder = hyper::Request::builder()
                     .method(hyper::Method::GET)
-                    .uri(url.clone().into_string())
+                    .uri::<String>(url.clone().into())
                     .header(USER_AGENT, self.hub._user_agent.clone())
                     .header(AUTHORIZATION, format!("Bearer {}", token.as_str()));
 
@@ -4298,7 +4298,7 @@ where
                 dlg.pre_request();
                 let mut req_builder = hyper::Request::builder()
                     .method(hyper::Method::POST)
-                    .uri(url.clone().into_string())
+                    .uri::<String>(url.clone().into())
                     .header(USER_AGENT, self.hub._user_agent.clone())
                     .header(AUTHORIZATION, format!("Bearer {}", token.as_str()));
 
@@ -4652,7 +4652,7 @@ where
                 dlg.pre_request();
                 let mut req_builder = hyper::Request::builder()
                     .method(hyper::Method::POST)
-                    .uri(url.clone().into_string())
+                    .uri::<String>(url.clone().into())
                     .header(USER_AGENT, self.hub._user_agent.clone())
                     .header(AUTHORIZATION, format!("Bearer {}", token.as_str()));
 
@@ -4931,7 +4931,7 @@ where
                 dlg.pre_request();
                 let mut req_builder = hyper::Request::builder()
                     .method(hyper::Method::POST)
-                    .uri(url.clone().into_string())
+                    .uri::<String>(url.clone().into())
                     .header(USER_AGENT, self.hub._user_agent.clone())
                     .header(AUTHORIZATION, format!("Bearer {}", token.as_str()));
 
@@ -5213,7 +5213,7 @@ where
                 dlg.pre_request();
                 let mut req_builder = hyper::Request::builder()
                     .method(hyper::Method::DELETE)
-                    .uri(url.clone().into_string())
+                    .uri::<String>(url.clone().into())
                     .header(USER_AGENT, self.hub._user_agent.clone())
                     .header(AUTHORIZATION, format!("Bearer {}", token.as_str()));
 
@@ -5489,7 +5489,7 @@ where
                 dlg.pre_request();
                 let mut req_builder = hyper::Request::builder()
                     .method(hyper::Method::GET)
-                    .uri(url.clone().into_string())
+                    .uri::<String>(url.clone().into())
                     .header(USER_AGENT, self.hub._user_agent.clone())
                     .header(AUTHORIZATION, format!("Bearer {}", token.as_str()));
 
@@ -5804,7 +5804,7 @@ where
                 dlg.pre_request();
                 let mut req_builder = hyper::Request::builder()
                     .method(hyper::Method::GET)
-                    .uri(url.clone().into_string())
+                    .uri::<String>(url.clone().into())
                     .header(USER_AGENT, self.hub._user_agent.clone())
                     .header(AUTHORIZATION, format!("Bearer {}", token.as_str()));
 
@@ -6121,7 +6121,7 @@ where
                 dlg.pre_request();
                 let mut req_builder = hyper::Request::builder()
                     .method(hyper::Method::PATCH)
-                    .uri(url.clone().into_string())
+                    .uri::<String>(url.clone().into())
                     .header(USER_AGENT, self.hub._user_agent.clone())
                     .header(AUTHORIZATION, format!("Bearer {}", token.as_str()));
 
@@ -6405,7 +6405,7 @@ where
                 dlg.pre_request();
                 let mut req_builder = hyper::Request::builder()
                     .method(hyper::Method::POST)
-                    .uri(url.clone().into_string())
+                    .uri::<String>(url.clone().into())
                     .header(USER_AGENT, self.hub._user_agent.clone())
                     .header(AUTHORIZATION, format!("Bearer {}", token.as_str()));
 
@@ -6683,7 +6683,7 @@ where
                 dlg.pre_request();
                 let mut req_builder = hyper::Request::builder()
                     .method(hyper::Method::DELETE)
-                    .uri(url.clone().into_string())
+                    .uri::<String>(url.clone().into())
                     .header(USER_AGENT, self.hub._user_agent.clone())
                     .header(AUTHORIZATION, format!("Bearer {}", token.as_str()));
 
@@ -6945,7 +6945,7 @@ where
                 dlg.pre_request();
                 let mut req_builder = hyper::Request::builder()
                     .method(hyper::Method::GET)
-                    .uri(url.clone().into_string())
+                    .uri::<String>(url.clone().into())
                     .header(USER_AGENT, self.hub._user_agent.clone())
                     .header(AUTHORIZATION, format!("Bearer {}", token.as_str()));
 
@@ -7218,7 +7218,7 @@ where
                 dlg.pre_request();
                 let mut req_builder = hyper::Request::builder()
                     .method(hyper::Method::POST)
-                    .uri(url.clone().into_string())
+                    .uri::<String>(url.clone().into())
                     .header(USER_AGENT, self.hub._user_agent.clone())
                     .header(AUTHORIZATION, format!("Bearer {}", token.as_str()));
 
@@ -7478,7 +7478,7 @@ where
                 dlg.pre_request();
                 let mut req_builder = hyper::Request::builder()
                     .method(hyper::Method::GET)
-                    .uri(url.clone().into_string())
+                    .uri::<String>(url.clone().into())
                     .header(USER_AGENT, self.hub._user_agent.clone())
                     .header(AUTHORIZATION, format!("Bearer {}", token.as_str()));
 
@@ -7762,7 +7762,7 @@ where
                 dlg.pre_request();
                 let mut req_builder = hyper::Request::builder()
                     .method(hyper::Method::POST)
-                    .uri(url.clone().into_string())
+                    .uri::<String>(url.clone().into())
                     .header(USER_AGENT, self.hub._user_agent.clone())
                     .header(AUTHORIZATION, format!("Bearer {}", token.as_str()));
 
@@ -8052,7 +8052,7 @@ where
                 dlg.pre_request();
                 let mut req_builder = hyper::Request::builder()
                     .method(hyper::Method::PATCH)
-                    .uri(url.clone().into_string())
+                    .uri::<String>(url.clone().into())
                     .header(USER_AGENT, self.hub._user_agent.clone())
                     .header(AUTHORIZATION, format!("Bearer {}", token.as_str()));
 
@@ -8406,7 +8406,7 @@ where
                 dlg.pre_request();
                 let mut req_builder = hyper::Request::builder()
                     .method(hyper::Method::POST)
-                    .uri(url.clone().into_string())
+                    .uri::<String>(url.clone().into())
                     .header(USER_AGENT, self.hub._user_agent.clone())
                     .header(AUTHORIZATION, format!("Bearer {}", token.as_str()));
 
@@ -8848,7 +8848,7 @@ where
                     dlg.pre_request();
                     let mut req_builder = hyper::Request::builder()
                         .method(hyper::Method::POST)
-                        .uri(url.clone().into_string())
+                        .uri::<String>(url.clone().into())
                         .header(USER_AGENT, self.hub._user_agent.clone())
                         .header(AUTHORIZATION, format!("Bearer {}", token.as_str()));
 
@@ -9297,7 +9297,7 @@ where
                 dlg.pre_request();
                 let mut req_builder = hyper::Request::builder()
                     .method(hyper::Method::DELETE)
-                    .uri(url.clone().into_string())
+                    .uri::<String>(url.clone().into())
                     .header(USER_AGENT, self.hub._user_agent.clone())
                     .header(AUTHORIZATION, format!("Bearer {}", token.as_str()));
 
@@ -9550,7 +9550,7 @@ where
                 dlg.pre_request();
                 let mut req_builder = hyper::Request::builder()
                     .method(hyper::Method::DELETE)
-                    .uri(url.clone().into_string())
+                    .uri::<String>(url.clone().into())
                     .header(USER_AGENT, self.hub._user_agent.clone())
                     .header(AUTHORIZATION, format!("Bearer {}", token.as_str()));
 
@@ -9810,7 +9810,7 @@ where
                 dlg.pre_request();
                 let mut req_builder = hyper::Request::builder()
                     .method(hyper::Method::GET)
-                    .uri(url.clone().into_string())
+                    .uri::<String>(url.clone().into())
                     .header(USER_AGENT, self.hub._user_agent.clone())
                     .header(AUTHORIZATION, format!("Bearer {}", token.as_str()));
 
@@ -10066,7 +10066,7 @@ where
                 dlg.pre_request();
                 let mut req_builder = hyper::Request::builder()
                     .method(hyper::Method::GET)
-                    .uri(url.clone().into_string())
+                    .uri::<String>(url.clone().into())
                     .header(USER_AGENT, self.hub._user_agent.clone())
                     .header(AUTHORIZATION, format!("Bearer {}", token.as_str()));
 
@@ -10397,7 +10397,7 @@ where
                 dlg.pre_request();
                 let mut req_builder = hyper::Request::builder()
                     .method(hyper::Method::GET)
-                    .uri(url.clone().into_string())
+                    .uri::<String>(url.clone().into())
                     .header(USER_AGENT, self.hub._user_agent.clone())
                     .header(AUTHORIZATION, format!("Bearer {}", token.as_str()));
                 if let Some(range) = &self._range {
@@ -10764,7 +10764,7 @@ where
                 dlg.pre_request();
                 let mut req_builder = hyper::Request::builder()
                     .method(hyper::Method::GET)
-                    .uri(url.clone().into_string())
+                    .uri::<String>(url.clone().into())
                     .header(USER_AGENT, self.hub._user_agent.clone())
                     .header(AUTHORIZATION, format!("Bearer {}", token.as_str()));
 
@@ -11200,7 +11200,7 @@ where
                 dlg.pre_request();
                 let mut req_builder = hyper::Request::builder()
                     .method(hyper::Method::PATCH)
-                    .uri(url.clone().into_string())
+                    .uri::<String>(url.clone().into())
                     .header(USER_AGENT, self.hub._user_agent.clone())
                     .header(AUTHORIZATION, format!("Bearer {}", token.as_str()));
 
@@ -11468,7 +11468,7 @@ where
                     dlg.pre_request();
                     let mut req_builder = hyper::Request::builder()
                         .method(hyper::Method::PATCH)
-                        .uri(url.clone().into_string())
+                        .uri::<String>(url.clone().into())
                         .header(USER_AGENT, self.hub._user_agent.clone())
                         .header(AUTHORIZATION, format!("Bearer {}", token.as_str()));
 
@@ -11982,7 +11982,7 @@ where
                 dlg.pre_request();
                 let mut req_builder = hyper::Request::builder()
                     .method(hyper::Method::POST)
-                    .uri(url.clone().into_string())
+                    .uri::<String>(url.clone().into())
                     .header(USER_AGENT, self.hub._user_agent.clone())
                     .header(AUTHORIZATION, format!("Bearer {}", token.as_str()));
 
@@ -12367,7 +12367,7 @@ where
                 dlg.pre_request();
                 let mut req_builder = hyper::Request::builder()
                     .method(hyper::Method::POST)
-                    .uri(url.clone().into_string())
+                    .uri::<String>(url.clone().into())
                     .header(USER_AGENT, self.hub._user_agent.clone())
                     .header(AUTHORIZATION, format!("Bearer {}", token.as_str()));
 
@@ -12731,7 +12731,7 @@ where
                 dlg.pre_request();
                 let mut req_builder = hyper::Request::builder()
                     .method(hyper::Method::DELETE)
-                    .uri(url.clone().into_string())
+                    .uri::<String>(url.clone().into())
                     .header(USER_AGENT, self.hub._user_agent.clone())
                     .header(AUTHORIZATION, format!("Bearer {}", token.as_str()));
 
@@ -13052,7 +13052,7 @@ where
                 dlg.pre_request();
                 let mut req_builder = hyper::Request::builder()
                     .method(hyper::Method::GET)
-                    .uri(url.clone().into_string())
+                    .uri::<String>(url.clone().into())
                     .header(USER_AGENT, self.hub._user_agent.clone())
                     .header(AUTHORIZATION, format!("Bearer {}", token.as_str()));
 
@@ -13393,7 +13393,7 @@ where
                 dlg.pre_request();
                 let mut req_builder = hyper::Request::builder()
                     .method(hyper::Method::GET)
-                    .uri(url.clone().into_string())
+                    .uri::<String>(url.clone().into())
                     .header(USER_AGENT, self.hub._user_agent.clone())
                     .header(AUTHORIZATION, format!("Bearer {}", token.as_str()));
 
@@ -13766,7 +13766,7 @@ where
                 dlg.pre_request();
                 let mut req_builder = hyper::Request::builder()
                     .method(hyper::Method::PATCH)
-                    .uri(url.clone().into_string())
+                    .uri::<String>(url.clone().into())
                     .header(USER_AGENT, self.hub._user_agent.clone())
                     .header(AUTHORIZATION, format!("Bearer {}", token.as_str()));
 
@@ -14117,7 +14117,7 @@ where
                 dlg.pre_request();
                 let mut req_builder = hyper::Request::builder()
                     .method(hyper::Method::POST)
-                    .uri(url.clone().into_string())
+                    .uri::<String>(url.clone().into())
                     .header(USER_AGENT, self.hub._user_agent.clone())
                     .header(AUTHORIZATION, format!("Bearer {}", token.as_str()));
 
@@ -14416,7 +14416,7 @@ where
                 dlg.pre_request();
                 let mut req_builder = hyper::Request::builder()
                     .method(hyper::Method::DELETE)
-                    .uri(url.clone().into_string())
+                    .uri::<String>(url.clone().into())
                     .header(USER_AGENT, self.hub._user_agent.clone())
                     .header(AUTHORIZATION, format!("Bearer {}", token.as_str()));
 
@@ -14709,7 +14709,7 @@ where
                 dlg.pre_request();
                 let mut req_builder = hyper::Request::builder()
                     .method(hyper::Method::GET)
-                    .uri(url.clone().into_string())
+                    .uri::<String>(url.clone().into())
                     .header(USER_AGENT, self.hub._user_agent.clone())
                     .header(AUTHORIZATION, format!("Bearer {}", token.as_str()));
 
@@ -15031,7 +15031,7 @@ where
                 dlg.pre_request();
                 let mut req_builder = hyper::Request::builder()
                     .method(hyper::Method::GET)
-                    .uri(url.clone().into_string())
+                    .uri::<String>(url.clone().into())
                     .header(USER_AGENT, self.hub._user_agent.clone())
                     .header(AUTHORIZATION, format!("Bearer {}", token.as_str()));
 
@@ -15358,7 +15358,7 @@ where
                 dlg.pre_request();
                 let mut req_builder = hyper::Request::builder()
                     .method(hyper::Method::PATCH)
-                    .uri(url.clone().into_string())
+                    .uri::<String>(url.clone().into())
                     .header(USER_AGENT, self.hub._user_agent.clone())
                     .header(AUTHORIZATION, format!("Bearer {}", token.as_str()));
 
@@ -15660,7 +15660,7 @@ where
                 dlg.pre_request();
                 let mut req_builder = hyper::Request::builder()
                     .method(hyper::Method::DELETE)
-                    .uri(url.clone().into_string())
+                    .uri::<String>(url.clone().into())
                     .header(USER_AGENT, self.hub._user_agent.clone())
                     .header(AUTHORIZATION, format!("Bearer {}", token.as_str()));
 
@@ -15960,7 +15960,7 @@ where
                 dlg.pre_request();
                 let mut req_builder = hyper::Request::builder()
                     .method(hyper::Method::GET)
-                    .uri(url.clone().into_string())
+                    .uri::<String>(url.clone().into())
                     .header(USER_AGENT, self.hub._user_agent.clone())
                     .header(AUTHORIZATION, format!("Bearer {}", token.as_str()));
 
@@ -16258,7 +16258,7 @@ where
                 dlg.pre_request();
                 let mut req_builder = hyper::Request::builder()
                     .method(hyper::Method::GET)
-                    .uri(url.clone().into_string())
+                    .uri::<String>(url.clone().into())
                     .header(USER_AGENT, self.hub._user_agent.clone())
                     .header(AUTHORIZATION, format!("Bearer {}", token.as_str()));
 
@@ -16561,7 +16561,7 @@ where
                 dlg.pre_request();
                 let mut req_builder = hyper::Request::builder()
                     .method(hyper::Method::PATCH)
-                    .uri(url.clone().into_string())
+                    .uri::<String>(url.clone().into())
                     .header(USER_AGENT, self.hub._user_agent.clone())
                     .header(AUTHORIZATION, format!("Bearer {}", token.as_str()));
 
@@ -16848,7 +16848,7 @@ where
                 dlg.pre_request();
                 let mut req_builder = hyper::Request::builder()
                     .method(hyper::Method::POST)
-                    .uri(url.clone().into_string())
+                    .uri::<String>(url.clone().into())
                     .header(USER_AGENT, self.hub._user_agent.clone())
                     .header(AUTHORIZATION, format!("Bearer {}", token.as_str()));
 
@@ -17129,7 +17129,7 @@ where
                 dlg.pre_request();
                 let mut req_builder = hyper::Request::builder()
                     .method(hyper::Method::DELETE)
-                    .uri(url.clone().into_string())
+                    .uri::<String>(url.clone().into())
                     .header(USER_AGENT, self.hub._user_agent.clone())
                     .header(AUTHORIZATION, format!("Bearer {}", token.as_str()));
 
@@ -17394,7 +17394,7 @@ where
                 dlg.pre_request();
                 let mut req_builder = hyper::Request::builder()
                     .method(hyper::Method::GET)
-                    .uri(url.clone().into_string())
+                    .uri::<String>(url.clone().into())
                     .header(USER_AGENT, self.hub._user_agent.clone())
                     .header(AUTHORIZATION, format!("Bearer {}", token.as_str()));
 
@@ -17663,7 +17663,7 @@ where
                 dlg.pre_request();
                 let mut req_builder = hyper::Request::builder()
                     .method(hyper::Method::GET)
-                    .uri(url.clone().into_string())
+                    .uri::<String>(url.clone().into())
                     .header(USER_AGENT, self.hub._user_agent.clone())
                     .header(AUTHORIZATION, format!("Bearer {}", token.as_str()));
 
@@ -17971,7 +17971,7 @@ where
                 dlg.pre_request();
                 let mut req_builder = hyper::Request::builder()
                     .method(hyper::Method::PATCH)
-                    .uri(url.clone().into_string())
+                    .uri::<String>(url.clone().into())
                     .header(USER_AGENT, self.hub._user_agent.clone())
                     .header(AUTHORIZATION, format!("Bearer {}", token.as_str()));
 

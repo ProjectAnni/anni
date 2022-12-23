@@ -1,159 +1,204 @@
-use core::slice;
+use crate::error::Error;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
+use std::borrow::{Borrow, Cow};
 use std::collections::HashMap;
-use std::fmt::{Display, Formatter};
+use std::fmt::{Debug, Display, Formatter};
 use std::hash::{Hash, Hasher};
+use std::ops::Deref;
+use std::str::FromStr;
 use toml_edit::easy::Value;
 
-/// RepoTag is a wrapper type for the actual tag used in anni metadata repository.
-/// All part of code other than serialize/deserialize part should use this type
-/// instead of the underlying tag types.
-#[derive(Debug, Eq)]
-pub enum RepoTag {
-    Ref(TagRef),
-    Full(Tag),
+/// Simple reference to a tag with its name and edition.
+#[derive(Serialize, Deserialize, Clone, Debug, Hash, PartialEq, Eq)]
+pub struct TagRef<'a> {
+    /// Tag name
+    name: Cow<'a, str>,
+    /// Tag type
+    #[serde(rename = "type")]
+    tag_type: TagType,
 }
 
-/// Hash implementation fo RepoTag depends on the underlying tag type.
-impl Hash for RepoTag {
-    fn hash<H: Hasher>(&self, state: &mut H) {
-        match self {
-            RepoTag::Ref(ref tag) => tag.hash(state),
-            RepoTag::Full(ref tag) => tag.hash(state),
+impl<'a> TagRef<'a> {
+    pub fn new<N>(name: N, tag_type: TagType) -> Self
+    where
+        N: Into<Cow<'a, str>>,
+    {
+        TagRef {
+            name: name.into(),
+            tag_type,
         }
     }
-}
 
-/// Two RepoTags equal iff their name and edition are the same.
-impl PartialEq for RepoTag {
-    fn eq(&self, other: &Self) -> bool {
-        let name_a = match self {
-            RepoTag::Ref(r) => r.name(),
-            RepoTag::Full(f) => f.name.as_str(),
-        };
-        let name_b = match other {
-            RepoTag::Ref(r) => r.name(),
-            RepoTag::Full(f) => f.name.as_str(),
-        };
-        name_a.eq(name_b)
-    }
-}
-
-/// Clone a TagRef for corresponding RepoTag.
-impl Clone for RepoTag {
-    fn clone(&self) -> Self {
-        RepoTag::Ref(self.get_ref())
-    }
-}
-
-impl Display for RepoTag {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        match self {
-            RepoTag::Ref(r) => write!(f, "{}", r),
-            RepoTag::Full(t) => write!(f, "{}", t),
-        }
-    }
-}
-
-impl RepoTag {
-    pub unsafe fn from_ref(tag: &TagRef) -> Self {
-        let ptr = tag.0.as_ptr();
-        let tag = String::from_utf8_unchecked(slice::from_raw_parts(ptr, tag.0.len()).to_vec());
-        RepoTag::Ref(TagRef(tag))
-    }
-
-    /// Get an owned TagRef of the RepoTag.
-    pub fn get_ref(&self) -> TagRef {
-        match self {
-            RepoTag::Ref(r) => r.clone(),
-            RepoTag::Full(t) => t.get_ref(),
-        }
-    }
-}
-
-/// Simple reference to a tag with owned name and edition.
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct TagRef(String);
-
-impl TagRef {
-    pub fn new(name: String) -> Self {
-        TagRef(name)
+    pub fn from_cow_str<S>(name: S) -> Self
+    where
+        S: Into<Cow<'a, str>>,
+    {
+        let tag: Cow<'a, str> = name.into();
+        let (tag_type, name) = tag
+            .split_once(':')
+            .and_then(|(tag_type, tag_name)| {
+                // try to parse tag_type
+                let tag_type = TagType::from_str(tag_type);
+                match tag_type {
+                    // on success, tag type would be extracted
+                    Ok(tag_type) => Some((tag_type, Cow::Owned(tag_name.trim().to_string()))),
+                    // on failure, DEFAULT would be used
+                    Err(_) => None,
+                }
+            })
+            .unwrap_or((TagType::Unknown, tag));
+        TagRef { name, tag_type }
     }
 
     pub fn name(&self) -> &str {
-        self.0.as_str()
+        self.name.deref()
     }
 
-    /// Extend a simple TagRef to a full tag with name, edition and parents.
-    pub fn extend_simple(self, parents: Vec<TagRef>, tag_type: TagType) -> Tag {
-        Tag {
-            name: self.0,
-            names: Default::default(),
-            tag_type,
-            parents,
-            children: Default::default(),
+    pub fn tag_type(&self) -> &TagType {
+        &self.tag_type
+    }
+
+    fn full_clone(&self) -> TagRef<'static> {
+        TagRef {
+            name: Cow::Owned(self.name.to_string()),
+            tag_type: self.tag_type.clone(),
         }
     }
 }
 
-impl Serialize for TagRef {
+impl<'a> TagRef<'a> {
+    pub fn into_full(self, parents: Vec<TagString>) -> Tag {
+        Tag {
+            inner: self.full_clone(),
+            names: Default::default(),
+            parents,
+            children: Vec::new(),
+        }
+    }
+}
+
+impl<'a> Display for TagRef<'a> {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        match &self.tag_type {
+            TagType::Unknown => write!(f, "{}", self.name()),
+            ty => write!(f, "{}:{}", ty, self.name()),
+        }
+    }
+}
+
+impl<'tag> Borrow<TagRef<'tag>> for Tag {
+    fn borrow(&self) -> &TagRef<'tag> {
+        &self.inner
+    }
+}
+
+impl<'tag> Borrow<TagRef<'tag>> for TagString {
+    fn borrow(&self) -> &TagRef<'tag> {
+        &self.0
+    }
+}
+
+/// String representation of a tag
+///
+/// Formatted by `<edition>:<name>`
+///
+/// TODO: remove this type
+#[derive(Debug, Eq)]
+pub struct TagString(pub(crate) TagRef<'static>);
+
+impl TagString {
+    pub(crate) fn resolve(&mut self, tags: &HashMap<String, HashMap<TagType, Tag>>) {
+        if let TagType::Unknown = self.tag_type {
+            if let Some(tags) = tags.get(self.name()) {
+                if tags.len() > 1 {
+                    panic!("Failed to resolve tag")
+                }
+
+                let actual_type = tags.values().next().unwrap().tag_type().clone();
+                self.0.tag_type = actual_type;
+            }
+        }
+    }
+}
+
+impl Deref for TagString {
+    type Target = TagRef<'static>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl Serialize for TagString {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
         S: Serializer,
     {
-        Value::String(self.0.clone()).serialize(serializer)
+        Value::String(format!("{}", self.0)).serialize(serializer)
     }
 }
 
-impl<'de> Deserialize<'de> for TagRef {
+impl<'de> Deserialize<'de> for TagString {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
     where
         D: Deserializer<'de>,
     {
-        use serde::de;
+        use serde::de::Error;
 
         let value = Value::deserialize(deserializer)?;
         if let Value::String(tag) = value {
+            let tag = TagRef::from_cow_str(tag);
             Ok(Self(tag))
         } else {
-            Err(de::Error::custom("Tag should be a string"))
+            Err(Error::custom("Tag must be a string"))
         }
     }
 }
 
-impl Display for TagRef {
+impl Display for TagString {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self.0)
+        Display::fmt(&self.0, f)
     }
 }
 
-impl Hash for TagRef {
+impl Hash for TagString {
     fn hash<H: Hasher>(&self, state: &mut H) {
-        state.write(self.0.as_bytes());
+        self.0.hash(state)
     }
 }
 
-#[derive(Serialize, Deserialize, Debug, PartialEq, Eq)]
+impl PartialEq for TagString {
+    fn eq(&self, other: &Self) -> bool {
+        self.0 == other.0
+    }
+}
+
+impl From<TagRef<'static>> for TagString {
+    fn from(value: TagRef<'static>) -> Self {
+        Self(value)
+    }
+}
+
+#[derive(Serialize, Deserialize, Debug, Eq)]
 #[serde(deny_unknown_fields)]
 pub struct Tag {
-    /// Tag name
-    name: String,
+    #[serde(flatten)]
+    inner: TagRef<'static>,
     /// Tag localized name
     #[serde(default)]
     names: HashMap<String, String>,
-    #[serde(rename = "type")]
-    tag_type: TagType,
     /// Tag parents
     #[serde(default)]
     #[serde(rename = "included-by")]
-    parents: Vec<TagRef>,
+    parents: Vec<TagString>,
     /// Tag children
     #[serde(default)]
     #[serde(rename = "includes")]
-    children: TagChildren,
+    // TODO: use IndexSet instead
+    children: Vec<TagString>,
 }
 
-#[derive(Serialize, Deserialize, Debug, PartialEq, Eq)]
+#[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Hash, Clone)]
 #[serde(rename_all = "lowercase")]
 pub enum TagType {
     Artist,
@@ -161,112 +206,109 @@ pub enum TagType {
     Animation,
     Series,
     Project,
+    Radio,
     Game,
     Organization,
-    Default,
     Category,
+    Unknown,
 }
 
-impl ToString for TagType {
-    fn to_string(&self) -> String {
+impl AsRef<str> for TagType {
+    fn as_ref(&self) -> &str {
         match self {
-            TagType::Artist => "artist".to_string(),
-            TagType::Group => "group".to_string(),
-            TagType::Animation => "animation".to_string(),
-            TagType::Series => "series".to_string(),
-            TagType::Project => "project".to_string(),
-            TagType::Game => "game".to_string(),
-            TagType::Organization => "organization".to_string(),
-            TagType::Default => "default".to_string(),
-            TagType::Category => "category".to_string(),
+            TagType::Artist => "artist",
+            TagType::Group => "group",
+            TagType::Animation => "animation",
+            TagType::Series => "series",
+            TagType::Project => "project",
+            TagType::Radio => "radio",
+            TagType::Game => "game",
+            TagType::Organization => "organization",
+            TagType::Unknown => "unknown",
+            TagType::Category => "category",
         }
     }
 }
 
-#[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Default)]
-#[serde(deny_unknown_fields)]
-pub struct TagChildren {
-    #[serde(default)]
-    artist: Vec<TagRef>,
-    #[serde(default)]
-    group: Vec<TagRef>,
-    #[serde(default)]
-    animation: Vec<TagRef>,
-    #[serde(default)]
-    series: Vec<TagRef>,
-    #[serde(default)]
-    project: Vec<TagRef>,
-    #[serde(default)]
-    game: Vec<TagRef>,
-    #[serde(default)]
-    organization: Vec<TagRef>,
-    #[serde(default)]
-    default: Vec<TagRef>,
-    #[serde(default)]
-    category: Vec<TagRef>,
+impl FromStr for TagType {
+    type Err = Error;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        Ok(match s {
+            "artist" => Self::Artist,
+            "group" => Self::Group,
+            "animation" => Self::Animation,
+            "series" => Self::Series,
+            "project" => Self::Project,
+            "radio" => Self::Radio,
+            "game" => Self::Game,
+            "organization" => Self::Organization,
+            "category" => Self::Category,
+            "unknown" => Self::Unknown,
+            _ => return Err(Error::RepoTagUnknownType(s.to_string())),
+        })
+    }
+}
+
+impl Display for TagType {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        f.write_str(self.as_ref())
+    }
 }
 
 impl Hash for Tag {
     fn hash<H: Hasher>(&self, state: &mut H) {
-        state.write(self.name.as_bytes());
+        self.inner.hash(state)
+    }
+}
+
+impl PartialEq for Tag {
+    fn eq(&self, other: &Self) -> bool {
+        self.inner == other.inner
     }
 }
 
 impl Display for Tag {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self.get_ref())
+        Display::fmt(&self.inner, f)
     }
 }
 
 impl Tag {
     pub fn name(&self) -> &str {
-        &self.name
+        self.inner.name()
     }
 
-    pub fn names(&self) -> impl Iterator<Item = (&String, &String)> {
-        self.names.iter()
+    pub fn names(&self) -> &HashMap<String, String> {
+        &self.names
     }
 
     pub fn tag_type(&self) -> &TagType {
-        &self.tag_type
+        self.inner.tag_type()
     }
 
-    pub fn parents(&self) -> &[TagRef] {
+    pub fn parents(&self) -> &[TagString] {
         &self.parents
     }
 
-    pub fn children_simple(&self) -> impl Iterator<Item = (&TagRef, TagType)> {
-        self.children
-            .artist
-            .iter()
-            .map(|t| (t, TagType::Artist))
-            .chain(self.children.group.iter().map(|t| (t, TagType::Group)))
-            .chain(
-                self.children
-                    .animation
-                    .iter()
-                    .map(|t| (t, TagType::Animation)),
-            )
-            .chain(self.children.series.iter().map(|t| (t, TagType::Series)))
-            .chain(self.children.project.iter().map(|t| (t, TagType::Project)))
-            .chain(self.children.game.iter().map(|t| (t, TagType::Game)))
-            .chain(
-                self.children
-                    .organization
-                    .iter()
-                    .map(|t| (t, TagType::Organization)),
-            )
-            .chain(self.children.default.iter().map(|t| (t, TagType::Default)))
-            .chain(
-                self.children
-                    .category
-                    .iter()
-                    .map(|t| (t, TagType::Category)),
-            )
+    pub fn simple_children<'me, 'tag>(&'me self) -> impl Iterator<Item = &'me TagRef<'tag>>
+    where
+        'tag: 'me,
+    {
+        self.children.iter().map(|i| &i.0)
     }
 
-    pub fn get_ref(&self) -> TagRef {
-        TagRef(self.name.clone())
+    pub fn get_owned_ref(&self) -> TagRef<'static> {
+        TagRef {
+            name: self.inner.name.clone(),
+            tag_type: self.inner.tag_type.clone(),
+        }
+    }
+}
+
+impl AsRef<TagRef<'static>> for Tag {
+    fn as_ref(&self) -> &TagRef<'static> {
+        &self.inner
     }
 }
 
@@ -278,5 +320,49 @@ pub struct Tags {
 impl Tags {
     pub fn into_inner(self) -> Vec<Tag> {
         self.tag
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::models::{TagRef, TagString, TagType};
+
+    #[test]
+    fn test_tag_string_serialize() {
+        let tag = TagString(TagRef::new("Test", TagType::Artist));
+        assert_eq!(tag.to_string(), "artist:Test".to_string());
+    }
+
+    #[test]
+    fn test_tag_string_deserialize() {
+        #[derive(serde::Deserialize)]
+        struct TestStruct {
+            tags: Vec<TagString>,
+        }
+
+        let TestStruct { tags } = toml_edit::easy::from_str(
+            r#"
+tags = [
+  "artist:123",
+  "group:456",
+  "implicit-tag-type",
+  "implicit:tag-type with :",
+]
+"#,
+        )
+        .unwrap();
+        assert_eq!(tags.len(), 4);
+
+        assert_eq!(tags[0].name, "123");
+        assert_eq!(tags[0].tag_type, TagType::Artist);
+
+        assert_eq!(tags[1].name, "456");
+        assert_eq!(tags[1].tag_type, TagType::Group);
+
+        assert_eq!(tags[2].name, "implicit-tag-type");
+        assert_eq!(tags[2].tag_type, TagType::Unknown);
+
+        assert_eq!(tags[3].name, "implicit:tag-type with :");
+        assert_eq!(tags[3].tag_type, TagType::Unknown);
     }
 }
