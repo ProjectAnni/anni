@@ -151,9 +151,9 @@ async fn init_state(config: Config) -> anyhow::Result<web::Data<AppState>> {
                             DriveProviderSettings {
                                 corpora: corpora.to_string(),
                                 drive_id: drive_id.clone(),
-                                token_path: token_path.clone(),
                             },
                             Some(db.open()?),
+                            token_path.clone(),
                         )
                         .await?,
                     )
@@ -179,9 +179,9 @@ async fn init_state(config: Config) -> anyhow::Result<web::Data<AppState>> {
                             DriveProviderSettings {
                                 corpora: corpora.to_string(),
                                 drive_id: drive_id.clone(),
-                                token_path: token_path.clone(),
                             },
                             None,
+                            token_path.clone(),
                         )
                         .await?,
                     )

@@ -42,20 +42,17 @@ impl Default for DriveAuth {
 }
 
 impl DriveAuth {
-    pub async fn build<P>(
+    pub async fn build(
         self,
-        persist_path: P,
-    ) -> std::io::Result<Authenticator<HttpsConnector<HttpConnector>>>
-    where
-        P: AsRef<Path>,
-    {
+        token_storage: TokenStorage,
+    ) -> std::io::Result<Authenticator<HttpsConnector<HttpConnector>>> {
         match self {
             DriveAuth::InstalledFlow {
                 client_id,
                 client_secret,
                 project_id,
             } => {
-                oauth2::InstalledFlowAuthenticator::builder(
+                let builder = oauth2::InstalledFlowAuthenticator::builder(
                     oauth2::ApplicationSecret {
                         client_id,
                         project_id,
@@ -71,27 +68,51 @@ impl DriveAuth {
                     },
                     oauth2::InstalledFlowReturnMethod::Interactive,
                 )
-                .persist_tokens_to_disk(persist_path.as_ref())
-                .flow_delegate(Box::new(DefaultInstalledFlowDelegate))
+                .flow_delegate(Box::new(DefaultInstalledFlowDelegate));
+                match token_storage {
+                    TokenStorage::Disk(path) => builder.persist_tokens_to_disk(path),
+                    TokenStorage::Custom(storage) => builder.with_storage(storage),
+                    TokenStorage::Memory => builder,
+                }
                 .build()
                 .await
             }
             DriveAuth::ServiceAccount(sa) => {
-                oauth2::ServiceAccountAuthenticator::builder(sa)
-                    .persist_tokens_to_disk(persist_path.as_ref())
-                    .build()
-                    .await
+                let builder = oauth2::ServiceAccountAuthenticator::builder(sa);
+                match token_storage {
+                    TokenStorage::Disk(path) => builder.persist_tokens_to_disk(path),
+                    TokenStorage::Custom(storage) => builder.with_storage(storage),
+                    TokenStorage::Memory => builder,
+                }
+                .build()
+                .await
             }
         }
+    }
+}
+
+pub enum TokenStorage {
+    Memory,
+    Disk(PathBuf),
+    Custom(Box<dyn oauth2::storage::TokenStorage>),
+}
+
+impl From<PathBuf> for TokenStorage {
+    fn from(p: PathBuf) -> Self {
+        Self::Disk(p)
     }
 }
 
 pub struct DriveProviderSettings {
     pub corpora: String,
     pub drive_id: Option<String>,
-    pub token_path: PathBuf,
 }
 
+impl DriveProviderSettings {
+    pub fn new(corpora: String, drive_id: Option<String>) -> Self {
+        Self { corpora, drive_id }
+    }
+}
 pub struct DriveClient {
     hub: Box<DriveHub<HttpsConnector<HttpConnector>>>,
     settings: DriveProviderSettings,
@@ -106,8 +127,9 @@ impl DriveClient {
     pub async fn new(
         auth: DriveAuth,
         settings: DriveProviderSettings,
+        token_storage: impl Into<TokenStorage>,
     ) -> Result<Self, ProviderError> {
-        let auth = auth.build(&settings.token_path).await?;
+        let auth = auth.build(token_storage.into()).await?;
         auth.token(&[
             "https://www.googleapis.com/auth/drive.metadata.readonly",
             "https://www.googleapis.com/auth/drive.readonly",
@@ -241,9 +263,10 @@ impl DriveProvider {
         auth: DriveAuth,
         settings: DriveProviderSettings,
         repo: Option<RepoDatabaseRead>,
+        token_storage: impl Into<TokenStorage>,
     ) -> Result<Self, ProviderError> {
         let mut this = Self {
-            client: DriveClient::new(auth, settings).await?,
+            client: DriveClient::new(auth, settings, token_storage).await?,
             folders: Default::default(),
             discs: Default::default(),
             files: Default::default(),
