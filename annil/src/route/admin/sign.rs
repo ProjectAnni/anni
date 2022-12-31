@@ -1,6 +1,6 @@
-use crate::extractor::token::{AnnilClaim, Keys, ShareToken, UserClaim};
-use axum::extract::State;
-use axum::Json;
+use crate::extractor::token::{AnnilClaim, ShareToken, UserClaim};
+use crate::state::AnnilKeys;
+use axum::{Extension, Json};
 use jwt_simple::prelude::*;
 use std::sync::Arc;
 
@@ -11,7 +11,10 @@ pub struct SignPayload {
     share: bool,
 }
 
-pub async fn sign(State(keys): State<Arc<Keys>>, Json(info): Json<SignPayload>) -> String {
+pub async fn sign(
+    Extension(keys): Extension<Arc<AnnilKeys>>,
+    Json(info): Json<SignPayload>,
+) -> String {
     let custom = AnnilClaim::User(UserClaim {
         user_id: info.user_id,
         share: if info.share {
