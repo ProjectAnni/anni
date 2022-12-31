@@ -7,7 +7,6 @@ use uuid::Uuid;
 
 pub struct AnnilProvider {
     name: String,
-    enabled: bool,
     inner: Box<dyn AnniProvider + Send + Sync>,
 }
 
@@ -15,13 +14,8 @@ impl AnnilProvider {
     pub async fn new(
         name: String,
         inner: Box<dyn AnniProvider + Send + Sync>,
-        enable: bool,
     ) -> Result<Self, ProviderError> {
-        Ok(Self {
-            name,
-            enabled: enable,
-            inner,
-        })
+        Ok(Self { name, inner })
     }
 
     #[inline]
@@ -31,7 +25,7 @@ impl AnnilProvider {
 
     pub async fn has_album(&self, album_id: &Uuid) -> bool {
         let album_id = album_id.to_string();
-        self.enabled && self.inner.has_album(&album_id).await
+        self.inner.has_album(&album_id).await
     }
 
     pub async fn get_cover(
@@ -43,11 +37,7 @@ impl AnnilProvider {
     }
 
     pub async fn albums(&self) -> HashSet<Cow<'_, str>> {
-        if self.enabled {
-            self.inner.albums().await.unwrap_or(HashSet::new())
-        } else {
-            HashSet::new()
-        }
+        self.inner.albums().await.unwrap_or(HashSet::new())
     }
 }
 
