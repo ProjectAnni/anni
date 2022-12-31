@@ -1,5 +1,5 @@
-use actix_web::http::StatusCode;
-use actix_web::ResponseError;
+use axum::http::StatusCode;
+use axum::response::{IntoResponse, Response};
 use thiserror::Error;
 
 #[derive(Error, Debug)]
@@ -10,11 +10,12 @@ pub enum AnnilError {
     NotFound,
 }
 
-impl ResponseError for AnnilError {
-    fn status_code(&self) -> StatusCode {
+impl IntoResponse for AnnilError {
+    fn into_response(self) -> Response {
         match self {
             AnnilError::Unauthorized => StatusCode::FORBIDDEN,
             AnnilError::NotFound => StatusCode::NOT_FOUND,
         }
+        .into_response()
     }
 }

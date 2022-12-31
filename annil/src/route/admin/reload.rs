@@ -1,11 +1,11 @@
 use crate::utils::compute_etag;
 use crate::AppState;
-use actix_web::{post, web, HttpResponse, Responder};
 use anni_repo::RepositoryManager;
+use axum::Extension;
+use std::sync::Arc;
 use std::time::{SystemTime, UNIX_EPOCH};
 
-#[post("/admin/reload")]
-async fn reload(data: web::Data<AppState>) -> impl Responder {
+pub async fn reload(Extension(data): Extension<Arc<AppState>>) {
     if let Some(metadata) = &data.metadata {
         if metadata.pull {
             let repo =
@@ -17,16 +17,15 @@ async fn reload(data: web::Data<AppState>) -> impl Responder {
         }
     }
 
-    for provider in data.providers.write().iter_mut() {
+    for provider in data.providers.write().await.iter_mut() {
         if let Err(e) = provider.reload().await {
             log::error!("Failed to reload provider {}: {:?}", provider.name(), e);
         }
     }
 
-    *data.etag.write() = Some(compute_etag(&data.providers.read()).await);
-    *data.last_update.write() = SystemTime::now()
+    *data.etag.write().await = Some(compute_etag(&data.providers.read().await).await);
+    *data.last_update.write().await = SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .unwrap()
         .as_secs();
-    HttpResponse::Ok().finish()
 }

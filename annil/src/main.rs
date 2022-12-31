@@ -1,25 +1,26 @@
-use annil::auth::AnnilAuth;
 use annil::config::{Config, MetadataConfig, ProviderItem};
 use annil::provider::AnnilProvider;
-use annil::services::*;
 use annil::utils::compute_etag;
 
-use actix_cors::Cors;
-use actix_web::middleware::Logger;
-use actix_web::{web, App, HttpServer};
 use anni_provider::cache::{Cache, CachePool};
 use anni_provider::fs::LocalFileSystemProvider;
 use anni_provider::providers::drive::DriveProviderSettings;
 use anni_provider::providers::{CommonConventionProvider, CommonStrictProvider, DriveProvider};
 use anni_provider::{AnniProvider, RepoDatabaseRead};
 use anni_repo::{setup_git2, RepositoryManager};
+use annil::extractor::token::Keys;
+use annil::route::admin;
+use annil::route::user;
 use annil::AppState;
+use axum::routing::{get, post};
+use axum::{Extension, Router, Server};
 use jwt_simple::prelude::HS256Key;
-use parking_lot::RwLock;
 use std::collections::HashMap;
+use std::net::SocketAddr;
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::{SystemTime, UNIX_EPOCH};
+use tokio::sync::RwLock;
 
 struct LazyDb {
     metadata: MetadataConfig,
@@ -71,7 +72,7 @@ fn init_metadata(metadata: &MetadataConfig) -> anyhow::Result<PathBuf> {
     Ok(database_path)
 }
 
-async fn init_state(config: Config) -> anyhow::Result<web::Data<AppState>> {
+async fn init_state(config: Config) -> anyhow::Result<(Arc<AppState>, Keys)> {
     // proxy settings
     let mut db = if let Some(metadata) = &config.metadata {
         if let Some(proxy) = &metadata.proxy {
@@ -220,7 +221,7 @@ async fn init_state(config: Config) -> anyhow::Result<web::Data<AppState>> {
     let etag = compute_etag(&providers).await;
 
     // key
-    let key = HS256Key::from_bytes(config.server.key().as_ref());
+    let sign_key = HS256Key::from_bytes(config.server.key().as_ref());
     let share_key = HS256Key::from_bytes(config.server.share_key().as_ref())
         .with_key_id(config.server.share_key_id());
     let version = format!("Annil v{}", env!("CARGO_PKG_VERSION"));
@@ -228,19 +229,23 @@ async fn init_state(config: Config) -> anyhow::Result<web::Data<AppState>> {
         .duration_since(UNIX_EPOCH)
         .unwrap()
         .as_secs();
-    Ok(web::Data::new(AppState {
-        providers: RwLock::new(providers),
-        key,
-        share_key,
-        admin_token: config.server.admin_token().to_string(),
-        version,
-        metadata: config.metadata,
-        last_update: RwLock::new(last_update),
-        etag: RwLock::new(Some(etag)),
-    }))
+    Ok((
+        Arc::new(AppState {
+            providers: RwLock::new(providers),
+            version,
+            metadata: config.metadata,
+            last_update: RwLock::new(last_update),
+            etag: RwLock::new(Some(etag)),
+        }),
+        Keys {
+            sign_key,
+            share_key,
+            admin_token: config.server.admin_token().to_string(),
+        },
+    ))
 }
 
-#[actix_web::main]
+#[tokio::main]
 async fn main() -> anyhow::Result<()> {
     env_logger::builder()
         .filter_level(log::LevelFilter::Info)
@@ -252,34 +257,52 @@ async fn main() -> anyhow::Result<()> {
             .nth(1)
             .unwrap_or_else(|| "config.toml".to_owned()),
     )?;
-    let listen = config.server.listen().to_string();
-    let state = init_state(config).await?;
+    let listen: SocketAddr = config.server.listen().parse()?;
+    let (state, keys) = init_state(config).await?;
 
-    HttpServer::new(move || {
-        App::new()
-            .app_data(state.clone())
-            .wrap(AnnilAuth)
-            .wrap(
-                Cors::default()
-                    .allow_any_origin()
-                    .allowed_methods(vec!["GET"])
-                    .allow_any_header()
-                    .send_wildcard(),
-            )
-            .wrap(Logger::default().exclude("/info"))
-            .service(info)
-            .service(admin::reload)
-            .service(admin::sign)
-            .service(cover)
-            .service(
-                web::resource("/{album_id}/{disc_id}/{track_id}")
-                    .route(web::get().to(audio))
-                    .route(web::head().to(audio_head)),
-            )
-            .service(albums)
-    })
-    .bind(listen)?
-    .run()
-    .await?;
+    let app = Router::new()
+        .route("/info", get(user::info))
+        .route(
+            "/:album_id/:disc_id/:track_id",
+            get(user::audio).head(user::audio_head),
+        )
+        .route("/cover/:album_id", get(user::cover))
+        .route("/cover/:album_id/:disc_id", get(user::cover))
+        .route("/admin/sign", post(admin::sign))
+        .route("/admin/reload", post(admin::reload))
+        .layer(Extension(state))
+        .with_state(Arc::new(keys));
+
+    Server::bind(&listen)
+        .serve(app.into_make_service())
+        .await
+        .unwrap();
+
+    // HttpServer::new(move || {
+    //     App::new()
+    //         .app_data(state.clone())
+    //         .wrap(AuthExtractor)
+    //         .wrap(
+    //             Cors::default()
+    //                 .allow_any_origin()
+    //                 .allowed_methods(vec!["GET"])
+    //                 .allow_any_header()
+    //                 .send_wildcard(),
+    //         )
+    //         .wrap(Logger::default().exclude("/info"))
+    //         .service(info)
+    //         .service(admin::reload)
+    //         .service(admin::sign)
+    //         .service(cover)
+    //         .service(
+    //             web::resource("/{album_id}/{disc_id}/{track_id}")
+    //                 .route(web::get().to(audio))
+    //                 .route(web::head().to(audio_head)),
+    //         )
+    //         .service(albums)
+    // })
+    // .bind(listen)?
+    // .run()
+    // .await?;
     Ok(())
 }
