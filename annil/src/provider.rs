@@ -3,6 +3,7 @@ use std::borrow::Cow;
 use std::collections::HashSet;
 use std::num::NonZeroU8;
 use std::ops::{Deref, DerefMut};
+use uuid::Uuid;
 
 pub struct AnnilProvider {
     name: String,
@@ -28,8 +29,9 @@ impl AnnilProvider {
         self.name.as_str()
     }
 
-    pub async fn has_album(&self, album_id: &str) -> bool {
-        self.enabled && self.inner.has_album(album_id).await
+    pub async fn has_album(&self, album_id: &Uuid) -> bool {
+        let album_id = album_id.to_string();
+        self.enabled && self.inner.has_album(&album_id).await
     }
 
     pub async fn get_cover(
