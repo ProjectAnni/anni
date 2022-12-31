@@ -9,6 +9,7 @@ pub struct AnnilKeys {
     pub share_key: HS256Key,
     pub admin_token: String,
 }
+
 impl AnnilKeys {
     pub fn new(sign_key: &[u8], share_key: &[u8], admin_token: String) -> Self {
         Self {
