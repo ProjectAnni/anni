@@ -55,7 +55,7 @@ impl AnniProvider for NoCacheStrictLocalProvider {
             }
         }
 
-        todo!()
+        Ok(albums.into_iter().map(Cow::Owned).collect())
     }
 
     async fn get_audio(
@@ -88,7 +88,11 @@ impl AnniProvider for NoCacheStrictLocalProvider {
                 size: file_size as usize,
                 duration,
             },
-            range,
+            range: Range {
+                start: range.start,
+                end: Some(range.end.unwrap_or(file_size - 1)),
+                total: Some(file_size),
+            },
             reader,
         })
     }

@@ -52,7 +52,7 @@ pub async fn handle_workspace_serve(this: WorkspaceServeAction) -> anyhow::Resul
             layer: 2,
         }),
     )]));
-    let annil_keys = AnnilKeys::new("".as_bytes(), "".as_bytes(), String::new());
+    let annil_keys = AnnilKeys::new("a token here".as_bytes(), "".as_bytes(), String::new());
 
     let annil = Router::new()
         .route("/info", get(user::info))
