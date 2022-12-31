@@ -10,6 +10,7 @@ use annil::provider::AnnilProvider;
 use annil::route::admin;
 use annil::route::user;
 use annil::state::{AnnilKeys, AnnilProviders, AnnilState};
+use axum::http::Method;
 use axum::routing::{get, post};
 use axum::{Extension, Router, Server};
 use jwt_simple::prelude::HS256Key;
@@ -19,6 +20,8 @@ use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::{SystemTime, UNIX_EPOCH};
 use tokio::sync::RwLock;
+use tower_http::cors;
+use tower_http::cors::CorsLayer;
 
 async fn init_state(config: Config) -> anyhow::Result<(AnnilState, AnnilProviders, AnnilKeys)> {
     #[cfg(feature = "metadata")]
@@ -193,12 +196,19 @@ async fn main() -> anyhow::Result<()> {
 
     let app = Router::new()
         .route("/info", get(user::info))
+        .route("/albums", get(user::albums))
         .route(
             "/:album_id/:disc_id/:track_id",
             get(user::audio).head(user::audio_head),
         )
         .route("/cover/:album_id", get(user::cover))
         .route("/cover/:album_id/:disc_id", get(user::cover))
+        .layer(
+            CorsLayer::new()
+                .allow_methods([Method::GET])
+                .allow_origin(cors::Any)
+                .allow_headers(cors::Any),
+        )
         .route("/admin/sign", post(admin::sign))
         .route("/admin/reload", post(admin::reload))
         .layer(Extension(Arc::new(state)))
@@ -210,22 +220,6 @@ async fn main() -> anyhow::Result<()> {
         .await
         .unwrap();
 
-    // HttpServer::new(move || {
-    //     App::new()
-    //         .app_data(state.clone())
-    //         .wrap(AuthExtractor)
-    //         .wrap(
-    //             Cors::default()
-    //                 .allow_any_origin()
-    //                 .allowed_methods(vec!["GET"])
-    //                 .allow_any_header()
-    //                 .send_wildcard(),
-    //         )
-    //         .wrap(Logger::default().exclude("/info"))
-    // })
-    // .bind(listen)?
-    // .run()
-    // .await?;
     Ok(())
 }
 
