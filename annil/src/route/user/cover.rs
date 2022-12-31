@@ -7,7 +7,7 @@ use axum::Extension;
 use std::num::NonZeroU8;
 use std::sync::Arc;
 
-use crate::AppState;
+use crate::state::AnnilProviders;
 use serde::Deserialize;
 use tokio_util::io::ReaderStream;
 use uuid::Uuid;
@@ -21,9 +21,9 @@ pub struct CoverPath {
 /// Get audio cover of an album with {album_id} and optional {disc_id}
 pub async fn cover(
     Path(CoverPath { album_id, disc_id }): Path<CoverPath>,
-    Extension(data): Extension<Arc<AppState>>,
+    Extension(providers): Extension<Arc<AnnilProviders>>,
 ) -> Response {
-    for provider in data.providers.read().await.iter() {
+    for provider in providers.read().await.iter() {
         if provider.has_album(&album_id).await {
             return match provider.get_cover(&album_id.to_string(), disc_id).await {
                 Ok(cover) => (

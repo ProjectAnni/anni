@@ -1,8 +1,8 @@
 use crate::error::AnnilError;
 use crate::extractor::token::AnnilClaim;
 use crate::extractor::track::TrackIdentifier;
+use crate::state::AnnilProviders;
 use crate::utils::Either;
-use crate::AppState;
 use anni_provider::Range;
 use axum::body::StreamBody;
 use axum::extract::Query;
@@ -10,7 +10,7 @@ use axum::http::header::{
     ACCEPT_RANGES, ACCESS_CONTROL_EXPOSE_HEADERS, CACHE_CONTROL, CONTENT_LENGTH, CONTENT_RANGE,
     CONTENT_TYPE,
 };
-use axum::http::{Request, StatusCode};
+use axum::http::{HeaderMap, StatusCode};
 use axum::response::{AppendHeaders, IntoResponse, Response};
 use axum::Extension;
 use futures::StreamExt;
@@ -43,14 +43,14 @@ impl AudioQuery {
 pub async fn audio_head(
     claim: AnnilClaim,
     track: TrackIdentifier,
-    Extension(data): Extension<Arc<AppState>>,
+    Extension(providers): Extension<Arc<AnnilProviders>>,
     query: Query<AudioQuery>,
 ) -> Response {
     if !claim.can_fetch(&track) {
         return AnnilError::Unauthorized.into_response();
     }
 
-    for provider in data.providers.read().await.iter() {
+    for provider in providers.read().await.iter() {
         if provider.has_album(&track.album_id).await {
             let audio = provider
                 .get_audio_info(&track.album_id.to_string(), track.disc_id, track.track_id)
@@ -107,12 +107,12 @@ pub async fn audio_head(
 }
 
 /// Get audio in an album with `album_id`, `disc_id` and `track_id`
-pub async fn audio<B>(
+pub async fn audio(
     claim: AnnilClaim,
     track: TrackIdentifier,
-    Extension(data): Extension<Arc<AppState>>,
+    Extension(providers): Extension<Arc<AnnilProviders>>,
     query: Query<AudioQuery>,
-    req: Request<B>,
+    headers: HeaderMap,
 ) -> Response {
     if !claim.can_fetch(&track) {
         return AnnilError::Unauthorized.into_response();
@@ -125,7 +125,7 @@ pub async fn audio<B>(
         "lossless" => None,
         _ => Some("128k"),
     };
-    let range = req.headers().get("Range").and_then(|r| {
+    let range = headers.get("Range").and_then(|r| {
         let range = r.to_str().ok()?;
         let (_, right) = range.split_once('=')?;
         let (from, to) = right.split_once('-')?;
@@ -139,7 +139,7 @@ pub async fn audio<B>(
     let need_range = range.is_some();
     let range = range.unwrap_or(Range::FULL);
 
-    for provider in data.providers.read().await.iter() {
+    for provider in providers.read().await.iter() {
         if provider.has_album(&track.album_id).await {
             // range is only supported on lossless
             let range = if bitrate.is_some() {

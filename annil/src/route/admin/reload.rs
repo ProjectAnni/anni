@@ -1,11 +1,14 @@
+use crate::state::{AnnilProviders, AnnilState};
 use crate::utils::compute_etag;
-use crate::AppState;
 use anni_repo::RepositoryManager;
 use axum::Extension;
 use std::sync::Arc;
 use std::time::{SystemTime, UNIX_EPOCH};
 
-pub async fn reload(Extension(data): Extension<Arc<AppState>>) {
+pub async fn reload(
+    Extension(data): Extension<Arc<AnnilState>>,
+    Extension(providers): Extension<Arc<AnnilProviders>>,
+) {
     if let Some(metadata) = &data.metadata {
         if metadata.pull {
             let repo =
@@ -17,13 +20,13 @@ pub async fn reload(Extension(data): Extension<Arc<AppState>>) {
         }
     }
 
-    for provider in data.providers.write().await.iter_mut() {
+    for provider in providers.write().await.iter_mut() {
         if let Err(e) = provider.reload().await {
             log::error!("Failed to reload provider {}: {:?}", provider.name(), e);
         }
     }
 
-    *data.etag.write().await = Some(compute_etag(&data.providers.read().await).await);
+    *data.etag.write().await = compute_etag(&providers.read().await).await;
     *data.last_update.write().await = SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .unwrap()

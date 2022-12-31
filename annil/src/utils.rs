@@ -1,6 +1,5 @@
+use crate::provider::AnnilProvider;
 use axum::response::{IntoResponse, IntoResponseParts};
-
-use crate::AnnilProvider;
 
 pub(crate) enum Either<L, R> {
     Left(L),

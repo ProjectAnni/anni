@@ -8,10 +8,9 @@ use anni_provider::providers::drive::DriveProviderSettings;
 use anni_provider::providers::{CommonConventionProvider, CommonStrictProvider, DriveProvider};
 use anni_provider::{AnniProvider, RepoDatabaseRead};
 use anni_repo::{setup_git2, RepositoryManager};
-use annil::extractor::token::Keys;
 use annil::route::admin;
 use annil::route::user;
-use annil::AppState;
+use annil::state::{AnnilKeys, AnnilProviders, AnnilState};
 use axum::routing::{get, post};
 use axum::{Extension, Router, Server};
 use jwt_simple::prelude::HS256Key;
@@ -72,7 +71,7 @@ fn init_metadata(metadata: &MetadataConfig) -> anyhow::Result<PathBuf> {
     Ok(database_path)
 }
 
-async fn init_state(config: Config) -> anyhow::Result<(Arc<AppState>, Keys)> {
+async fn init_state(config: Config) -> anyhow::Result<(AnnilState, AnnilProviders, AnnilKeys)> {
     // proxy settings
     let mut db = if let Some(metadata) = &config.metadata {
         if let Some(proxy) = &metadata.proxy {
@@ -230,14 +229,14 @@ async fn init_state(config: Config) -> anyhow::Result<(Arc<AppState>, Keys)> {
         .unwrap()
         .as_secs();
     Ok((
-        Arc::new(AppState {
-            providers: RwLock::new(providers),
+        AnnilState {
             version,
             metadata: config.metadata,
             last_update: RwLock::new(last_update),
-            etag: RwLock::new(Some(etag)),
-        }),
-        Keys {
+            etag: RwLock::new(etag),
+        },
+        AnnilProviders(RwLock::new(providers)),
+        AnnilKeys {
             sign_key,
             share_key,
             admin_token: config.server.admin_token().to_string(),
@@ -258,7 +257,7 @@ async fn main() -> anyhow::Result<()> {
             .unwrap_or_else(|| "config.toml".to_owned()),
     )?;
     let listen: SocketAddr = config.server.listen().parse()?;
-    let (state, keys) = init_state(config).await?;
+    let (state, providers, keys) = init_state(config).await?;
 
     let app = Router::new()
         .route("/info", get(user::info))
@@ -270,8 +269,9 @@ async fn main() -> anyhow::Result<()> {
         .route("/cover/:album_id/:disc_id", get(user::cover))
         .route("/admin/sign", post(admin::sign))
         .route("/admin/reload", post(admin::reload))
-        .layer(Extension(state))
-        .with_state(Arc::new(keys));
+        .layer(Extension(Arc::new(state)))
+        .layer(Extension(Arc::new(providers)))
+        .layer(Extension(Arc::new(keys)));
 
     Server::bind(&listen)
         .serve(app.into_make_service())

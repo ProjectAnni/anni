@@ -1,9 +1,11 @@
 use crate::error::AnnilError;
 use crate::extractor::auth::AuthExtractor;
 use crate::extractor::track::TrackIdentifier;
+use crate::state::AnnilKeys;
 use async_trait::async_trait;
-use axum::extract::{FromRef, FromRequestParts};
+use axum::extract::FromRequestParts;
 use axum::http::request::Parts;
+use axum::Extension;
 use jwt_simple::prelude::*;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -47,24 +49,18 @@ pub struct ShareClaim {
     pub(crate) audios: HashMap<String, HashMap<String, Vec<NonZeroU8>>>,
 }
 
-/// Readonly keys needed
-pub struct Keys {
-    pub sign_key: HS256Key,
-    pub share_key: HS256Key,
-    pub admin_token: String,
-}
-
 #[async_trait]
 impl<S> FromRequestParts<S> for AnnilClaim
 where
-    Arc<Keys>: FromRef<S>,
     S: Send + Sync,
 {
     type Rejection = AnnilError;
 
     async fn from_request_parts(parts: &mut Parts, state: &S) -> Result<Self, Self::Rejection> {
         let AuthExtractor(auth) = AuthExtractor::from_request_parts(parts, state).await?;
-        let keys = Arc::<Keys>::from_ref(state);
+        let keys = Extension::<Arc<AnnilKeys>>::from_request_parts(parts, state)
+            .await
+            .expect("Failed to extract keys from extension. Please re-check your code first.");
 
         let metadata = Token::decode_metadata(&auth).map_err(|_| AnnilError::Unauthorized)?;
         match metadata.key_id() {
