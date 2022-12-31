@@ -1,5 +1,4 @@
 use crate::state::{AnnilProviders, AnnilState};
-use crate::utils::compute_etag;
 use anni_repo::RepositoryManager;
 use axum::Extension;
 use std::sync::Arc;
@@ -9,6 +8,7 @@ pub async fn reload(
     Extension(data): Extension<Arc<AnnilState>>,
     Extension(providers): Extension<Arc<AnnilProviders>>,
 ) {
+    #[cfg(feature = "metadata")]
     if let Some(metadata) = &data.metadata {
         if metadata.pull {
             let repo =
@@ -26,7 +26,7 @@ pub async fn reload(
         }
     }
 
-    *data.etag.write().await = compute_etag(&providers.read().await).await;
+    *data.etag.write().await = providers.compute_etag().await;
     *data.last_update.write().await = SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .unwrap()
