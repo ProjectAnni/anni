@@ -24,7 +24,7 @@ anni-repo = { path = "../anni-repo", features = [
     "db",
     "git",
     "flac",
-    "search",
+    #    "search",
 ] }
 anni-provider = { path = "../anni-provider" }
 annil = { path = "../annil" }
@@ -68,6 +68,8 @@ notify = { version = "5.0.0", default-features = false, features = [
 ] }
 notify-debouncer-mini = { version = "0.2.1", default-features = false }
 anni-google-drive3 = { path = "../third_party/google-drive3" }
+
+axum = "0.6.1"
 
 [dependencies.reqwest]
 version = "0.11.11"

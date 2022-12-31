@@ -11,11 +11,8 @@ pub struct AnnilProvider {
 }
 
 impl AnnilProvider {
-    pub async fn new(
-        name: String,
-        inner: Box<dyn AnniProvider + Send + Sync>,
-    ) -> Result<Self, ProviderError> {
-        Ok(Self { name, inner })
+    pub fn new(name: String, inner: Box<dyn AnniProvider + Send + Sync>) -> Self {
+        Self { name, inner }
     }
 
     #[inline]

@@ -14,9 +14,9 @@ use uuid::Uuid;
 /// The main purpose of using this provider is to support annil for anni workspace.
 pub struct NoCacheStrictLocalProvider {
     /// Root directory of an strict annil
-    root: PathBuf,
+    pub root: PathBuf,
     /// Hash layers
-    layer: usize,
+    pub layer: usize,
 }
 
 #[async_trait::async_trait]
