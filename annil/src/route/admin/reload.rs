@@ -1,7 +1,6 @@
 use crate::provider::AnnilProvider;
 use crate::state::AnnilState;
 use anni_provider::AnniProvider;
-use anni_repo::RepositoryManager;
 use axum::Extension;
 use std::sync::Arc;
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -14,6 +13,8 @@ pub async fn reload<P>(
 {
     #[cfg(feature = "metadata")]
     if let Some(metadata) = &data.metadata {
+        use anni_repo::RepositoryManager;
+
         if metadata.pull {
             let repo =
                 RepositoryManager::pull(metadata.base.join("repo"), &metadata.branch).unwrap();
