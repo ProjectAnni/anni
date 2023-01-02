@@ -31,5 +31,6 @@ uuid = "1"
 base64 = "0.20.0"
 
 [features]
-default = ["metadata"]
+default = ["metadata", "transcode"]
 metadata = ["anni-repo"]
+transcode = []

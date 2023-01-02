@@ -143,7 +143,7 @@ async fn init_state(config: Config) -> anyhow::Result<(AnnilState, AnnilProvider
             }
             provider = Box::new(Cache::new(provider, caches[&cache.root].clone()));
         }
-        let provider = AnnilProvider::new(provider_name.to_string(), provider).await?;
+        let provider = AnnilProvider::new(provider_name.to_string(), provider);
         providers.push(provider);
     }
     log::info!(
