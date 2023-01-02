@@ -15,7 +15,6 @@ use axum::response::{AppendHeaders, IntoResponse, Response};
 use axum::Extension;
 use futures::StreamExt;
 use serde::Deserialize;
-use std::process::Stdio;
 use std::sync::Arc;
 use tokio_util::io::ReaderStream;
 
@@ -118,6 +117,7 @@ pub async fn audio(
         return AnnilError::Unauthorized.into_response();
     }
 
+    #[cfg(feature = "transcode")]
     let bitrate = match query.quality(claim.is_guest()) {
         "low" => Some("128k"),
         "medium" => Some("192k"),
@@ -125,6 +125,7 @@ pub async fn audio(
         "lossless" => None,
         _ => Some("128k"),
     };
+
     let range = headers.get("Range").and_then(|r| {
         let range = r.to_str().ok()?;
         let (_, right) = range.split_once('=')?;
@@ -141,6 +142,7 @@ pub async fn audio(
 
     for provider in providers.read().await.iter() {
         if provider.has_album(&track.album_id).await {
+            #[cfg(feature = "transcode")]
             // range is only supported on lossless
             let range = if bitrate.is_some() {
                 Range::FULL
@@ -187,8 +189,10 @@ pub async fn audio(
                         ),
                     ];
 
+                    #[cfg(feature = "transcode")]
                     let body = match bitrate {
                         Some(bitrate) => {
+                            use std::process::Stdio;
                             let mut process = tokio::process::Command::new("ffmpeg")
                                 .args(&[
                                     "-i", "pipe:0", "-map", "0:0", "-b:a", bitrate, "-f", "adts",
@@ -221,6 +225,18 @@ pub async fn audio(
                                 ),
                             ))
                         }
+                    };
+
+                    #[cfg(not(feature = "transcode"))]
+                    let body = {
+                        let size = audio.range.length().unwrap_or(audio.info.size as u64);
+                        (
+                            [
+                                (CONTENT_LENGTH, format!("{size}")),
+                                (CONTENT_TYPE, format!("audio/{}", audio.info.extension)),
+                            ],
+                            StreamBody::new(ReaderStream::new(audio.reader).take(size as usize)),
+                        )
                     };
 
                     (status, range, header, headers, body).into_response()

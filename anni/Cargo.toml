@@ -27,7 +27,7 @@ anni-repo = { path = "../anni-repo", features = [
     #    "search",
 ] }
 anni-provider = { path = "../anni-provider" }
-annil = { path = "../annil" }
+annil = { path = "../annil", default-features = false }
 clap-handler = { version = "0.1.1", features = ["async"] }
 
 i18n-embed = { version = "0.13.4", features = [
