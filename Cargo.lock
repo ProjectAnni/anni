@@ -168,7 +168,7 @@ dependencies = [
 
 [[package]]
 name = "anni-provider"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "anni-flac",
  "anni-google-drive3",
