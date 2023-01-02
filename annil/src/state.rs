@@ -1,6 +1,4 @@
-use crate::provider::AnnilProvider;
 use jwt_simple::prelude::HS256Key;
-use std::ops::Deref;
 use tokio::sync::RwLock;
 
 /// Readonly keys
@@ -17,34 +15,6 @@ impl AnnilKeys {
             share_key: HS256Key::from_bytes(share_key),
             admin_token,
         }
-    }
-}
-
-pub struct AnnilProviders(pub RwLock<Vec<AnnilProvider>>);
-
-impl AnnilProviders {
-    pub async fn compute_etag(&self) -> String {
-        let providers = self.0.read().await;
-
-        let mut etag = 0;
-        for provider in providers.iter() {
-            for album in provider.albums().await {
-                if let Ok(uuid) = uuid::Uuid::parse_str(album.as_ref()) {
-                    etag ^= uuid.as_u128();
-                } else {
-                    log::error!("Failed to parse uuid: {album}");
-                }
-            }
-        }
-        format!(r#""{}""#, base64::encode(etag.to_be_bytes()))
-    }
-}
-
-impl Deref for AnnilProviders {
-    type Target = RwLock<Vec<AnnilProvider>>;
-
-    fn deref(&self) -> &Self::Target {
-        &self.0
     }
 }
 
