@@ -2,7 +2,7 @@ use crate::subcommands::workspace::utils::find_dot_anni;
 use anni_provider::providers::NoCacheStrictLocalProvider;
 use annil::provider::AnnilProvider;
 use annil::route::user;
-use annil::state::{AnnilKeys, AnnilProviders, AnnilState};
+use annil::state::{AnnilKeys, AnnilState};
 use axum::routing::get;
 use axum::{Extension, Router, Server};
 use std::net::SocketAddr;
@@ -18,7 +18,6 @@ use std::sync::Arc;
 /// All service endpoints are customizable.
 use clap::Args;
 use clap_handler::handler;
-use tokio::sync::RwLock;
 
 #[derive(Args, Debug, Clone)]
 pub struct WorkspaceServeAction {
@@ -43,28 +42,25 @@ pub async fn handle_workspace_serve(this: WorkspaceServeAction) -> anyhow::Resul
         version: "0.0.1-SNAPSHOT".to_string(),
         last_update: Default::default(),
         etag: Default::default(),
-        metadata: None,
     };
-    let annil_providers = AnnilProviders(RwLock::new(vec![AnnilProvider::new(
-        "".to_string(),
-        Box::new(NoCacheStrictLocalProvider {
-            root: audio_root,
-            layer: 2,
-        }),
-    )]));
+    let annil_provider = AnnilProvider::new(NoCacheStrictLocalProvider {
+        root: audio_root,
+        layer: 2,
+    });
     let annil_keys = AnnilKeys::new("a token here".as_bytes(), "".as_bytes(), String::new());
 
+    type Provider = NoCacheStrictLocalProvider;
     let annil = Router::new()
         .route("/info", get(user::info))
-        .route("/albums", get(user::albums))
+        .route("/albums", get(user::albums::<Provider>))
         .route(
             "/:album_id/:disc_id/:track_id",
-            get(user::audio).head(user::audio_head),
+            get(user::audio::<Provider>).head(user::audio_head::<Provider>),
         )
-        .route("/cover/:album_id", get(user::cover))
-        .route("/cover/:album_id/:disc_id", get(user::cover))
+        .route("/cover/:album_id", get(user::cover::<Provider>))
+        .route("/cover/:album_id/:disc_id", get(user::cover::<Provider>))
         .layer(Extension(Arc::new(annil_state)))
-        .layer(Extension(Arc::new(annil_providers)))
+        .layer(Extension(Arc::new(annil_provider)))
         .layer(Extension(Arc::new(annil_keys)));
 
     let app = Router::new().nest("/l", annil);

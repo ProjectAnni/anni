@@ -162,7 +162,7 @@ where
         .map_err(|_| AnnilError::NotFound);
 
     return match audio {
-        Ok(mut audio) => {
+        Ok(audio) => {
             let (status, range) = if need_range && !audio.range.is_full() {
                 (
                     StatusCode::PARTIAL_CONTENT,
@@ -206,6 +206,7 @@ where
                     let stdout = process.stdout.take().unwrap();
                     tokio::spawn(async move {
                         let mut stdin = process.stdin.as_mut().unwrap();
+                        let mut audio = audio;
                         let _ = tokio::io::copy(&mut audio.reader, &mut stdin).await;
                     });
                     Either::Left((
