@@ -3,13 +3,15 @@ use config::{Config, ProviderItem};
 use anni_provider::cache::{Cache, CachePool};
 use anni_provider::fs::LocalFileSystemProvider;
 use anni_provider::providers::drive::DriveProviderSettings;
-use anni_provider::providers::{CommonConventionProvider, CommonStrictProvider, DriveProvider};
+use anni_provider::providers::{
+    CommonConventionProvider, CommonStrictProvider, DriveProvider, MultipleProviders,
+};
 use anni_provider::AnniProvider;
 use annil::metadata::MetadataConfig;
 use annil::provider::AnnilProvider;
 use annil::route::admin;
 use annil::route::user;
-use annil::state::{AnnilKeys, AnnilProviders, AnnilState};
+use annil::state::{AnnilKeys, AnnilState};
 use axum::http::Method;
 use axum::routing::{get, post};
 use axum::{Extension, Router, Server};
@@ -23,7 +25,9 @@ use tokio::sync::RwLock;
 use tower_http::cors;
 use tower_http::cors::CorsLayer;
 
-async fn init_state(config: Config) -> anyhow::Result<(AnnilState, AnnilProviders, AnnilKeys)> {
+async fn init_state(
+    config: Config,
+) -> anyhow::Result<(AnnilState, AnnilProvider<MultipleProviders>, AnnilKeys)> {
     #[cfg(feature = "metadata")]
     let mut db = config.metadata.clone().map(MetadataConfig::into_db);
 
@@ -143,7 +147,6 @@ async fn init_state(config: Config) -> anyhow::Result<(AnnilState, AnnilProvider
             }
             provider = Box::new(Cache::new(provider, caches[&cache.root].clone()));
         }
-        let provider = AnnilProvider::new(provider_name.to_string(), provider);
         providers.push(provider);
     }
     log::info!(
@@ -151,8 +154,8 @@ async fn init_state(config: Config) -> anyhow::Result<(AnnilState, AnnilProvider
         now.elapsed().unwrap()
     );
 
-    let providers = AnnilProviders(RwLock::new(providers));
-    let etag = providers.compute_etag().await;
+    let providers = AnnilProvider::new(MultipleProviders::new(providers));
+    let etag = providers.compute_etag().await?;
 
     // key
     let sign_key = HS256Key::from_bytes(config.server.sign_key.as_ref());
@@ -192,17 +195,18 @@ async fn main() -> anyhow::Result<()> {
             .unwrap_or_else(|| "config.toml".to_owned()),
     )?;
     let listen: SocketAddr = config.server.listen.parse()?;
-    let (state, providers, keys) = init_state(config).await?;
+    let (state, provider, keys) = init_state(config).await?;
 
+    type Provider = MultipleProviders;
     let app = Router::new()
         .route("/info", get(user::info))
-        .route("/albums", get(user::albums))
+        .route("/albums", get(user::albums::<Provider>))
         .route(
             "/:album_id/:disc_id/:track_id",
-            get(user::audio).head(user::audio_head),
+            get(user::audio::<Provider>).head(user::audio_head::<Provider>),
         )
-        .route("/cover/:album_id", get(user::cover))
-        .route("/cover/:album_id/:disc_id", get(user::cover))
+        .route("/cover/:album_id", get(user::cover::<Provider>))
+        .route("/cover/:album_id/:disc_id", get(user::cover::<Provider>))
         .layer(
             CorsLayer::new()
                 .allow_methods([Method::GET])
@@ -210,9 +214,9 @@ async fn main() -> anyhow::Result<()> {
                 .allow_headers(cors::Any),
         )
         .route("/admin/sign", post(admin::sign))
-        .route("/admin/reload", post(admin::reload))
+        .route("/admin/reload", post(admin::reload::<Provider>))
         .layer(Extension(Arc::new(state)))
-        .layer(Extension(Arc::new(providers)))
+        .layer(Extension(Arc::new(provider)))
         .layer(Extension(Arc::new(keys)));
 
     Server::bind(&listen)

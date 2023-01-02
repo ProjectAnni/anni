@@ -1,53 +1,40 @@
-use anni_provider::{AnniProvider, ProviderError, ResourceReader};
-use std::borrow::Cow;
-use std::collections::HashSet;
-use std::num::NonZeroU8;
+use anni_provider::{AnniProvider, ProviderError};
 use std::ops::{Deref, DerefMut};
-use uuid::Uuid;
+use tokio::sync::RwLock;
 
-pub struct AnnilProvider {
-    name: String,
-    inner: Box<dyn AnniProvider + Send + Sync>,
-}
+pub struct AnnilProvider<T: AnniProvider + Send + Sync>(RwLock<T>);
 
-impl AnnilProvider {
-    pub fn new(name: String, inner: Box<dyn AnniProvider + Send + Sync>) -> Self {
-        Self { name, inner }
+impl<T: AnniProvider + Send + Sync> AnnilProvider<T> {
+    pub fn new(provider: T) -> Self {
+        Self(RwLock::new(provider))
     }
 
-    #[inline]
-    pub fn name(&self) -> &str {
-        self.name.as_str()
-    }
+    pub async fn compute_etag(&self) -> Result<String, ProviderError> {
+        let provider = self.0.read().await;
 
-    pub async fn has_album(&self, album_id: &Uuid) -> bool {
-        let album_id = album_id.to_string();
-        self.inner.has_album(&album_id).await
-    }
+        let mut etag = 0;
+        for album in provider.albums().await? {
+            if let Ok(uuid) = uuid::Uuid::parse_str(album.as_ref()) {
+                etag ^= uuid.as_u128();
+            } else {
+                log::error!("Failed to parse uuid: {album}");
+            }
+        }
 
-    pub async fn get_cover(
-        &self,
-        album_id: &str,
-        disc_id: Option<NonZeroU8>,
-    ) -> Result<ResourceReader, ProviderError> {
-        self.inner.get_cover(album_id, disc_id).await
-    }
-
-    pub async fn albums(&self) -> HashSet<Cow<'_, str>> {
-        self.inner.albums().await.unwrap_or(HashSet::new())
+        Ok(format!(r#""{}""#, base64::encode(etag.to_be_bytes())))
     }
 }
 
-impl Deref for AnnilProvider {
-    type Target = Box<dyn AnniProvider + Send + Sync>;
+impl<T: AnniProvider + Send + Sync> Deref for AnnilProvider<T> {
+    type Target = RwLock<T>;
 
     fn deref(&self) -> &Self::Target {
-        &self.inner
+        &self.0
     }
 }
 
-impl DerefMut for AnnilProvider {
+impl<T: AnniProvider + Send + Sync> DerefMut for AnnilProvider<T> {
     fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.inner
+        &mut self.0
     }
 }

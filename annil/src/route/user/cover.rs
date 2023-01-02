@@ -2,12 +2,13 @@ use axum::body::StreamBody;
 use axum::extract::Path;
 use axum::http::header::{CACHE_CONTROL, CONTENT_TYPE};
 use axum::http::StatusCode;
-use axum::response::{AppendHeaders, IntoResponse, Response};
+use axum::response::{IntoResponse, Response};
 use axum::Extension;
 use std::num::NonZeroU8;
 use std::sync::Arc;
 
-use crate::state::AnnilProviders;
+use crate::provider::AnnilProvider;
+use anni_provider::AnniProvider;
 use serde::Deserialize;
 use tokio_util::io::ReaderStream;
 use uuid::Uuid;
@@ -19,33 +20,29 @@ pub struct CoverPath {
 }
 
 /// Get audio cover of an album with {album_id} and optional {disc_id}
-pub async fn cover(
+pub async fn cover<P>(
     Path(CoverPath { album_id, disc_id }): Path<CoverPath>,
-    Extension(providers): Extension<Arc<AnnilProviders>>,
-) -> Response {
-    for provider in providers.read().await.iter() {
-        if provider.has_album(&album_id).await {
-            return match provider.get_cover(&album_id.to_string(), disc_id).await {
-                Ok(cover) => (
-                    ([
-                        (CONTENT_TYPE, "image/jpeg"),
-                        (CACHE_CONTROL, "public, max-age=31536000"),
-                    ]),
-                    StreamBody::new(ReaderStream::new(cover)),
-                )
-                    .into_response(),
-                Err(_) => (
-                    StatusCode::NOT_FOUND,
-                    AppendHeaders([(CACHE_CONTROL, "private")]),
-                )
-                    .into_response(),
-            };
-        }
+    Extension(provider): Extension<Arc<AnnilProvider<P>>>,
+) -> Response
+where
+    P: AnniProvider + Send + Sync,
+{
+    let provider = provider.read().await;
+    let album_id = album_id.to_string();
+
+    if !provider.has_album(&album_id).await {
+        return (StatusCode::NOT_FOUND, [(CACHE_CONTROL, "private")]).into_response();
     }
 
-    (
-        StatusCode::NOT_FOUND,
-        AppendHeaders([(CACHE_CONTROL, "private")]),
-    )
-        .into_response()
+    match provider.get_cover(&album_id, disc_id).await {
+        Ok(cover) => (
+            ([
+                (CONTENT_TYPE, "image/jpeg"),
+                (CACHE_CONTROL, "public, max-age=31536000"),
+            ]),
+            StreamBody::new(ReaderStream::new(cover)),
+        )
+            .into_response(),
+        Err(_) => (StatusCode::NOT_FOUND, [(CACHE_CONTROL, "private")]).into_response(),
+    }
 }
