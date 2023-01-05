@@ -4,6 +4,10 @@ version = "0.1.0"
 authors = ["Yesterday17 <mmf@mmf.moe>"]
 edition = "2021"
 
+description = "A basic implementation of annil protocol."
+repository = "https://github.com/ProjectAnni/anni"
+license = "Apache-2.0"
+
 [dependencies]
 axum = "0.6.1"
 tower-http = { version = "0.3.5", features = ["cors"] }
