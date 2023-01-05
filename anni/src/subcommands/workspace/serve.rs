@@ -42,6 +42,7 @@ pub async fn handle_workspace_serve(this: WorkspaceServeAction) -> anyhow::Resul
         version: "0.0.1-SNAPSHOT".to_string(),
         last_update: Default::default(),
         etag: Default::default(),
+        metadata: None,
     };
     let annil_provider = AnnilProvider::new(NoCacheStrictLocalProvider {
         root: audio_root,
