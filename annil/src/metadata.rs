@@ -1,5 +1,3 @@
-use anni_repo::db::RepoDatabaseRead;
-use anni_repo::{setup_git2, RepositoryManager};
 use serde::Deserialize;
 use std::path::PathBuf;
 
@@ -17,8 +15,11 @@ fn default_true() -> bool {
     true
 }
 
+#[cfg(feature = "metadata")]
 impl MetadataConfig {
     pub fn init(&self) -> anyhow::Result<PathBuf> {
+        use anni_repo::RepositoryManager;
+
         log::info!("Fetching metadata repository...");
 
         let repo_root = self.base.join("repo");
@@ -43,6 +44,7 @@ impl MetadataConfig {
     }
 
     pub fn into_db(self) -> LazyDb {
+        use anni_repo::setup_git2;
         // proxy settings
         if let Some(proxy) = &self.proxy {
             // if metadata.proxy is an empty string, do not use proxy
@@ -62,13 +64,15 @@ impl MetadataConfig {
     }
 }
 
+#[cfg(feature = "metadata")]
 pub struct LazyDb {
     metadata: MetadataConfig,
     db_path: Option<PathBuf>,
 }
 
+#[cfg(feature = "metadata")]
 impl LazyDb {
-    pub fn open(&mut self) -> anyhow::Result<RepoDatabaseRead> {
+    pub fn open(&mut self) -> anyhow::Result<anni_repo::db::RepoDatabaseRead> {
         let db = match self.db_path {
             Some(ref p) => p,
             None => {
@@ -76,6 +80,6 @@ impl LazyDb {
                 self.db_path.insert(p)
             }
         };
-        Ok(RepoDatabaseRead::new(db)?)
+        Ok(anni_repo::db::RepoDatabaseRead::new(db)?)
     }
 }

@@ -1,3 +1,4 @@
+use crate::WorkspaceError;
 use anni_common::fs;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -24,7 +25,7 @@ pub struct LibraryConfig {
 }
 
 impl WorkspaceConfig {
-    pub fn new<P>(root: P) -> anyhow::Result<Self>
+    pub fn new<P>(root: P) -> Result<Self, WorkspaceError>
     where
         P: AsRef<Path>,
     {

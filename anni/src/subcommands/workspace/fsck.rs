@@ -1,11 +1,8 @@
-use crate::workspace::utils::{
-    find_workspace_root, get_workspace_album_path, get_workspace_album_path_or_create,
-    scan_workspace,
-};
-use crate::workspace::WorkspaceAlbumState;
 use anni_common::fs;
+use anni_workspace::{AnniWorkspace, WorkspaceAlbumState};
 use clap::Args;
 use clap_handler::handler;
+use std::env::current_dir;
 
 #[derive(Args, Debug, Clone)]
 pub struct WorkspaceFsckAction {
@@ -17,16 +14,18 @@ pub struct WorkspaceFsckAction {
 
 #[handler(WorkspaceFsckAction)]
 fn handle_workspace_fsck(me: WorkspaceFsckAction) -> anyhow::Result<()> {
-    let root = find_workspace_root()?;
-    let dot_anni = root.join(".anni");
+    let workspace = AnniWorkspace::find(current_dir()?)?;
 
     if me.fix_dangling {
-        let albums = scan_workspace(&root)?;
+        let albums = workspace.scan()?;
         for album in albums {
             if let WorkspaceAlbumState::Dangling(album_path) = album.state {
                 let result: anyhow::Result<()> = try {
                     let dot_album = album_path.join(".album");
-                    let real_path = get_workspace_album_path_or_create(&dot_anni, &album.album_id)?;
+                    let real_path = workspace.strict_album_path(&album.album_id, 2);
+                    if !real_path.exists() {
+                        fs::create_dir_all(&real_path)?;
+                    }
                     fs::remove_file(&dot_album, false)?;
                     fs::symlink_dir(&real_path, &dot_album)?;
                 };
@@ -43,11 +42,11 @@ fn handle_workspace_fsck(me: WorkspaceFsckAction) -> anyhow::Result<()> {
     }
 
     if me.gc {
-        let albums = scan_workspace(&root)?;
+        let albums = workspace.scan()?;
         for album in albums {
             if let WorkspaceAlbumState::Garbage = album.state {
                 let result: anyhow::Result<()> = try {
-                    if let Some(real_path) = get_workspace_album_path(&dot_anni, &album.album_id) {
+                    if let Ok(real_path) = workspace.get_album_controlled_path(&album.album_id) {
                         // 1. remove garbage album directory
                         fs::remove_dir_all(&real_path, true)?;
 

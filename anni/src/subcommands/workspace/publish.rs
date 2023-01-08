@@ -1,12 +1,11 @@
 use crate::subcommands::workspace::update::WorkspaceUpdateAction;
-use crate::subcommands::workspace::WorkspaceAlbumState;
-use crate::workspace::utils::*;
 use anni_common::fs;
 use anni_provider::strict_album_path;
-use anni_repo::library::file_name;
+use anni_workspace::{AnniWorkspace, WorkspaceAlbumState};
 use clap::Args;
 use clap_handler::handler;
 use std::collections::HashMap;
+use std::env::current_dir;
 use std::path::PathBuf;
 
 #[derive(Args, Debug, Clone)]
@@ -25,9 +24,8 @@ pub struct WorkspacePublishAction {
 
 #[handler(WorkspacePublishAction)]
 pub async fn handle_workspace_publish(mut me: WorkspacePublishAction) -> anyhow::Result<()> {
-    let root = find_workspace_root()?;
-    let dot_anni = find_dot_anni()?;
-    let config = super::config::WorkspaceConfig::new(&dot_anni)?;
+    let workspace = AnniWorkspace::find(current_dir()?)?;
+    let config = workspace.get_config()?;
 
     let publish_to = config
         .publish_to()
@@ -38,7 +36,7 @@ pub async fn handle_workspace_publish(mut me: WorkspacePublishAction) -> anyhow:
     }
 
     let map = if me.parse_path_as_uuid {
-        let scan_result = scan_workspace(&root)?;
+        let scan_result = workspace.scan()?;
         let mut map = HashMap::new();
         for album in scan_result.into_iter() {
             if let WorkspaceAlbumState::Committed(album_path) = album.state {
@@ -96,13 +94,13 @@ pub async fn handle_workspace_publish(mut me: WorkspacePublishAction) -> anyhow:
             update.run().await?;
         }
 
-        let album_path = get_workspace_album_real_path(&dot_anni, &path)?;
-        let album_id = file_name(&album_path)?;
+        let album_id = workspace.get_album_id(&path)?;
+        let album_path = workspace.get_album_controlled_path(&album_id)?;
 
         if let Some(layers) = publish_to.layers {
             // publish as strict
             // 1. get destination path
-            let result_path = strict_album_path(&publish_to.path, &album_id, layers);
+            let result_path = strict_album_path(&publish_to.path, &album_id.to_string(), layers);
             let result_parent = result_path.parent().expect("Invalid path");
             // 2. create parent directory
             if !result_parent.exists() {

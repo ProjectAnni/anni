@@ -1,10 +1,12 @@
-use crate::workspace::utils::find_dot_anni;
 use anni_common::fs;
-use anni_provider::strict_album_path;
+use anni_workspace::AnniWorkspace;
 use clap::Args;
 use clap_handler::handler;
+use std::env::current_dir;
 use std::num::NonZeroU8;
 use std::path::PathBuf;
+use std::str::FromStr;
+use uuid::Uuid;
 
 #[derive(Args, Debug, Clone)]
 pub struct WorkspaceCreateAction {
@@ -22,11 +24,12 @@ pub struct WorkspaceCreateAction {
 
 #[handler(WorkspaceCreateAction)]
 fn handle_workspace_create(me: WorkspaceCreateAction) -> anyhow::Result<()> {
-    let root = find_dot_anni()?;
+    let workspace = AnniWorkspace::find(current_dir()?)?;
 
     let album_id = me
         .album_id
-        .unwrap_or_else(|| uuid::Uuid::new_v4().to_string());
+        .and_then(|a| Uuid::from_str(&a).ok())
+        .unwrap_or_else(|| Uuid::new_v4());
     let disc_num = me.disc_num.get();
 
     // 1. check whether the target path exists
@@ -39,10 +42,7 @@ fn handle_workspace_create(me: WorkspaceCreateAction) -> anyhow::Result<()> {
     }
 
     // 2. create directory in .anni/objects
-    let anni_album_path = strict_album_path(&root.join("objects"), &album_id, 2);
-    if anni_album_path.exists() {
-        anyhow::bail!("Album with the same album id already exists");
-    }
+    let anni_album_path = workspace.get_album_controlled_path(&album_id)?;
     fs::create_dir_all(&anni_album_path)?;
 
     // 3. create directory in userland

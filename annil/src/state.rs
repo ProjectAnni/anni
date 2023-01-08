@@ -23,6 +23,5 @@ pub struct AnnilState {
     pub last_update: RwLock<u64>,
     pub etag: RwLock<String>,
 
-    #[cfg(feature = "metadata")]
     pub metadata: Option<crate::metadata::MetadataConfig>,
 }

@@ -1,8 +1,9 @@
-use crate::workspace::utils::{do_get_album_id, find_dot_anni, get_workspace_album_path};
 use anni_common::fs::{self, remove_dir_all};
+use anni_workspace::AnniWorkspace;
 use clap::Args;
 use clap_handler::handler;
 use inquire::Confirm;
+use std::env::current_dir;
 use std::fs::create_dir_all;
 use std::path::{Path, PathBuf};
 
@@ -42,10 +43,11 @@ fn recover_symlinks<P: AsRef<Path>>(path: P) -> anyhow::Result<()> {
 
 #[handler(WorkspaceRmAction)]
 pub async fn handle_workspace_rm(me: WorkspaceRmAction) -> anyhow::Result<()> {
-    let dot_anni = find_dot_anni()?;
-    let album_id = do_get_album_id(&me.path)?;
-    let album_path =
-        get_workspace_album_path(&dot_anni, &album_id).expect("Failed to get album path");
+    let workspace = AnniWorkspace::find(current_dir()?)?;
+    let album_id = workspace.get_album_id(&me.path)?;
+    let album_path = workspace
+        .get_album_controlled_path(&album_id)
+        .expect("Failed to get album path");
 
     if !me.skip_check {
         match Confirm::new(&format!("Are you going to remove album {album_id}?"))

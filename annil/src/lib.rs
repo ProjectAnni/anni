@@ -4,7 +4,6 @@ pub mod route;
 pub mod state;
 pub mod utils;
 
-#[cfg(feature = "metadata")]
 pub mod metadata;
 
 pub mod error {

@@ -1,10 +1,11 @@
-use crate::subcommands::workspace::utils::find_dot_anni;
 use anni_provider::providers::NoCacheStrictLocalProvider;
+use anni_workspace::AnniWorkspace;
 use annil::provider::AnnilProvider;
 use annil::route::user;
 use annil::state::{AnnilKeys, AnnilState};
 use axum::routing::get;
 use axum::{Extension, Router, Server};
+use std::env::current_dir;
 use std::net::SocketAddr;
 use std::sync::Arc;
 
@@ -34,9 +35,9 @@ pub struct WorkspaceServeAction {
 
 #[handler(WorkspaceServeAction)]
 pub async fn handle_workspace_serve(this: WorkspaceServeAction) -> anyhow::Result<()> {
-    let root = find_dot_anni()?;
-    let _repo_root = root.join("repo");
-    let audio_root = root.join("objects");
+    let workspace = AnniWorkspace::find(current_dir()?)?;
+    let _repo_root = workspace.repo_root();
+    let audio_root = workspace.objects_root();
 
     let annil_state = AnnilState {
         version: "0.0.1-SNAPSHOT".to_string(),

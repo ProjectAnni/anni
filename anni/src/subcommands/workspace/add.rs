@@ -1,20 +1,18 @@
 use crate::ll;
-use crate::workspace::utils::{
-    find_dot_anni, get_workspace_album_real_path, get_workspace_repository_manager,
-};
 use anni_common::fs;
 use anni_flac::error::FlacError;
 use anni_repo::library::{file_name, AlbumFolderInfo};
 use anni_repo::prelude::*;
+use anni_workspace::AnniWorkspace;
 use anyhow::bail;
 use clap::Args;
 use clap_handler::handler;
 use colored::Colorize;
 use inquire::Confirm;
 use ptree::TreeBuilder;
+use std::env::current_dir;
 use std::path::PathBuf;
 use std::str::FromStr;
-use uuid::Uuid;
 
 #[derive(Args, Debug, Clone)]
 pub struct WorkspaceAddAction {
@@ -38,7 +36,7 @@ pub struct WorkspaceAddAction {
 #[handler(WorkspaceAddAction)]
 fn handle_workspace_add(me: WorkspaceAddAction) -> anyhow::Result<()> {
     // validate workspace structure
-    let dot_anni = find_dot_anni()?;
+    let workspace = AnniWorkspace::find(current_dir()?)?;
 
     // validate album path
     let album_path = me.path.join(".album");
@@ -54,9 +52,7 @@ fn handle_workspace_add(me: WorkspaceAddAction) -> anyhow::Result<()> {
     }
 
     // get album id
-    let album_real_path = get_workspace_album_real_path(&dot_anni, &me.path)?;
-    let album_id = file_name(&album_real_path)?;
-    let album_id = Uuid::from_str(&album_id)?;
+    let album_id = workspace.get_album_id(&me.path)?;
 
     // validate album cover
     let album_cover = me.path.join("cover.jpg");
@@ -209,7 +205,7 @@ fn handle_workspace_add(me: WorkspaceAddAction) -> anyhow::Result<()> {
     // import tags if necessary
     if me.import_tags {
         // import tag from 'strict' album directory
-        let repo = get_workspace_repository_manager(&dot_anni)?;
+        let repo = workspace.to_repository_manager()?;
         let folder_name = file_name(&me.path)?;
         let AlbumFolderInfo {
             release_date,

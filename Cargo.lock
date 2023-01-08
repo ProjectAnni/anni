@@ -73,6 +73,7 @@ dependencies = [
  "anni-provider",
  "anni-repo",
  "anni-vgmdb",
+ "anni-workspace",
  "annil",
  "anyhow",
  "axum",
@@ -228,6 +229,18 @@ dependencies = [
  "reqwest",
  "select",
  "thiserror",
+]
+
+[[package]]
+name = "anni-workspace"
+version = "0.1.0"
+dependencies = [
+ "anni-common",
+ "anni-repo",
+ "serde",
+ "thiserror",
+ "toml_edit",
+ "uuid",
 ]
 
 [[package]]
