@@ -234,15 +234,19 @@ pub enum ProviderError {
     #[error(transparent)]
     IOError(#[from] std::io::Error),
 
+    #[cfg(feature = "repo")]
     #[error(transparent)]
     RepoError(#[from] anni_repo::error::Error),
 
+    #[cfg(feature = "drive")]
     #[error(transparent)]
     OAuthError(#[from] anni_google_drive3::oauth2::Error),
 
+    #[cfg(feature = "drive")]
     #[error(transparent)]
     DriveError(#[from] anni_google_drive3::Error),
 
+    #[cfg(feature = "proxy")]
     #[error(transparent)]
     RequestError(#[from] reqwest::Error),
 
@@ -262,4 +266,31 @@ pub fn strict_album_path(root: &PathBuf, album_id: &str, layer: usize) -> PathBu
         });
     }
     res.join(album_id)
+}
+
+
+pub(crate) fn content_range_to_range(content_range: Option<&str>) -> Range {
+    match content_range {
+        Some(content_range) => {
+            // if content range header is invalid, return the full range
+            if content_range.len() <= 6 {
+                return Range::FULL;
+            }
+
+            // else, parse the range
+            // Content-Range: bytes 0-1023/10240
+            //                      | offset = 6
+            let content_range = &content_range[6..];
+            let (from, content_range) =
+                content_range.split_once('-').unwrap_or((content_range, ""));
+            let (to, total) = content_range.split_once('/').unwrap_or((content_range, ""));
+
+            Range {
+                start: from.parse().unwrap_or(0),
+                end: to.parse().ok(),
+                total: total.parse().ok(),
+            }
+        }
+        None => Range::FULL,
+    }
 }

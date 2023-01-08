@@ -15,7 +15,7 @@ byteorder = "1"
 num-traits = "0.2"
 num-derive = "0.3"
 image = "0.24"
-tokio = { version = "1", optional = true }
+tokio = { version = "1", features = ["io-util"], optional = true }
 async-trait = { version = "0.1", optional = true }
 log = "0.4"
 

@@ -1,4 +1,4 @@
-use crate::providers::drive::content_range_to_range;
+use crate::common::content_range_to_range;
 use crate::{AnniProvider, AudioInfo, AudioResourceReader, ProviderError, Range, ResourceReader};
 use async_trait::async_trait;
 use futures::TryStreamExt;
