@@ -238,15 +238,15 @@ pub enum ProviderError {
     #[error(transparent)]
     RepoError(#[from] anni_repo::error::Error),
 
-    #[cfg(feature = "drive")]
+    #[cfg(feature = "anni-google-drive3")]
     #[error(transparent)]
     OAuthError(#[from] anni_google_drive3::oauth2::Error),
 
-    #[cfg(feature = "drive")]
+    #[cfg(feature = "anni-google-drive3")]
     #[error(transparent)]
     DriveError(#[from] anni_google_drive3::Error),
 
-    #[cfg(feature = "proxy")]
+    #[cfg(feature = "reqwest")]
     #[error(transparent)]
     RequestError(#[from] reqwest::Error),
 
