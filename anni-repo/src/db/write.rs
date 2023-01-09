@@ -60,7 +60,7 @@ CREATE TABLE IF NOT EXISTS "repo_track" (
 CREATE TABLE IF NOT EXISTS "repo_tag" (
   "tag_id"      INTEGER NOT NULL UNIQUE,
   "name"        TEXT NOT NULL UNIQUE,
-  "tag_type"    TEXT NOT NULL DEFAULT 'default' CHECK("tag_type" IN ('artist', 'group', 'animation', 'series', 'project', 'game', 'organization', 'default', 'category')),
+  "tag_type"    TEXT NOT NULL DEFAULT 'unknown' CHECK("tag_type" IN ('artist', 'group', 'animation', 'radio', 'series', 'project', 'game', 'organization', 'unknown', 'category')),
   PRIMARY KEY("tag_id" AUTOINCREMENT)
 );
 
