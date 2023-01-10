@@ -216,16 +216,16 @@ impl AnniWorkspace {
     /// - Directory at `path` is an album directory
     pub fn create_album<P>(
         &self,
-        album_id: Uuid,
+        album_id: &Uuid,
         userland_path: P,
         discs: NonZeroU8,
     ) -> Result<(), WorkspaceError>
     where
         P: AsRef<Path>,
     {
-        let controlled_path = self.strict_album_path(&album_id, 2);
+        let controlled_path = self.strict_album_path(album_id, 2);
         if controlled_path.exists() {
-            return Err(WorkspaceError::DuplicatedAlbumId(album_id));
+            return Err(WorkspaceError::DuplicatedAlbumId(*album_id));
         }
 
         if let Ok(album_id) = self.get_album_id(userland_path.as_ref()) {

@@ -1,4 +1,3 @@
-use anni_common::fs;
 use anni_workspace::AnniWorkspace;
 use clap::Args;
 use clap_handler::handler;
@@ -30,9 +29,8 @@ fn handle_workspace_create(me: WorkspaceCreateAction) -> anyhow::Result<()> {
         .album_id
         .and_then(|a| Uuid::from_str(&a).ok())
         .unwrap_or_else(|| Uuid::new_v4());
-    let disc_num = me.disc_num.get();
 
-    // 1. check whether the target path exists
+    // check whether the target path exists
     let user_album_path = match me.name {
         Some(name) => me.path.join(name),
         None => me.path,
@@ -41,24 +39,7 @@ fn handle_workspace_create(me: WorkspaceCreateAction) -> anyhow::Result<()> {
         bail!("Target path already exists");
     }
 
-    // 2. create directory in .anni/objects
-    let anni_album_path = workspace.get_album_controlled_path(&album_id)?;
-    fs::create_dir_all(&anni_album_path)?;
-
-    // 3. create directory in userland
-    fs::create_dir_all(&user_album_path)?;
-    fs::symlink_dir(&anni_album_path, &user_album_path.join(".album"))?;
-
-    // 4. create disc directories
-    if disc_num == 1 {
-        // if there's only one disc, it's not necessary to create nested disc directories
-    } else {
-        // else, more discs, more directories
-        for i in 1..=disc_num {
-            let disc_path = user_album_path.join(format!("Disc {}", i));
-            fs::create_dir_all(&disc_path)?;
-        }
-    }
+    workspace.create_album(&album_id, &user_album_path, me.disc_num)?;
 
     Ok(())
 }
