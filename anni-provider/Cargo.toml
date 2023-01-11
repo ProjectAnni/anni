@@ -36,7 +36,8 @@ features = ["json", "rustls-tls", "stream"]
 optional = true
 
 [features]
-default = ["convention", "drive", "proxy", "strict"]
+default = ["full"]
+full = ["convention", "drive", "proxy", "strict"]
 convention = ["repo"]
 drive = ["repo", "anni-google-drive3"]
 proxy = ["reqwest"]
