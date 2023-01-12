@@ -1,5 +1,9 @@
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
-use std::fmt::{Display, Formatter};
+use std::{
+    fmt::{Display, Formatter},
+    num::ParseIntError,
+    str::FromStr,
+};
 use toml_edit::easy::Value;
 
 #[derive(PartialEq, Eq, Debug, Clone)]
@@ -57,22 +61,29 @@ impl<'de> Deserialize<'de> for AnniDate {
                 let split = date.split('-').collect::<Vec<_>>();
                 Self::from_parts(split[0], split[1], split[2])
             }
-            Value::String(date) => {
-                // yyyy-mm-dd
-                let parts = date.split('-').collect::<Vec<_>>();
-                if parts.len() == 1 {
-                    Self::from_parts(parts[0], "0", "0")
-                } else if parts.len() == 2 {
-                    Self::from_parts(parts[0], parts[1], "0")
-                } else {
-                    Self::from_parts(parts[0], parts[1], parts[2])
-                }
-            }
+            Value::String(date) => Self::from_str(&date),
             _ => {
                 return Err(de::Error::custom("Invalid date format"));
             }
-        };
+        }
+        .map_err(|_| de::Error::custom("Invalid date format"))?;
         Ok(result)
+    }
+}
+
+impl FromStr for AnniDate {
+    type Err = ParseIntError;
+
+    fn from_str(date: &str) -> Result<Self, Self::Err> {
+        // yyyy-mm-dd
+        let parts = date.split('-').collect::<Vec<_>>();
+        Ok(if parts.len() == 1 {
+            Self::from_parts(parts[0], "0", "0")?
+        } else if parts.len() == 2 {
+            Self::from_parts(parts[0], parts[1], "0")?
+        } else {
+            Self::from_parts(parts[0], parts[1], parts[2])?
+        })
     }
 }
 
@@ -85,9 +96,7 @@ impl AnniDate {
         }
     }
 
-    pub fn from_parts(y: &str, m: &str, d: &str) -> Self {
-        use std::str::FromStr;
-
+    pub fn from_parts(y: &str, m: &str, d: &str) -> Result<Self, ParseIntError> {
         let year_offset = if y.len() == 2 {
             // In August 1982, the first compact disc was manufactured.
             // It was then released in October 1982 and branded as Digital Audio Compact Disc.
@@ -100,11 +109,11 @@ impl AnniDate {
         } else {
             0
         };
-        Self::new(
-            year_offset + u16::from_str(y).unwrap(),
-            u8::from_str(m).unwrap_or(0),
-            u8::from_str(d).unwrap_or(0),
-        )
+        Ok(Self::new(
+            year_offset + u16::from_str(y)?,
+            u8::from_str(m)?,
+            u8::from_str(d)?,
+        ))
     }
 }
 
@@ -128,25 +137,25 @@ mod tests {
     fn test_date() {
         use super::*;
 
-        let date = AnniDate::from_parts("19", "01", "30");
+        let date = AnniDate::from_parts("19", "01", "30").unwrap();
         assert_eq!(date.year, 2019);
         assert_eq!(date.month, 1);
         assert_eq!(date.day, 30);
         assert_eq!(date.to_string(), "2019-01-30");
 
         // though there's no cd released in 201-AD
-        let date = AnniDate::from_parts("201", "1", "31");
+        let date = AnniDate::from_parts("201", "1", "31").unwrap();
         assert_eq!(date.year, 201);
         assert_eq!(date.month, 1);
         assert_eq!(date.day, 31);
         assert_eq!(date.to_string(), "201-01-31");
 
-        let date = AnniDate::from_parts("1919", "08", "10");
+        let date = AnniDate::from_parts("1919", "08", "10").unwrap();
         assert_eq!(date.year, 1919);
         assert_eq!(date.month, 8);
         assert_eq!(date.day, 10);
 
-        let date = AnniDate::from_parts("1982", "08", "10");
+        let date = AnniDate::from_parts("1982", "08", "10").unwrap();
         assert_eq!(date.year, 1982);
         assert_eq!(date.month, 8);
         assert_eq!(date.day, 10);

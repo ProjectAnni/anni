@@ -2,46 +2,7 @@ use anni_repo::prelude::*;
 use std::str::FromStr;
 
 fn album_from_str() -> Album {
-    Album::from_str(
-        r#"
-[album]
-album_id = "15006392-e2ae-4204-b7db-e59211f3cdcf"
-title = "夏凪ぎ／宝物になった日"
-edition = "Test"
-artist = "やなぎなぎ"
-date = 2020-12-16
-type = "normal"
-catalog = "KSLA-0178"
-tags = ["tag1", "tag2"]
-
-[[discs]]
-catalog = "KSLA-0178"
-
-[[discs.tracks]]
-title = "夏凪ぎ"
-artist = "やなぎなぎ"
-
-[[discs.tracks]]
-title = "宝物になった日"
-
-[[discs.tracks]]
-title = "夏凪ぎ(Episode 9 Ver.)"
-
-[[discs.tracks]]
-title = "宝物になった日(Episode 5 Ver.)"
-
-[[discs.tracks]]
-title = "夏凪ぎ(Instrumental)"
-artist = "麻枝准"
-type = "instrumental"
-
-[[discs.tracks]]
-title = "宝物になった日(Instrumental)"
-artist = "麻枝准"
-type = "instrumental"
-"#,
-    )
-    .expect("Failed to parse album toml.")
+    Album::from_str(include_str!("test-album.toml")).expect("Failed to parse album toml.")
 }
 
 #[test]
@@ -325,46 +286,5 @@ artist = "Artist1"
 #[test]
 fn serialize_album() {
     let mut album = album_from_str();
-    assert_eq!(
-        album.format_to_string(),
-        r#"[album]
-album_id = "15006392-e2ae-4204-b7db-e59211f3cdcf"
-title = "夏凪ぎ／宝物になった日"
-edition = "Test"
-artist = "やなぎなぎ"
-date = 2020-12-16
-type = "normal"
-catalog = "KSLA-0178"
-tags = [
-    "tag1",
-    "tag2",
-]
-
-[[discs]]
-catalog = "KSLA-0178"
-
-[[discs.tracks]]
-title = "夏凪ぎ"
-artist = "やなぎなぎ"
-
-[[discs.tracks]]
-title = "宝物になった日"
-
-[[discs.tracks]]
-title = "夏凪ぎ(Episode 9 Ver.)"
-
-[[discs.tracks]]
-title = "宝物になった日(Episode 5 Ver.)"
-
-[[discs.tracks]]
-title = "夏凪ぎ(Instrumental)"
-artist = "麻枝准"
-type = "instrumental"
-
-[[discs.tracks]]
-title = "宝物になった日(Instrumental)"
-artist = "麻枝准"
-type = "instrumental"
-"#
-    );
+    assert_eq!(album.format_to_string(), include_str!("test-album.toml"));
 }

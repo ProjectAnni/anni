@@ -61,7 +61,8 @@ impl FromStr for AlbumFolderInfo {
                 r.get(1).unwrap().as_str(),
                 r.get(2).unwrap().as_str(),
                 r.get(3).unwrap().as_str(),
-            ),
+            )
+            .map_err(|_| InfoParseError::InvalidDateTime)?,
             catalog: r.get(4).unwrap().as_str().replace('/', "／"),
             title: r.get(5).unwrap().as_str().replace('/', "／"),
             edition: r.get(6).map(|x| x.as_str().to_string()),
@@ -154,7 +155,7 @@ mod tests {
         assert_eq!(
             AlbumFolderInfo::from_str("[200102][CATA-001] TITLE").unwrap(),
             AlbumFolderInfo {
-                release_date: AnniDate::from_parts("2020", "01", "02"),
+                release_date: AnniDate::from_parts("2020", "01", "02").unwrap(),
                 catalog: "CATA-001".to_string(),
                 title: "TITLE".to_string(),
                 edition: None,
@@ -164,7 +165,7 @@ mod tests {
         assert_eq!(
             AlbumFolderInfo::from_str("[200102][CATA-001] TITLE [2 Discs").unwrap(),
             AlbumFolderInfo {
-                release_date: AnniDate::from_parts("2020", "01", "02"),
+                release_date: AnniDate::from_parts("2020", "01", "02").unwrap(),
                 catalog: "CATA-001".to_string(),
                 title: "TITLE [2 Discs".to_string(),
                 edition: None,
@@ -174,7 +175,7 @@ mod tests {
         assert_eq!(
             AlbumFolderInfo::from_str("[200102][CATA-001] TITLE [2 Discs]").unwrap(),
             AlbumFolderInfo {
-                release_date: AnniDate::from_parts("2020", "01", "02"),
+                release_date: AnniDate::from_parts("2020", "01", "02").unwrap(),
                 catalog: "CATA-001".to_string(),
                 title: "TITLE".to_string(),
                 edition: None,

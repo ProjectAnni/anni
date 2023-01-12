@@ -42,7 +42,7 @@ async fn search_album(keyword: &str) -> anyhow::Result<Album> {
             split[0],
             split.get(1).unwrap_or(&"0"),
             split.get(2).unwrap_or(&"0"),
-        )
+        )?
     };
 
     let discs = album_got

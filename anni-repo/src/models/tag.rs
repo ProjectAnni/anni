@@ -103,7 +103,7 @@ impl<'tag> Borrow<TagRef<'tag>> for TagString {
 /// Formatted by `<edition>:<name>`
 ///
 /// TODO: remove this type
-#[derive(Debug, Eq)]
+#[derive(Debug, Eq, Clone)]
 pub struct TagString(pub(crate) TagRef<'static>);
 
 impl TagString {

@@ -1,5 +1,8 @@
 use crate::{args::ActionFile, ll};
-use anni_repo::{prelude::TagRef, OwnedRepositoryManager, RepositoryManager};
+use anni_repo::{
+    prelude::{JsonAlbum, TagRef},
+    OwnedRepositoryManager, RepositoryManager,
+};
 use clap::{crate_version, ArgAction, Args, ValueEnum};
 use clap_handler::handler;
 use ptree::TreeBuilder;
@@ -107,7 +110,7 @@ FILE "{filename}" WAVE
                     }
                     RepoPrintType::Json => {
                         let album = manager.album(&album_id).expect("Album not found!");
-                        let album: serde_json::Value = album.into();
+                        let album = JsonAlbum::from(album.clone());
                         serde_json::to_string(&album)?
                     }
                     _ => unreachable!(),
@@ -118,8 +121,8 @@ FILE "{filename}" WAVE
                 match me.print_type {
                     RepoPrintType::Toml => toml::to_string_pretty(&album[0])?,
                     RepoPrintType::Json => {
-                        let album: serde_json::Value =
-                            album.get(0).expect("Album not found!").into();
+                        let album = album.get(0).expect("Album not found!");
+                        let album = JsonAlbum::from(album.clone());
                         serde_json::to_string(&album)?
                     }
                     _ => unreachable!(),
