@@ -1,4 +1,5 @@
 use serde::Serialize;
+use std::path::PathBuf;
 use uuid::Uuid;
 
 #[derive(Debug, Serialize)]
@@ -16,14 +17,17 @@ pub enum WorkspaceAlbumState {
     // Normal states
     /// `Untracked` album directory.
     /// Controlled part of the album directory is empty.
-    Untracked(std::path::PathBuf),
+    Untracked(PathBuf),
     /// `Committed` album directory.
     /// Controlled part of the album directory is not empty, and User part contains symlinks to the actual file.
-    Committed(std::path::PathBuf),
+    Committed(PathBuf),
+    /// `Published` album directory.
+    /// Controlled part of the album directory is not empty, and `.publish` file exists.
+    Published,
 
     // Error states
     /// User part of an album exists, but controlled part does not exist, or the symlink is broken.
-    Dangling(std::path::PathBuf),
+    Dangling(PathBuf),
     /// User part of an album does not exist, and controlled part is empty.
     Garbage,
 }

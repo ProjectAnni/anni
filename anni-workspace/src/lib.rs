@@ -199,9 +199,14 @@ impl AnniWorkspace {
                 } else {
                     let album_id = file_name(&path)?;
                     let album_id = Uuid::from_str(&album_id)?;
+                    let is_published = path.join(".publish").exists();
                     albums.entry(album_id).or_insert_with(|| WorkspaceAlbum {
                         album_id,
-                        state: WorkspaceAlbumState::Garbage,
+                        state: if is_published {
+                            WorkspaceAlbumState::Published
+                        } else {
+                            WorkspaceAlbumState::Garbage
+                        },
                     });
                 }
             }

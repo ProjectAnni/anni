@@ -230,3 +230,20 @@ pub fn symlink_dir<P: AsRef<Path>, Q: AsRef<Path>>(from: P, to: Q) -> io::Result
 pub fn path_diff<P: AsRef<Path>, Q: AsRef<Path>>(path: P, base: Q) -> io::Result<PathBuf> {
     Ok(pathdiff::diff_paths(path.as_ref().absolutize()?, base.as_ref().absolutize()?).unwrap())
 }
+
+pub fn copy_dir<P1: AsRef<Path>, P2: AsRef<Path>>(from: P1, to: P2) -> io::Result<()> {
+    create_dir(to.as_ref())?;
+
+    for entry in read_dir(from)? {
+        let entry = entry?;
+        let file_type = entry.file_type()?;
+        let target = to.as_ref().join(entry.file_name());
+        if file_type.is_file() {
+            copy(entry.path(), target)?;
+        } else if file_type.is_dir() {
+            copy_dir(entry.path(), target)?;
+        }
+    }
+
+    Ok(())
+}

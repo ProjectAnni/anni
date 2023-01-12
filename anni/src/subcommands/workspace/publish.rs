@@ -18,6 +18,9 @@ pub struct WorkspacePublishAction {
     #[clap(short = 'u', long = "uuid")]
     parse_path_as_uuid: bool,
 
+    #[clap(long)]
+    soft: bool,
+
     // publish_to: Option<PathBuf>,
     path: Vec<PathBuf>,
 }
@@ -106,8 +109,16 @@ pub async fn handle_workspace_publish(mut me: WorkspacePublishAction) -> anyhow:
             if !result_parent.exists() {
                 fs::create_dir_all(&result_parent)?;
             }
-            // 3. move album
-            fs::rename(&album_path, &result_path)?;
+            // 3. move/copy album
+            if me.soft {
+                // copy the whole album
+                fs::copy_dir(&album_path, &result_path)?;
+                // add soft published mark
+                fs::write(album_path.join(".publish"), "")?;
+            } else {
+                // move directory
+                fs::rename(&album_path, &result_path)?;
+            }
             // 4. clean album folder
             fs::remove_dir_all(&path, true)?; // TODO: add an option to disable trash feature
         } else {
