@@ -46,6 +46,14 @@ pub struct JsonAlbumInfo {
     pub tags: Vec<TagString>,
 }
 
+impl FromStr for JsonAlbum {
+    type Err = serde_json::Error;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        serde_json::from_str(s)
+    }
+}
+
 impl From<Album> for JsonAlbum {
     fn from(album: Album) -> JsonAlbum {
         let AlbumInfo {
