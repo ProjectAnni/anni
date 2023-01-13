@@ -22,7 +22,7 @@ pub mod error {
     impl IntoResponse for AnnilError {
         fn into_response(self) -> Response {
             match self {
-                AnnilError::Unauthorized => StatusCode::FORBIDDEN,
+                AnnilError::Unauthorized => StatusCode::UNAUTHORIZED,
                 AnnilError::NotFound => StatusCode::NOT_FOUND,
             }
             .into_response()
