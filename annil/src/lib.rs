@@ -15,6 +15,8 @@ pub mod error {
     pub enum AnnilError {
         #[error("unauthorized")]
         Unauthorized,
+        #[error("unknown path")]
+        UnknownPath,
         #[error("not found")]
         NotFound,
     }
@@ -23,6 +25,7 @@ pub mod error {
         fn into_response(self) -> Response {
             match self {
                 AnnilError::Unauthorized => StatusCode::UNAUTHORIZED,
+                AnnilError::UnknownPath => StatusCode::FORBIDDEN,
                 AnnilError::NotFound => StatusCode::NOT_FOUND,
             }
             .into_response()
