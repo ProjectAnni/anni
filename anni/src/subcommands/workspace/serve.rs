@@ -59,8 +59,8 @@ pub async fn handle_workspace_serve(this: WorkspaceServeAction) -> anyhow::Resul
             "/:album_id/:disc_id/:track_id",
             get(user::audio::<Provider>).head(user::audio_head::<Provider>),
         )
-        .route("/cover/:album_id", get(user::cover::<Provider>))
-        .route("/cover/:album_id/:disc_id", get(user::cover::<Provider>))
+        .route("/:album_id/cover", get(user::cover::<Provider>))
+        .route("/:album_id/:disc_id/cover", get(user::cover::<Provider>))
         .layer(Extension(Arc::new(annil_state)))
         .layer(Extension(Arc::new(annil_provider)))
         .layer(Extension(Arc::new(annil_keys)));
