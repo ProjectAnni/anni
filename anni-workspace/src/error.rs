@@ -25,7 +25,7 @@ pub enum WorkspaceError {
     AlbumNotFound(Uuid),
 
     #[error(transparent)]
-    DeserializeError(#[from] toml_edit::de::Error),
+    DeserializeError(#[from] toml::de::Error),
 
     #[error(transparent)]
     InvalidUuid(#[from] uuid::Error),

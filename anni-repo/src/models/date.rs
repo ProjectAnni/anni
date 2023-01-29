@@ -4,7 +4,7 @@ use std::{
     num::ParseIntError,
     str::FromStr,
 };
-use toml_edit::easy::Value;
+use toml::Value;
 
 #[derive(PartialEq, Eq, Debug, Clone)]
 pub struct AnniDate {

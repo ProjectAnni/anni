@@ -6,7 +6,7 @@ use std::fmt::{Debug, Display, Formatter};
 use std::hash::{Hash, Hasher};
 use std::ops::Deref;
 use std::str::FromStr;
-use toml_edit::easy::Value;
+use toml::Value;
 
 /// Simple reference to a tag with its name and edition.
 #[derive(Serialize, Deserialize, Clone, Debug, Hash, PartialEq, Eq)]
@@ -340,7 +340,7 @@ mod tests {
             tags: Vec<TagString>,
         }
 
-        let TestStruct { tags } = toml_edit::easy::from_str(
+        let TestStruct { tags } = toml::from_str(
             r#"
 tags = [
   "artist:123",

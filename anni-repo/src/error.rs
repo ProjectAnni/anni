@@ -6,7 +6,7 @@ pub enum Error {
     TomlParseError {
         target: &'static str,
         input: String,
-        err: toml_edit::easy::de::Error,
+        err: toml::de::Error,
     },
 
     #[error("album with the same catalog already exists: {0}")]

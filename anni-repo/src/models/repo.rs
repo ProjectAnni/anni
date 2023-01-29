@@ -1,7 +1,6 @@
 use crate::prelude::*;
 use serde::{Deserialize, Serialize};
 use std::str::FromStr;
-use toml_edit::easy as toml;
 
 #[derive(Serialize, Deserialize)]
 pub struct Repository {

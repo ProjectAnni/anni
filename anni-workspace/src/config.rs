@@ -30,7 +30,7 @@ impl WorkspaceConfig {
         P: AsRef<Path>,
     {
         let data = fs::read_to_string(root.as_ref().join("config.toml"))?;
-        Ok(toml_edit::easy::from_str(&data)?)
+        Ok(toml::from_str(&data)?)
     }
 
     pub fn publish_to(&self) -> Option<&LibraryConfig> {

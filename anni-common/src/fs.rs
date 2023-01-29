@@ -231,7 +231,11 @@ pub fn path_diff<P: AsRef<Path>, Q: AsRef<Path>>(path: P, base: Q) -> io::Result
     Ok(pathdiff::diff_paths(path.as_ref().absolutize()?, base.as_ref().absolutize()?).unwrap())
 }
 
-pub fn copy_dir<P1: AsRef<Path>, P2: AsRef<Path>>(from: P1, to: P2) -> io::Result<()> {
+pub fn copy_dir<P1, P2>(from: P1, to: P2) -> io::Result<()>
+where
+    P1: AsRef<Path>,
+    P2: AsRef<Path>,
+{
     create_dir(to.as_ref())?;
 
     for entry in read_dir(from)? {

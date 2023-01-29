@@ -6,7 +6,6 @@ use anni_repo::{
 use clap::{crate_version, ArgAction, Args, ValueEnum};
 use clap_handler::handler;
 use ptree::TreeBuilder;
-use toml_edit::easy as toml;
 use uuid::Uuid;
 
 #[derive(Args, Debug, Clone)]

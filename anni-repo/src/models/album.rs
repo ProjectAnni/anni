@@ -5,7 +5,6 @@ use std::borrow::Cow;
 use std::collections::{HashMap, HashSet};
 use std::ops::{Deref, DerefMut};
 use std::str::FromStr;
-use toml_edit::easy as toml;
 use uuid::Uuid;
 
 #[derive(Debug)]

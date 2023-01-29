@@ -4,7 +4,6 @@ use indexmap::IndexSet;
 use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
-use toml_edit::easy as toml;
 use uuid::Uuid;
 
 /// A simple repository visitor. Can perform simple operations on the repository.

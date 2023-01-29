@@ -128,7 +128,7 @@ mod test {
         let album = Album::from_str(text).unwrap();
         let album = JsonAlbum::from(album);
         let album = Album::try_from(album).unwrap();
-        let album_serialized_text = toml_edit::easy::to_string_pretty(&album).unwrap();
+        let album_serialized_text = toml::to_string_pretty(&album).unwrap();
         assert_eq!(text, album_serialized_text);
     }
 }

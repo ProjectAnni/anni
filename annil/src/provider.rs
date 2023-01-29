@@ -10,6 +10,9 @@ impl<T: AnniProvider + Send + Sync> AnnilProvider<T> {
     }
 
     pub async fn compute_etag(&self) -> Result<String, ProviderError> {
+        use base64::engine::general_purpose::STANDARD;
+        use base64::Engine;
+
         let provider = self.0.read().await;
 
         let mut etag = 0;
@@ -21,7 +24,7 @@ impl<T: AnniProvider + Send + Sync> AnnilProvider<T> {
             }
         }
 
-        Ok(format!(r#""{}""#, base64::encode(etag.to_be_bytes())))
+        Ok(format!(r#""{}""#, STANDARD.encode(etag.to_be_bytes())))
     }
 }
 
