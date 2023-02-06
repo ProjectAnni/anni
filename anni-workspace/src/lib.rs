@@ -40,7 +40,7 @@ impl AnniWorkspace {
                 return if config_path.exists() {
                     Ok(Self { dot_anni })
                 } else {
-                    Err(WorkspaceError::ConfigTomlNotFound(config_path))
+                    Err(WorkspaceError::ConfigNotFound(config_path))
                 };
             }
             path = path.parent().ok_or(WorkspaceError::WorkspaceNotFound)?;
@@ -111,6 +111,38 @@ impl AnniWorkspace {
         res
     }
 
+    /// Try to get `WorkspaceAlbum` from given path
+    pub fn get_workspace_album<P>(&self, path: P) -> Result<WorkspaceAlbum, WorkspaceError>
+    where
+        P: AsRef<Path>,
+    {
+        let album_id = self.get_album_id(path.as_ref())?;
+        let path = path.as_ref().to_path_buf();
+
+        // valid album_id, it's an album directory
+        let album_controlled_path = self.get_album_controlled_path(&album_id);
+        Ok(WorkspaceAlbum {
+            album_id,
+            state: match album_controlled_path {
+                Ok(controlled_path) => {
+                    if !path.join(".album").exists() {
+                        // symlink is broken
+                        WorkspaceAlbumState::Dangling(path)
+                    } else if fs::read_dir(controlled_path)?.next().is_some() {
+                        // controlled part is not empty
+                        WorkspaceAlbumState::Committed(path)
+                    } else {
+                        // controlled part is empty
+                        WorkspaceAlbumState::Untracked(path)
+                    }
+                }
+                // controlled part does not exist
+                Err(WorkspaceError::AlbumNotFound(_)) => WorkspaceAlbumState::Dangling(path),
+                _ => unreachable!(),
+            },
+        })
+    }
+
     /// Scan the whole workspace and return all available albums
     pub fn scan(&self) -> Result<Vec<WorkspaceAlbum>, WorkspaceError> {
         let mut albums = HashMap::new();
@@ -137,35 +169,10 @@ impl AnniWorkspace {
             let metadata = entry.metadata()?;
             if metadata.is_dir() {
                 // look for .album folder
-                match self.get_album_id(entry.path()) {
+                match self.get_workspace_album(entry.path()) {
                     // valid album_id, it's an album directory
-                    Ok(album_id) => {
-                        let album_controlled_path = self.get_album_controlled_path(&album_id);
-                        albums.insert(
-                            album_id,
-                            WorkspaceAlbum {
-                                album_id,
-                                state: match album_controlled_path {
-                                    Ok(controlled_path) => {
-                                        if !entry.path().join(".album").exists() {
-                                            // symlink is broken
-                                            WorkspaceAlbumState::Dangling(entry.path())
-                                        } else if fs::read_dir(controlled_path)?.next().is_some() {
-                                            // controlled part is not empty
-                                            WorkspaceAlbumState::Committed(entry.path())
-                                        } else {
-                                            // controlled part is empty
-                                            WorkspaceAlbumState::Untracked(entry.path())
-                                        }
-                                    }
-                                    // controlled part does not exist
-                                    Err(WorkspaceError::AlbumNotFound(_)) => {
-                                        WorkspaceAlbumState::Dangling(entry.path())
-                                    }
-                                    _ => unreachable!(),
-                                },
-                            },
-                        );
+                    Ok(album) => {
+                        albums.insert(album.album_id.clone(), album);
                     }
                     // symlink was not found, scan recursively
                     Err(WorkspaceError::NotAnAlbum(path)) => {
@@ -264,5 +271,155 @@ impl AnniWorkspace {
 
     pub fn get_config(&self) -> Result<WorkspaceConfig, WorkspaceError> {
         WorkspaceConfig::new(&self.dot_anni)
+    }
+}
+
+// add discs
+pub struct WorkspaceDisc {
+    pub index: usize,
+    pub path: PathBuf,
+    pub cover: PathBuf,
+    pub tracks: Vec<PathBuf>,
+}
+
+// Operations
+impl AnniWorkspace {
+    /// Add album to workspace
+    ///
+    /// `Untracked` -> `Committed`
+    pub fn commit<P, V>(&self, path: P, validator: Option<V>) -> Result<Uuid, WorkspaceError>
+    where
+        P: AsRef<Path>,
+        V: FnOnce(&[WorkspaceDisc]) -> bool,
+    {
+        let album = self.get_workspace_album(path.as_ref())?;
+        let album_path = match album.state {
+            // check current state of the album
+            WorkspaceAlbumState::Untracked(p) => p,
+            state => {
+                return Err(WorkspaceError::InvalidAlbumState(state));
+            }
+        };
+        let album_id = album.album_id;
+
+        // validate album lock
+        let lock = album_path.join(".album.lock");
+        if lock.exists() {
+            return Err(WorkspaceError::AlbumLocked(album_path));
+        }
+
+        // validate album cover
+        let album_cover = album_path.join("cover.jpg");
+        if !album_cover.exists() {
+            return Err(WorkspaceError::CoverNotFound(album_cover));
+        }
+
+        // iterate over me.path to find all discs
+        let flac_in_album_root = fs::get_ext_file(&album_path, "flac", false)?.is_some();
+        let mut discs = fs::get_subdirectories(&album_path)?;
+
+        // if there's only one disc, then there should be no sub directories, [true, true]
+        // if there are multiple discs, then there should be no flac files in the root directory, [false, false]
+        // other conditions are invalid
+        if flac_in_album_root ^ discs.is_empty() {
+            // both files and discs are empty, or both are not empty
+            return Err(WorkspaceError::InvalidAlbumDiscStructure(album_path));
+        }
+
+        // add album as disc if there's only one disc
+        if flac_in_album_root {
+            discs.push(album_path.clone());
+        }
+
+        alphanumeric_sort::sort_path_slice(&mut discs);
+        let discs = discs
+            .into_iter()
+            .enumerate()
+            .map(|(index, disc)| {
+                let index = index + 1;
+
+                // iterate over all flac files
+                let mut files = fs::read_dir(&disc)?
+                    .filter_map(|e| {
+                        e.ok().and_then(|e| {
+                            let path = e.path();
+                            if e.file_type().ok()?.is_file() {
+                                if let Some(ext) = path.extension() {
+                                    if ext == "flac" {
+                                        return Some(path);
+                                    }
+                                }
+                            }
+                            None
+                        })
+                    })
+                    .collect::<Vec<_>>();
+                alphanumeric_sort::sort_path_slice(&mut files);
+
+                let disc_cover = disc.join("cover.jpg");
+                if !disc_cover.exists() {
+                    return Err(WorkspaceError::CoverNotFound(disc_cover));
+                }
+
+                Ok(WorkspaceDisc {
+                    index,
+                    path: disc,
+                    cover: disc_cover,
+                    tracks: files,
+                })
+            })
+            .collect::<Result<Vec<_>, WorkspaceError>>()?;
+
+        if let Some(validator) = validator {
+            let pass = validator(&discs);
+            if !pass {
+                return Err(WorkspaceError::UserAborted);
+            }
+        }
+
+        // Add action
+        // 1. lock album
+        fs::File::create(&lock)?;
+
+        // 2. copy or move album cover
+        let album_controlled_path = self.get_album_controlled_path(&album_id)?;
+        let album_cover_controlled = album_controlled_path.join("cover.jpg");
+        if flac_in_album_root {
+            // cover might be used by discs, copy it
+            fs::copy(&album_cover, &album_cover_controlled)?;
+        } else {
+            // move directly
+            fs::rename(&album_cover, &album_cover_controlled)?;
+            fs::symlink_file(&album_cover_controlled, &album_cover)?;
+        }
+
+        // 3. move discs
+        for disc in discs.iter() {
+            let disc_controlled_path = album_controlled_path.join(disc.index.to_string());
+            fs::create_dir_all(&disc_controlled_path)?;
+
+            // move tracks
+            for (index, track_path) in disc.tracks.iter().enumerate() {
+                let index = index + 1;
+                let track_controlled_path = disc_controlled_path.join(format!("{index}.flac"));
+                fs::rename(track_path, &track_controlled_path)?;
+                fs::symlink_file(&track_controlled_path, track_path)?;
+            }
+
+            // move disc cover
+            let disc_cover_controlled_path = disc_controlled_path.join("cover.jpg");
+            fs::rename(&disc.cover, &disc_cover_controlled_path)?;
+            fs::symlink_file(&disc_cover_controlled_path, &disc.cover)?;
+        }
+
+        // 4. release lock
+        fs::remove_file(lock, false)?;
+
+        Ok(album_id)
+    }
+
+    /// Import tag from **committed** album.
+    pub fn import_tags() {
+        //
     }
 }

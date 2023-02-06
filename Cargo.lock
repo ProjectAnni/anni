@@ -236,8 +236,10 @@ dependencies = [
 name = "anni-workspace"
 version = "0.1.0"
 dependencies = [
+ "alphanumeric-sort",
  "anni-common",
  "anni-repo",
+ "log",
  "serde",
  "thiserror",
  "toml 0.7.0",

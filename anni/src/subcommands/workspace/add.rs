@@ -1,10 +1,7 @@
 use crate::ll;
-use anni_common::fs;
-use anni_flac::error::FlacError;
 use anni_repo::library::{file_name, AlbumFolderInfo};
 use anni_repo::prelude::*;
-use anni_workspace::AnniWorkspace;
-use anyhow::bail;
+use anni_workspace::{AnniWorkspace, WorkspaceDisc};
 use clap::Args;
 use clap_handler::handler;
 use colored::Colorize;
@@ -37,101 +34,13 @@ pub struct WorkspaceAddAction {
 fn handle_workspace_add(me: WorkspaceAddAction) -> anyhow::Result<()> {
     // validate workspace structure
     let workspace = AnniWorkspace::find(current_dir()?)?;
+    let album_path = me.path;
 
-    // validate album path
-    let album_path = me.path.join(".album");
-    if !album_path.exists() {
-        bail!("Album directory not found at {}", album_path.display());
-    }
-
-    // check current state of the album
-    // whether album_path is empty
-    let is_empty = album_path.read_dir()?.next().is_none();
-    if !is_empty {
-        bail!("Can not add an album that is already committed to workspace.");
-    }
-
-    // get album id
-    let album_id = workspace.get_album_id(&me.path)?;
-
-    // validate album cover
-    let album_cover = me.path.join("cover.jpg");
-    if !album_cover.exists() {
-        bail!("Album cover not found at {}", album_cover.display());
-    }
-
-    // iterate over me.path to find all discs
-    let flac_in_album_root = fs::get_ext_file(&me.path, "flac", false)?.is_some();
-    let mut discs = fs::get_subdirectories(&me.path)?;
-
-    // if there's only one disc, then there should be no sub directories, [true, true]
-    // if there are multiple discs, then there should be no flac files in the root directory, [false, false]
-    // other conditions are invalid
-    if flac_in_album_root ^ discs.is_empty() {
-        // both files and discs are empty, or both are not empty
-        trace!(
-            "flac_in_album_root: {flac_in_album_root}, discs: {:?}",
-            discs
-        );
-        bail!("Ambiguous album structure");
-    }
-
-    // add album as disc if there's only one disc
-    if flac_in_album_root {
-        discs.push(me.path.clone());
-    }
-
-    // add discs
-    struct WorkspaceDisc {
-        index: usize,
-        path: PathBuf,
-        cover: PathBuf,
-        tracks: Vec<PathBuf>,
-    }
-    alphanumeric_sort::sort_path_slice(&mut discs);
-    let discs = discs
-        .into_iter()
-        .enumerate()
-        .map(|(index, disc)| {
-            let index = index + 1;
-
-            // iterate over all flac files
-            let mut files = fs::read_dir(&disc)?
-                .filter_map(|e| {
-                    e.ok().and_then(|e| {
-                        let path = e.path();
-                        if e.file_type().ok()?.is_file() {
-                            if let Some(ext) = path.extension() {
-                                if ext == "flac" {
-                                    return Some(path);
-                                }
-                            }
-                        }
-                        None
-                    })
-                })
-                .collect::<Vec<_>>();
-            alphanumeric_sort::sort_path_slice(&mut files);
-
-            let disc_cover = disc.join("cover.jpg");
-            if !disc_cover.exists() {
-                bail!("Disc cover not found in disc {index}!");
-            }
-
-            Ok(WorkspaceDisc {
-                index,
-                path: disc,
-                cover: disc_cover,
-                tracks: files,
-            })
-        })
-        .collect::<anyhow::Result<Vec<_>>>()?;
-
-    if !me.skip_check {
+    let validator = |discs: &[WorkspaceDisc]| -> bool {
         // print album tree
-        let album_name = me
-            .path
-            .canonicalize()?
+        let album_name = album_path
+            .canonicalize()
+            .unwrap()
             .file_name()
             .map(|p| p.to_string_lossy().to_string())
             .unwrap_or_else(|| "Album".to_string());
@@ -142,7 +51,7 @@ fn handle_workspace_add(me: WorkspaceAddAction) -> anyhow::Result<()> {
                 .file_name()
                 .map(|s| s.to_string_lossy().to_string())
                 .unwrap_or_else(|| {
-                    if flac_in_album_root {
+                    if discs.len() > 1 {
                         "Disc 1".to_string()
                     } else {
                         format!("Disc {}", disc.index)
@@ -157,56 +66,24 @@ fn handle_workspace_add(me: WorkspaceAddAction) -> anyhow::Result<()> {
             }
             disc_tree.end_child();
         }
-        ptree::print_tree(&tree.build())?;
+        ptree::print_tree(&tree.build()).unwrap();
 
         // user confirm
         match Confirm::new("Is the album structure correct?")
             .with_default(true)
             .prompt()
         {
-            Err(_) | Ok(false) => bail!("Aborted"),
-            _ => {}
+            Err(_) | Ok(false) => false,
+            _ => true,
         }
-    }
-
-    if !me.dry_run {
-        ////////////////////////////////// Action Below //////////////////////////////////
-        // copy or move album cover
-        let anni_album_cover = album_path.join("cover.jpg");
-        if flac_in_album_root {
-            // cover might be used by discs, copy it
-            fs::copy(&album_cover, &anni_album_cover)?;
-        } else {
-            // move directly
-            fs::rename(&album_cover, &anni_album_cover)?;
-            fs::symlink_file(&anni_album_cover, &album_cover)?;
-        }
-
-        // move discs
-        for disc in discs.iter() {
-            let anni_disc = album_path.join(disc.index.to_string());
-            fs::create_dir_all(&anni_disc)?;
-
-            // move tracks
-            for (index, track) in disc.tracks.iter().enumerate() {
-                let index = index + 1;
-                let anni_track = anni_disc.join(format!("{index}.flac"));
-                fs::rename(&track, &anni_track)?;
-                fs::symlink_file(&anni_track, &track)?;
-            }
-
-            // move disc cover
-            let anni_disc_cover = anni_disc.join("cover.jpg");
-            fs::rename(&disc.cover, &anni_disc_cover)?;
-            fs::symlink_file(&anni_disc_cover, &disc.cover)?;
-        }
-    }
+    };
+    let album_id = workspace.commit(&album_path, Some(validator))?;
 
     // import tags if necessary
     if me.import_tags {
         // import tag from 'strict' album directory
         let repo = workspace.to_repository_manager()?;
-        let folder_name = file_name(&me.path)?;
+        let folder_name = file_name(&album_path)?;
         let AlbumFolderInfo {
             release_date,
             catalog,
@@ -214,23 +91,31 @@ fn handle_workspace_add(me: WorkspaceAddAction) -> anyhow::Result<()> {
             edition,
             ..
         } = AlbumFolderInfo::from_str(&folder_name)?;
-        let discs: Vec<_> = discs
-            .into_iter()
-            .map(|disc| {
-                let tracks = disc
-                    .tracks
-                    .into_iter()
-                    .map(|track| {
-                        let flac = anni_flac::FlacHeader::from_file(&track)?;
-                        Ok(flac.into())
-                    })
-                    .collect::<Result<_, FlacError>>()?;
-                Ok(Disc::new(
-                    DiscInfo::new(catalog.clone(), None, None, None, Default::default()),
-                    tracks,
-                ))
-            })
-            .collect::<Result<_, FlacError>>()?;
+        let album_path = workspace.get_album_controlled_path(&album_id)?;
+        let mut discs = Vec::new();
+        loop {
+            let disc_id = discs.len() + 1;
+            let disc_path = album_path.join(disc_id.to_string());
+            if !disc_path.exists() {
+                break;
+            }
+
+            let mut tracks = Vec::new();
+            loop {
+                let track_id = tracks.len() + 1;
+                let track_path = disc_path.join(format!("{track_id}.flac"));
+                if !track_path.exists() {
+                    break;
+                }
+
+                let flac = anni_flac::FlacHeader::from_file(&track_path)?;
+                tracks.push(flac.into())
+            }
+            discs.push(Disc::new(
+                DiscInfo::new(catalog.clone(), None, None, None, Default::default()),
+                tracks,
+            ));
+        }
         let album = Album::new(
             AlbumInfo {
                 album_id,
