@@ -1,9 +1,8 @@
 use crate::WorkspaceAlbumState;
 use std::path::PathBuf;
-use thiserror::Error;
 use uuid::Uuid;
 
-#[derive(Error, Debug)]
+#[derive(thiserror::Error, Debug)]
 pub enum WorkspaceError {
     #[error("Workspace was not found.")]
     WorkspaceNotFound,
@@ -49,4 +48,17 @@ pub enum WorkspaceError {
 
     #[error(transparent)]
     IOError(#[from] std::io::Error),
+
+    #[error(transparent)]
+    RepoError(#[from] anni_repo::error::Error),
+
+    #[error("Invalid flac file {path}: {error}")]
+    FlacError {
+        path: PathBuf,
+        error: anni_flac::error::FlacError,
+    },
+
+    // TODO: print full string
+    #[error("Failed to extract album info from dir name")]
+    FailedToExtractAlbumInfo,
 }

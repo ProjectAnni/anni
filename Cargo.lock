@@ -238,6 +238,7 @@ version = "0.1.0"
 dependencies = [
  "alphanumeric-sort",
  "anni-common",
+ "anni-flac",
  "anni-repo",
  "log",
  "serde",
