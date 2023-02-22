@@ -307,7 +307,7 @@ impl AnniWorkspace {
     /// Take a overview of an untracked album directory.
     ///
     /// If the path provided is not an UNTRACKED album directory, or the album is incomplete, an error will be returned.
-    pub fn untracked_album_overview<P>(
+    pub fn get_untracked_album_overview<P>(
         &self,
         album_path: P,
     ) -> Result<UntrackedWorkspaceAlbum, WorkspaceError>
@@ -403,7 +403,7 @@ impl AnniWorkspace {
         P: AsRef<Path>,
         V: FnOnce(&UntrackedWorkspaceAlbum) -> bool,
     {
-        let album = self.untracked_album_overview(path)?;
+        let album = self.get_untracked_album_overview(path)?;
 
         // validate album lock
         let lock = AnniWorkspace::album_lock_path(&album.path);
@@ -531,10 +531,51 @@ impl AnniWorkspace {
         Ok(album_id)
     }
 
-    pub fn revert<P>(&self, path: P)
+    pub fn revert<P>(&self, path: P) -> Result<(), WorkspaceError>
     where
         P: AsRef<Path>,
     {
-        //
+        // TODO: lock album when reverting
+        let album = self.get_workspace_album(path)?;
+        match album.state {
+            WorkspaceAlbumState::Committed(album_path) => {
+                let album_controlled_path = self.get_album_controlled_path(&album.album_id)?;
+
+                // recover files from controlled album path
+                AnniWorkspace::recover_symlinks(&album_path)?;
+
+                // remove and re-create controlled album path
+                fs::remove_dir_all(&album_controlled_path, true)?;
+                fs::create_dir_all(&album_controlled_path)?;
+
+                Ok(())
+            }
+            state => Err(WorkspaceError::InvalidAlbumState(state)),
+        }
+    }
+
+    fn recover_symlinks<P: AsRef<Path>>(path: P) -> Result<(), WorkspaceError> {
+        log::debug!("Recovering path: {}", path.as_ref().display());
+        let metadata = fs::symlink_metadata(path.as_ref())?;
+        if metadata.is_symlink() {
+            // ignore .album directories
+            if let Some(file_name) = path.as_ref().file_name() {
+                if file_name == ".album" {
+                    return Ok(());
+                }
+            }
+
+            // copy pointing file to current path
+            let actual_path = fs::canonicalize(path.as_ref())?;
+            log::debug!("Actual path: {}", actual_path.display());
+            fs::rename(actual_path, path)?;
+        } else if metadata.is_dir() {
+            for entry in path.as_ref().read_dir()? {
+                let entry = entry?;
+                AnniWorkspace::recover_symlinks(entry.path())?;
+            }
+        }
+
+        Ok(())
     }
 }
