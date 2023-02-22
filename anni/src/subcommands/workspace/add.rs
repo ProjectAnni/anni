@@ -1,6 +1,6 @@
 use crate::ll;
 use anni_repo::library::AlbumFolderInfo;
-use anni_workspace::{AnniWorkspace, ExtractedAlbumInfo, WorkspaceDisc};
+use anni_workspace::{AnniWorkspace, ExtractedAlbumInfo, UntrackedWorkspaceAlbum};
 use clap::Args;
 use clap_handler::handler;
 use colored::Colorize;
@@ -36,7 +36,7 @@ fn handle_workspace_add(me: WorkspaceAddAction) -> anyhow::Result<()> {
     let workspace = AnniWorkspace::find(current_dir()?)?;
     let album_path = me.path;
 
-    let validator = |discs: &[WorkspaceDisc]| -> bool {
+    let validator = |album: &UntrackedWorkspaceAlbum| -> bool {
         // print album tree
         let album_name = album_path
             .canonicalize()
@@ -45,13 +45,13 @@ fn handle_workspace_add(me: WorkspaceAddAction) -> anyhow::Result<()> {
             .map(|p| p.to_string_lossy().to_string())
             .unwrap_or_else(|| "Album".to_string());
         let mut tree = TreeBuilder::new(album_name);
-        for disc in discs.iter() {
+        for disc in album.discs.iter() {
             let disc_name = disc
                 .path
                 .file_name()
                 .map(|s| s.to_string_lossy().to_string())
                 .unwrap_or_else(|| {
-                    if discs.len() > 1 {
+                    if album.discs.len() > 1 {
                         "Disc 1".to_string()
                     } else {
                         format!("Disc {}", disc.index)

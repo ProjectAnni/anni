@@ -275,14 +275,6 @@ impl AnniWorkspace {
     }
 }
 
-// add discs
-pub struct WorkspaceDisc {
-    pub index: usize,
-    pub path: PathBuf,
-    pub cover: PathBuf,
-    pub tracks: Vec<PathBuf>,
-}
-
 pub struct ExtractedAlbumInfo<'a> {
     pub release_date: AnniDate,
     pub catalog: Cow<'a, str>,
@@ -292,15 +284,37 @@ pub struct ExtractedAlbumInfo<'a> {
 
 // Operations
 impl AnniWorkspace {
-    /// Add album to workspace
+    /// Get album lock path from album path
     ///
-    /// `Untracked` -> `Committed`
-    pub fn commit<P, V>(&self, path: P, validator: Option<V>) -> Result<Uuid, WorkspaceError>
+    /// `album_path` MUST be valid
+    fn album_lock_path<P>(album_path: P) -> PathBuf
     where
         P: AsRef<Path>,
-        V: FnOnce(&[WorkspaceDisc]) -> bool,
     {
-        let album = self.get_workspace_album(path.as_ref())?;
+        album_path.as_ref().join(".album.lock")
+    }
+
+    /// Get album or disc cover path from album or disc path
+    ///
+    /// `path` MUST be a valid album or disc path
+    fn album_disc_cover_path<P>(path: P) -> PathBuf
+    where
+        P: AsRef<Path>,
+    {
+        path.as_ref().join("cover.jpg")
+    }
+
+    /// Take a overview of an untracked album directory.
+    ///
+    /// If the path provided is not an UNTRACKED album directory, or the album is incomplete, an error will be returned.
+    pub fn untracked_album_overview<P>(
+        &self,
+        album_path: P,
+    ) -> Result<UntrackedWorkspaceAlbum, WorkspaceError>
+    where
+        P: AsRef<Path>,
+    {
+        let album = self.get_workspace_album(album_path.as_ref())?;
         let album_path = match album.state {
             // check current state of the album
             WorkspaceAlbumState::Untracked(p) => p,
@@ -308,16 +322,9 @@ impl AnniWorkspace {
                 return Err(WorkspaceError::InvalidAlbumState(state));
             }
         };
-        let album_id = album.album_id;
-
-        // validate album lock
-        let lock = album_path.join(".album.lock");
-        if lock.exists() {
-            return Err(WorkspaceError::AlbumLocked(album_path));
-        }
 
         // validate album cover
-        let album_cover = album_path.join("cover.jpg");
+        let album_cover = AnniWorkspace::album_disc_cover_path(&album_path);
         if !album_cover.exists() {
             return Err(WorkspaceError::CoverNotFound(album_cover));
         }
@@ -331,7 +338,9 @@ impl AnniWorkspace {
         // other conditions are invalid
         if flac_in_album_root ^ discs.is_empty() {
             // both files and discs are empty, or both are not empty
-            return Err(WorkspaceError::InvalidAlbumDiscStructure(album_path));
+            return Err(WorkspaceError::InvalidAlbumDiscStructure(
+                album_path.clone(),
+            ));
         }
 
         // add album as disc if there's only one disc
@@ -343,11 +352,11 @@ impl AnniWorkspace {
         let discs = discs
             .into_iter()
             .enumerate()
-            .map(|(index, disc)| {
+            .map(|(index, disc_path)| {
                 let index = index + 1;
 
                 // iterate over all flac files
-                let mut files = fs::read_dir(&disc)?
+                let mut files = fs::read_dir(&disc_path)?
                     .filter_map(|e| {
                         e.ok().and_then(|e| {
                             let path = e.path();
@@ -364,35 +373,63 @@ impl AnniWorkspace {
                     .collect::<Vec<_>>();
                 alphanumeric_sort::sort_path_slice(&mut files);
 
-                let disc_cover = disc.join("cover.jpg");
+                let disc_cover = AnniWorkspace::album_disc_cover_path(&disc_path);
                 if !disc_cover.exists() {
                     return Err(WorkspaceError::CoverNotFound(disc_cover));
                 }
 
-                Ok(WorkspaceDisc {
+                Ok(UntrackedWorkspaceDisc {
                     index,
-                    path: disc,
+                    path: disc_path,
                     cover: disc_cover,
                     tracks: files,
                 })
             })
             .collect::<Result<Vec<_>, WorkspaceError>>()?;
 
+        Ok(UntrackedWorkspaceAlbum {
+            album_id: album.album_id,
+            path: album_path,
+            simplified: flac_in_album_root,
+            discs,
+        })
+    }
+
+    /// Add album to workspace
+    ///
+    /// `Untracked` -> `Committed`
+    pub fn commit<P, V>(&self, path: P, validator: Option<V>) -> Result<Uuid, WorkspaceError>
+    where
+        P: AsRef<Path>,
+        V: FnOnce(&UntrackedWorkspaceAlbum) -> bool,
+    {
+        let album = self.untracked_album_overview(path)?;
+
+        // validate album lock
+        let lock = AnniWorkspace::album_lock_path(&album.path);
+        if lock.exists() {
+            return Err(WorkspaceError::AlbumLocked(album.path));
+        }
+
         if let Some(validator) = validator {
-            let pass = validator(&discs);
+            let pass = validator(&album);
             if !pass {
                 return Err(WorkspaceError::UserAborted);
             }
         }
+
+        let album_id = album.album_id;
+        let album_path = album.path;
 
         // Add action
         // 1. lock album
         fs::File::create(&lock)?;
 
         // 2. copy or move album cover
+        let album_cover = AnniWorkspace::album_disc_cover_path(&album_path);
         let album_controlled_path = self.get_album_controlled_path(&album_id)?;
-        let album_cover_controlled = album_controlled_path.join("cover.jpg");
-        if flac_in_album_root {
+        let album_cover_controlled = AnniWorkspace::album_disc_cover_path(&album_controlled_path);
+        if album.simplified {
             // cover might be used by discs, copy it
             fs::copy(&album_cover, &album_cover_controlled)?;
         } else {
@@ -402,7 +439,7 @@ impl AnniWorkspace {
         }
 
         // 3. move discs
-        for disc in discs.iter() {
+        for disc in album.discs.iter() {
             let disc_controlled_path = album_controlled_path.join(disc.index.to_string());
             fs::create_dir_all(&disc_controlled_path)?;
 
@@ -415,7 +452,8 @@ impl AnniWorkspace {
             }
 
             // move disc cover
-            let disc_cover_controlled_path = disc_controlled_path.join("cover.jpg");
+            let disc_cover_controlled_path =
+                AnniWorkspace::album_disc_cover_path(&disc_controlled_path);
             fs::rename(&disc.cover, &disc_cover_controlled_path)?;
             fs::symlink_file(&disc_cover_controlled_path, &disc.cover)?;
         }

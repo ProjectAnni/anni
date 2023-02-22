@@ -9,6 +9,23 @@ pub struct WorkspaceAlbum {
     pub state: WorkspaceAlbumState,
 }
 
+pub struct UntrackedWorkspaceAlbum {
+    pub album_id: Uuid,
+    pub path: PathBuf,
+    /// For album with only one disc, the disc directory is not required.
+    /// Users can choose to put all tracks in the album directory.
+    /// This is called `simplified` album structure.
+    pub simplified: bool,
+    pub discs: Vec<UntrackedWorkspaceDisc>,
+}
+
+pub struct UntrackedWorkspaceDisc {
+    pub index: usize,
+    pub path: PathBuf,
+    pub cover: PathBuf,
+    pub tracks: Vec<PathBuf>,
+}
+
 /// State of album directory in workspace
 #[derive(Debug, Serialize)]
 #[serde(tag = "type", content = "path")]
