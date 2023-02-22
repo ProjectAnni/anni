@@ -40,6 +40,7 @@ pub struct ShareToken {
     /// Secret of corresponding key
     pub(crate) secret: String,
     /// Allowed albums
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub(crate) allowed: Option<Vec<Uuid>>,
 }
 
