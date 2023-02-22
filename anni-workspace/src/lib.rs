@@ -1,6 +1,7 @@
 pub mod config;
 mod error;
 mod state;
+mod utils;
 
 use crate::config::WorkspaceConfig;
 use anni_common::fs;
@@ -14,6 +15,7 @@ use std::collections::HashMap;
 use std::num::NonZeroU8;
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
+use utils::lock::WorkspaceAlbumLock;
 use uuid::Uuid;
 
 pub struct AnniWorkspace {
@@ -284,16 +286,6 @@ pub struct ExtractedAlbumInfo<'a> {
 
 // Operations
 impl AnniWorkspace {
-    /// Get album lock path from album path
-    ///
-    /// `album_path` MUST be valid
-    fn album_lock_path<P>(album_path: P) -> PathBuf
-    where
-        P: AsRef<Path>,
-    {
-        album_path.as_ref().join(".album.lock")
-    }
-
     /// Get album or disc cover path from album or disc path
     ///
     /// `path` MUST be a valid album or disc path
@@ -406,10 +398,7 @@ impl AnniWorkspace {
         let album = self.get_untracked_album_overview(path)?;
 
         // validate album lock
-        let lock = AnniWorkspace::album_lock_path(&album.path);
-        if lock.exists() {
-            return Err(WorkspaceError::AlbumLocked(album.path));
-        }
+        let lock = WorkspaceAlbumLock::new(&album.path)?;
 
         if let Some(validator) = validator {
             let pass = validator(&album);
@@ -423,7 +412,7 @@ impl AnniWorkspace {
 
         // Add action
         // 1. lock album
-        fs::File::create(&lock)?;
+        lock.lock()?;
 
         // 2. copy or move album cover
         let album_cover = AnniWorkspace::album_disc_cover_path(&album_path);
@@ -457,9 +446,6 @@ impl AnniWorkspace {
             fs::rename(&disc.cover, &disc_cover_controlled_path)?;
             fs::symlink_file(&disc_cover_controlled_path, &disc.cover)?;
         }
-
-        // 4. release lock
-        fs::remove_file(lock, false)?;
 
         Ok(album_id)
     }
@@ -535,10 +521,12 @@ impl AnniWorkspace {
     where
         P: AsRef<Path>,
     {
-        // TODO: lock album when reverting
         let album = self.get_workspace_album(path)?;
         match album.state {
             WorkspaceAlbumState::Committed(album_path) => {
+                let lock = WorkspaceAlbumLock::new(&album_path)?;
+                lock.lock()?;
+
                 let album_controlled_path = self.get_album_controlled_path(&album.album_id)?;
 
                 // recover files from controlled album path
