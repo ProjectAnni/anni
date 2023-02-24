@@ -61,4 +61,10 @@ pub enum WorkspaceError {
     // TODO: print full string
     #[error("Failed to extract album info from dir name")]
     FailedToExtractAlbumInfo,
+
+    #[error("Unexpected file {0} found.")]
+    UnexpectedFile(PathBuf),
+
+    #[error("Publish target directory {0} was not found.")]
+    PublishTargetNotFound(PathBuf),
 }

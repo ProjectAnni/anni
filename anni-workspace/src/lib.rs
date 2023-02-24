@@ -8,6 +8,7 @@ use anni_common::fs;
 use anni_repo::library::file_name;
 use anni_repo::prelude::AnniDate;
 use anni_repo::RepositoryManager;
+use config::LibraryConfig;
 pub use error::WorkspaceError;
 pub use state::*;
 use std::borrow::Cow;
@@ -17,6 +18,8 @@ use std::path::{Path, PathBuf};
 use std::str::FromStr;
 use utils::lock::WorkspaceAlbumLock;
 use uuid::Uuid;
+
+const FILE_IGNORE_LIST: [&'static str; 2] = [".directory", ".DS_Store"];
 
 pub struct AnniWorkspace {
     /// Full path of `.anni` directory.
@@ -92,7 +95,7 @@ impl AnniWorkspace {
 
     /// Get controlled path of an album with album id
     pub fn get_album_controlled_path(&self, album_id: &Uuid) -> Result<PathBuf, WorkspaceError> {
-        let path = self.strict_album_path(album_id, 2);
+        let path = self.controlled_album_path(album_id, 2);
         if !path.exists() {
             return Err(WorkspaceError::AlbumNotFound(*album_id));
         }
@@ -101,17 +104,20 @@ impl AnniWorkspace {
     }
 
     /// Get album path with given `album_id` in workspace with no extra checks
-    pub fn strict_album_path(&self, album_id: &Uuid, layer: usize) -> PathBuf {
-        let mut res = self.objects_root();
+    pub fn controlled_album_path(&self, album_id: &Uuid, layer: usize) -> PathBuf {
+        AnniWorkspace::strict_album_path(self.objects_root(), album_id, layer)
+    }
+
+    pub fn strict_album_path(mut root: PathBuf, album_id: &Uuid, layer: usize) -> PathBuf {
         let bytes = album_id.as_bytes();
 
         for i in 0..layer {
             let byte = bytes[i];
-            res.push(format!("{byte:x}"));
+            root.push(format!("{byte:x}"));
         }
-        res.push(album_id.to_string());
+        root.push(album_id.to_string());
 
-        res
+        root
     }
 
     /// Try to get `WorkspaceAlbum` from given path
@@ -238,7 +244,7 @@ impl AnniWorkspace {
     where
         P: AsRef<Path>,
     {
-        let controlled_path = self.strict_album_path(album_id, 2);
+        let controlled_path = self.controlled_album_path(album_id, 2);
         if controlled_path.exists() {
             return Err(WorkspaceError::DuplicatedAlbumId(*album_id));
         }
@@ -568,6 +574,103 @@ impl AnniWorkspace {
                 AnniWorkspace::recover_symlinks(entry.path())?;
             }
         }
+
+        Ok(())
+    }
+
+    pub fn apply_tags<P>(&self, _album_path: P)
+    where
+        P: AsRef<Path>,
+    {
+        todo!()
+    }
+
+    pub fn publish<P>(&self, album_path: P, soft: bool) -> Result<(), WorkspaceError>
+    where
+        P: AsRef<Path>,
+    {
+        let config = self.get_config()?;
+
+        let publish_to = config
+            .publish_to()
+            .expect("Target audio library is not specified in workspace config file.");
+
+        // valdiate target path
+        if !publish_to.path.exists() {
+            return Err(WorkspaceError::PublishTargetNotFound(
+                publish_to.path.clone(),
+            ));
+        }
+
+        let album = self.get_workspace_album(album_path)?;
+        match album.state {
+            WorkspaceAlbumState::Committed(album_path) => {
+                // validate current path first
+                // if normal files exist, abort the operation
+                for file in fs::PathWalker::new(&album_path, true, false, Default::default()) {
+                    let file_name = file
+                        .file_name()
+                        .and_then(|r| r.to_str())
+                        .unwrap_or_default();
+                    if FILE_IGNORE_LIST.contains(&file_name) {
+                        // skip ignored files
+                        continue;
+                    }
+
+                    return Err(WorkspaceError::UnexpectedFile(file));
+                }
+
+                // TODO: validate whether track number matches in the repository
+                if let Some(layers) = publish_to.layers {
+                    // publish as strict
+                    self.do_publish_strict(album_path, publish_to, layers, soft)?;
+                } else {
+                    // publish as convention
+                    unimplemented!()
+                }
+
+                Ok(())
+            }
+            state => Err(WorkspaceError::InvalidAlbumState(state)),
+        }
+    }
+
+    fn do_publish_strict<P>(
+        &self,
+        album_path: P,
+        publish_to: &LibraryConfig,
+        layers: usize,
+        soft: bool,
+    ) -> Result<(), WorkspaceError>
+    where
+        P: AsRef<Path>,
+    {
+        let album_id = self.get_album_id(album_path.as_ref())?;
+        let album_controlled_path = self.get_album_controlled_path(&album_id)?;
+
+        // publish as strict
+        // 1. get destination path
+        let result_path =
+            AnniWorkspace::strict_album_path(publish_to.path.clone(), &album_id, layers);
+        let result_parent = result_path.parent().expect("Invalid path");
+
+        // 2. create parent directory
+        if !result_parent.exists() {
+            fs::create_dir_all(&result_parent)?;
+        }
+
+        // 3. move/copy album
+        if soft {
+            // copy the whole album
+            fs::copy_dir(&album_controlled_path, &result_path)?;
+            // add soft published mark
+            fs::write(album_controlled_path.join(".publish"), "")?;
+        } else {
+            // move directory
+            fs::rename(&album_path, &result_path)?;
+        }
+        // 4. clean album folder
+        fs::remove_dir_all(&album_path, true)?; // TODO: add an option to disable trash feature
 
         Ok(())
     }

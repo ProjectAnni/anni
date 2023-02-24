@@ -22,7 +22,7 @@ fn handle_workspace_fsck(me: WorkspaceFsckAction) -> anyhow::Result<()> {
             if let WorkspaceAlbumState::Dangling(album_path) = album.state {
                 let result: anyhow::Result<()> = try {
                     let dot_album = album_path.join(".album");
-                    let real_path = workspace.strict_album_path(&album.album_id, 2);
+                    let real_path = workspace.controlled_album_path(&album.album_id, 2);
                     if !real_path.exists() {
                         fs::create_dir_all(&real_path)?;
                     }
