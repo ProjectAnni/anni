@@ -451,7 +451,12 @@ impl AnniWorkspace {
     }
 
     /// Import tag from **committed** album.
-    pub fn import_tags<P, E>(&self, album_path: P, extractor: E) -> Result<Uuid, WorkspaceError>
+    pub fn import_tags<P, E>(
+        &self,
+        album_path: P,
+        extractor: E,
+        allow_duplicate: bool,
+    ) -> Result<Uuid, WorkspaceError>
     where
         P: AsRef<Path>,
         E: FnOnce(&str) -> Option<ExtractedAlbumInfo>,
@@ -512,7 +517,7 @@ impl AnniWorkspace {
             },
             discs,
         );
-        repo.add_album(album, false)?;
+        repo.add_album(album, allow_duplicate)?;
 
         Ok(album_id)
     }

@@ -81,21 +81,25 @@ fn handle_workspace_add(me: WorkspaceAddAction) -> anyhow::Result<()> {
 
     // import tags if necessary
     if me.import_tags {
-        workspace.import_tags(&album_path, |folder_name| {
-            let AlbumFolderInfo {
-                release_date,
-                catalog,
-                title,
-                edition,
-                ..
-            } = AlbumFolderInfo::from_str(&folder_name).ok()?;
-            Some(ExtractedAlbumInfo {
-                title: Cow::Owned(title),
-                edition: edition.map(|e| Cow::Owned(e)),
-                catalog: Cow::Owned(catalog),
-                release_date,
-            })
-        })?;
+        workspace.import_tags(
+            &album_path,
+            |folder_name| {
+                let AlbumFolderInfo {
+                    release_date,
+                    catalog,
+                    title,
+                    edition,
+                    ..
+                } = AlbumFolderInfo::from_str(&folder_name).ok()?;
+                Some(ExtractedAlbumInfo {
+                    title: Cow::Owned(title),
+                    edition: edition.map(|e| Cow::Owned(e)),
+                    catalog: Cow::Owned(catalog),
+                    release_date,
+                })
+            },
+            false,
+        )?;
     }
 
     if me.open_editor {
