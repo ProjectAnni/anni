@@ -201,11 +201,11 @@ pub fn remove_file<P: AsRef<Path>>(input: P, trashcan: bool) -> io::Result<()> {
 }
 
 #[cfg(feature = "trash")]
-pub fn remove_dir_all<P: AsRef<Path>>(input: P, trashcan: bool) -> io::Result<()> {
+pub fn remove_dir_all<P: AsRef<Path>>(path: P, trashcan: bool) -> io::Result<()> {
     if trashcan {
-        trash::delete(input.as_ref()).map_err(|e| io::Error::new(io::ErrorKind::Other, e))
+        trash::delete(path).map_err(|e| io::Error::new(io::ErrorKind::Other, e))
     } else {
-        std::fs::remove_dir_all(input)
+        std::fs::remove_dir_all(path)
     }
 }
 

@@ -679,7 +679,7 @@ impl AnniWorkspace {
             fs::write(album_controlled_path.join(".publish"), "")?;
         } else {
             // move directory
-            fs::rename(&album_path, &result_path)?;
+            fs::rename(&album_controlled_path, &result_path)?;
         }
         // 4. clean album folder
         fs::remove_dir_all(&album_path, true)?; // TODO: add an option to disable trash feature
