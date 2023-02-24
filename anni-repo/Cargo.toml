@@ -29,6 +29,7 @@ anni-artist = "0.1.1"
 
 # flac
 anni-flac = { version = "0.2.2", path = "../anni-flac", optional = true }
+alphanumeric-sort = { version = "1.4.4", optional = true }
 
 # Git related
 git2 = { version = "0.15", optional = true, default-features = false, features = [
@@ -60,6 +61,7 @@ sqlite-vfs = { git = "https://github.com/ProjectAnni/sqlite-vfs" }
 
 [features]
 default = ["json"]
+apply = ["flac", "alphanumeric-sort"]
 db = ["db-read", "db-write"]
 db-read = ["rusqlite", "serde_rusqlite"]
 db-write = ["rusqlite"]

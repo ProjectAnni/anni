@@ -578,11 +578,23 @@ impl AnniWorkspace {
         Ok(())
     }
 
-    pub fn apply_tags<P>(&self, _album_path: P)
+    pub fn apply_tags<P>(&self, album_path: P) -> Result<(), WorkspaceError>
     where
         P: AsRef<Path>,
     {
-        todo!()
+        let album_id = self.get_album_id(album_path)?;
+        let controlled_album_path = self.get_album_controlled_path(&album_id)?;
+
+        let repo = self.to_repository_manager()?;
+        let repo = repo.into_owned_manager()?;
+
+        // TODO: do not panic here
+        let album = repo
+            .album(&album_id)
+            .expect("Album not found in metadata repository");
+        album.apply_strict(controlled_album_path)?;
+
+        Ok(())
     }
 
     pub fn publish<P>(&self, album_path: P, soft: bool) -> Result<(), WorkspaceError>

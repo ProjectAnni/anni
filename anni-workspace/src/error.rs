@@ -1,4 +1,5 @@
 use crate::WorkspaceAlbumState;
+use anni_repo::error::AlbumApplyError;
 use std::path::PathBuf;
 use uuid::Uuid;
 
@@ -67,4 +68,7 @@ pub enum WorkspaceError {
 
     #[error("Publish target directory {0} was not found.")]
     PublishTargetNotFound(PathBuf),
+
+    #[error(transparent)]
+    ApplyError(#[from] AlbumApplyError),
 }

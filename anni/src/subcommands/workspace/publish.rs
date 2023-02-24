@@ -1,4 +1,3 @@
-use crate::subcommands::workspace::update::WorkspaceUpdateAction;
 use anni_workspace::{AnniWorkspace, WorkspaceAlbumState};
 use clap::Args;
 use clap_handler::handler;
@@ -61,15 +60,7 @@ pub async fn handle_workspace_publish(mut me: WorkspacePublishAction) -> anyhow:
 
     for path in me.path {
         if me.write {
-            let update = WorkspaceUpdateAction {
-                tags: true,
-                cover: true,
-                path: path.clone(),
-            };
-            update.run().await?;
-
-            // TODO: replace with workspace.apply_tags
-            // workspace.apply_tags(&path);
+            workspace.apply_tags(&path)?;
         }
 
         workspace.publish(path, me.soft)?;

@@ -1,3 +1,5 @@
+use std::path::PathBuf;
+
 use crate::models::TagRef;
 
 #[derive(thiserror::Error, Debug)]
@@ -19,13 +21,10 @@ pub enum Error {
     RepoAlbumLoadError { album: String },
 
     #[error("failed to load tags from {file:?}")]
-    RepoTagLoadError { file: std::path::PathBuf },
+    RepoTagLoadError { file: PathBuf },
 
     #[error("duplicated tag {tag} defined in {path}")]
-    RepoTagDuplicate {
-        tag: TagRef<'static>,
-        path: std::path::PathBuf,
-    },
+    RepoTagDuplicate { tag: TagRef<'static>, path: PathBuf },
 
     #[error("undefined tags {0:?}")]
     RepoTagsUndefined(Vec<TagRef<'static>>),
@@ -50,4 +49,35 @@ pub enum Error {
 
     #[error("multiple errors detected: {0:#?}")]
     MultipleErrors(Vec<Error>),
+}
+
+#[cfg(feature = "apply")]
+#[derive(thiserror::Error, Debug)]
+pub enum AlbumApplyError {
+    #[cfg(feature = "apply")]
+    #[error("Disc count mismatch when applying album {path}: expected {expected}, got {actual}")]
+    DiscMismatch {
+        path: PathBuf,
+        expected: usize,
+        actual: usize,
+    },
+
+    #[error("Track count mismatch when applying album {path}: expected {expected}, got {actual}")]
+    TrackMismatch {
+        path: PathBuf,
+        expected: usize,
+        actual: usize,
+    },
+
+    #[error("Invalid disc folder name got, expected <disc_number+1>")]
+    InvalidDiscFolder,
+
+    #[error("Missing cover file at: {0}")]
+    MissingCover(PathBuf),
+
+    #[error(transparent)]
+    IOError(#[from] std::io::Error),
+
+    #[error(transparent)]
+    FlacParseError(#[from] anni_flac::error::FlacError),
 }

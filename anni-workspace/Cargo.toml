@@ -5,7 +5,7 @@ authors = ["Yesterday17 <mmf@mmf.moe>"]
 edition = "2021"
 
 [dependencies]
-anni-repo = { path = "../anni-repo", features = ["git", "flac"] }
+anni-repo = { path = "../anni-repo", features = ["git", "flac", "apply"] }
 anni-common = { path = "../anni-common" }
 anni-flac = { path = "../anni-flac" }
 

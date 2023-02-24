@@ -1,7 +1,7 @@
 use crate::{ball, ll};
 use anni_common::fs;
-use anni_flac::blocks::{BlockPicture, PictureType, UserComment, UserCommentExt};
-use anni_flac::{FlacHeader, MetadataBlock, MetadataBlockData};
+use anni_flac::blocks::{UserComment, UserCommentExt};
+use anni_flac::FlacHeader;
 use anni_provider::fs::LocalFileSystemProvider;
 use anni_provider::providers::CommonConventionProvider;
 use anni_provider::strict_album_path;
@@ -46,117 +46,6 @@ pub enum LibraryAction {
 pub struct LibraryApplyTagAction {
     #[clap(required = true)]
     directories: Vec<PathBuf>,
-}
-
-pub fn apply_strict(directory: &PathBuf, album: &Album, apply_cover: bool) -> anyhow::Result<()> {
-    debug!(target: "library|tag", "Directory: {}", directory.display());
-
-    // check disc name
-    let mut discs = fs::read_dir(directory)?
-        .filter_map(|entry| entry.ok())
-        .filter_map(|entry| {
-            entry
-                .metadata()
-                .ok()
-                .and_then(|meta| if meta.is_dir() { Some(entry) } else { None })
-        })
-        .filter_map(|entry| {
-            entry
-                .path()
-                .file_name()
-                .and_then(|f| f.to_str().map(|s| s.to_string()))
-        })
-        .collect::<Vec<_>>();
-    alphanumeric_sort::sort_str_slice(&mut discs);
-    debug!(target: "library|tag", "Discs: {discs:?}");
-
-    if album.discs_len() != discs.len() {
-        bail!("discs.len() != discs.len()!");
-    }
-    for (index, disc_id) in discs.iter().enumerate() {
-        let disc_id: usize = disc_id.parse()?;
-        if disc_id != index + 1 {
-            bail!("disc_id != index + 1!");
-        }
-    }
-
-    let disc_total = discs.len();
-
-    for ((disc_id, disc), disc_name) in album.iter().enumerate().zip(discs) {
-        let disc_num = disc_id + 1;
-        let disc_dir = directory.join(disc_name);
-        debug!(target: "library|tag", "Disc dir: {}", disc_dir.display());
-
-        let mut files = fs::get_ext_files(disc_dir, "flac", false)?;
-        alphanumeric_sort::sort_path_slice(&mut files);
-        let tracks = disc.iter();
-        let track_total = disc.tracks_len();
-
-        if files.len() != track_total {
-            bail!("files.len() != tracks.len()!");
-        }
-
-        for (track_num, (file, track)) in files.iter().zip(tracks).enumerate() {
-            let track_num = track_num + 1;
-
-            let mut flac = FlacHeader::from_file(file)?;
-            let comments = flac.comments();
-            let meta = format!(
-                r#"TITLE={title}
-ALBUM={album}
-ARTIST={artist}
-DATE={release_date}
-TRACKNUMBER={track_number}
-TRACKTOTAL={track_total}
-DISCNUMBER={disc_number}
-DISCTOTAL={disc_total}
-"#,
-                title = track.title(),
-                album = disc.title(),
-                artist = track.artist(),
-                release_date = album.release_date(),
-                track_number = track_num,
-                disc_number = disc_num,
-            );
-
-            let mut modified = false;
-            // no comment block exist, or comments is not correct
-            if comments.is_none() || comments.unwrap().to_string() != meta {
-                let comments = flac.comments_mut();
-                comments.clear();
-                comments.push(UserComment::title(track.title()));
-                comments.push(UserComment::album(disc.title()));
-                comments.push(UserComment::artist(track.artist()));
-                comments.push(UserComment::date(album.release_date()));
-                comments.push(UserComment::track_number(track_num));
-                comments.push(UserComment::track_total(track_total));
-                comments.push(UserComment::disc_number(disc_num));
-                comments.push(UserComment::disc_total(disc_total));
-                modified = true;
-            }
-
-            if apply_cover {
-                let cover_path = file.with_file_name("cover.jpg");
-                if cover_path.exists() {
-                    let picture =
-                        BlockPicture::new(cover_path, PictureType::CoverFront, String::new())?;
-                    flac.blocks
-                        .retain(|block| !matches!(block.data, MetadataBlockData::Picture(_)));
-                    flac.blocks
-                        .push(MetadataBlock::new(MetadataBlockData::Picture(picture)));
-                    modified = true;
-                } else {
-                    // warning
-                    warn!("cover.jpg not found: {}", file.display());
-                }
-            }
-
-            if modified {
-                flac.save::<String>(None)?;
-            }
-        }
-    }
-    Ok(())
 }
 
 fn apply_convention(directory: &PathBuf, album: Album) -> anyhow::Result<()> {
@@ -257,7 +146,7 @@ pub fn library_apply_tag(
                 .albums()
                 .get(&Uuid::parse_str(folder_name.as_ref())?)
                 .ok_or_else(|| anyhow::anyhow!("Album {} not found", folder_name))?;
-            apply_strict(&path, album, true)?;
+            album.apply_strict(&path)?;
         } else if let Ok(AlbumFolderInfo {
             release_date,
             catalog,
