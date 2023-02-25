@@ -1,13 +1,10 @@
 use crate::{ball, ll};
 use anni_common::fs;
-use anni_flac::blocks::{UserComment, UserCommentExt};
-use anni_flac::FlacHeader;
 use anni_provider::fs::LocalFileSystemProvider;
 use anni_provider::providers::CommonConventionProvider;
 use anni_provider::strict_album_path;
 use anni_repo::db::RepoDatabaseRead;
 use anni_repo::library::AlbumFolderInfo;
-use anni_repo::prelude::*;
 use anni_repo::RepositoryManager;
 use clap::{Args, Subcommand};
 use clap_handler::{handler, Context, Handler};
@@ -46,82 +43,6 @@ pub enum LibraryAction {
 pub struct LibraryApplyTagAction {
     #[clap(required = true)]
     directories: Vec<PathBuf>,
-}
-
-fn apply_convention(directory: &PathBuf, album: Album) -> anyhow::Result<()> {
-    let disc_total = album.discs_len();
-
-    for (disc_num, disc) in album.iter().enumerate() {
-        let disc_num = disc_num + 1;
-        let disc_dir = if disc_total > 1 {
-            directory.join(format!(
-                "[{catalog}] {title} [Disc {disc_num}]",
-                catalog = disc.catalog(),
-                title = disc.title(),
-                disc_num = disc_num,
-            ))
-        } else {
-            directory.to_owned()
-        };
-        debug!(target: "repo|apply", "Disc dir: {}", disc_dir.to_string_lossy());
-
-        if !disc_dir.exists() {
-            bail!("Disc directory does not exist: {:?}", disc_dir);
-        }
-
-        let files = fs::get_ext_files(disc_dir, "flac", false)?;
-        let tracks = disc.iter();
-        let track_total = disc.tracks_len();
-        if files.len() != track_total {
-            bail!(
-                "Track number mismatch in Disc {} of {}. Aborted.",
-                disc_num,
-                album.catalog()
-            );
-        }
-
-        for (track_num, (file, track)) in files.iter().zip(tracks).enumerate() {
-            let track_num = track_num + 1;
-
-            let mut flac = FlacHeader::from_file(file)?;
-            let comments = flac.comments();
-            // TODO: read anni convention config here
-            let meta = format!(
-                r#"TITLE={title}
-ALBUM={album}
-ARTIST={artist}
-DATE={release_date}
-TRACKNUMBER={track_number}
-TRACKTOTAL={track_total}
-DISCNUMBER={disc_number}
-DISCTOTAL={disc_total}
-"#,
-                title = track.title(),
-                album = disc.title(),
-                artist = track.artist(),
-                release_date = album.release_date(),
-                track_number = track_num,
-                track_total = track_total,
-                disc_number = disc_num,
-                disc_total = disc_total,
-            );
-            // no comment block exist, or comments is not correct
-            if comments.is_none() || comments.unwrap().to_string() != meta {
-                let comments = flac.comments_mut();
-                comments.clear();
-                comments.push(UserComment::title(track.title()));
-                comments.push(UserComment::album(disc.title()));
-                comments.push(UserComment::artist(track.artist()));
-                comments.push(UserComment::date(album.release_date()));
-                comments.push(UserComment::track_number(track_num));
-                comments.push(UserComment::track_total(track_total));
-                comments.push(UserComment::disc_number(disc_num));
-                comments.push(UserComment::disc_total(disc_total));
-                flac.save::<String>(None)?;
-            }
-        }
-    }
-    Ok(())
 }
 
 #[handler(LibraryApplyTagAction)]
@@ -186,7 +107,7 @@ pub fn library_apply_tag(
             if album.discs_len() != disc_count {
                 bail!("discs.len() != disc_count!");
             }
-            apply_convention(&path, album)?;
+            album.apply_convention(&path)?;
         } else {
             anyhow::bail!("{} is not a valid album id", folder_name);
         }

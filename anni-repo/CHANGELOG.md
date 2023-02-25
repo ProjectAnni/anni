@@ -10,3 +10,4 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Fix tag type check constraint defined in `repo_tag` table
 - [Breaking] Remove `From<&Album> for serde_json::Value`, add new `JsonAlbum` for json exchange format under `json` feature
 - Use `toml` instead of deprecated `toml_edit::easy`
+- Add `apply` feature to enable `apply` method in `Album`

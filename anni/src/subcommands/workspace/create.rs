@@ -4,15 +4,12 @@ use clap_handler::handler;
 use std::env::current_dir;
 use std::num::NonZeroU8;
 use std::path::PathBuf;
-use std::str::FromStr;
 use uuid::Uuid;
 
 #[derive(Args, Debug, Clone)]
 pub struct WorkspaceCreateAction {
-    #[clap(short = 'n', long)]
-    name: Option<String>,
     #[clap(short = 'a', long)]
-    album_id: Option<String>,
+    album_id: Option<Uuid>,
     #[clap(short = 'd', long, default_value = "1")]
     disc_num: NonZeroU8,
     #[clap(short = 'f', long)]
@@ -25,16 +22,10 @@ pub struct WorkspaceCreateAction {
 fn handle_workspace_create(me: WorkspaceCreateAction) -> anyhow::Result<()> {
     let workspace = AnniWorkspace::find(current_dir()?)?;
 
-    let album_id = me
-        .album_id
-        .and_then(|a| Uuid::from_str(&a).ok())
-        .unwrap_or_else(|| Uuid::new_v4());
+    let album_id = me.album_id.unwrap_or_else(|| Uuid::new_v4());
 
     // check whether the target path exists
-    let user_album_path = match me.name {
-        Some(name) => me.path.join(name),
-        None => me.path,
-    };
+    let user_album_path = me.path;
     if user_album_path.exists() && !me.force {
         bail!("Target path already exists");
     }

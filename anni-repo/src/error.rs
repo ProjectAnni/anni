@@ -69,8 +69,8 @@ pub enum AlbumApplyError {
         actual: usize,
     },
 
-    #[error("Invalid disc folder name got, expected <disc_number+1>")]
-    InvalidDiscFolder,
+    #[error("Invalid disc folder name {0} got.")]
+    InvalidDiscFolder(PathBuf),
 
     #[error("Missing cover file at: {0}")]
     MissingCover(PathBuf),
