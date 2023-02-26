@@ -12,7 +12,7 @@ pub struct RepoWatchAction;
 
 #[handler(RepoWatchAction)]
 fn repo_watch(_: RepoWatchAction, repo: RepoSubcommand) -> anyhow::Result<()> {
-    let root = repo.root;
+    let root = repo.repo_root();
     async_watch(root).await?;
     Ok(())
 }

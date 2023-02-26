@@ -7,6 +7,7 @@ mod watch;
 use crate::args::ActionFile;
 use crate::{ball, fl, ll};
 use add::*;
+use anni_workspace::AnniWorkspace;
 use lint::*;
 use print::*;
 use watch::*;
@@ -17,6 +18,7 @@ use anni_repo::RepositoryManager;
 use clap::{Args, Subcommand, ValueEnum};
 use clap_handler::{handler, Context, Handler};
 use get::RepoGetAction;
+use std::env::current_dir;
 use std::io::Read;
 use std::path::PathBuf;
 use std::str::FromStr;
@@ -27,15 +29,26 @@ use std::str::FromStr;
 pub struct RepoSubcommand {
     #[clap(long, env = "ANNI_REPO")]
     #[clap(help = ll!("repo-root"))]
-    root: PathBuf,
+    root: Option<PathBuf>,
 
     #[clap(subcommand)]
     action: RepoAction,
 }
 
 impl RepoSubcommand {
+    fn repo_root(&self) -> PathBuf {
+        match &self.root {
+            Some(root) => root.clone(),
+            None => {
+                let workspace =
+                    AnniWorkspace::find(current_dir().unwrap()).expect("Workspace not found");
+                workspace.repo_root()
+            }
+        }
+    }
+
     async fn repo_fields(&self, ctx: &mut Context) -> anyhow::Result<()> {
-        let manager = RepositoryManager::new(self.root.as_path())?;
+        let manager = RepositoryManager::new(self.repo_root())?;
         ctx.insert(manager);
         Ok(())
     }
