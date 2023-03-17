@@ -500,14 +500,14 @@ pub struct DiscInfo {
     /// Disc title
     #[serde(skip_serializing_if = "Option::is_none")]
     title: Option<String>,
+    /// Disc catalog
+    pub catalog: String,
     /// Disc artist
     #[serde(skip_serializing_if = "Option::is_none")]
     pub artist: Option<String>,
     /// Disc artists
     #[serde(skip_serializing_if = "is_artists_empty")]
     pub artists: Option<HashMap<String, String>>,
-    /// Disc catalog
-    pub catalog: String,
     /// Disc type
     #[serde(rename = "type")]
     #[serde(skip_serializing_if = "Option::is_none")]
