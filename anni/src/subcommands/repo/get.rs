@@ -188,7 +188,7 @@ pub struct RepoGetMusicbrainz {
 }
 
 #[handler(RepoGetMusicbrainz)]
-fn repo_get_musicbrainz(
+async fn repo_get_musicbrainz(
     options: RepoGetMusicbrainz,
     manager: &RepositoryManager,
     get: &RepoGetAction,
@@ -198,7 +198,8 @@ fn repo_get_musicbrainz(
         .with_release_groups()
         .with_recordings()
         .with_artist_credits()
-        .execute()?;
+        .execute()
+        .await?;
     let release_date = release
         .date
         .map(|date| AnniDate::new(date.year() as u16, date.month() as u8, date.day() as u8))

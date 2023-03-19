@@ -44,14 +44,12 @@ log = "0.4"
 env_logger = "0.10.0"
 anyhow = { version = "1.0", features = ["backtrace"] }
 
-cuna = "0.6.3"
+cuna = "0.7.0"
 id3 = "1"
 anni-vgmdb = "0.3.1"
-# https://github.com/oknozor/musicbrainz_rs/pull/75 has been merged
-# Remove this patch after release
-musicbrainz_rs = { git = "https://github.com/ProjectAnni/musicbrainz_rs", default-features = false, features = [
+musicbrainz_rs = { version = "0.5.0", default-features = false, features = [
     "rustls",
-    "blocking",
+    "async",
 ] }
 
 uuid = { version = "1", features = ["v4"] }
