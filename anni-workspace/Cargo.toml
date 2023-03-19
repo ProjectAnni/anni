@@ -4,10 +4,14 @@ version = "0.1.0"
 authors = ["Yesterday17 <mmf@mmf.moe>"]
 edition = "2021"
 
+description = "A library to operate on anni workspace."
+repository = "https://github.com/ProjectAnni/anni"
+license = "Apache-2.0"
+
 [dependencies]
 anni-repo = { path = "../anni-repo", features = ["git", "flac", "apply"] }
-anni-common = { path = "../anni-common" }
-anni-flac = { path = "../anni-flac" }
+anni-common = { path = "../anni-common", version = "0.1.2" }
+anni-flac = { path = "../anni-flac", version = "0.2.2" }
 
 uuid = { version = "1", features = ["serde"] }
 serde = { version = "1", features = ["derive"] }
