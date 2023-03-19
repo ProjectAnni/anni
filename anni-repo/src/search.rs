@@ -1,9 +1,8 @@
 use std::path::Path;
 
-use lindera_tantivy::{
-    mode::Mode,
-    tokenizer::{DictionaryConfig, DictionaryKind, LinderaTokenizer, TokenizerConfig},
-};
+use lindera_tantivy::dictionary::load_dictionary;
+use lindera_tantivy::tokenizer::LinderaTokenizer;
+use lindera_tantivy::{DictionaryConfig, DictionaryKind, Mode};
 use tantivy::{
     doc,
     query::QueryParser,
@@ -45,20 +44,16 @@ impl RepositorySearchManager {
     }
 
     fn register_tokenizers(&self) {
-        let dictionary = DictionaryConfig {
+        let dictionary_config = DictionaryConfig {
             kind: Some(DictionaryKind::IPADIC),
             path: None,
         };
+        let dictionary = load_dictionary(dictionary_config).unwrap();
 
-        let config = TokenizerConfig {
-            dictionary,
-            user_dictionary: None,
-            mode: Mode::Normal,
-        };
-
-        self.index
-            .tokenizers()
-            .register("lang_ja", LinderaTokenizer::with_config(config).unwrap());
+        self.index.tokenizers().register(
+            "lang_ja",
+            LinderaTokenizer::new(dictionary, None, Mode::Normal),
+        );
     }
 
     pub fn build_document(

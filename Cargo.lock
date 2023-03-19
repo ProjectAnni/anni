@@ -203,7 +203,7 @@ dependencies = [
 
 [[package]]
 name = "anni-repo"
-version = "0.2.0"
+version = "0.2.1"
 dependencies = [
  "alphanumeric-sort",
  "anni-artist",
@@ -2220,9 +2220,9 @@ dependencies = [
 
 [[package]]
 name = "inquire"
-version = "0.5.2"
+version = "0.6.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e6055ce38cac9b10ac819ed4a509d92ccbc60808152c19ff9121c98198964272"
+checksum = "fd079157ad94a32f7511b2e13037f3ae417ad80a6a9b0de29154d48b86f5d6c8"
 dependencies = [
  "bitflags",
  "crossterm",
