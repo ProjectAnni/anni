@@ -20,7 +20,7 @@ thiserror = "1.0"
 async-trait = "0.1"
 
 anni-flac = { path = "../anni-flac", version = "0.2.2", features = ["async"] }
-anni-repo = { path = "../anni-repo", version = "0.1.1", features = [
+anni-repo = { path = "../anni-repo", version = "0.2.0", features = [
     "git",
     "db-write",
 ], optional = true }
