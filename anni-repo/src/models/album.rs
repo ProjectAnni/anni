@@ -215,7 +215,7 @@ impl Album {
     #[cfg(feature = "apply")]
     pub fn apply_strict<P>(&self, directory: P) -> Result<(), crate::error::AlbumApplyError>
     where
-        P: AsRef<Path>,
+        P: AsRef<std::path::Path>,
     {
         use crate::error::AlbumApplyError;
         use anni_common::fs;
@@ -349,7 +349,7 @@ impl Album {
     #[cfg(feature = "apply")]
     pub fn apply_convention<P>(&self, directory: P) -> Result<(), crate::error::AlbumApplyError>
     where
-        P: AsRef<Path>,
+        P: AsRef<std::path::Path>,
     {
         use crate::error::AlbumApplyError;
         use anni_common::fs;
@@ -1003,6 +1003,7 @@ impl From<anni_flac::FlacHeader> for Track {
                 Track::new(
                     title,
                     map.get("ARTIST").map(|v| v.value().to_string()),
+                    None,
                     track_type,
                     Default::default(),
                 )

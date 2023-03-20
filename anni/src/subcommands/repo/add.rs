@@ -61,7 +61,7 @@ fn repo_add(me: RepoAddAction, manager: &RepositoryManager) -> anyhow::Result<()
                     let DiscFolderInfo { info, .. } = DiscFolderInfo::from_str(&*file_name(dir)?)?;
                     info
                 } else {
-                    DiscInfo::new(catalog.clone(), None, None, None, Default::default())
+                    DiscInfo::new(catalog.clone(), None, None, None, None, Default::default())
                 };
                 let tracks = files
                     .iter()

@@ -506,7 +506,14 @@ impl AnniWorkspace {
                 tracks.push(flac.into())
             }
             discs.push(Disc::new(
-                DiscInfo::new(catalog.to_string(), None, None, None, Default::default()),
+                DiscInfo::new(
+                    catalog.to_string(),
+                    None,
+                    None,
+                    None,
+                    None,
+                    Default::default(),
+                ),
                 tracks,
             ));
         }

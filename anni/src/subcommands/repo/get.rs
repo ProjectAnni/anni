@@ -54,6 +54,7 @@ async fn search_album(keyword: &str) -> anyhow::Result<Album> {
                 Some(disc_got.title.to_string()),
                 None,
                 None,
+                None,
                 Default::default(),
             );
 
@@ -63,7 +64,13 @@ async fn search_album(keyword: &str) -> anyhow::Result<Album> {
                 .map(|track| {
                     let title = track.get().unwrap().to_string();
                     let track_type = TrackType::guess(&title);
-                    Track::new(title, Some("".to_string()), track_type, Default::default())
+                    Track::new(
+                        title,
+                        Some("".to_string()),
+                        None,
+                        track_type,
+                        Default::default(),
+                    )
                 })
                 .collect();
 
@@ -91,7 +98,7 @@ pub struct RepoGetVGMdb {
 }
 
 #[handler(RepoGetVGMdb)]
-fn repo_get_vgmdb(
+async fn repo_get_vgmdb(
     options: RepoGetVGMdb,
     manager: &RepositoryManager,
     get: &RepoGetAction,
@@ -229,6 +236,7 @@ async fn repo_get_musicbrainz(
                 media.title,
                 None,
                 None,
+                None,
                 Default::default(),
             );
 
@@ -241,6 +249,7 @@ async fn repo_get_musicbrainz(
                     Track::new(
                         track.title,
                         track.recording.artist_credit.map(to_artist),
+                        None,
                         track_type,
                         Default::default(),
                     )
