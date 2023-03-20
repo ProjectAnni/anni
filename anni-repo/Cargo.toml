@@ -1,6 +1,6 @@
 [package]
 name = "anni-repo"
-version = "0.2.1"
+version = "0.3.0"
 authors = ["Yesterday17 <mmf@mmf.moe>"]
 edition = "2021"
 

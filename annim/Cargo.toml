@@ -18,7 +18,7 @@ env_logger = "0.10.0"
 anyhow = "1.0"
 thiserror = "1.0"
 
-anni-repo = { path = "../anni-repo", version = "0.2.0", features = [
+anni-repo = { path = "../anni-repo", version = "0.3.0", features = [
     "db",
     "git",
     "flac",
