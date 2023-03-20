@@ -1,9 +1,12 @@
 use crate::db::rows;
-use crate::prelude::RepoResult;
+use crate::models::{Album, AnniDate, Disc, DiscInfo, TagString, TagType, Track, TrackType};
+use crate::prelude::{AlbumInfo, RepoResult};
 use rusqlite::{params, Connection, OpenFlags, Params};
 use serde::de::DeserializeOwned;
+use serde::Deserialize;
 use serde_rusqlite::from_rows;
 use std::path::{Path, PathBuf};
+use std::str::FromStr;
 use uuid::Uuid;
 
 pub struct RepoDatabaseRead {
@@ -102,6 +105,64 @@ impl RepoDatabaseRead {
         }
     }
 
+    /// Read a full `Album` from the database.
+    ///
+    /// The album is not formatted.
+    pub fn read_album(&self, album_id: Uuid) -> RepoResult<Option<Album>> {
+        let album_row = self.get_album(album_id)?;
+        let album_row = match album_row {
+            Some(album) => album,
+            None => return Ok(None),
+        };
+        let album_tags = self.get_tag(album_id, None, None)?;
+        let album_info = AlbumInfo {
+            album_id,
+            title: album_row.title,
+            edition: album_row.edition,
+            artist: album_row.artist,
+            artists: None,
+            release_date: AnniDate::from_str(&album_row.release_date)?,
+            album_type: TrackType::from_str(&album_row.album_type)?,
+            catalog: album_row.catalog,
+            tags: album_tags,
+        };
+
+        let discs_row = self.get_discs(album_id)?;
+        let mut discs = Vec::with_capacity(discs_row.len());
+        for disc in discs_row {
+            let disc_tags = self.get_tag(album_id, Some(disc.disc_id), None)?;
+            let disc_info = DiscInfo::new(
+                disc.catalog,
+                Some(disc.title),
+                Some(disc.artist),
+                None,
+                Some(TrackType::from_str(&disc.disc_type)?),
+                disc_tags,
+            );
+
+            let tracks_row = self.get_tracks(album_id, disc.disc_id)?;
+            let mut tracks = Vec::with_capacity(tracks_row.len());
+            for track in tracks_row {
+                let track_tags =
+                    self.get_tag(album_id, Some(disc.disc_id), Some(track.track_id))?;
+                let track = Track::new(
+                    track.title,
+                    Some(track.artist),
+                    None,
+                    Some(TrackType::from_str(&track.track_type)?),
+                    track_tags,
+                );
+                tracks.push(track);
+            }
+
+            let disc = Disc::new(disc_info, tracks);
+            discs.push(disc);
+        }
+
+        let album = Album::new(album_info, discs);
+        Ok(Some(album))
+    }
+
     pub fn get_album(&self, album_id: Uuid) -> RepoResult<Option<rows::AlbumRow>> {
         self.query_optional("SELECT * FROM repo_album WHERE album_id = ?", [album_id])
     }
@@ -139,6 +200,36 @@ impl RepoDatabaseRead {
         )
     }
 
+    /// Get a list of tags for an album, a disc, or a track.
+    pub fn get_tag(
+        &self,
+        album_id: Uuid,
+        disc_id: Option<u8>,
+        track_id: Option<u8>,
+    ) -> RepoResult<Vec<TagString>> {
+        #[derive(Deserialize)]
+        struct SimpleTagRow {
+            name: String,
+            tag_type: String,
+        }
+
+        let tags: Vec<SimpleTagRow>=
+            match (disc_id, track_id) {
+                (None, None) => self.query_list("SELECT * FROM repo_tag WHERE tag_id IN (SELECT tag_id FROM repo_tag_detail WHERE album_id = ? AND disc_id IS NULL AND track_id IS NULL)", params![album_id])?,
+                (Some(disc_id), None) => self.query_list("SELECT * FROM repo_tag WHERE tag_id IN (SELECT tag_id FROM repo_tag_detail WHERE album_id = ? AND disc_id = ? AND track_id IS NULL)", params![album_id, disc_id])?,
+                (Some(disc_id), Some(track_id)) => self.query_list("SELECT * FROM repo_tag WHERE tag_id IN (SELECT tag_id FROM repo_tag_detail WHERE album_id = ? AND disc_id = ? AND track_id = ?)", params![album_id, disc_id, track_id])?,
+                _ => unreachable!(),
+            };
+        let mut result = Vec::with_capacity(tags.len());
+        for tag in tags {
+            let tag_type = TagType::from_str(&tag.tag_type)?;
+            let tag = TagString::new(tag.name, tag_type);
+            result.push(tag);
+        }
+        Ok(result)
+    }
+
+    /// Get list of all available tags in the database.
     pub fn get_tags(&self) -> RepoResult<Vec<rows::TagRow>> {
         self.query_list("SELECT * FROM repo_tag", params![])
     }
@@ -271,3 +362,24 @@ mod wasm {
         JsValue::from_str(&e.to_string())
     }
 }
+
+// #[cfg(test)]
+// mod tests {
+//     use crate::db::RepoDatabaseRead;
+//     use crate::prelude::RepoResult;
+//     use uuid::Uuid;
+//
+//     // FIXME: fix this test
+//     #[test]
+//     fn test_read_album() -> RepoResult<()> {
+//         let db = RepoDatabaseRead::new("/tmp/test/repo.db")?;
+//         let mut album = db
+//             .read_album(
+//                 Uuid::parse_str("e47ee4f0-4ff2-4afc-b5b3-d74bf864bbc6").expect("Invalid UUID"),
+//             )?
+//             .expect("Album not found");
+//
+//         assert_ne!(album.format_to_string(), "");
+//         Ok(())
+//     }
+// }

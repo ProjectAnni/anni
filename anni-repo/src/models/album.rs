@@ -4,7 +4,6 @@ use serde::{Deserialize, Serialize};
 use std::borrow::Cow;
 use std::collections::{HashMap, HashSet};
 use std::ops::{Deref, DerefMut};
-use std::path::Path;
 use std::str::FromStr;
 use uuid::Uuid;
 
@@ -174,6 +173,32 @@ impl Album {
             for disc in self.discs.iter_mut() {
                 if disc.artist.as_deref() == Some(&album_artist) {
                     disc.artist = None;
+                }
+            }
+        }
+
+        let album_type = self.album_type.clone();
+        let all_discs_type = self
+            .discs
+            .iter()
+            .map(|disc| disc.disc_type.as_ref().unwrap_or(&album_type))
+            .collect::<HashSet<_>>();
+        if all_discs_type.len() == 1 {
+            let all_discs_type = all_discs_type.into_iter().next().unwrap();
+            if &album_type != all_discs_type {
+                // not the same, set album type
+                self.album_type = all_discs_type.clone()
+            } else {
+                // all discs have the same type, set all discs' type to None
+                for disc in self.discs.iter_mut() {
+                    disc.disc_type = None;
+                }
+            }
+        } else {
+            // not the same, set part of them to None
+            for disc in self.discs.iter_mut() {
+                if disc.disc_type.as_ref() == Some(&album_type) {
+                    disc.disc_type = None;
                 }
             }
         }
@@ -523,13 +548,14 @@ impl DiscInfo {
         catalog: String,
         title: Option<String>,
         artist: Option<String>,
+        artists: Option<HashMap<String, String>>,
         disc_type: Option<TrackType>,
         tags: Vec<TagString>,
     ) -> Self {
         DiscInfo {
             title,
             artist,
-            artists: Default::default(),
+            artists,
             catalog,
             tags,
             disc_type,
@@ -729,20 +755,21 @@ impl Track {
     pub fn new(
         title: String,
         artist: Option<String>,
+        artists: Option<HashMap<String, String>>,
         track_type: Option<TrackType>,
         tags: Vec<TagString>,
     ) -> Self {
         Track {
             title,
             artist,
-            artists: Default::default(),
+            artists,
             track_type,
             tags,
         }
     }
 
     pub fn empty() -> Self {
-        Track::new(String::new(), None, None, Default::default())
+        Track::new(String::new(), None, None, None, Default::default())
     }
 
     pub(crate) fn resolve_tags(&mut self, tags: &HashMap<String, HashMap<TagType, Tag>>) {
@@ -902,6 +929,22 @@ impl AsRef<str> for TrackType {
             TrackType::Drama => "drama",
             TrackType::Radio => "radio",
             TrackType::Vocal => "vocal",
+        }
+    }
+}
+
+impl FromStr for TrackType {
+    type Err = Error;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "normal" => Ok(TrackType::Normal),
+            "instrumental" => Ok(TrackType::Instrumental),
+            "absolute" => Ok(TrackType::Absolute),
+            "drama" => Ok(TrackType::Drama),
+            "radio" => Ok(TrackType::Radio),
+            "vocal" => Ok(TrackType::Vocal),
+            _ => Err(Error::InvalidTrackType(s.to_string())),
         }
     }
 }

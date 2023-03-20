@@ -107,6 +107,10 @@ impl<'tag> Borrow<TagRef<'tag>> for TagString {
 pub struct TagString(pub(crate) TagRef<'static>);
 
 impl TagString {
+    pub fn new(name: String, tag_type: TagType) -> Self {
+        Self(TagRef::new(name, tag_type))
+    }
+
     pub(crate) fn resolve(&mut self, tags: &HashMap<String, HashMap<TagType, Tag>>) {
         if let TagType::Unknown = self.tag_type {
             if let Some(tags) = tags.get(self.name()) {

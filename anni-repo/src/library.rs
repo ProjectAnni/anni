@@ -95,6 +95,7 @@ impl FromStr for DiscFolderInfo {
                 Some(r.get(2).unwrap().as_str().replace('/', "／")),
                 None,
                 None,
+                None,
                 Default::default(),
             ),
             disc_id: usize::from_str(r.get(3).unwrap().as_str()).unwrap(),
@@ -192,6 +193,7 @@ mod tests {
                 info: DiscInfo::new(
                     "CATA-001".to_string(),
                     Some("TITLE".to_string()),
+                    None,
                     None,
                     None,
                     vec![]

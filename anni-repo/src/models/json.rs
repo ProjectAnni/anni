@@ -1,5 +1,6 @@
-use std::{collections::HashMap, num::ParseIntError, str::FromStr};
+use std::{collections::HashMap, str::FromStr};
 
+use crate::error::Error;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
@@ -85,7 +86,7 @@ impl From<Album> for JsonAlbum {
 }
 
 impl TryFrom<JsonAlbum> for Album {
-    type Error = ParseIntError;
+    type Error = Error;
 
     fn try_from(album: JsonAlbum) -> Result<Self, Self::Error> {
         let JsonAlbumInfo {

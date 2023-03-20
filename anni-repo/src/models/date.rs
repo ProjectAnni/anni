@@ -1,3 +1,4 @@
+use crate::error::Error;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use std::{
     fmt::{Display, Formatter},
@@ -60,30 +61,33 @@ impl<'de> Deserialize<'de> for AnniDate {
                 let date = datetime.to_string();
                 let split = date.split('-').collect::<Vec<_>>();
                 Self::from_parts(split[0], split[1], split[2])
+                    .map_err(|_| de::Error::custom("Invalid date format"))?
             }
-            Value::String(date) => Self::from_str(&date),
+            Value::String(date) => {
+                Self::from_str(&date).map_err(|_| de::Error::custom("Invalid date format"))?
+            }
             _ => {
                 return Err(de::Error::custom("Invalid date format"));
             }
-        }
-        .map_err(|_| de::Error::custom("Invalid date format"))?;
+        };
         Ok(result)
     }
 }
 
 impl FromStr for AnniDate {
-    type Err = ParseIntError;
+    type Err = Error;
 
     fn from_str(date: &str) -> Result<Self, Self::Err> {
         // yyyy-mm-dd
         let parts = date.split('-').collect::<Vec<_>>();
-        Ok(if parts.len() == 1 {
-            Self::from_parts(parts[0], "0", "0")?
+        if parts.len() == 1 {
+            Self::from_parts(parts[0], "0", "0")
         } else if parts.len() == 2 {
-            Self::from_parts(parts[0], parts[1], "0")?
+            Self::from_parts(parts[0], parts[1], "0")
         } else {
-            Self::from_parts(parts[0], parts[1], parts[2])?
-        })
+            Self::from_parts(parts[0], parts[1], parts[2])
+        }
+        .map_err(|_| Error::InvalidDate(date.to_string()))
     }
 }
 

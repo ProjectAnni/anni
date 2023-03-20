@@ -32,6 +32,12 @@ pub enum Error {
     #[error("unknown tag type: {0}")]
     RepoTagUnknownType(String),
 
+    #[error("invalid track type: {0}")]
+    InvalidTrackType(String),
+
+    #[error("invalid date: {0}")]
+    InvalidDate(String),
+
     #[error(transparent)]
     IOError(#[from] std::io::Error),
 
