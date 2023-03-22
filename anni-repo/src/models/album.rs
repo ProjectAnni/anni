@@ -188,11 +188,10 @@ impl Album {
             if &album_type != all_discs_type {
                 // not the same, set album type
                 self.album_type = all_discs_type.clone()
-            } else {
-                // all discs have the same type, set all discs' type to None
-                for disc in self.discs.iter_mut() {
-                    disc.disc_type = None;
-                }
+            }
+            // all discs have the same type, set all discs' type to None
+            for disc in self.discs.iter_mut() {
+                disc.disc_type = None;
             }
         } else {
             // not the same, set part of them to None
