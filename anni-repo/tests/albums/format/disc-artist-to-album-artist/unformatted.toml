@@ -1,0 +1,26 @@
+[album]
+album_id = "15006392-e2ae-4204-b7db-e59211f3cdcf"
+title = "Title"
+edition = "Edition"
+artist = "Album Artist"
+date = 2020-12-16
+type = "normal"
+catalog = "1"
+tags = ["tag1", "tag2"]
+
+[[discs]]
+catalog = "1-1"
+artist = "Artist"
+
+[[discs.tracks]]
+title = "Title 01"
+
+[[discs.tracks]]
+title = "Title 02"
+
+[[discs]]
+catalog = "1-2"
+artist = "Artist" # `artist` field of both discs are the same, it should be formatted to album.
+
+[[discs.tracks]]
+title = "1"

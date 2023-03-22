@@ -1,0 +1,28 @@
+# The only part that can be formatted is `disc[0].tracks[..].artist`.
+[album]
+album_id = "15006392-e2ae-4204-b7db-e59211f3cdcf"
+title = "Title"
+edition = "Edition"
+artist = "Album Artist"
+date = 2020-12-16
+type = "normal"
+catalog = "1"
+tags = ["tag1", "tag2"]
+
+[[discs]]
+catalog = "1-1"
+
+[[discs.tracks]]
+title = "Title 01"
+artist = "Artist"
+
+[[discs.tracks]]
+title = "Title 02"
+artist = "Artist"
+
+[[discs]]
+catalog = "1-2"
+artist = "Placeholder" # Add placeholder so that it would not be merged to album artist
+
+[[discs.tracks]]
+title = "1"
