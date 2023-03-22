@@ -115,7 +115,7 @@ where
         report,
     );
 
-    if album.artist() == "[Unknown Artist]" || album.artist() == "UnknownArtist" {
+    if album.artist() == UNKNOWN_ARTIST {
         report.add(Diagnostic::error(
             DiagnosticMessage {
                 message: "Unknown artist".to_string(),

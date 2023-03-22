@@ -8,7 +8,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## 0.3.0 [Unreleased]
 
 - [Breaking] Change signature of `DiscInfo::new` and `Track::new`
-- `Album::format` now produces better output
+- `Album::format` now works as expected
+- Added `UNKNOWN_ARTIST` constant.
 
 ## 0.2.1
 

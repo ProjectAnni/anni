@@ -4,6 +4,7 @@ use crate::ll;
 use anni_common::validator::*;
 use anni_flac::blocks::{BlockStreamInfo, BlockVorbisComment, PictureType};
 use anni_flac::{FlacHeader, MetadataBlockData};
+use anni_repo::prelude::UNKNOWN_ARTIST;
 use clap::{Args, Subcommand};
 use clap_handler::{handler, Context, Handler};
 use serde::de::Error;
@@ -244,7 +245,7 @@ impl ConventionRules {
             } else if &tag.name == "ARTIST" {
                 // additional artist name check
                 match value {
-                    "[Unknown Artist]" | "UnknownArtist" => {
+                    UNKNOWN_ARTIST => {
                         error!(target: "convention/tag/artist", "Invalid artist: {value} in file: {filename_str}")
                     }
                     "Various Artists" => {

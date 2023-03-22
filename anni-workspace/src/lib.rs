@@ -6,7 +6,7 @@ mod utils;
 use crate::config::WorkspaceConfig;
 use anni_common::fs;
 use anni_repo::library::file_name;
-use anni_repo::prelude::AnniDate;
+use anni_repo::prelude::{AnniDate, UNKNOWN_ARTIST};
 use anni_repo::RepositoryManager;
 use config::LibraryConfig;
 pub use error::WorkspaceError;
@@ -523,7 +523,7 @@ impl AnniWorkspace {
                 album_id,
                 title: title.to_string(),
                 edition: edition.map(|c| c.to_string()),
-                artist: "UnknownArtist".to_string(),
+                artist: UNKNOWN_ARTIST.to_string(),
                 release_date,
                 catalog: catalog.to_string(),
                 ..Default::default()

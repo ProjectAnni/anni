@@ -7,6 +7,8 @@ use std::ops::{Deref, DerefMut};
 use std::str::FromStr;
 use uuid::Uuid;
 
+pub const UNKNOWN_ARTIST: &'static str = "[Unknown Artist]";
+
 #[derive(Debug)]
 pub struct TrackIdentifier {
     pub album_id: Uuid,
@@ -158,9 +160,7 @@ impl Album {
             .map(|disc| disc.artist().to_string())
             .collect::<HashSet<_>>();
         if disc_artist.len() == 1
-            && (self.artist == "UnknownArtist"
-                || self.artist == "[Unknown Artist]"
-                || &self.artist == disc_artist.iter().next().unwrap())
+            && (self.artist == UNKNOWN_ARTIST || &self.artist == disc_artist.iter().next().unwrap())
         {
             // all artists of the discs are the same, set all artists of discs to None
             for disc in self.discs.iter_mut() {
@@ -472,7 +472,7 @@ impl Default for AlbumInfo {
             album_id: Uuid::new_v4(),
             title: "UnknownTitle".to_string(),
             edition: None,
-            artist: "[Unknown Artist]".to_string(),
+            artist: UNKNOWN_ARTIST.to_string(),
             artists: HashMap::new().into(),
             release_date: AnniDate::new(2021, 1, 1),
             album_type: TrackType::Normal,
