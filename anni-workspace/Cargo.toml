@@ -20,7 +20,7 @@ anni-flac = { path = "../anni-flac", version = "0.2.2" }
 uuid = { version = "1", features = ["serde"] }
 serde = { version = "1", features = ["derive"] }
 thiserror = "1"
-toml = "0.7.0"
+toml = "0.7.3"
 
 log = "0.4"
 alphanumeric-sort = "1.4.4"

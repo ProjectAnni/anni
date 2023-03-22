@@ -124,7 +124,7 @@ mod test {
         use crate::prelude::Album;
         use std::str::FromStr;
 
-        let text = include_str!("../../tests/test-album.toml");
+        let text = include_str!("../../tests/fixtures/test-album.toml");
 
         let album = Album::from_str(text).unwrap();
         let album = JsonAlbum::from(album);
