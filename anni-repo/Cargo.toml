@@ -1,6 +1,6 @@
 [package]
 name = "anni-repo"
-version = "0.3.0"
+version = "0.3.1"
 authors = ["Yesterday17 <mmf@mmf.moe>"]
 edition = "2021"
 
@@ -52,12 +52,12 @@ lindera-tantivy = { version = "0.23.0", optional = true, features = ["ipadic-com
 
 # WASM dependencies
 # comment those dependencies when publishing to crates.io
-[target.wasm32-unknown-unknown.dependencies]
-getrandom = { version = "0.2", features = ["js"] }
-js-sys = "0.3.56"
-wasm-bindgen = { version = "0.2.79", features = ["serde-serialize"] }
-serde-wasm-bindgen = "0.4.2"
-sqlite-vfs = { git = "https://github.com/ProjectAnni/sqlite-vfs" }
+#[target.wasm32-unknown-unknown.dependencies]
+#getrandom = { version = "0.2", features = ["js"] }
+#js-sys = "0.3.56"
+#wasm-bindgen = { version = "0.2.79", features = ["serde-serialize"] }
+#serde-wasm-bindgen = "0.4.2"
+#sqlite-vfs = { git = "https://github.com/ProjectAnni/sqlite-vfs" }
 
 [features]
 default = ["json"]

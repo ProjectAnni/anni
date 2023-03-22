@@ -55,6 +55,12 @@ impl FromStr for JsonAlbum {
     }
 }
 
+impl ToString for JsonAlbum {
+    fn to_string(&self) -> String {
+        serde_json::to_string(self).unwrap()
+    }
+}
+
 impl From<Album> for JsonAlbum {
     fn from(album: Album) -> JsonAlbum {
         let AlbumInfo {

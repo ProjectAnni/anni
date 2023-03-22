@@ -203,17 +203,15 @@ dependencies = [
 
 [[package]]
 name = "anni-repo"
-version = "0.3.0"
+version = "0.3.1"
 dependencies = [
  "alphanumeric-sort",
  "anni-artist",
  "anni-common",
  "anni-flac",
- "getrandom",
  "git2 0.16.1",
  "git2-ureq",
  "indexmap",
- "js-sys",
  "lindera-tantivy",
  "log",
  "once_cell",
@@ -221,16 +219,13 @@ dependencies = [
  "regex",
  "rusqlite",
  "serde",
- "serde-wasm-bindgen",
  "serde_json",
  "serde_rusqlite",
- "sqlite-vfs",
  "tantivy",
  "thiserror",
  "toml 0.7.3",
  "toml_edit",
  "uuid",
- "wasm-bindgen",
 ]
 
 [[package]]
@@ -3979,17 +3974,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "serde-wasm-bindgen"
-version = "0.4.5"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e3b4c031cd0d9014307d82b8abf653c0290fbdaeb4c02d00c63cf52f728628bf"
-dependencies = [
- "js-sys",
- "serde",
- "wasm-bindgen",
-]
-
-[[package]]
 name = "serde_derive"
 version = "1.0.157"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4198,18 +4182,6 @@ checksum = "67cf02bbac7a337dc36e4f5a693db6c21e7863f45070f7064577eb4367a3212b"
 dependencies = [
  "base64ct",
  "der",
-]
-
-[[package]]
-name = "sqlite-vfs"
-version = "0.1.0"
-source = "git+https://github.com/ProjectAnni/sqlite-vfs#ba5edd8a3aad6766dd9ed723cf66957a066d43df"
-dependencies = [
- "getrandom",
- "libsqlite3-sys",
- "log",
- "rand",
- "time 0.3.17",
 ]
 
 [[package]]
@@ -5033,8 +5005,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "eaf9f5aceeec8be17c128b2e93e031fb8a4d469bb9c4ae2d7dc1888b26887268"
 dependencies = [
  "cfg-if",
- "serde",
- "serde_json",
  "wasm-bindgen-macro",
 ]
 
