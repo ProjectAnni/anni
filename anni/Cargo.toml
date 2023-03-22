@@ -27,7 +27,7 @@ anni-repo = { path = "../anni-repo", features = [
     "apply",
     #    "search",
 ] }
-anni-provider = { path = "../anni-provider", version = "0.1.3" }
+anni-provider = { path = "../anni-provider" }
 annil = { path = "../annil", default-features = false }
 anni-workspace = { path = "../anni-workspace" }
 clap-handler = { version = "0.1.1", features = ["async"] }
