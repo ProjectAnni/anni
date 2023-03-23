@@ -207,6 +207,16 @@ impl RepoDatabaseRead {
         )
     }
 
+    #[deprecated = "Use `get_item_tags` instead"]
+    pub fn get_tag(
+        &self,
+        album_id: Uuid,
+        disc_id: Option<u8>,
+        track_id: Option<u8>,
+    ) -> RepoResult<Vec<TagString>> {
+        self.get_item_tags(album_id, disc_id, track_id)
+    }
+
     /// Get a list of tags for an album, a disc, or a track.
     pub fn get_item_tags(
         &self,

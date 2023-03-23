@@ -15,8 +15,8 @@ tokio-stream = "0.1.8"
 futures = "0.3"
 async-trait = "0.1"
 
-anni-google-drive3 = { path = "../third_party/google-drive3", optional = true }
-anni-repo = { path = "../anni-repo", features = ["db-read"], optional = true }
+anni-google-drive3 = { version = "0.1.0", path = "../third_party/google-drive3", optional = true }
+anni-repo = { version = "0.3.2", path = "../anni-repo", features = ["db-read"], optional = true }
 
 thiserror.workspace = true
 log.workspace = true
@@ -26,7 +26,7 @@ hex = "0.4.2"
 parking_lot = "0.12.0"
 dashmap = "5.2.0"
 lru = "0.10.0"
-anni-flac = { path = "../anni-flac", features = ["async"] }
+anni-flac = { version = "0.2.2", path = "../anni-flac", features = ["async"] }
 reqwest = { workspace = true, features = ["json", "stream"], optional = true }
 
 [features]

@@ -1,6 +1,7 @@
 [package]
 name = "anni"
 version = "0.1.1"
+publish = false
 
 edition.workspace = true
 repository.workspace = true
