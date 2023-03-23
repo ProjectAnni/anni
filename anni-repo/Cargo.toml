@@ -14,11 +14,11 @@ crate-type = ["cdylib", "rlib"]
 [dependencies]
 toml_edit = "0.19.7"
 # TODO: remove usage of toml, use toml_edit directly
-toml = "0.7.3"
+toml.workspace = true
 serde.workspace = true
 serde_json = { workspace = true, optional = true }
 regex = "1"
-thiserror = "1.0"
+thiserror.workspace = true
 anni-common = { path = "../anni-common", default-features = false }
 uuid = { workspace = true, features = ["serde"] }
 log.workspace = true

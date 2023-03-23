@@ -17,8 +17,8 @@ async-graphql-axum = "5.0.3"
 
 log.workspace = true
 env_logger = "0.10.0"
-anyhow = "1.0"
-thiserror = "1.0"
+anyhow.workspace = true
+thiserror.workspace = true
 
 anni-repo = { path = "../anni-repo", version = "0.3.0", features = [
     "db",
