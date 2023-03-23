@@ -111,6 +111,14 @@ impl TagString {
         Self(TagRef::new(name, tag_type))
     }
 
+    pub fn name(&self) -> &str {
+        self.0.name()
+    }
+
+    pub fn tag_type(&self) -> &TagType {
+        self.0.tag_type()
+    }
+
     pub(crate) fn resolve(&mut self, tags: &HashMap<String, HashMap<TagType, Tag>>) {
         if let TagType::Unknown = self.tag_type {
             if let Some(tags) = tags.get(self.name()) {

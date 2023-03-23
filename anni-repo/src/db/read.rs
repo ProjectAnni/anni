@@ -3,8 +3,9 @@ use crate::models::{Album, AnniDate, Disc, DiscInfo, TagString, TagType, Track, 
 use crate::prelude::{AlbumInfo, RepoResult};
 use rusqlite::{params, Connection, OpenFlags, Params};
 use serde::de::DeserializeOwned;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use serde_rusqlite::from_rows;
+use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
 use uuid::Uuid;
@@ -12,6 +13,12 @@ use uuid::Uuid;
 pub struct RepoDatabaseRead {
     uri: PathBuf,
     conn: Connection,
+}
+
+#[derive(Serialize)]
+pub struct TagEntry {
+    pub tag: TagString,
+    pub children: Vec<TagString>,
 }
 
 impl RepoDatabaseRead {
@@ -114,7 +121,7 @@ impl RepoDatabaseRead {
             Some(album) => album,
             None => return Ok(None),
         };
-        let album_tags = self.get_tag(album_id, None, None)?;
+        let album_tags = self.get_item_tags(album_id, None, None)?;
         let album_info = AlbumInfo {
             album_id,
             title: album_row.title,
@@ -130,7 +137,7 @@ impl RepoDatabaseRead {
         let discs_row = self.get_discs(album_id)?;
         let mut discs = Vec::with_capacity(discs_row.len());
         for disc in discs_row {
-            let disc_tags = self.get_tag(album_id, Some(disc.disc_id), None)?;
+            let disc_tags = self.get_item_tags(album_id, Some(disc.disc_id), None)?;
             let disc_info = DiscInfo::new(
                 disc.catalog,
                 Some(disc.title),
@@ -144,7 +151,7 @@ impl RepoDatabaseRead {
             let mut tracks = Vec::with_capacity(tracks_row.len());
             for track in tracks_row {
                 let track_tags =
-                    self.get_tag(album_id, Some(disc.disc_id), Some(track.track_id))?;
+                    self.get_item_tags(album_id, Some(disc.disc_id), Some(track.track_id))?;
                 let track = Track::new(
                     track.title,
                     Some(track.artist),
@@ -201,7 +208,7 @@ impl RepoDatabaseRead {
     }
 
     /// Get a list of tags for an album, a disc, or a track.
-    pub fn get_tag(
+    pub fn get_item_tags(
         &self,
         album_id: Uuid,
         disc_id: Option<u8>,
@@ -229,9 +236,56 @@ impl RepoDatabaseRead {
         Ok(result)
     }
 
-    /// Get list of all available tags in the database.
-    pub fn get_tags(&self) -> RepoResult<Vec<rows::TagRow>> {
-        self.query_list("SELECT * FROM repo_tag", params![])
+    /// Get relationship between tags
+    pub fn get_tags_relationship(&self) -> RepoResult<HashMap<TagString, TagEntry>> {
+        #[derive(Deserialize)]
+        struct TagRelationRow {
+            tag_id: u32,
+            name: String,
+            tag_type: TagType,
+            children: Option<String>, // tag_id list concatenated by `,` or None
+        }
+
+        struct TagRelationRowOptimized {
+            id: u32,
+            tag: TagString,
+            children: Vec<u32>,
+        }
+
+        let tags: Vec<TagRelationRow>= self.query_list("SELECT tag_id, name, tag_type, children FROM repo_tag LEFT JOIN (SELECT parent_id, group_concat(tag_id) children FROM repo_tag_relation GROUP BY parent_id) ON repo_tag.tag_id = parent_id", ())?;
+        let tags: HashMap<_, _> = tags
+            .into_iter()
+            .map(|row| {
+                (
+                    row.tag_id,
+                    TagRelationRowOptimized {
+                        id: row.tag_id,
+                        tag: TagString::new(row.name, row.tag_type),
+                        children: row
+                            .children
+                            .map(|s| s.split(',').map(|s| s.parse().unwrap()).collect())
+                            .unwrap_or_default(),
+                    },
+                )
+            })
+            .collect();
+
+        let mut result = HashMap::new();
+        for tag in tags.values() {
+            let tag_info = tags.get(&tag.id).unwrap().tag.clone();
+            let children = tag
+                .children
+                .iter()
+                .map(|child_id| tags.get(child_id).unwrap().tag.clone())
+                .collect();
+            let entry = TagEntry {
+                tag: tag_info,
+                children,
+            };
+            result.insert(entry.tag.clone(), entry);
+        }
+
+        Ok(result)
     }
 
     pub fn get_albums_by_tag(&self, tag: &str, recursive: bool) -> RepoResult<Vec<rows::AlbumRow>> {
@@ -367,19 +421,12 @@ mod wasm {
 // mod tests {
 //     use crate::db::RepoDatabaseRead;
 //     use crate::prelude::RepoResult;
-//     use uuid::Uuid;
 //
 //     // FIXME: fix this test
 //     #[test]
 //     fn test_read_album() -> RepoResult<()> {
 //         let db = RepoDatabaseRead::new("/tmp/test/repo.db")?;
-//         let mut album = db
-//             .read_album(
-//                 Uuid::parse_str("e47ee4f0-4ff2-4afc-b5b3-d74bf864bbc6").expect("Invalid UUID"),
-//             )?
-//             .expect("Album not found");
-//
-//         assert_ne!(album.format_to_string(), "");
+//         let tags = db.get_tags_relation()?;
 //         Ok(())
 //     }
 // }

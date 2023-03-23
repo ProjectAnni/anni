@@ -20,9 +20,4 @@ env_logger = "0.10.0"
 anyhow.workspace = true
 thiserror.workspace = true
 
-anni-repo = { path = "../anni-repo", version = "0.3.0", features = [
-    "db",
-    "git",
-    "flac",
-    "search",
-] }
+anni-repo = { path = "../anni-repo", features = ["db", "git", "flac", "search"] }
