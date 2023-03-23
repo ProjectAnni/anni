@@ -1,12 +1,12 @@
 [package]
 name = "anni-provider"
 version = "0.2.0"
-authors = ["Yesterday17 <mmf@mmf.moe>"]
-edition = "2021"
-
 description = "Storage providers for Project Anni."
-repository = "https://github.com/ProjectAnni/anni"
-license = "Apache-2.0"
+
+edition.workspace = true
+authors.workspace = true
+repository.workspace = true
+license.workspace = true
 
 [dependencies]
 tokio = { version = "1", features = ["time", "fs", "rt"] }
@@ -16,26 +16,21 @@ futures = "0.3"
 async-trait = "0.1"
 
 thiserror = "1.0"
-anni-repo = { path = "../anni-repo", version = "0.3.0", features = [
+anni-repo = { path = "../anni-repo", features = [
     "db-read",
 ], optional = true }
-log = "0.4"
+log.workspace = true
 
 anni-google-drive3 = { path = "../third_party/google-drive3", version = "0.1.0", optional = true }
 
-uuid = "1"
+uuid.workspace = true
 sha2 = "0.10.2"
 hex = "0.4.2"
 parking_lot = "0.12.0"
 dashmap = "5.2.0"
 lru = "0.10.0"
 anni-flac = { path = "../anni-flac", version = "0.2.2", features = ["async"] }
-
-[dependencies.reqwest]
-version = "0.11"
-default-features = false
-features = ["json", "rustls-tls", "stream"]
-optional = true
+reqwest = { workspace = true, features = ["json", "stream"], optional = true }
 
 [features]
 default = ["full"]

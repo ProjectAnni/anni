@@ -1,26 +1,26 @@
 [package]
 name = "anni-workspace"
 version = "0.2.0"
-authors = ["Yesterday17 <mmf@mmf.moe>"]
-edition = "2021"
-
 description = "A library to operate on anni workspace."
-repository = "https://github.com/ProjectAnni/anni"
-license = "Apache-2.0"
+
+edition.workspace = true
+authors.workspace = true
+repository.workspace = true
+license.workspace = true
 
 [dependencies]
-anni-repo = { path = "../anni-repo", version = "0.3.0", features = [
+anni-repo = { path = "../anni-repo", features = [
     "git",
     "flac",
     "apply",
 ] }
-anni-common = { path = "../anni-common", version = "0.1.2" }
-anni-flac = { path = "../anni-flac", version = "0.2.2" }
+anni-common = { path = "../anni-common" }
+anni-flac = { path = "../anni-flac" }
 
-uuid = { version = "1", features = ["serde"] }
-serde = { version = "1", features = ["derive"] }
+uuid.workspace = true
+serde.workspace = true
 thiserror = "1"
 toml = "0.7.3"
 
-log = "0.4"
+log.workspace = true
 alphanumeric-sort = "1.4.4"

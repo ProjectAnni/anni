@@ -8,6 +8,7 @@ use std::str::FromStr;
 use uuid::Uuid;
 
 pub const UNKNOWN_ARTIST: &'static str = "[Unknown Artist]";
+pub const VARIOUS_ARTISTS: &'static str = "Various Artists";
 
 #[derive(Debug)]
 pub struct TrackIdentifier {

@@ -1,12 +1,12 @@
 [package]
 name = "anni-flac"
 version = "0.2.2"
-authors = ["Yesterday17 <mmf@mmf.moe>"]
-edition = "2021"
-
 description = "FLAC parser implemented for Project Anni."
-repository = "https://github.com/ProjectAnni/anni"
-license = "Apache-2.0"
+
+edition.workspace = true
+authors.workspace = true
+repository.workspace = true
+license.workspace = true
 
 [dependencies]
 hex = "0.4"
@@ -17,7 +17,7 @@ num-derive = "0.3"
 image = "0.24"
 tokio = { version = "1", features = ["io-util"], optional = true }
 async-trait = { version = "0.1", optional = true }
-log = "0.4"
+log.workspace = true
 
 [dev-dependencies]
 tempfile = "3.2.0"

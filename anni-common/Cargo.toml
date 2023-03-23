@@ -1,12 +1,12 @@
 [package]
 name = "anni-common"
 version = "0.1.2"
-authors = ["Yesterday17 <mmf@mmf.moe>"]
-edition = "2021"
-
 description = "Common library used by Project Anni."
-repository = "https://github.com/ProjectAnni/anni"
-license = "Apache-2.0"
+
+edition.workspace = true
+authors.workspace = true
+repository.workspace = true
+license.workspace = true
 
 [features]
 default = ["trash"]
@@ -16,7 +16,7 @@ byteorder = "1"
 thiserror = "1.0"
 path-absolutize = "3.0.13"
 pathdiff = "0.2.1"
-log = "0.4"
+log.workspace = true
 anni-artist = "0.1.1"
 
 # Remove the dependency for encoding_rs after https://github.com/hsivonen/chardetng/pull/10 was merged
@@ -25,7 +25,7 @@ chardetng = "0.1.17"
 
 regex = "1"
 once_cell = "1"
-serde = { version = "1.0", features = ["derive"] }
-serde_json = "1.0"
+serde.workspace = true
+serde_json.workspace = true
 
 trash = { version = "3.0.1", optional = true }

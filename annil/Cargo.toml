@@ -1,12 +1,12 @@
 [package]
 name = "annil"
 version = "0.2.0"
-authors = ["Yesterday17 <mmf@mmf.moe>"]
-edition = "2021"
-
 description = "A basic implementation of annil protocol."
-repository = "https://github.com/ProjectAnni/anni"
-license = "Apache-2.0"
+
+edition.workspace = true
+authors.workspace = true
+repository.workspace = true
+license.workspace = true
 
 [dependencies]
 axum = "0.6.1"
@@ -19,19 +19,19 @@ anyhow = { version = "1.0", features = ["backtrace"] }
 thiserror = "1.0"
 async-trait = "0.1"
 
-anni-flac = { path = "../anni-flac", version = "0.2.2", features = ["async"] }
-anni-repo = { path = "../anni-repo", version = "0.3.0", features = [
+anni-flac = { path = "../anni-flac", features = ["async"] }
+anni-repo = { path = "../anni-repo", features = [
     "git",
     "db-write",
 ], optional = true }
-anni-provider = { path = "../anni-provider", version = "0.2.0" }
+anni-provider = { path = "../anni-provider" }
 
-serde = { version = "1.0", features = ["derive"] }
+serde.workspace = true
 toml = "0.7.3"
-log = "0.4"
+log.workspace = true
 env_logger = "0.10.0"
 jwt-simple = "0.11.0"
-uuid = "1"
+uuid.workspace = true
 base64 = "0.21.0"
 
 [features]

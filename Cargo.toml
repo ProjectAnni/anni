@@ -11,6 +11,19 @@ members = [
     "third_party/google-drive3",
 ]
 
+[workspace.package]
+edition = "2021"
+authors = ["Yesterday17 <mmf@mmf.moe>"]
+repository = "https://github.com/ProjectAnni/anni"
+license = "Apache-2.0"
+
+[workspace.dependencies]
+log = "0.4"
+uuid = { version = "1", features = ["v4"] }
+reqwest = { version = "0.11.15", features = ["rustls"], default-features = false }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+
 [patch.crates-io]
 # Remove this patch after https://github.com/rusqlite/rusqlite/pull/1010 was merged
 rusqlite = { git = "https://github.com/ProjectAnni/rusqlite", branch = "wasm32-unknown-unknown" }
