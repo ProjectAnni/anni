@@ -26,7 +26,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     steps:
       - name: Setup | Checkout
-        uses: actions/checkout@v2.4.0
+        uses: actions/checkout@v3
 
       - name: Setup | Dependencies
         if: matrix.target == 'x86_64-unknown-linux-musl'
@@ -79,7 +79,7 @@ jobs:
           DOCKER_BUILDKIT: 1
 
       - name: Deploy | Upload artifacts
-        uses: actions/upload-artifact@v2
+        uses: actions/upload-artifact@v3
         with:
           name: ${{ matrix.name }}
           path: ${{ matrix.name }}
