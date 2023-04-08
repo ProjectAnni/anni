@@ -241,7 +241,7 @@ dependencies = [
 
 [[package]]
 name = "anni-workspace"
-version = "0.2.0"
+version = "0.2.1"
 dependencies = [
  "alphanumeric-sort",
  "anni-common",
