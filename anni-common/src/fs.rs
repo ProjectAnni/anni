@@ -1,4 +1,5 @@
 use crate::decode::raw_to_string;
+use log::debug;
 use path_absolutize::*;
 use std::ffi::OsString;
 pub use std::fs::*;
@@ -196,7 +197,7 @@ pub fn remove_file<P: AsRef<Path>>(input: P, trashcan: bool) -> io::Result<()> {
     if trashcan {
         trash::delete(input.as_ref()).map_err(|e| io::Error::new(io::ErrorKind::Other, e))
     } else {
-        std::fs::remove_file(input)
+        fs::remove_file(input)
     }
 }
 
@@ -205,7 +206,7 @@ pub fn remove_dir_all<P: AsRef<Path>>(path: P, trashcan: bool) -> io::Result<()>
     if trashcan {
         trash::delete(path).map_err(|e| io::Error::new(io::ErrorKind::Other, e))
     } else {
-        std::fs::remove_dir_all(path)
+        fs::remove_dir_all(path)
     }
 }
 
@@ -247,6 +248,40 @@ where
         } else if file_type.is_dir() {
             copy_dir(entry.path(), target)?;
         }
+    }
+
+    Ok(())
+}
+
+/// Move a directory from one location to another.
+///
+/// This method uses [rename] at first. If [rename] fails with [io::ErrorKind::CrossesDevices],
+/// it will fallback to copying the directory and then removing the source directory.
+pub fn move_dir<P1, P2>(from: P1, to: P2) -> io::Result<()>
+where
+    P1: AsRef<Path>,
+    P2: AsRef<Path>,
+{
+    // check whether [from] is directory
+    if !is_dir(from.as_ref())? {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidInput,
+            format!("{} is not a directory", from.as_ref().display()),
+        ));
+    }
+
+    if let Err(e) = rename(from.as_ref(), to.as_ref()) {
+        if e.kind() != io::ErrorKind::CrossesDevices {
+            return Err(e);
+        }
+
+        debug!("Failed to rename across filesystems. Copying instead.");
+
+        copy_dir(from.as_ref(), to.as_ref())?;
+        debug!("Copying done. Removing source directory.");
+
+        remove_dir_all(from.as_ref(), false)?;
+        debug!("Source directory removed.");
     }
 
     Ok(())

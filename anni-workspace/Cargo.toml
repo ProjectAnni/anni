@@ -10,7 +10,7 @@ license.workspace = true
 
 [dependencies]
 anni-repo = { version = "0.3.2", path = "../anni-repo", features = ["git", "flac", "apply"] }
-anni-common = { version = "0.1.2", path = "../anni-common" }
+anni-common = { version = "0.1.3", path = "../anni-common" }
 anni-flac = { version = "0.2.2", path = "../anni-flac" }
 
 uuid.workspace = true
