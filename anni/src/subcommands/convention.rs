@@ -4,7 +4,7 @@ use crate::ll;
 use anni_common::validator::*;
 use anni_flac::blocks::{BlockStreamInfo, BlockVorbisComment, PictureType};
 use anni_flac::{FlacHeader, MetadataBlockData};
-use anni_repo::prelude::UNKNOWN_ARTIST;
+use anni_repo::prelude::{UNKNOWN_ARTIST, VARIOUS_ARTISTS};
 use clap::{Args, Subcommand};
 use clap_handler::{handler, Context, Handler};
 use serde::de::Error;
@@ -248,8 +248,8 @@ impl ConventionRules {
                     UNKNOWN_ARTIST => {
                         error!(target: "convention/tag/artist", "Invalid artist: {value} in file: {filename_str}")
                     }
-                    "Various Artists" => {
-                        warn!(target: "convention/tag/artist", "Various Artist is used as track artist in file: {filename_str}. Could it be more accurate?")
+                    VARIOUS_ARTISTS => {
+                        warn!(target: "convention/tag/artist", "{value} is used as track artist in file: {filename_str}. Could it be more accurate?")
                     }
                     _ => {}
                 }
@@ -483,7 +483,7 @@ impl<'de> Deserialize<'de> for ValueType {
         match s.as_str() {
             "string" => Ok(ValueType::String),
             "number" => Ok(ValueType::Number),
-            _ => Err(D::Error::custom("invalid ValueType")),
+            _ => Err(Error::custom("invalid ValueType")),
         }
     }
 }
