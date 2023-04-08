@@ -1,7 +1,6 @@
 use anni_workspace::AnniWorkspace;
 use clap::Args;
 use clap_handler::handler;
-use std::env::current_dir;
 use std::num::NonZeroU8;
 use std::path::PathBuf;
 use uuid::Uuid;
@@ -20,7 +19,7 @@ pub struct WorkspaceCreateAction {
 
 #[handler(WorkspaceCreateAction)]
 fn handle_workspace_create(me: WorkspaceCreateAction) -> anyhow::Result<()> {
-    let workspace = AnniWorkspace::find(current_dir()?)?;
+    let workspace = AnniWorkspace::new()?;
 
     let album_id = me.album_id.unwrap_or_else(|| Uuid::new_v4());
 

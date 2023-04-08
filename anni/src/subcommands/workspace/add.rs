@@ -7,7 +7,6 @@ use colored::Colorize;
 use inquire::Confirm;
 use ptree::TreeBuilder;
 use std::borrow::Cow;
-use std::env::current_dir;
 use std::path::PathBuf;
 use std::str::FromStr;
 
@@ -33,7 +32,7 @@ pub struct WorkspaceAddAction {
 #[handler(WorkspaceAddAction)]
 fn handle_workspace_add(me: WorkspaceAddAction) -> anyhow::Result<()> {
     // validate workspace structure
-    let workspace = AnniWorkspace::find(current_dir()?)?;
+    let workspace = AnniWorkspace::new()?;
     let album_path = me.path;
 
     let validator = |album: &UntrackedWorkspaceAlbum| -> bool {

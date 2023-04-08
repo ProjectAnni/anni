@@ -1,7 +1,6 @@
 use anni_workspace::AnniWorkspace;
 use clap::Args;
 use clap_handler::handler;
-use std::env::current_dir;
 use std::path::PathBuf;
 
 #[derive(Args, Debug, Clone)]
@@ -11,7 +10,7 @@ pub struct WorkspaceUpdateAction {
 
 #[handler(WorkspaceUpdateAction)]
 pub async fn handle_workspace_update(me: WorkspaceUpdateAction) -> anyhow::Result<()> {
-    let workspace = AnniWorkspace::find(current_dir()?)?;
+    let workspace = AnniWorkspace::new()?;
     workspace.apply_tags(me.path)?;
 
     Ok(())

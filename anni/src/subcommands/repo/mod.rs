@@ -18,7 +18,6 @@ use anni_repo::RepositoryManager;
 use clap::{Args, Subcommand, ValueEnum};
 use clap_handler::{handler, Context, Handler};
 use get::RepoGetAction;
-use std::env::current_dir;
 use std::io::Read;
 use std::path::PathBuf;
 use std::str::FromStr;
@@ -40,8 +39,7 @@ impl RepoSubcommand {
         match &self.root {
             Some(root) => root.clone(),
             None => {
-                let workspace =
-                    AnniWorkspace::find(current_dir().unwrap()).expect("Workspace not found");
+                let workspace = AnniWorkspace::new().unwrap();
                 workspace.repo_root()
             }
         }

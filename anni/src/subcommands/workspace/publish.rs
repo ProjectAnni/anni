@@ -2,7 +2,6 @@ use anni_workspace::{AnniWorkspace, WorkspaceAlbumState};
 use clap::Args;
 use clap_handler::handler;
 use std::collections::HashMap;
-use std::env::current_dir;
 use std::path::PathBuf;
 
 #[derive(Args, Debug, Clone)]
@@ -24,7 +23,7 @@ pub struct WorkspacePublishAction {
 
 #[handler(WorkspacePublishAction)]
 pub async fn handle_workspace_publish(mut me: WorkspacePublishAction) -> anyhow::Result<()> {
-    let workspace = AnniWorkspace::find(current_dir()?)?;
+    let workspace = AnniWorkspace::new()?;
 
     let map = if me.parse_path_as_uuid {
         let scan_result = workspace.scan()?;

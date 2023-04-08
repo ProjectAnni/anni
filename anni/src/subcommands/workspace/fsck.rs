@@ -2,7 +2,6 @@ use anni_common::fs;
 use anni_workspace::{AnniWorkspace, WorkspaceAlbumState};
 use clap::Args;
 use clap_handler::handler;
-use std::env::current_dir;
 
 #[derive(Args, Debug, Clone)]
 pub struct WorkspaceFsckAction {
@@ -14,7 +13,7 @@ pub struct WorkspaceFsckAction {
 
 #[handler(WorkspaceFsckAction)]
 fn handle_workspace_fsck(me: WorkspaceFsckAction) -> anyhow::Result<()> {
-    let workspace = AnniWorkspace::find(current_dir()?)?;
+    let workspace = AnniWorkspace::new()?;
 
     if me.fix_dangling {
         let albums = workspace.scan()?;

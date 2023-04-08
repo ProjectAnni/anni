@@ -5,11 +5,11 @@ use uuid::Uuid;
 
 #[derive(thiserror::Error, Debug)]
 pub enum WorkspaceError {
+    #[error("Workspace does not exist in given path.")]
+    NotAWorkspace,
+
     #[error("Workspace was not found.")]
     WorkspaceNotFound,
-
-    #[error("Workspace detected, but config.toml was not found at {0}")]
-    ConfigNotFound(PathBuf),
 
     #[error("Album with id: {0} exists in workspace")]
     DuplicatedAlbumId(Uuid),

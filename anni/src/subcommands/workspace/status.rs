@@ -2,7 +2,6 @@ use anni_workspace::{AnniWorkspace, WorkspaceAlbumState};
 use clap::Args;
 use clap_handler::handler;
 use colored::Colorize;
-use std::env::current_dir;
 use std::fmt::{Display, Formatter};
 use std::path::Path;
 use uuid::Uuid;
@@ -39,7 +38,7 @@ impl Display for DisplayUuid<'_> {
 
 #[handler(WorkspaceStatusAction)]
 pub async fn handle_workspace_status(me: WorkspaceStatusAction) -> anyhow::Result<()> {
-    let workspace = AnniWorkspace::find(current_dir()?)?;
+    let workspace = AnniWorkspace::new()?;
     let albums = workspace.scan()?;
 
     let root = workspace.workspace_root();

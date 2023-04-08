@@ -20,7 +20,10 @@ use uuid::Uuid;
 pub use error::WorkspaceError;
 pub use state::*;
 
-const FILE_IGNORE_LIST: [&str; 2] = [".directory", ".DS_Store"];
+const IGNORED_LIST: [&str; 2] = [
+    ".directory", // KDE Dolphin
+    ".DS_Store",  // macOS
+];
 
 pub struct AnniWorkspace {
     /// Full path of `.anni` directory.
@@ -35,20 +38,42 @@ impl AnniWorkspace {
         AnniWorkspace { dot_anni }
     }
 
+    /// Find [AnniWorkspace] from current working directory.
+    pub fn new() -> Result<Self, WorkspaceError> {
+        Self::find(std::env::current_dir()?)
+    }
+
+    /// Open a [AnniWorkspace] from given path.
+    ///
+    /// If the path is not a valid workspace, [WorkspaceError::NotAWorkspace] will be returned.
+    pub fn open<P>(path: P) -> Result<Self, WorkspaceError>
+    where
+        P: AsRef<Path>,
+    {
+        let dot_anni = path.as_ref().join(".anni");
+        if dot_anni.exists() {
+            let config_path = dot_anni.join("config.toml");
+            if config_path.exists() {
+                return Ok(Self { dot_anni });
+            }
+        }
+
+        Err(WorkspaceError::NotAWorkspace)
+    }
+
+    /// Find and open a [AnniWorkspace] from given path.
+    ///
+    /// This method will try to open all parent directories until it finds a valid workspace.
+    /// If workspace is not found, [WorkspaceError::WorkspaceNotFound] will be returned.
     pub fn find<P>(path: P) -> Result<Self, WorkspaceError>
     where
         P: AsRef<Path>,
     {
         let mut path = path.as_ref();
         loop {
-            let dot_anni = path.join(".anni");
-            if dot_anni.exists() {
-                let config_path = dot_anni.join("config.toml");
-                return if config_path.exists() {
-                    Ok(Self { dot_anni })
-                } else {
-                    Err(WorkspaceError::ConfigNotFound(config_path))
-                };
+            let workspace = Self::open(path);
+            if workspace.is_ok() {
+                return workspace;
             }
             path = path.parent().ok_or(WorkspaceError::WorkspaceNotFound)?;
         }
@@ -59,7 +84,7 @@ impl AnniWorkspace {
         self.dot_anni.parent().unwrap()
     }
 
-    /// Get root path of the metadata repository
+    /// Get root path of the metadata repository.
     ///
     /// # Warn
     /// This method may be removed in the future
@@ -72,9 +97,9 @@ impl AnniWorkspace {
         self.dot_anni.join("objects")
     }
 
-    /// Get album id from symlink target
+    /// Get album id from symlink target.
     ///
-    /// Returns `WorkspaceError::NotAnAlbum` if the symlink is not valid
+    /// Returns [WorkspaceError::NotAnAlbum] if the symlink is not valid.
     pub fn get_album_id<P>(&self, path: P) -> Result<Uuid, WorkspaceError>
     where
         P: AsRef<Path>,
@@ -94,7 +119,7 @@ impl AnniWorkspace {
         Ok(album_id)
     }
 
-    /// Get controlled path of an album with album id
+    /// Get controlled path of an album with album id.
     pub fn get_album_controlled_path(&self, album_id: &Uuid) -> Result<PathBuf, WorkspaceError> {
         let path = self.controlled_album_path(album_id, 2);
         if !path.exists() {
@@ -104,7 +129,7 @@ impl AnniWorkspace {
         Ok(path)
     }
 
-    /// Get album path with given `album_id` in workspace with no extra checks
+    /// Get album path with given `album_id` in workspace with no extra checks.
     pub fn controlled_album_path(&self, album_id: &Uuid, layer: usize) -> PathBuf {
         AnniWorkspace::strict_album_path(self.objects_root(), album_id, layer)
     }
@@ -112,8 +137,7 @@ impl AnniWorkspace {
     pub fn strict_album_path(mut root: PathBuf, album_id: &Uuid, layer: usize) -> PathBuf {
         let bytes = album_id.as_bytes();
 
-        for i in 0..layer {
-            let byte = bytes[i];
+        for byte in &bytes[0..layer] {
             root.push(format!("{byte:x}"));
         }
         root.push(album_id.to_string());
@@ -121,7 +145,7 @@ impl AnniWorkspace {
         root
     }
 
-    /// Try to get `WorkspaceAlbum` from given path
+    /// Try to get [WorkspaceAlbum] from given path
     pub fn get_workspace_album<P>(&self, path: P) -> Result<WorkspaceAlbum, WorkspaceError>
     where
         P: AsRef<Path>,
@@ -632,7 +656,7 @@ impl AnniWorkspace {
                         .file_name()
                         .and_then(|r| r.to_str())
                         .unwrap_or_default();
-                    if FILE_IGNORE_LIST.contains(&file_name) {
+                    if IGNORED_LIST.contains(&file_name) {
                         // skip ignored files
                         continue;
                     }

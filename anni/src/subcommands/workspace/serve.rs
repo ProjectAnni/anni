@@ -5,7 +5,6 @@ use annil::route::user;
 use annil::state::{AnnilKeys, AnnilState};
 use axum::routing::get;
 use axum::{Extension, Router, Server};
-use std::env::current_dir;
 use std::net::SocketAddr;
 use std::sync::Arc;
 
@@ -35,7 +34,7 @@ pub struct WorkspaceServeAction {
 
 #[handler(WorkspaceServeAction)]
 pub async fn handle_workspace_serve(this: WorkspaceServeAction) -> anyhow::Result<()> {
-    let workspace = AnniWorkspace::find(current_dir()?)?;
+    let workspace = AnniWorkspace::new()?;
     let _repo_root = workspace.repo_root();
     let audio_root = workspace.objects_root();
 

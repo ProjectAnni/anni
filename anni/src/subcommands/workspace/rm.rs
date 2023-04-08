@@ -2,7 +2,6 @@ use anni_workspace::AnniWorkspace;
 use clap::Args;
 use clap_handler::handler;
 use inquire::Confirm;
-use std::env::current_dir;
 use std::path::PathBuf;
 
 /// Revert workspace album back to uncommitted state
@@ -16,7 +15,7 @@ pub struct WorkspaceRmAction {
 
 #[handler(WorkspaceRmAction)]
 pub async fn handle_workspace_rm(me: WorkspaceRmAction) -> anyhow::Result<()> {
-    let workspace = AnniWorkspace::find(current_dir()?)?;
+    let workspace = AnniWorkspace::new()?;
     let album_id = workspace.get_album_id(&me.path)?;
 
     if !me.skip_check {
