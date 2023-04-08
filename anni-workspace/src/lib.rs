@@ -9,8 +9,6 @@ use anni_repo::library::file_name;
 use anni_repo::prelude::{AnniDate, UNKNOWN_ARTIST};
 use anni_repo::RepositoryManager;
 use config::LibraryConfig;
-pub use error::WorkspaceError;
-pub use state::*;
 use std::borrow::Cow;
 use std::collections::HashMap;
 use std::num::NonZeroU8;
@@ -19,7 +17,10 @@ use std::str::FromStr;
 use utils::lock::WorkspaceAlbumLock;
 use uuid::Uuid;
 
-const FILE_IGNORE_LIST: [&'static str; 2] = [".directory", ".DS_Store"];
+pub use error::WorkspaceError;
+pub use state::*;
+
+const FILE_IGNORE_LIST: [&str; 2] = [".directory", ".DS_Store"];
 
 pub struct AnniWorkspace {
     /// Full path of `.anni` directory.

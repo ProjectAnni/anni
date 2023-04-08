@@ -33,14 +33,6 @@ jobs:
         run: |
           sudo apt install musl-tools
 
-      - name: Setup | Rust
-        uses: actions-rs/toolchain@v1
-        with:
-          toolchain: nightly
-          override: true
-          profile: minimal
-          target: ${{ matrix.target }}
-
       - name: Setup | Cache
         uses: Swatinem/rust-cache@v2
         with:
