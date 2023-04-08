@@ -22,7 +22,7 @@ thiserror.workspace = true
 anni-common = { version = "0.1.3", path = "../anni-common", default-features = false }
 uuid = { workspace = true, features = ["serde"] }
 log.workspace = true
-once_cell = "1"
+once_cell.workspace = true
 pathdiff = "0.2.1"
 indexmap = "1.9.1"
 anni-artist = "0.1.1"
