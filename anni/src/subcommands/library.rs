@@ -4,11 +4,11 @@ use anni_provider::fs::LocalFileSystemProvider;
 use anni_provider::providers::CommonConventionProvider;
 use anni_provider::strict_album_path;
 use anni_repo::db::RepoDatabaseRead;
-use anni_repo::library::AlbumFolderInfo;
+use anni_repo::library::{file_name, AlbumFolderInfo};
 use anni_repo::RepositoryManager;
 use clap::{Args, Subcommand};
 use clap_handler::{handler, Context, Handler};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::str::FromStr;
 use uuid::Uuid;
 
@@ -37,6 +37,7 @@ pub enum LibraryAction {
     #[clap(about = ll!("library-tag"))]
     ApplyTag(LibraryApplyTagAction),
     Link(LibraryLinkAction),
+    Check(LibraryCheckAction),
 }
 
 #[derive(Args, Debug, Clone)]
@@ -194,6 +195,86 @@ pub async fn library_link(me: LibraryLinkAction, manager: RepositoryManager) -> 
                     let track_from = entry.path();
                     let track_to = disc_to.join(format!("{}.flac", index.trim_start_matches('0')));
                     fs::symlink_file(track_from, track_to)?;
+                }
+            }
+        }
+    }
+
+    Ok(())
+}
+
+#[derive(Args, Debug, Clone)]
+pub struct LibraryCheckAction {
+    #[clap(short, long, default_value = "2")]
+    layer: u8,
+
+    path: PathBuf,
+}
+
+// TODO: reuse code in anni-workspace
+fn scan_strict_albums<P>(albums: &mut Vec<PathBuf>, parent: P, level: u8) -> anyhow::Result<()>
+where
+    P: AsRef<Path>,
+{
+    let parent = parent.as_ref();
+    for entry in fs::read_dir(parent)? {
+        let entry = entry?;
+        let path = entry.path();
+        if path.is_dir() {
+            if level > 0 {
+                scan_strict_albums(albums, path, level - 1)?;
+            } else {
+                albums.push(path);
+            }
+        }
+    }
+    Ok(())
+}
+
+#[handler(LibraryCheckAction)]
+pub async fn library_check(
+    me: LibraryCheckAction,
+    manager: RepositoryManager,
+) -> anyhow::Result<()> {
+    let mut albums = Vec::new();
+    scan_strict_albums(&mut albums, me.path, me.layer)?;
+
+    let manager = manager.into_owned_manager()?;
+
+    for path in albums {
+        let album_id = file_name(&path)?;
+        let album_id = Uuid::parse_str(&album_id);
+        if album_id.is_err() {
+            log::error!("[INVALID] Invalid album id found at {}", path.display());
+            continue;
+        }
+
+        let album_id = album_id.unwrap();
+        let album = manager
+            .album(&album_id)
+            .ok_or_else(|| anyhow!("[UNKNOWN] Album not found in metadata repository"))?;
+
+        if !path.join("cover.jpg").exists() {
+            log::error!("[COVER] Album cover not found: {album_id}");
+        }
+
+        for (disc_id, disc) in album.iter().enumerate() {
+            let disc_id = disc_id + 1;
+            let disc_path = path.join(disc_id.to_string());
+            if !disc_path.exists() {
+                log::error!("[MISSING] Disc {disc_id} not found in album: {album_id}");
+                continue;
+            }
+
+            if !disc_path.join("cover.jpg").exists() {
+                log::error!("[COVER] Disc cover not found: album = {album_id}, disc = {disc_id}");
+            }
+
+            for track_id in 1..=disc.tracks_len() {
+                if !disc_path.join(format!("{track_id}.flac")).exists() {
+                    log::error!(
+                        "[MISSING] Track not found: album = {album_id}, disc = {disc_id}, track = {track_id}"
+                    );
                 }
             }
         }
