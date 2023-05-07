@@ -90,10 +90,10 @@ impl PathWalker {
         walker
     }
 
-    pub fn with_extensions(exts: Box<[&str]>) -> Box<dyn Fn(&PathBuf) -> bool + '_> {
+    pub fn with_extensions(extensions: Box<[&str]>) -> Box<dyn Fn(&PathBuf) -> bool + '_> {
         Box::new(move |file: &PathBuf| match file.extension() {
             None => false,
-            Some(ext) => exts.contains(&ext.to_str().unwrap()),
+            Some(ext) => extensions.contains(&ext.to_str().unwrap()),
         })
     }
 }
@@ -173,7 +173,7 @@ pub fn get_ext_file<P: AsRef<Path>, T: AsRef<str>>(
     Ok(None)
 }
 
-pub fn get_subdirectories<P: AsRef<Path>>(dir: P) -> std::io::Result<Vec<PathBuf>> {
+pub fn get_subdirectories<P: AsRef<Path>>(dir: P) -> io::Result<Vec<PathBuf>> {
     let mut ret = Vec::new();
     let mut dir: Vec<_> = read_dir(dir.as_ref())?.map(|r| r.unwrap()).collect();
     dir.sort_by_key(|e| e.path());
@@ -188,7 +188,7 @@ pub fn get_subdirectories<P: AsRef<Path>>(dir: P) -> std::io::Result<Vec<PathBuf
 
 pub fn read_to_string<P: AsRef<Path>>(input: P) -> io::Result<String> {
     log::trace!("Reading file to string: {:?}", input.as_ref());
-    let r = std::fs::read(input)?;
+    let r = read(input)?;
     Ok(raw_to_string(&r))
 }
 

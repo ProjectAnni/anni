@@ -180,7 +180,7 @@ dependencies = [
 
 [[package]]
 name = "anni-provider"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "anni-flac",
  "anni-google-drive3",
@@ -227,6 +227,10 @@ dependencies = [
  "toml_edit",
  "uuid",
 ]
+
+[[package]]
+name = "anni-split"
+version = "0.1.0"
 
 [[package]]
 name = "anni-vgmdb"

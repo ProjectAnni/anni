@@ -30,6 +30,6 @@ pub(crate) async fn read_duration(
     }
 
     let (info, reader) = read_header(reader).await?;
-    let duration = info.total_samples / info.sample_rate as u64;
+    let duration = info.total_samples * 1000 / info.sample_rate as u64;
     Ok((duration, Box::pin(reader)))
 }

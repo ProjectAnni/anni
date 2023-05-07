@@ -1,0 +1,11 @@
+[package]
+name = "anni-split"
+version = "0.1.0"
+description = "Audio splitting library."
+
+edition.workspace = true
+authors.workspace = true
+repository.workspace = true
+license.workspace = true
+
+[dependencies]

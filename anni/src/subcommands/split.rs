@@ -1,4 +1,3 @@
-use std::fs::File;
 use std::io::{Read, Write};
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
@@ -202,7 +201,7 @@ impl SplitFormat {
         P: AsRef<Path>,
     {
         match self {
-            SplitFormat::Wav => Ok(FileProcess::File(File::open(path.as_ref())?)),
+            SplitFormat::Wav => Ok(FileProcess::File(fs::File::open(path.as_ref())?)),
             SplitFormat::Flac => {
                 let process = Command::new(self.get_encoder()?)
                     .args(&["-c", "-d"])
@@ -304,7 +303,7 @@ impl SplitOutputFormat {
         P: AsRef<Path>,
     {
         match self {
-            SplitOutputFormat::Wav => Ok(FileProcess::File(File::create(path.as_ref())?)),
+            SplitOutputFormat::Wav => Ok(FileProcess::File(fs::File::create(path.as_ref())?)),
             SplitOutputFormat::Flac => {
                 let process = Command::new(self.get_encoder()?)
                     .args(&["--totally-silent", "-", "-o"])
@@ -512,7 +511,7 @@ impl WaveHeader {
 }
 
 enum FileProcess {
-    File(File),
+    File(fs::File),
     Process(Child),
 }
 

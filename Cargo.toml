@@ -6,6 +6,7 @@ members = [
     "anni-provider",
     "anni-common",
     "anni-flac",
+    "anni-split",
     "anni-repo",
     "anni-workspace",
     "third_party/google-drive3",

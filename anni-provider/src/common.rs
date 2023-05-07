@@ -16,7 +16,7 @@ pub struct AudioInfo {
     pub extension: String,
     /// File size of the file
     pub size: usize,
-    /// Audio duration of the file
+    /// Audio duration of the file, in milliseconds
     pub duration: u64,
 }
 
@@ -267,7 +267,6 @@ pub fn strict_album_path(root: &PathBuf, album_id: &str, layer: usize) -> PathBu
     }
     res.join(album_id)
 }
-
 
 pub(crate) fn content_range_to_range(content_range: Option<&str>) -> Range {
     match content_range {
