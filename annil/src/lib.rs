@@ -1,3 +1,5 @@
+#![feature(int_roundings)]
+
 pub mod extractor;
 pub mod provider;
 pub mod route;
@@ -5,6 +7,7 @@ pub mod state;
 pub mod utils;
 
 pub mod metadata;
+mod transcode;
 
 pub mod error {
     use axum::http::StatusCode;

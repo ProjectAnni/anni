@@ -2,6 +2,7 @@ use crate::error::AnnilError;
 use crate::extractor::token::AnnilClaim;
 use crate::extractor::track::TrackIdentifier;
 use crate::provider::AnnilProvider;
+use crate::transcode::*;
 use crate::utils::Either;
 use anni_provider::{AnniProvider, Range};
 use axum::body::StreamBody;
@@ -15,27 +16,79 @@ use axum::response::{IntoResponse, Response};
 use axum::Extension;
 use futures::StreamExt;
 use serde::Deserialize;
+use std::str::FromStr;
 use std::sync::Arc;
 use tokio_util::io::ReaderStream;
+
+#[derive(Copy, Clone)]
+pub enum AudioQuality {
+    Low,
+    Medium,
+    High,
+    Lossless,
+}
+
+impl AudioQuality {
+    /// Transcode if the target quality is not lossless
+    pub fn need_transcode(&self) -> bool {
+        if let AudioQuality::Lossless = self {
+            false
+        } else {
+            true
+        }
+    }
+
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            AudioQuality::Low => "low",
+            AudioQuality::Medium => "medium",
+            AudioQuality::High => "high",
+            AudioQuality::Lossless => "lossless",
+        }
+    }
+}
+
+impl FromStr for AudioQuality {
+    type Err = ();
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "low" => Ok(AudioQuality::Low),
+            "high" => Ok(AudioQuality::High),
+            "lossless" => Ok(AudioQuality::Lossless),
+            _ => Ok(AudioQuality::Medium),
+        }
+    }
+}
 
 #[derive(Deserialize)]
 pub struct AudioQuery {
     #[serde(rename = "quality")]
     quality_requested: Option<String>,
+
+    #[serde(default)]
+    opus: bool,
 }
 
 impl AudioQuery {
-    pub fn quality(&self, is_guest: bool) -> &str {
-        match (&self.quality_requested.as_deref(), is_guest) {
-            (Some("low"), false) => "low",
-            (Some("high"), false) => "high",
-            (Some("lossless"), false) => "lossless",
-            _ => "medium",
+    pub fn get_transcoder(&self, is_guest: bool) -> Box<dyn Transcode + Send + Sync> {
+        let quality = self.quality(is_guest);
+        if quality.need_transcode() {
+            if self.opus {
+                Box::new(OpusTranscoder::new(quality))
+            } else {
+                Box::new(AacTranscoder::new(quality))
+            }
+        } else {
+            Box::new(FlacTranscoder::new(quality))
         }
     }
 
-    pub fn need_transcode(&self, is_guest: bool) -> bool {
-        self.quality(is_guest) != "lossless"
+    fn quality(&self, is_guest: bool) -> AudioQuality {
+        if is_guest {
+            return AudioQuality::Low;
+        }
+        AudioQuality::from_str(self.quality_requested.as_deref().unwrap_or("medium")).unwrap()
     }
 }
 
@@ -62,14 +115,17 @@ where
         .get_audio_info(&album_id, track.disc_id, track.track_id)
         .await
         .map_err(|_| AnnilError::NotFound);
-    let transcode = query.need_transcode(claim.is_guest());
+
+    let transcoder = query.get_transcoder(claim.is_guest());
+    let need_transcode = transcoder.need_transcode();
+
     return match audio {
         Ok(info) => {
             let headers = [
                         (
                             CONTENT_TYPE,
-                            if transcode {
-                                "audio/aac".to_string()
+                            if need_transcode {
+                                transcoder.content_type().to_string()
                             } else {
                                 format!("audio/{}", info.extension)
                             },
@@ -82,14 +138,14 @@ where
             let custom_headers = [
                 ("X-Origin-Type", format!("audio/{}", info.extension)),
                 ("X-Origin-Size", format!("{}", info.size)),
-                ("X-Duration-Seconds", format!("{}", info.duration)),
+                ("X-Duration-Seconds", format!("{}", info.duration / 1000)),
                 (
                     "X-Audio-Quality",
-                    query.quality(claim.is_guest()).to_string(),
+                    query.quality(claim.is_guest()).as_str().to_string(),
                 ),
             ];
 
-            let transcode_headers = if !transcode {
+            let transcode_headers = if !need_transcode {
                 Either::Left([
                     (ACCEPT_RANGES, "bytes".to_string()),
                     (CONTENT_LENGTH, format!("{}", info.size)),
@@ -122,15 +178,6 @@ where
     let provider = provider.read().await;
     let album_id = track.album_id.to_string();
 
-    #[cfg(feature = "transcode")]
-    let bitrate = match query.quality(claim.is_guest()) {
-        "low" => Some("128k"),
-        "medium" => Some("192k"),
-        "high" => Some("320k"),
-        "lossless" => None,
-        _ => Some("128k"),
-    };
-
     let range = headers.get("Range").and_then(|r| {
         let range = r.to_str().ok()?;
         let (_, right) = range.split_once('=')?;
@@ -149,13 +196,16 @@ where
         return (StatusCode::NOT_FOUND, [(CACHE_CONTROL, "private")]).into_response();
     }
 
-    #[cfg(feature = "transcode")]
+    let transcoder = query.get_transcoder(claim.is_guest());
+
     // range is only supported on lossless
-    let range = if bitrate.is_some() {
+    #[cfg(feature = "transcode")]
+    let range = if !transcoder.need_transcode() {
         Range::FULL
     } else {
         range
     };
+
     let audio = provider
         .get_audio(&album_id, track.disc_id, track.track_id, range)
         .await
@@ -183,47 +233,38 @@ where
             let headers = [
                 ("X-Origin-Type", format!("audio/{}", audio.info.extension)),
                 ("X-Origin-Size", format!("{}", audio.info.size)),
-                ("X-Duration-Seconds", format!("{}", audio.info.duration)),
+                (
+                    "X-Duration-Seconds",
+                    format!("{}", audio.info.duration / 1000),
+                ),
                 (
                     "X-Audio-Quality",
-                    query.quality(claim.is_guest()).to_string(),
+                    query.quality(claim.is_guest()).as_str().to_string(),
                 ),
             ];
 
             #[cfg(feature = "transcode")]
-            let body = match bitrate {
-                Some(bitrate) => {
-                    use std::process::Stdio;
-                    let mut process = tokio::process::Command::new("ffmpeg")
-                        .args(&[
-                            "-i", "pipe:0", "-map", "0:0", "-b:a", bitrate, "-f", "adts", "-",
-                        ])
-                        .stdin(Stdio::piped())
-                        .stdout(Stdio::piped())
-                        .stderr(Stdio::null())
-                        .spawn()
-                        .unwrap();
-                    let stdout = process.stdout.take().unwrap();
-                    tokio::spawn(async move {
-                        let mut stdin = process.stdin.as_mut().unwrap();
-                        let mut audio = audio;
-                        let _ = tokio::io::copy(&mut audio.reader, &mut stdin).await;
-                    });
-                    Either::Left((
-                        [(CONTENT_TYPE, "audio/aac")],
-                        StreamBody::new(ReaderStream::new(stdout)),
-                    ))
-                }
-                None => {
-                    let size = audio.range.length().unwrap_or(audio.info.size as u64);
-                    Either::Right((
-                        [
-                            (CONTENT_LENGTH, format!("{size}")),
-                            (CONTENT_TYPE, format!("audio/{}", audio.info.extension)),
-                        ],
-                        StreamBody::new(ReaderStream::new(audio.reader).take(size as usize)),
-                    ))
-                }
+            let body = if transcoder.quality().need_transcode() {
+                let mut process = transcoder.spawn();
+                let stdout = process.stdout.take().unwrap();
+                tokio::spawn(async move {
+                    let mut stdin = process.stdin.as_mut().unwrap();
+                    let mut audio = audio;
+                    let _ = tokio::io::copy(&mut audio.reader, &mut stdin).await;
+                });
+                Either::Left((
+                    [(CONTENT_TYPE, transcoder.content_type())],
+                    StreamBody::new(ReaderStream::new(stdout)),
+                ))
+            } else {
+                let size = audio.range.length().unwrap_or(audio.info.size as u64);
+                Either::Right((
+                    [
+                        (CONTENT_LENGTH, format!("{size}")),
+                        (CONTENT_TYPE, format!("audio/{}", audio.info.extension)),
+                    ],
+                    StreamBody::new(ReaderStream::new(audio.reader).take(size as usize)),
+                ))
             };
 
             #[cfg(not(feature = "transcode"))]
