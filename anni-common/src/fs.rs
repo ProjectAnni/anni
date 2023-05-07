@@ -280,7 +280,7 @@ where
         copy_dir(from.as_ref(), to.as_ref())?;
         debug!("Copying done. Removing source directory.");
 
-        remove_dir_all(from.as_ref(), false)?;
+        fs::remove_dir_all(from.as_ref())?;
         debug!("Source directory removed.");
     }
 
