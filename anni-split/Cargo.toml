@@ -9,3 +9,7 @@ repository.workspace = true
 license.workspace = true
 
 [dependencies]
+anni-common = { path = "../anni-common" }
+
+thiserror.workspace = true
+log.workspace = true

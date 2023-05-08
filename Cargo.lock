@@ -83,6 +83,7 @@ dependencies = [
  "anni-google-drive3",
  "anni-provider",
  "anni-repo",
+ "anni-split",
  "anni-vgmdb",
  "anni-workspace",
  "annil",
@@ -231,6 +232,11 @@ dependencies = [
 [[package]]
 name = "anni-split"
 version = "0.1.0"
+dependencies = [
+ "anni-common",
+ "log",
+ "thiserror",
+]
 
 [[package]]
 name = "anni-vgmdb"

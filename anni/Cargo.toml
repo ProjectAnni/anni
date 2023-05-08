@@ -23,6 +23,7 @@ directories-next = "2.0.0"
 
 anni-common = { path = "../anni-common" }
 anni-flac = { path = "../anni-flac" }
+anni-split = { path = "../anni-split" }
 anni-repo = { path = "../anni-repo", features = [
     "db",
     "git",
