@@ -85,18 +85,20 @@ impl Transcode for OpusTranscoder {
         };
 
         #[rustfmt::skip]
+        let args = &[
+            "--bitrate", bitrate,
+            "--hard-cbr",
+            "--music",
+            "--framesize", "20",
+            "--comp", "0",
+            "--discard-comments",
+            "--discard-pictures",
+            "-", // input from stdin
+            "-", // output to stdout
+        ];
+
         tokio::process::Command::new("opusenc")
-            .args(&[
-                "--bitrate", bitrate,
-                "--hard-cbr",
-                "--music",
-                "--framesize", "20",
-                "--comp", "0",
-                "--discard-comments",
-                "--discard-pictures",
-                "-", // input from stdin
-                "-", // output to stdout
-            ])
+            .args(args)
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
             .stderr(Stdio::null())
