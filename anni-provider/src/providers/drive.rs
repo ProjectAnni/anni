@@ -1,4 +1,7 @@
-use crate::{AnniProvider, AudioInfo, AudioResourceReader, ProviderError, Range, ResourceReader, common::content_range_to_range};
+use crate::{
+    common::content_range_to_range, AnniProvider, AudioInfo, AudioResourceReader, ProviderError,
+    Range, ResourceReader,
+};
 use anni_google_drive3::{
     hyper, hyper::client::HttpConnector, hyper_rustls::HttpsConnector, oauth2, DriveHub,
 };

@@ -23,10 +23,16 @@ pub trait Decoder: Sized {
     }
 }
 
+pub trait Encoder: Sized {
+    fn encode<P>(self, input: impl Read + Send + 'static, output: P) -> Result<(), SplitError>
+    where
+        P: AsRef<Path>;
+}
+
 #[cfg(test)]
 mod tests {
-    use crate::decoder::flac::FlacDecoder;
-    use crate::decoder::Decoder;
+    use crate::codec::flac::FlacDecoder;
+    use crate::codec::Decoder;
     use crate::error::SplitError;
     use std::fs::File;
 

@@ -1,22 +1,22 @@
-use crate::decoder::command::{CommandDecoder, INPUT_FILE_PLACEHOLDER};
-use crate::decoder::Decoder;
+use crate::codec::command::{CommandCodec, FILE_PLACEHOLDER};
+use crate::codec::Decoder;
 use crate::error::SplitError;
 use std::io::Read;
 use std::path::Path;
 
-pub struct TakDecoder;
+pub struct ApeDecoder;
 
-impl Decoder for TakDecoder {
+impl Decoder for ApeDecoder {
     type Output = impl Read;
 
     fn decode(self, input: impl Read + Send + 'static) -> Result<Self::Output, SplitError> {
-        CommandDecoder::new("takc", ["-d", "-", "-"])?.decode(input)
+        CommandCodec::new("mac", ["-", "-", "-d"])?.decode(input)
     }
 
     fn decode_file<P>(self, input: P) -> Result<Self::Output, SplitError>
     where
         P: AsRef<Path>,
     {
-        CommandDecoder::new("takc", ["-d", INPUT_FILE_PLACEHOLDER, "-"])?.decode_file(input)
+        CommandCodec::new("mac", [FILE_PLACEHOLDER, "-", "-d"])?.decode_file(input)
     }
 }
