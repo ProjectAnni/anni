@@ -10,13 +10,13 @@ impl Decoder for FlacDecoder {
     type Output = impl Read;
 
     fn decode(self, input: impl Read + Send + 'static) -> Result<Self::Output, SplitError> {
-        CommandDecoder::new("flac", ["-c", "-d", "-"]).decode(input)
+        CommandDecoder::new("flac", ["-c", "-d", "-"])?.decode(input)
     }
 
     fn decode_file<P>(self, input: P) -> Result<Self::Output, SplitError>
     where
         P: AsRef<Path>,
     {
-        CommandDecoder::new("flac", ["-c", "-d", INPUT_FILE_PLACEHOLDER]).decode_file(input)
+        CommandDecoder::new("flac", ["-c", "-d", INPUT_FILE_PLACEHOLDER])?.decode_file(input)
     }
 }

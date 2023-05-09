@@ -2,8 +2,9 @@ use crate::decoder::Decoder;
 use crate::error::SplitError;
 use std::ffi::OsStr;
 use std::io::Read;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
+use which::which;
 
 /// Placeholder for [CommandDecoder] to indicate the input file path.
 pub const INPUT_FILE_PLACEHOLDER: &str = "/*__ANNI_SPLIT_INPUT_FILE_PLACEHOLDER__*/";
@@ -11,29 +12,36 @@ pub const INPUT_FILE_PLACEHOLDER: &str = "/*__ANNI_SPLIT_INPUT_FILE_PLACEHOLDER_
 /// [CommandDecoder] is a [Decoder] that spawns a external command to do the decoding.
 ///
 /// Use [INPUT_FILE_PLACEHOLDER] to indicate the input path. It would be replaced with the actual input file path.
-pub struct CommandDecoder<C, A>
+pub struct CommandDecoder<Cmd, Arg, Args>
 where
-    C: AsRef<OsStr>,
-    A: IntoIterator<Item = C>,
+    Cmd: AsRef<OsStr>,
+    Arg: AsRef<OsStr>,
+    Args: IntoIterator<Item = Arg>,
 {
-    command: C,
-    arguments: A,
+    command: Cmd,
+    arguments: Args,
 }
 
-impl<C, A> CommandDecoder<C, A>
+impl<Arg, Args> CommandDecoder<PathBuf, Arg, Args>
 where
-    C: AsRef<OsStr>,
-    A: IntoIterator<Item = C>,
+    Arg: AsRef<OsStr>,
+    Args: IntoIterator<Item = Arg>,
 {
-    pub fn new(command: C, arguments: A) -> Self {
-        Self { command, arguments }
+    pub fn new<O>(command: O, arguments: Args) -> Result<Self, SplitError>
+    where
+        O: AsRef<OsStr>,
+    {
+        let command: PathBuf = which(command)?;
+
+        Ok(Self { command, arguments })
     }
 }
 
-impl<C, A> Decoder for CommandDecoder<C, A>
+impl<Cmd, Arg, Args> Decoder for CommandDecoder<Cmd, Arg, Args>
 where
-    C: AsRef<OsStr>,
-    A: IntoIterator<Item = C>,
+    Cmd: AsRef<OsStr>,
+    Arg: AsRef<OsStr>,
+    Args: IntoIterator<Item = Arg>,
 {
     type Output = impl Read;
 
