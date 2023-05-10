@@ -2,7 +2,11 @@ use anni_common::decode::{token, u16_le, u32_le, DecodeError};
 use anni_common::encode::{btoken_w, u16_le_w, u32_le_w};
 use anni_common::traits::{Decode, Encode};
 use log::{debug, error};
+use std::fs::File;
 use std::io::{Read, Write};
+use std::path::Path;
+
+use super::{Decoder, Encoder};
 
 #[derive(Debug)]
 pub struct WaveHeader {
@@ -95,5 +99,25 @@ impl WaveHeader {
     pub fn offset_from_second_frames(&self, s: u32, f: u32) -> u32 {
         let br = self.byte_rate;
         br * s + br * f / 75
+    }
+}
+
+pub struct WavDecoder<P: AsRef<Path>>(pub P);
+
+impl<P: AsRef<Path>> Decoder for WavDecoder<P> {
+    type Output = impl Read;
+
+    fn decode(self) -> Result<Self::Output, crate::error::SplitError> {
+        Ok(File::open(self.0)?)
+    }
+}
+
+pub struct WavEncoder<P: AsRef<Path>>(pub P);
+
+impl<P: AsRef<Path>> Encoder for WavEncoder<P> {
+    fn encode(self, mut input: impl Read) -> Result<(), crate::error::SplitError> {
+        let mut output = File::open(self.0)?;
+        std::io::copy(&mut input, &mut output)?;
+        Ok(())
     }
 }

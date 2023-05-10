@@ -10,7 +10,7 @@ use crate::{ball, ll};
 use anni_common::traits::{Decode, Encode};
 use anni_flac::blocks::{BlockPicture, PictureType, UserComment, UserCommentExt};
 use anni_flac::{FlacHeader, MetadataBlock, MetadataBlockData};
-use anni_split::wave::WaveHeader;
+use anni_split::codec::wav::WaveHeader;
 use clap_handler::handler;
 use cuna::Cuna;
 use std::fmt::{Display, Formatter};

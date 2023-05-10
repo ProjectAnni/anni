@@ -12,65 +12,52 @@ pub const FILE_PLACEHOLDER: &str = "/*__ANNI_SPLIT_COMMAND_CODEC_FILE_PLACEHOLDE
 /// [CommandCodec] is a [Encoder] or [Decoder] that spawns a external command to do the en/decoding.
 ///
 /// Use [FILE_PLACEHOLDER] to indicate the input path. It would be replaced with the actual input/output file path.
-pub struct CommandCodec<Cmd, Arg, Args>
+pub struct CommandCodec<Cmd, Arg, Args, P>
 where
     Cmd: AsRef<OsStr>,
     Arg: AsRef<OsStr>,
     Args: IntoIterator<Item = Arg>,
+    P: AsRef<Path>,
 {
     command: Cmd,
     arguments: Args,
+    path: P,
 }
 
-impl<Arg, Args> CommandCodec<PathBuf, Arg, Args>
+impl<Arg, Args, P> CommandCodec<PathBuf, Arg, Args, P>
 where
     Arg: AsRef<OsStr>,
     Args: IntoIterator<Item = Arg>,
+    P: AsRef<Path>,
 {
-    pub fn new<O>(command: O, arguments: Args) -> Result<Self, SplitError>
+    pub fn new<O>(command: O, arguments: Args, path: P) -> Result<Self, SplitError>
     where
         O: AsRef<OsStr>,
     {
         let command: PathBuf = which(command)?;
 
-        Ok(Self { command, arguments })
+        Ok(Self {
+            command,
+            arguments,
+            path,
+        })
     }
 }
 
-impl<Cmd, Arg, Args> Decoder for CommandCodec<Cmd, Arg, Args>
+impl<Cmd, Arg, Args, P> Decoder for CommandCodec<Cmd, Arg, Args, P>
 where
     Cmd: AsRef<OsStr>,
     Arg: AsRef<OsStr>,
     Args: IntoIterator<Item = Arg>,
+    P: AsRef<Path>,
 {
     type Output = impl Read;
 
-    fn decode(self, mut input: impl Read + Send + 'static) -> Result<Self::Output, SplitError> {
-        let mut process = Command::new(self.command)
-            .args(self.arguments)
-            .stdin(Stdio::piped())
-            .stdout(Stdio::piped())
-            .stderr(Stdio::inherit())
-            .spawn()?;
-
-        let mut stdin = process.stdin.take().unwrap();
-        let stdout = process.stdout.take().unwrap();
-
-        std::thread::spawn(move || {
-            std::io::copy(&mut input, &mut stdin).unwrap();
-        });
-
-        Ok(stdout)
-    }
-
-    fn decode_file<P>(self, input: P) -> Result<Self::Output, SplitError>
-    where
-        P: AsRef<Path>,
-    {
+    fn decode(self) -> Result<Self::Output, SplitError> {
         let args = self
             .arguments
             .into_iter()
-            .map(|arg| Replacer(arg, input.as_ref()));
+            .map(|arg| Replacer(arg, self.path.as_ref()));
 
         let mut process = Command::new(self.command)
             .args(args)
@@ -85,20 +72,18 @@ where
     }
 }
 
-impl<Cmd, Arg, Args> Encoder for CommandCodec<Cmd, Arg, Args>
+impl<Cmd, Arg, Args, P> Encoder for CommandCodec<Cmd, Arg, Args, P>
 where
     Cmd: AsRef<OsStr>,
     Arg: AsRef<OsStr>,
     Args: IntoIterator<Item = Arg>,
+    P: AsRef<Path>,
 {
-    fn encode<P>(self, mut input: impl Read + Send + 'static, output: P) -> Result<(), SplitError>
-    where
-        P: AsRef<Path>,
-    {
+    fn encode(self, mut input: impl Read) -> Result<(), SplitError> {
         let args = self
             .arguments
             .into_iter()
-            .map(|arg| Replacer(arg, output.as_ref()));
+            .map(|arg| Replacer(arg, self.path.as_ref().as_os_str()));
 
         let mut process = Command::new(self.command)
             .args(args)
@@ -108,13 +93,39 @@ where
             .spawn()?;
 
         let mut stdin = process.stdin.take().unwrap();
-        std::thread::spawn(move || {
-            std::io::copy(&mut input, &mut stdin).unwrap();
-        });
-
+        std::io::copy(&mut input, &mut stdin)?;
         process.wait()?;
+
         Ok(())
     }
+}
+
+#[macro_export]
+macro_rules! command_decoder {
+    ($name: ident, $cmd: expr, $args: expr) => {
+        pub struct $name<P: AsRef<std::path::Path>>(pub P);
+
+        impl<P: AsRef<std::path::Path>> $crate::Decoder for $name<P> {
+            type Output = impl std::io::Read;
+
+            fn decode(self) -> Result<Self::Output, $crate::SplitError> {
+                $crate::codec::command::CommandCodec::new($cmd, $args, self.0)?.decode()
+            }
+        }
+    };
+}
+
+#[macro_export]
+macro_rules! command_encoder {
+    ($name: ident, $cmd: expr, $args: expr) => {
+        pub struct $name<P: AsRef<std::path::Path>>(pub P);
+
+        impl<P: AsRef<std::path::Path>> $crate::Encoder for $name<P> {
+            fn encode(self, input: impl std::io::Read) -> Result<(), $crate::SplitError> {
+                $crate::codec::command::CommandCodec::new($cmd, $args, self.0)?.encode(input)
+            }
+        }
+    };
 }
 
 /// Utility to reuse logic of [FILE_PLACEHOLDER] replacing.
