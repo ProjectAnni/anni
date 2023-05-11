@@ -1,5 +1,9 @@
+use crate::error::SplitError;
 use crate::{codec::wav::WaveHeader, split::Breakpoint};
+use cuna::Cuna;
 
+/// `Cue` files uses format like `mm:ss.ff` to describe time of tracks.
+/// [CueBreakpoint] reuses this value, and can be used to split wave files, depending on its byte-rate.
 pub struct CueBreakpoint {
     seconds: u32,
     frames: u32,
@@ -11,11 +15,17 @@ impl Breakpoint for CueBreakpoint {
     }
 }
 
-pub fn cue_breakpoints<C>(cue: C) -> impl IntoIterator<Item = CueBreakpoint>
+/// Extract breakpoints from a cue file.
+/// Behavior should be the same as `--append-gaps` flag enabled in [cuebreakpoints](https://github.com/svend/cuetools/blob/master/src/tools/cuebreakpoints.c).
+///
+/// It returns an iterator of breakpoints, and a [Cuna] object.
+pub fn cue_breakpoints<C>(
+    cue: C,
+) -> Result<(impl IntoIterator<Item = CueBreakpoint>, Cuna), SplitError>
 where
     C: AsRef<str>,
 {
-    let cue = cuna::Cuna::new(cue.as_ref()).unwrap();
+    let cue = Cuna::new(cue.as_ref())?;
 
     let total_tracks = cue.files.iter().map(|f| f.tracks.len()).sum();
     let mut result = Vec::with_capacity(total_tracks);
@@ -42,5 +52,5 @@ where
         result.remove(0);
     }
 
-    result
+    Ok((result, cue))
 }

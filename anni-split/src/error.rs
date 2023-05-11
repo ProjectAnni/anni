@@ -7,5 +7,11 @@ pub enum SplitError {
     ExecutableNotFound(#[from] which::Error),
 
     #[error(transparent)]
+    CueError(#[from] cuna::error::Error),
+
+    #[error(transparent)]
+    DecodeError(#[from] anni_common::decode::DecodeError),
+
+    #[error(transparent)]
     IOError(#[from] io::Error),
 }
