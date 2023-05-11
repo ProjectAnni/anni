@@ -34,5 +34,13 @@ where
         }
     }
 
+    if let Some(CueBreakpoint {
+        seconds: 0,
+        frames: 0,
+    }) = result.get(0)
+    {
+        result.remove(0);
+    }
+
     result
 }
