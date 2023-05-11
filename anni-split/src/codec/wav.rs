@@ -116,7 +116,7 @@ pub struct WavEncoder<P: AsRef<Path>>(pub P);
 
 impl<P: AsRef<Path>> Encoder for WavEncoder<P> {
     fn encode(self, mut input: impl Read) -> Result<(), crate::error::SplitError> {
-        let mut output = File::open(self.0)?;
+        let mut output = File::create(self.0)?;
         std::io::copy(&mut input, &mut output)?;
         Ok(())
     }
