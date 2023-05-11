@@ -37,7 +37,7 @@ use crate::{
 pub fn split<F, E, I, B>(input: impl Decoder, output: F, breakpoints: I) -> Result<(), SplitError>
 where
     F: Fn(usize) -> Result<E, SplitError>,
-    E: Encoder + 'static,
+    E: Encoder,
     I: IntoIterator<Item = B>,
     B: Breakpoint,
 {

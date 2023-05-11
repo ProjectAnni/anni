@@ -3,7 +3,7 @@ use crate::error::SplitError;
 use std::ffi::OsStr;
 use std::io::Read;
 use std::path::{Path, PathBuf};
-use std::process::{Command, Stdio};
+use std::process::{ChildStdout, Command, Stdio};
 use which::which;
 
 /// Placeholder for [CommandCodec] to indicate the input file path.
@@ -51,7 +51,7 @@ where
     Args: IntoIterator<Item = Arg>,
     P: AsRef<Path>,
 {
-    type Output = impl Read;
+    type Output = ChildStdout;
 
     fn decode(self) -> Result<Self::Output, SplitError> {
         let args = self
@@ -106,7 +106,7 @@ macro_rules! command_decoder {
         pub struct $name<P: AsRef<std::path::Path>>(pub P);
 
         impl<P: AsRef<std::path::Path>> $crate::codec::Decoder for $name<P> {
-            type Output = impl std::io::Read;
+            type Output = std::process::ChildStdout;
 
             fn decode(self) -> Result<Self::Output, $crate::error::SplitError> {
                 $crate::codec::command::CommandCodec::new($cmd, $args, self.0)?.decode()

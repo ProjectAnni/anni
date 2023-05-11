@@ -2,7 +2,7 @@ pub mod command;
 pub mod wav;
 
 /// [Decoder] trait to decode from specified format to WAVE.
-pub trait Decoder: Sized {
+pub trait Decoder {
     type Output: std::io::Read + Send;
 
     fn decode(self) -> Result<Self::Output, crate::error::SplitError>;

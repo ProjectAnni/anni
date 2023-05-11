@@ -1,16 +1,20 @@
-use std::io::{Read, Write};
+use std::io::Read;
 use std::path::{Path, PathBuf};
-use std::process::{Child, Command, Stdio};
 
 use clap::{ArgAction, Args, ValueEnum};
 
 use anni_common::fs;
 
 use crate::{ball, ll};
-use anni_common::traits::{Decode, Encode};
 use anni_flac::blocks::{BlockPicture, PictureType, UserComment, UserCommentExt};
 use anni_flac::{FlacHeader, MetadataBlock, MetadataBlockData};
-use anni_split::codec::wav::WaveHeader;
+use anni_split::codec::wav::{WavDecoder, WavEncoder};
+use anni_split::codec::{
+    ApeCommandDecoder, Decoder, Encoder, FlacCommandDecoder, FlacCommandEncoder, TakCommandDecoder,
+    TtaCommandDecoder,
+};
+use anni_split::error::SplitError;
+use anni_split::{cue_breakpoints, split};
 use clap_handler::handler;
 use cuna::Cuna;
 use std::fmt::{Display, Formatter};
@@ -59,46 +63,19 @@ impl SplitSubcommand {
     {
         info!(target: "split", "Splitting {}...", audio_path.as_ref().display());
 
-        let mut input = self.input_format.to_process(audio_path.as_ref())?;
-        let mut audio = input.get_reader();
-        let audio = &mut audio;
-
-        // read header first
-        let mut header = WaveHeader::from_reader(audio)?;
-
-        // extract cue break points
-        let tracks = cue_tracks(cue_path.as_ref());
-        struct TrackInfo {
-            begin: u32,
-            end: u32,
-            name: String,
-            tags: Vec<UserComment>,
-        }
-
-        // generate time points
-        let mut time_points: Vec<_> = tracks
-            .iter()
-            .map(|i| (&header).offset_from_second_frames(i.seconds, i.frames))
-            .collect();
-        time_points.push(header.data_size);
-
-        // generate track info
-        let tracks: Vec<_> = tracks
-            .into_iter()
-            .enumerate()
-            .map(|(i, track)| TrackInfo {
-                begin: time_points[i],
-                end: time_points[i + 1],
-                name: format!("{:02}. {}", track.index, track.title).replace("/", "／"),
-                tags: track.tags,
-            })
-            .collect();
+        let input = self
+            .input_format
+            .get_decoder(audio_path.as_ref().to_path_buf());
+        let (breakpoints, cue) = cue_breakpoints(fs::read_to_string(cue_path.as_ref())?)?;
+        let tracks = cue_tracks(cue);
 
         // generate file names & check whether file exists before split
         let files = tracks
             .iter()
             .map(|track| {
-                let filename = format!("{}.{}", track.name, self.output_format);
+                let filename =
+                    format!("{:02}. {}.{}", track.index, track.title, self.output_format)
+                        .replace("/", "／");
                 // file output path is relative to cue path
                 let output = cue_path.as_ref().with_file_name(&filename);
                 // check if file exists
@@ -114,57 +91,47 @@ impl SplitSubcommand {
             .collect::<anyhow::Result<Vec<_>>>()?;
 
         // do split & write tags
-        tracks
-            .into_iter()
-            .zip(files)
-            .try_for_each(|(mut track, path)| -> anyhow::Result<()> {
-                info!(target: "split", "{}...", track.name);
+        if !self.dry_run {
+            split(
+                input,
+                |index| {
+                    let file = files[index].as_path();
+                    info!(target: "split", "{}...", file.file_name().unwrap().to_string_lossy());
+                    Ok(self.output_format.get_encoder(file))
+                },
+                breakpoints,
+            )?;
 
-                if !self.dry_run {
-                    // choose output format
-                    let mut process = self.output_format.to_process(&path)?;
+            // TODO: write metadata
+            if !self.clean && matches!(self.output_format, SplitOutputFormat::Flac) {
+                for (path, mut track) in files.into_iter().zip(tracks) {
+                    let mut flac = FlacHeader::from_file(&path)?;
 
-                    // split wav from start to end
-                    split_wav(
-                        &mut header,
-                        audio,
-                        &mut process.get_writer(),
-                        track.begin,
-                        track.end,
-                    )?;
+                    // write tags
+                    let comment = flac.comments_mut();
+                    comment.clear();
+                    comment.comments.append(&mut track.tags);
 
-                    // wait for process to exit
-                    process.wait();
-
-                    if !self.clean && matches!(self.output_format, SplitOutputFormat::Flac) {
-                        let mut flac = FlacHeader::from_file(&path)?;
-
-                        // write tags
-                        let comment = flac.comments_mut();
-                        comment.clear();
-                        comment.comments.append(&mut track.tags);
-
-                        // write cover
-                        if let Some(cover) = &cover {
-                            let picture =
-                                BlockPicture::new(cover, PictureType::CoverFront, String::new())?;
-                            flac.blocks
-                                .push(MetadataBlock::new(MetadataBlockData::Picture(picture)));
-                        }
-
-                        // save flac file
-                        flac.save(Some(path))?;
+                    // write cover
+                    if let Some(cover) = &cover {
+                        let picture =
+                            BlockPicture::new(cover, PictureType::CoverFront, String::new())?;
+                        flac.blocks
+                            .push(MetadataBlock::new(MetadataBlockData::Picture(picture)));
                     }
-                }
-                Ok(())
-            })?;
 
-        // Option to remove full track after successful split
-        if self.need_remove_after_success() {
-            debug!(target: "split", "Removing audio file: {}", audio_path.as_ref().display());
-            fs::remove_file(audio_path, self.trashcan)?;
-            debug!(target: "split", "Removing cue file: {}", cue_path.as_ref().display());
-            fs::remove_file(cue_path, self.trashcan)?;
+                    // save flac file
+                    flac.save(Some(path))?;
+                }
+            }
+
+            // Option to remove full track after successful split
+            if self.need_remove_after_success() {
+                debug!(target: "split", "Removing audio file: {}", audio_path.as_ref().display());
+                fs::remove_file(audio_path, self.trashcan)?;
+                debug!(target: "split", "Removing cue file: {}", cue_path.as_ref().display());
+                fs::remove_file(cue_path, self.trashcan)?;
+            }
         }
 
         Ok(())
@@ -180,6 +147,34 @@ pub enum SplitFormat {
     Tta,
 }
 
+pub enum SplitFormats<P>
+where
+    P: AsRef<Path>,
+{
+    Wav(WavDecoder<P>),
+    Flac(FlacCommandDecoder<P>),
+    Ape(ApeCommandDecoder<P>),
+    Tak(TakCommandDecoder<P>),
+    Tta(TtaCommandDecoder<P>),
+}
+
+impl<P> Decoder for SplitFormats<P>
+where
+    P: AsRef<Path> + 'static,
+{
+    type Output = Box<dyn Read + Send>;
+
+    fn decode(self) -> Result<Self::Output, SplitError> {
+        Ok(match self {
+            SplitFormats::Wav(decoder) => Box::new(decoder.decode()?),
+            SplitFormats::Flac(decoder) => Box::new(decoder.decode()?),
+            SplitFormats::Ape(decoder) => Box::new(decoder.decode()?),
+            SplitFormats::Tak(decoder) => Box::new(decoder.decode()?),
+            SplitFormats::Tta(decoder) => Box::new(decoder.decode()?),
+        })
+    }
+}
+
 impl SplitFormat {
     fn as_str(&self) -> &str {
         match self {
@@ -191,84 +186,16 @@ impl SplitFormat {
         }
     }
 
-    fn get_encoder(&self) -> anyhow::Result<PathBuf> {
-        encoder_of(self.as_str())
-    }
-
-    fn to_process<P>(&self, path: P) -> anyhow::Result<FileProcess>
+    fn get_decoder<P>(&self, path: P) -> SplitFormats<P>
     where
         P: AsRef<Path>,
     {
         match self {
-            SplitFormat::Wav => Ok(FileProcess::File(fs::File::open(path.as_ref())?)),
-            SplitFormat::Flac => {
-                let process = Command::new(self.get_encoder()?)
-                    .args(&["-c", "-d"])
-                    .arg(path.as_ref().as_os_str())
-                    .stdout(Stdio::piped())
-                    .stderr(Stdio::null()) // ignore flac log output
-                    .spawn()?;
-                Ok(FileProcess::Process(process))
-            }
-            SplitFormat::Ape => {
-                let process = Command::new(self.get_encoder()?)
-                    .arg(path.as_ref().as_os_str())
-                    .args(&["-", "-d"])
-                    .stdout(Stdio::piped())
-                    .spawn()?;
-                Ok(FileProcess::Process(process))
-            }
-            SplitFormat::Tak => {
-                let process = Command::new(self.get_encoder()?)
-                    .arg("-d")
-                    .arg(path.as_ref().as_os_str())
-                    .arg("-")
-                    .stdout(Stdio::piped())
-                    .spawn()?;
-                Ok(FileProcess::Process(process))
-            }
-            SplitFormat::Tta => {
-                let process = Command::new(self.get_encoder()?)
-                    .args(&["-d", "-o", "-"])
-                    .arg(path.as_ref().as_os_str())
-                    .stdout(Stdio::piped())
-                    .spawn()?;
-                Ok(FileProcess::Process(process))
-            }
-        }
-    }
-
-    fn check_decoder(&self) -> bool {
-        match self {
-            SplitFormat::Wav => true,
-            SplitFormat::Flac => match which::which("flac") {
-                Ok(path) => {
-                    debug!(target: "split", "FLAC decoder detected at: {}", path.display());
-                    true
-                }
-                _ => false,
-            },
-            SplitFormat::Ape => match which::which("mac") {
-                Ok(path) => {
-                    debug!(target: "split", "APE decoder detected at: {}", path.display());
-                    true
-                }
-                _ => false,
-            },
-            SplitFormat::Tak => match which::which("takc") {
-                Ok(path) => {
-                    debug!(target: "split", "TAK decoder detected at: {}", path.display());
-                    true
-                }
-                _ => false,
-            },
-            SplitFormat::Tta => match which::which("ttaenc") {
-                Ok(path) => {
-                    debug!(target: "split", "TTA decoder detected at: {}", path.display());
-                    true
-                }
-                _ => false,
-            },
+            SplitFormat::Wav => SplitFormats::Wav(WavDecoder(path)),
+            SplitFormat::Flac => SplitFormats::Flac(FlacCommandDecoder(path)),
+            SplitFormat::Ape => SplitFormats::Ape(ApeCommandDecoder(path)),
+            SplitFormat::Tak => SplitFormats::Tak(TakCommandDecoder(path)),
+            SplitFormat::Tta => SplitFormats::Tta(TtaCommandDecoder(path)),
         }
     }
 }
@@ -293,37 +220,33 @@ impl SplitOutputFormat {
         }
     }
 
-    fn get_encoder(&self) -> anyhow::Result<PathBuf> {
-        encoder_of(self.as_str())
-    }
-
-    fn to_process<P>(&self, path: P) -> anyhow::Result<FileProcess>
+    fn get_encoder<P>(&self, path: P) -> SplitOutputFormats<P>
     where
         P: AsRef<Path>,
     {
         match self {
-            SplitOutputFormat::Wav => Ok(FileProcess::File(fs::File::create(path.as_ref())?)),
-            SplitOutputFormat::Flac => {
-                let process = Command::new(self.get_encoder()?)
-                    .args(&["--totally-silent", "-", "-o"])
-                    .arg(path.as_ref().as_os_str())
-                    .stdin(Stdio::piped())
-                    .spawn()?;
-                Ok(FileProcess::Process(process))
-            }
+            SplitOutputFormat::Flac => SplitOutputFormats::Flac(FlacCommandEncoder(path)),
+            SplitOutputFormat::Wav => SplitOutputFormats::Wav(WavEncoder(path)),
         }
     }
+}
 
-    fn check_encoder(&self) -> bool {
+pub enum SplitOutputFormats<P>
+where
+    P: AsRef<Path>,
+{
+    Wav(WavEncoder<P>),
+    Flac(FlacCommandEncoder<P>),
+}
+
+impl<P> Encoder for SplitOutputFormats<P>
+where
+    P: AsRef<Path>,
+{
+    fn encode(self, input: impl Read) -> Result<(), SplitError> {
         match self {
-            SplitOutputFormat::Wav => true,
-            SplitOutputFormat::Flac => match which::which("flac") {
-                Ok(path) => {
-                    debug!(target: "split", "FLAC encoder detected at: {}", path.display());
-                    true
-                }
-                _ => false,
-            },
+            SplitOutputFormats::Wav(encoder) => encoder.encode(input),
+            SplitOutputFormats::Flac(encoder) => encoder.encode(input),
         }
     }
 }
@@ -356,10 +279,6 @@ fn get_cover(root: &PathBuf) -> anyhow::Result<Option<PathBuf>> {
 
 #[handler(SplitSubcommand)]
 fn handle_split(me: &SplitSubcommand) -> anyhow::Result<()> {
-    if !me.input_format.check_decoder() || !me.output_format.check_encoder() {
-        bail!("Some of the required encoders/decoders are missing. Please install them and try again.");
-    }
-
     for directory in me.directories.iter() {
         if !directory.is_dir() {
             warn!(target: "split", "Ignoring non-dir file {}", directory.display());
@@ -405,76 +324,13 @@ fn handle_split(me: &SplitSubcommand) -> anyhow::Result<()> {
     Ok(())
 }
 
-fn encoder_of(format: &str) -> anyhow::Result<PathBuf> {
-    let encoder = match format {
-        "flac" => "flac",
-        "ape" => "mac",
-        "tak" => "takc",
-        "tta" => "ttaenc",
-        "wav" => return Ok(PathBuf::new()),
-        _ => bail!("unsupported format"),
-    };
-    let path = which::which(encoder)?;
-    Ok(path)
-}
-
-enum FileProcess {
-    File(fs::File),
-    Process(Child),
-}
-
-impl FileProcess {
-    fn get_reader(&mut self) -> &mut dyn Read {
-        match self {
-            FileProcess::File(f) => f,
-            FileProcess::Process(p) => p.stdout.as_mut().unwrap(),
-        }
-    }
-
-    fn get_writer(&mut self) -> &mut dyn Write {
-        match self {
-            FileProcess::File(f) => f,
-            FileProcess::Process(p) => p.stdin.as_mut().unwrap(),
-        }
-    }
-
-    fn wait(&mut self) {
-        if let FileProcess::Process(p) = self {
-            let ret = p.wait().unwrap();
-            if !ret.success() {
-                error!("Encoding process returned {}", ret.code().unwrap())
-            }
-        }
-    }
-}
-
-fn split_wav<I: Read, O: Write>(
-    header: &mut WaveHeader,
-    input: &mut I,
-    output: &mut O,
-    start: u32,
-    end: u32,
-) -> anyhow::Result<()> {
-    let size = end - start;
-    header.data_size = size;
-    header.write_to(output)?;
-    std::io::copy(&mut input.take(size as u64), output)?;
-    Ok(())
-}
-
 struct CueTrack {
     pub index: u8,
     pub title: String,
-    pub seconds: u32,
-    pub frames: u32,
     pub tags: Vec<UserComment>,
 }
 
-fn cue_tracks<P: AsRef<Path>>(path: P) -> Vec<CueTrack> {
-    let cue = fs::read_to_string(path).unwrap();
-    let cue = Cuna::new(&cue).unwrap();
-    debug!("{:#?}", cue);
-
+fn cue_tracks(cue: Cuna) -> Vec<CueTrack> {
     let album = cue.title().get(0).map(String::as_str).unwrap_or("");
     let artist = cue.performer().get(0).map(String::as_str).unwrap_or("");
 
@@ -492,12 +348,9 @@ fn cue_tracks<P: AsRef<Path>>(path: P) -> Vec<CueTrack> {
                         .map(String::to_owned)
                         .unwrap_or(format!("Track {}", track_number));
                     let artist = track.performer.get(0).map(String::as_str).unwrap_or(artist);
-                    let time = index.begin_time();
                     result.push(CueTrack {
                         index: (i + 1) as u8,
                         title: title.to_owned(),
-                        seconds: time.total_seconds(),
-                        frames: time.frames(),
                         tags: vec![
                             UserComment::title(title),
                             UserComment::album(album),

@@ -2,7 +2,7 @@
 
 pub mod codec;
 pub mod cue;
-mod error;
+pub mod error;
 pub mod split;
 
 pub use cue::cue_breakpoints;
