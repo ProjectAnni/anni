@@ -234,6 +234,7 @@ name = "anni-split"
 version = "0.1.0"
 dependencies = [
  "anni-common",
+ "cuna",
  "log",
  "thiserror",
  "which",

@@ -1,7 +1,8 @@
 #![feature(impl_trait_in_assoc_type)]
 
 pub mod codec;
+pub mod cue;
 mod error;
+pub mod split;
 
-pub use codec::{Decoder, Encoder};
-pub use error::SplitError;
+pub use split::split;

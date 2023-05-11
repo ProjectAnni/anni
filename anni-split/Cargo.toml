@@ -14,3 +14,4 @@ anni-common = { path = "../anni-common" }
 thiserror.workspace = true
 log.workspace = true
 which = "4.4.0"
+cuna = "0.7.0"

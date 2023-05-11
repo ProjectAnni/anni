@@ -8,7 +8,7 @@ use std::path::Path;
 
 use super::{Decoder, Encoder};
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct WaveHeader {
     pub channels: u16,
     pub sample_rate: u32,

@@ -5,12 +5,12 @@ pub mod wav;
 pub trait Decoder: Sized {
     type Output: std::io::Read + Send;
 
-    fn decode(self) -> Result<Self::Output, crate::SplitError>;
+    fn decode(self) -> Result<Self::Output, crate::error::SplitError>;
 }
 
 /// [Encoder] trait to encoder from WAVE to specified format.
 pub trait Encoder: Sized {
-    fn encode(self, input: impl std::io::Read) -> Result<(), crate::SplitError>;
+    fn encode(self, input: impl std::io::Read) -> Result<(), crate::error::SplitError>;
 }
 
 // Command En/Decoders
@@ -34,8 +34,8 @@ command_decoder!(
 #[cfg(test)]
 mod tests {
     use crate::codec::wav::WavEncoder;
-    use crate::codec::{Decoder, FlacCommandDecoder};
-    use crate::{Encoder, SplitError};
+    use crate::codec::{Decoder, Encoder, FlacCommandDecoder};
+    use crate::error::SplitError;
 
     #[test]
     fn test_decode_flac() -> Result<(), SplitError> {

@@ -105,10 +105,10 @@ macro_rules! command_decoder {
     ($name: ident, $cmd: expr, $args: expr) => {
         pub struct $name<P: AsRef<std::path::Path>>(pub P);
 
-        impl<P: AsRef<std::path::Path>> $crate::Decoder for $name<P> {
+        impl<P: AsRef<std::path::Path>> $crate::codec::Decoder for $name<P> {
             type Output = impl std::io::Read;
 
-            fn decode(self) -> Result<Self::Output, $crate::SplitError> {
+            fn decode(self) -> Result<Self::Output, $crate::error::SplitError> {
                 $crate::codec::command::CommandCodec::new($cmd, $args, self.0)?.decode()
             }
         }
@@ -120,8 +120,8 @@ macro_rules! command_encoder {
     ($name: ident, $cmd: expr, $args: expr) => {
         pub struct $name<P: AsRef<std::path::Path>>(pub P);
 
-        impl<P: AsRef<std::path::Path>> $crate::Encoder for $name<P> {
-            fn encode(self, input: impl std::io::Read) -> Result<(), $crate::SplitError> {
+        impl<P: AsRef<std::path::Path>> $crate::codec::Encoder for $name<P> {
+            fn encode(self, input: impl std::io::Read) -> Result<(), $crate::error::SplitError> {
                 $crate::codec::command::CommandCodec::new($cmd, $args, self.0)?.encode(input)
             }
         }
