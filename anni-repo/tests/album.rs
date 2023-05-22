@@ -8,7 +8,10 @@ fn album_from_str() -> Album {
 #[test]
 fn test_serialize_album() {
     let mut album = album_from_str();
-    assert_eq!(album.format_to_string(), include_str!("test-album.toml"));
+    assert_eq!(
+        album.format_to_string(),
+        include_str!("fixtures/test-album.toml")
+    );
 }
 
 #[test]

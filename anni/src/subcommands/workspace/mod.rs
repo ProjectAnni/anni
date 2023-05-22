@@ -3,6 +3,7 @@ mod create;
 mod fsck;
 mod init;
 mod publish;
+mod recover_published;
 mod rm;
 mod serve;
 mod status;
@@ -19,6 +20,7 @@ use status::*;
 use update::*;
 
 use crate::ll;
+use crate::subcommands::workspace::recover_published::WorkspaceRecoverPublishedAction;
 use crate::subcommands::workspace::serve::WorkspaceServeAction;
 use clap::{Args, Subcommand};
 use clap_handler::Handler;
@@ -47,6 +49,7 @@ pub enum WorkspaceAction {
     Update(WorkspaceUpdateAction),
     #[clap(about = ll!("workspace-publish"))]
     Publish(WorkspacePublishAction),
+    RecoverPublished(WorkspaceRecoverPublishedAction),
     #[clap(about = ll!("workspace-serve"))]
     Serve(WorkspaceServeAction),
     #[clap(about = ll!("workspace-fsck"))]

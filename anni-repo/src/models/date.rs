@@ -119,6 +119,11 @@ impl AnniDate {
             u8::from_str(d)?,
         ))
     }
+
+    /// Print date in short format, e.g. 190130
+    pub fn to_short_string(&self) -> String {
+        format!("{:02}{:02}{:02}", self.year % 100, self.month, self.day)
+    }
 }
 
 impl Display for AnniDate {
@@ -146,6 +151,7 @@ mod tests {
         assert_eq!(date.month, 1);
         assert_eq!(date.day, 30);
         assert_eq!(date.to_string(), "2019-01-30");
+        assert_eq!(date.to_short_string(), "190130");
 
         // though there's no cd released in 201-AD
         let date = AnniDate::from_parts("201", "1", "31").unwrap();
@@ -153,15 +159,20 @@ mod tests {
         assert_eq!(date.month, 1);
         assert_eq!(date.day, 31);
         assert_eq!(date.to_string(), "201-01-31");
+        assert_eq!(date.to_short_string(), "010131");
 
         let date = AnniDate::from_parts("1919", "08", "10").unwrap();
         assert_eq!(date.year, 1919);
         assert_eq!(date.month, 8);
         assert_eq!(date.day, 10);
+        assert_eq!(date.to_string(), "1919-08-10");
+        assert_eq!(date.to_short_string(), "190810");
 
         let date = AnniDate::from_parts("1982", "08", "10").unwrap();
         assert_eq!(date.year, 1982);
         assert_eq!(date.month, 8);
         assert_eq!(date.day, 10);
+        assert_eq!(date.to_string(), "1982-08-10");
+        assert_eq!(date.to_short_string(), "820810");
     }
 }

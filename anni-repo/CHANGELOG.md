@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 - `load_albums` now return error on tag resolve failure instead of panic
+- Add `AnniDate::to_short_string` to print date in `YYMMDD` format
 
 ## 0.4.0
 
