@@ -46,9 +46,8 @@ fn test_duplicated_tags() {
         }
         Err(err) => {
             assert!(match err {
-                Error::RepoTagDuplicate { tag, path } => {
+                Error::RepoTagDuplicated(tag) => {
                     assert_eq!(tag, TagRef::new("Test", TagType::Artist));
-                    assert_eq!(path, PathBuf::from_str("tag/default.toml").unwrap());
                     true
                 }
                 _ => false,

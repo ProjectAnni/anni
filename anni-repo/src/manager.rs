@@ -289,10 +289,7 @@ impl OwnedRepositoryManager {
     fn add_tag(&mut self, tag: Tag, tag_relative_path: PathBuf) -> Result<(), Error> {
         // fully duplicated tags are not allowed
         if let Some(tag) = self.tag(tag.as_ref()) {
-            return Err(Error::RepoTagDuplicate {
-                tag: tag.get_owned_ref(),
-                path: tag_relative_path,
-            });
+            return Err(Error::RepoTagDuplicated(tag.get_owned_ref()));
         }
 
         let map = if let Some(map) = self.tags.get_mut(tag.name()) {
@@ -378,7 +375,7 @@ impl OwnedRepositoryManager {
         let mut problems = vec![];
         for path in self.repo.all_album_paths()? {
             let mut album = self.repo.load_album(&path)?;
-            album.resolve_tags(&self.tags);
+            album.resolve_tags(&self.tags)?;
 
             let album_id = album.album_id();
             let catalog = album.catalog();

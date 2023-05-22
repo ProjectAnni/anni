@@ -32,11 +32,19 @@ impl Album {
         album
     }
 
-    pub(crate) fn resolve_tags(&mut self, tags: &HashMap<String, HashMap<TagType, Tag>>) {
-        self.info.tags.iter_mut().for_each(|tag| tag.resolve(tags));
-        self.discs
-            .iter_mut()
-            .for_each(|disc| disc.resolve_tags(tags));
+    pub(crate) fn resolve_tags(
+        &mut self,
+        tags: &HashMap<String, HashMap<TagType, Tag>>,
+    ) -> RepoResult<()> {
+        for tag in self.info.tags.iter_mut() {
+            tag.resolve(tags)?;
+        }
+
+        for disc in self.discs.iter_mut() {
+            disc.resolve_tags(tags)?;
+        }
+
+        Ok(())
     }
 }
 
@@ -496,11 +504,18 @@ impl Disc {
         Self { info, tracks }
     }
 
-    pub(crate) fn resolve_tags(&mut self, tags: &HashMap<String, HashMap<TagType, Tag>>) {
-        self.tags.iter_mut().for_each(|tag| tag.resolve(tags));
-        self.tracks
-            .iter_mut()
-            .for_each(|track| track.resolve_tags(tags));
+    pub(crate) fn resolve_tags(
+        &mut self,
+        tags: &HashMap<String, HashMap<TagType, Tag>>,
+    ) -> RepoResult<()> {
+        for tag in self.tags.iter_mut() {
+            tag.resolve(tags)?;
+        }
+        for track in self.tracks.iter_mut() {
+            track.resolve_tags(tags)?;
+        }
+
+        Ok(())
     }
 }
 
@@ -772,8 +787,15 @@ impl Track {
         Track::new(String::new(), None, None, None, Default::default())
     }
 
-    pub(crate) fn resolve_tags(&mut self, tags: &HashMap<String, HashMap<TagType, Tag>>) {
-        self.tags.iter_mut().for_each(|tag| tag.resolve(tags));
+    pub(crate) fn resolve_tags(
+        &mut self,
+        tags: &HashMap<String, HashMap<TagType, Tag>>,
+    ) -> RepoResult<()> {
+        for tag in self.tags.iter_mut() {
+            tag.resolve(tags)?;
+        }
+
+        Ok(())
     }
 }
 

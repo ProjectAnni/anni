@@ -23,14 +23,14 @@ pub enum Error {
     #[error("failed to load tags from {file:?}")]
     RepoTagLoadError { file: PathBuf },
 
-    #[error("duplicated tag {tag} defined in {path}")]
-    RepoTagDuplicate { tag: TagRef<'static>, path: PathBuf },
-
     #[error("undefined tags {0:?}")]
     RepoTagsUndefined(Vec<TagRef<'static>>),
 
     #[error("unknown tag type: {0}")]
     RepoTagUnknownType(String),
+
+    #[error("duplicated tag: {0}")]
+    RepoTagDuplicated(TagRef<'static>),
 
     #[error("invalid track type: {0}")]
     InvalidTrackType(String),

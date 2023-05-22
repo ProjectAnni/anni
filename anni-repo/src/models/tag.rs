@@ -1,4 +1,5 @@
 use crate::error::Error;
+use crate::prelude::RepoResult;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use std::borrow::{Borrow, Cow};
 use std::collections::HashMap;
@@ -119,17 +120,22 @@ impl TagString {
         self.0.tag_type()
     }
 
-    pub(crate) fn resolve(&mut self, tags: &HashMap<String, HashMap<TagType, Tag>>) {
+    pub(crate) fn resolve(
+        &mut self,
+        tags: &HashMap<String, HashMap<TagType, Tag>>,
+    ) -> RepoResult<()> {
         if let TagType::Unknown = self.tag_type {
             if let Some(tags) = tags.get(self.name()) {
                 if tags.len() > 1 {
-                    panic!("Failed to resolve tag")
+                    return Err(Error::RepoTagDuplicated(self.full_clone()));
                 }
 
                 let actual_type = tags.values().next().unwrap().tag_type().clone();
                 self.0.tag_type = actual_type;
             }
         }
+
+        Ok(())
     }
 }
 
