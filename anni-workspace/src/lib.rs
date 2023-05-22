@@ -10,7 +10,7 @@ use anni_repo::prelude::{AnniDate, UNKNOWN_ARTIST};
 use anni_repo::RepositoryManager;
 use config::LibraryConfig;
 use std::borrow::Cow;
-use std::collections::HashMap;
+use std::collections::BTreeMap;
 use std::num::NonZeroU8;
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
@@ -179,7 +179,7 @@ impl AnniWorkspace {
 
     /// Scan the whole workspace and return all available albums
     pub fn scan(&self) -> Result<Vec<WorkspaceAlbum>, WorkspaceError> {
-        let mut albums = HashMap::new();
+        let mut albums = BTreeMap::new();
         self.scan_userland_directory(&mut albums, self.workspace_root())?;
         self.scan_controlled_directory(&mut albums, self.objects_root(), 2)?;
         Ok(albums.into_values().collect())
@@ -188,7 +188,7 @@ impl AnniWorkspace {
     /// Internal: scan userland
     fn scan_userland_directory<P>(
         &self,
-        albums: &mut HashMap<Uuid, WorkspaceAlbum>,
+        albums: &mut BTreeMap<Uuid, WorkspaceAlbum>,
         path: P,
     ) -> Result<(), WorkspaceError>
     where
@@ -223,7 +223,7 @@ impl AnniWorkspace {
     /// Internal: scan controlled part
     fn scan_controlled_directory<P>(
         &self,
-        albums: &mut HashMap<Uuid, WorkspaceAlbum>,
+        albums: &mut BTreeMap<Uuid, WorkspaceAlbum>,
         parent: P,
         level: u8,
     ) -> Result<(), WorkspaceError>

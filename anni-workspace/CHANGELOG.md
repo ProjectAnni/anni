@@ -7,6 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+- Make scan result of `AnniWorkspace::scan` a `BTreeMap` instead of a `HashMap`
 - Added `AnniWorkspace::new` to quickly find a workspace from `current_dir`
 - Added `AnniWorkspace::open` to open a workspace from a path without checking its parents recursively
 

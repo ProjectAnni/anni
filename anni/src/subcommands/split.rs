@@ -102,7 +102,6 @@ impl SplitSubcommand {
                 breakpoints,
             )?;
 
-            // TODO: write metadata
             if !self.clean && matches!(self.output_format, SplitOutputFormat::Flac) {
                 for (path, mut track) in files.into_iter().zip(tracks) {
                     let mut flac = FlacHeader::from_file(&path)?;
