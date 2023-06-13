@@ -235,9 +235,22 @@ impl OwnedRepositoryManager {
             albums: Default::default(),
             album_path: Default::default(),
         };
+
+        // create lock file so that other anni repository managers can not visit the repo
+        let lock_file = repo.lock_file();
+        if lock_file.exists() {
+            return Err(Error::RepoLocked);
+        }
+
+        fs::write(lock_file, "")?;
         repo.load_tags()?;
         repo.load_albums()?;
+
         Ok(repo)
+    }
+
+    fn lock_file(&self) -> PathBuf {
+        self.repo.root().join(".repo_lock")
     }
 
     pub fn album(&self, album_id: &Uuid) -> Option<&Album> {
@@ -551,5 +564,16 @@ impl OwnedRepositoryManager {
             }
         }
         index_writer.commit().unwrap();
+    }
+}
+
+impl Drop for OwnedRepositoryManager {
+    fn drop(&mut self) {
+        let lock_file = self.lock_file();
+        // it should exist. If it does not exist, then something wrong happened
+        // TODO: add detection for this case
+        if lock_file.exists() {
+            let _ = std::fs::remove_file(lock_file);
+        }
     }
 }
