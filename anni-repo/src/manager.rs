@@ -239,7 +239,7 @@ impl OwnedRepositoryManager {
         // create lock file so that other anni repository managers can not visit the repo
         let lock_file = repo.lock_file();
         if lock_file.exists() {
-            return Err(Error::RepoLocked);
+            return Err(Error::RepoInUse);
         }
 
         fs::write(lock_file, "")?;

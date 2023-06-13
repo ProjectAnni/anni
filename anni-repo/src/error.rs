@@ -32,6 +32,9 @@ pub enum Error {
     #[error("duplicated tag: {0}")]
     RepoTagDuplicated(TagRef<'static>),
 
+    #[error("repo is locked by another instance")]
+    RepoInUse,
+
     #[error("invalid track type: {0}")]
     InvalidTrackType(String),
 
