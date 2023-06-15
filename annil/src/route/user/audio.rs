@@ -145,14 +145,16 @@ where
                 ),
             ];
 
-            let transcode_headers = if !need_transcode {
-                Either::Left([
-                    (ACCEPT_RANGES, "bytes".to_string()),
-                    (CONTENT_LENGTH, format!("{}", info.size)),
-                ])
-            } else {
-                Either::Right(())
-            };
+            let mut transcode_headers = HeaderMap::new();
+
+            if let Some(length) = transcoder.content_length(&info) {
+                transcode_headers.insert(CONTENT_LENGTH, length.into());
+            }
+
+            // TODO: support range for all formats with CONTENT_LENGTH
+            if !need_transcode {
+                transcode_headers.insert(ACCEPT_RANGES, "bytes".parse().unwrap());
+            }
 
             (headers, custom_headers, transcode_headers).into_response()
         }
@@ -197,10 +199,11 @@ where
     }
 
     let transcoder = query.get_transcoder(claim.is_guest());
+    let need_range = need_range && !transcoder.need_transcode(); // Only support range if transcode is not performed
 
     // range is only supported on lossless
     #[cfg(feature = "transcode")]
-    let range = if !transcoder.need_transcode() {
+    let range = if transcoder.need_transcode() {
         Range::FULL
     } else {
         range
@@ -245,6 +248,8 @@ where
 
             #[cfg(feature = "transcode")]
             let body = if transcoder.quality().need_transcode() {
+                let mut transcode_headers = HeaderMap::new();
+                let info = audio.info.clone();
                 let mut process = transcoder.spawn();
                 let stdout = process.stdout.take().unwrap();
                 tokio::spawn(async move {
@@ -252,16 +257,31 @@ where
                     let mut audio = audio;
                     let _ = tokio::io::copy(&mut audio.reader, &mut stdin).await;
                 });
-                Either::Left((
-                    [(CONTENT_TYPE, transcoder.content_type())],
-                    StreamBody::new(ReaderStream::new(stdout)),
-                ))
+                transcode_headers.insert(
+                    CONTENT_TYPE,
+                    transcoder.content_type().to_string().parse().unwrap(),
+                );
+                if let Some(length) = transcoder.content_length(&info) {
+                    transcode_headers.insert(CONTENT_LENGTH, length.to_string().parse().unwrap());
+                }
+
+                if let Some(length) = transcoder.content_length(&info) {
+                    Either::Left((
+                        transcode_headers,
+                        Either::Left(StreamBody::new(ReaderStream::new(stdout).take(length))),
+                    ))
+                } else {
+                    Either::Left((
+                        transcode_headers,
+                        Either::Right(StreamBody::new(ReaderStream::new(stdout))),
+                    ))
+                }
             } else {
                 let size = audio.range.length().unwrap_or(audio.info.size as u64);
                 Either::Right((
                     [
-                        (CONTENT_LENGTH, format!("{size}")),
                         (CONTENT_TYPE, format!("audio/{}", audio.info.extension)),
+                        (CONTENT_LENGTH, format!("{size}")),
                     ],
                     StreamBody::new(ReaderStream::new(audio.reader).take(size as usize)),
                 ))

@@ -11,6 +11,7 @@ use tokio_stream::Stream;
 pub type Result<T> = std::result::Result<T, ProviderError>;
 pub type ResourceReader = Pin<Box<dyn AsyncRead + Send>>;
 
+#[derive(Clone)]
 pub struct AudioInfo {
     /// File extension of the file
     pub extension: String,

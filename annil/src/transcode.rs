@@ -1,4 +1,5 @@
-use crate::route::user::AudioQuality;
+use crate::{route::user::AudioQuality, utils::opus_file_size};
+use anni_provider::AudioInfo;
 use std::process::Stdio;
 use tokio::process::Child;
 
@@ -10,6 +11,8 @@ pub trait Transcode {
     fn need_transcode(&self) -> bool {
         self.quality().need_transcode()
     }
+
+    fn content_length(&self, info: &AudioInfo) -> Option<usize>;
 
     fn spawn(&self) -> Child;
 }
@@ -53,6 +56,10 @@ impl Transcode for AacTranscoder {
             .spawn()
             .unwrap()
     }
+
+    fn content_length(&self, _: &AudioInfo) -> Option<usize> {
+        None
+    }
 }
 
 pub struct OpusTranscoder(AudioQuality);
@@ -65,11 +72,20 @@ impl OpusTranscoder {
 
         Self(quality)
     }
+
+    fn bit_rate(&self) -> u16 {
+        match self.quality() {
+            AudioQuality::Low => 128,
+            AudioQuality::Medium => 192,
+            AudioQuality::High => 256,
+            AudioQuality::Lossless => unreachable!(),
+        }
+    }
 }
 
 impl Transcode for OpusTranscoder {
     fn content_type(&self) -> &'static str {
-        "audio/opus"
+        "audio/ogg"
     }
 
     fn quality(&self) -> AudioQuality {
@@ -77,16 +93,9 @@ impl Transcode for OpusTranscoder {
     }
 
     fn spawn(&self) -> Child {
-        let bitrate = match self.quality() {
-            AudioQuality::Low => "128",
-            AudioQuality::Medium => "192",
-            AudioQuality::High => "256",
-            AudioQuality::Lossless => unreachable!(),
-        };
-
         #[rustfmt::skip]
         let args = &[
-            "--bitrate", bitrate,
+            "--bitrate", &self.bit_rate().to_string(),
             "--hard-cbr",
             "--music",
             "--framesize", "20",
@@ -104,6 +113,10 @@ impl Transcode for OpusTranscoder {
             .stderr(Stdio::null())
             .spawn()
             .unwrap()
+    }
+
+    fn content_length(&self, info: &AudioInfo) -> Option<usize> {
+        Some(opus_file_size(info.duration, self.bit_rate(), 20) as usize)
     }
 }
 
@@ -130,5 +143,9 @@ impl Transcode for FlacTranscoder {
 
     fn spawn(&self) -> Child {
         panic!("FlacTranscoder cannot transcode")
+    }
+
+    fn content_length(&self, info: &AudioInfo) -> Option<usize> {
+        Some(info.size)
     }
 }
