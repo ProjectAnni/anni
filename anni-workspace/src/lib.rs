@@ -670,7 +670,7 @@ impl AnniWorkspace {
                     self.do_publish_strict(album_path, publish_to, layers, soft)?;
                 } else {
                     // publish as convention
-                    unimplemented!()
+                    unimplemented!("Publishing as convention is not supported yet. Add `layers` to your library config")
                 }
 
                 Ok(())
