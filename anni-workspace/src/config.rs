@@ -5,6 +5,7 @@ use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 
 #[derive(Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct WorkspaceConfig {
     #[serde(rename = "workspace")]
     inner: WorkspaceConfigInner,
@@ -14,11 +15,13 @@ pub struct WorkspaceConfig {
 
 #[derive(Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
+#[serde(deny_unknown_fields)]
 pub struct WorkspaceConfigInner {
     publish_to: Option<String>,
 }
 
 #[derive(Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct LibraryConfig {
     pub path: PathBuf,
     pub layers: Option<usize>,
