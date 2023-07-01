@@ -11,6 +11,7 @@ members = [
     "anni-workspace",
     "third_party/google-drive3",
 ]
+resolver = "2"
 
 [workspace.package]
 edition = "2021"
