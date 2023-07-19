@@ -59,9 +59,8 @@ impl AnniProvider for PriorityProvider {
         range: Range,
     ) -> Result<AudioResourceReader> {
         for (_, provider) in self.0.iter() {
-            match provider.get_audio(album_id, disc_id, track_id, range).await {
-                Ok(reader) => return Ok(reader),
-                _ => {}
+            if let Ok(reader) = provider.get_audio(album_id, disc_id, track_id, range).await {
+                return Ok(reader);
             }
         }
 
@@ -74,9 +73,8 @@ impl AnniProvider for PriorityProvider {
         disc_id: Option<NonZeroU8>,
     ) -> Result<ResourceReader> {
         for (_, provider) in self.0.iter() {
-            match provider.get_cover(album_id, disc_id).await {
-                Ok(reader) => return Ok(reader),
-                _ => {}
+            if let Ok(reader) = provider.get_cover(album_id, disc_id).await {
+                return Ok(reader);
             }
         }
 
