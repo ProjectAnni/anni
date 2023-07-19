@@ -16,26 +16,33 @@ use tokio::io::{AsyncRead, AsyncReadExt, ReadBuf};
 use tokio::sync::Mutex;
 use tokio::time::Duration;
 
-pub struct Cache {
-    inner: Box<dyn AnniProvider + Send + Sync>,
+pub struct Cache<T>
+where
+    T: AnniProvider + Send,
+{
+    inner: T,
     pool: Arc<CachePool>,
 }
 
-impl Cache {
-    pub fn new(inner: Box<dyn AnniProvider + Send + Sync>, pool: Arc<CachePool>) -> Self {
+impl<T> Cache<T>
+where
+    T: AnniProvider + Send,
+{
+    pub fn new(inner: T, pool: Arc<CachePool>) -> Self {
         Self { inner, pool }
     }
 
     pub fn invalidate(&self, album_id: &str, disc_id: u8, track_id: u8) {
-        self.pool.remove(&do_hash(format!(
-            "{}/{:02}/{:02}",
-            album_id, disc_id, track_id
-        )));
+        self.pool
+            .remove(&do_hash(format!("{album_id}/{disc_id:02}/{track_id:02}",)));
     }
 }
 
 #[async_trait]
-impl AnniProvider for Cache {
+impl<T> AnniProvider for Cache<T>
+where
+    T: AnniProvider + Send,
+{
     async fn albums(&self) -> Result<HashSet<Cow<str>>, ProviderError> {
         // refresh should not be cached
         self.inner.albums().await
@@ -126,7 +133,7 @@ impl CachePool {
 
             // prepare for new item
             let path = self.root.join(&key);
-            let mut file = tokio::fs::File::create(&path).await?;
+            let mut file = File::create(&path).await?;
 
             let AudioResourceReader {
                 info, mut reader, ..
@@ -174,7 +181,7 @@ impl CachePool {
         };
 
         Ok(item
-            .to_audio_resource_reader(tokio::fs::File::open(&item.path).await?, range)
+            .to_audio_resource_reader(File::open(&item.path).await?, range)
             .await)
     }
 
@@ -247,18 +254,14 @@ impl CacheItem {
 
 #[async_trait::async_trait]
 trait CacheReader {
-    fn to_reader(&self, file: tokio::fs::File) -> CacheItemReader;
+    fn to_reader(&self, file: File) -> CacheItemReader;
 
-    async fn to_audio_resource_reader(
-        &self,
-        file: tokio::fs::File,
-        range: Range,
-    ) -> AudioResourceReader;
+    async fn to_audio_resource_reader(&self, file: File, range: Range) -> AudioResourceReader;
 }
 
 #[async_trait::async_trait]
 impl CacheReader for Arc<CacheItem> {
-    fn to_reader(&self, file: tokio::fs::File) -> CacheItemReader {
+    fn to_reader(&self, file: File) -> CacheItemReader {
         CacheItemReader {
             item: self.clone(),
             file: Box::pin(file),
@@ -306,7 +309,7 @@ impl Drop for CacheItem {
 
 struct CacheItemReader {
     item: Arc<CacheItem>,
-    file: Pin<Box<tokio::fs::File>>,
+    file: Pin<Box<File>>,
     filled: usize,
 
     timer: Option<Pin<Box<dyn Future<Output = ()> + Send>>>,

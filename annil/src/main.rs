@@ -1,6 +1,5 @@
 use config::{Config, ProviderItem};
 
-use anni_provider::cache::{Cache, CachePool};
 use anni_provider::fs::LocalFileSystemProvider;
 use anni_provider::providers::drive::DriveProviderSettings;
 use anni_provider::providers::{
@@ -16,7 +15,6 @@ use axum::http::Method;
 use axum::routing::{get, post};
 use axum::{Extension, Router, Server};
 use jwt_simple::prelude::HS256Key;
-use std::collections::HashMap;
 use std::net::SocketAddr;
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -34,119 +32,104 @@ async fn init_state(
     log::info!("Start initializing providers...");
     let now = SystemTime::now();
     let mut providers = Vec::with_capacity(config.providers.len());
-    let mut caches = HashMap::new();
 
     for (provider_name, provider_config) in config.providers.iter() {
         log::debug!("Initializing provider: {}", provider_name);
-        let mut provider: Box<dyn AnniProvider + Send + Sync> =
-            match (&provider_config.item, &mut db) {
-                (
-                    ProviderItem::File {
-                        root,
-                        strict: false,
-                        ..
-                    },
-                    Some(db),
-                ) => Box::new(
-                    CommonConventionProvider::new(
-                        PathBuf::from(root),
-                        db.open()?,
-                        Box::new(LocalFileSystemProvider),
+        let provider: Box<dyn AnniProvider + Send + Sync> = match (&provider_config.item, &mut db) {
+            (
+                ProviderItem::File {
+                    root,
+                    strict: false,
+                    ..
+                },
+                Some(db),
+            ) => Box::new(
+                CommonConventionProvider::new(
+                    PathBuf::from(root),
+                    db.open()?,
+                    Box::new(LocalFileSystemProvider),
+                )
+                .await?,
+            ),
+            (
+                ProviderItem::File {
+                    root,
+                    strict: true,
+                    layer,
+                },
+                _,
+            ) => Box::new(
+                CommonStrictProvider::new(
+                    PathBuf::from(root),
+                    *layer,
+                    Box::new(LocalFileSystemProvider),
+                )
+                .await?,
+            ),
+            (
+                ProviderItem::Drive {
+                    drive_id,
+                    corpora,
+                    initial_token_path,
+                    token_path,
+                    strict: false,
+                },
+                Some(db),
+            ) => {
+                if let Some(initial_token_path) = initial_token_path {
+                    if initial_token_path.exists() && !token_path.exists() {
+                        let _ = std::fs::copy(initial_token_path, token_path.clone());
+                    }
+                }
+                Box::new(
+                    DriveProvider::new(
+                        Default::default(),
+                        DriveProviderSettings {
+                            corpora: corpora.to_string(),
+                            drive_id: drive_id.clone(),
+                        },
+                        Some(db.open()?),
+                        token_path.clone(),
                     )
                     .await?,
-                ),
-                (
-                    ProviderItem::File {
-                        root,
-                        strict: true,
-                        layer,
-                    },
-                    _,
-                ) => Box::new(
-                    CommonStrictProvider::new(
-                        PathBuf::from(root),
-                        *layer,
-                        Box::new(LocalFileSystemProvider),
-                    )
-                    .await?,
-                ),
-                (
-                    ProviderItem::Drive {
-                        drive_id,
-                        corpora,
-                        initial_token_path,
-                        token_path,
-                        strict: false,
-                    },
-                    Some(db),
-                ) => {
-                    if let Some(initial_token_path) = initial_token_path {
-                        if initial_token_path.exists() && !token_path.exists() {
-                            let _ = std::fs::copy(initial_token_path, token_path.clone());
-                        }
-                    }
-                    Box::new(
-                        DriveProvider::new(
-                            Default::default(),
-                            DriveProviderSettings {
-                                corpora: corpora.to_string(),
-                                drive_id: drive_id.clone(),
-                            },
-                            Some(db.open()?),
-                            token_path.clone(),
-                        )
-                        .await?,
-                    )
-                }
-                (
-                    ProviderItem::Drive {
-                        drive_id,
-                        corpora,
-                        initial_token_path,
-                        token_path,
-                        strict: true,
-                    },
-                    _,
-                ) => {
-                    if let Some(initial_token_path) = initial_token_path {
-                        if initial_token_path.exists() && !token_path.exists() {
-                            let _ = std::fs::copy(initial_token_path, token_path.clone());
-                        }
-                    }
-                    Box::new(
-                        DriveProvider::new(
-                            Default::default(),
-                            DriveProviderSettings {
-                                corpora: corpora.to_string(),
-                                drive_id: drive_id.clone(),
-                            },
-                            None,
-                            token_path.clone(),
-                        )
-                        .await?,
-                    )
-                }
-                (_, None) => {
-                    log::error!(
-                        "Metadata is not configured, but provider {} requires it.",
-                        provider_name
-                    );
-                    continue;
-                }
-            };
-        if let Some(cache) = provider_config.cache() {
-            log::debug!(
-                "Cache configuration detected: root = {}, max-size = {}",
-                cache.root,
-                cache.max_size
-            );
-            if !caches.contains_key(&cache.root) {
-                // new cache pool
-                let pool = CachePool::new(&cache.root, cache.max_size);
-                caches.insert(cache.root.to_string(), Arc::new(pool));
+                )
             }
-            provider = Box::new(Cache::new(provider, caches[&cache.root].clone()));
-        }
+            (
+                ProviderItem::Drive {
+                    drive_id,
+                    corpora,
+                    initial_token_path,
+                    token_path,
+                    strict: true,
+                },
+                _,
+            ) => {
+                if let Some(initial_token_path) = initial_token_path {
+                    if initial_token_path.exists() && !token_path.exists() {
+                        let _ = std::fs::copy(initial_token_path, token_path.clone());
+                    }
+                }
+                Box::new(
+                    DriveProvider::new(
+                        Default::default(),
+                        DriveProviderSettings {
+                            corpora: corpora.to_string(),
+                            drive_id: drive_id.clone(),
+                        },
+                        None,
+                        token_path.clone(),
+                    )
+                    .await?,
+                )
+            }
+            (_, None) => {
+                log::error!(
+                    "Metadata is not configured, but provider {} requires it.",
+                    provider_name
+                );
+                continue;
+            }
+        };
         providers.push(provider);
     }
     log::info!(
@@ -270,14 +253,6 @@ mod config {
     pub struct ProviderConfig {
         #[serde(flatten)]
         pub item: ProviderItem,
-        cache: Option<CacheConfig>,
-    }
-
-    impl ProviderConfig {
-        #[inline]
-        pub fn cache(&self) -> Option<&CacheConfig> {
-            self.cache.as_ref()
-        }
     }
 
     #[derive(Deserialize)]
@@ -305,12 +280,5 @@ mod config {
 
     const fn default_layer() -> usize {
         2
-    }
-
-    #[derive(Deserialize)]
-    pub struct CacheConfig {
-        pub root: String,
-        #[serde(default, rename = "max-size")]
-        pub max_size: usize,
     }
 }

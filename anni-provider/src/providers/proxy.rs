@@ -8,9 +8,10 @@ use std::collections::HashSet;
 use std::num::NonZeroU8;
 
 pub struct ProxyBackend {
+    client: reqwest::Client,
+
     url: String,
     auth: String,
-    client: reqwest::Client,
 }
 
 impl ProxyBackend {
@@ -63,8 +64,7 @@ impl AnniProvider for ProxyBackend {
     ) -> Result<AudioInfo, ProviderError> {
         let response = self
             .head(&format!(
-                "/albums/{}/discs/{}/tracks/{}",
-                album_id, disc_id, track_id
+                "/albums/{album_id}/discs/{disc_id}/tracks/{track_id}"
             ))
             .await
             .map_err(|e| ProviderError::RequestError(e))?;
@@ -80,7 +80,7 @@ impl AnniProvider for ProxyBackend {
     ) -> Result<AudioResourceReader, ProviderError> {
         let response = self
             .get(
-                &format!("/{}/{}/{}?quality=lossless", album_id, disc_id, track_id),
+                &format!("/{album_id}/{disc_id}/{track_id}?quality=lossless"),
                 &range,
             )
             .await
@@ -109,8 +109,8 @@ impl AnniProvider for ProxyBackend {
         disc_id: Option<NonZeroU8>,
     ) -> Result<ResourceReader, ProviderError> {
         let path = match disc_id {
-            Some(disc_id) => format!("/{}/{}/cover", album_id, disc_id),
-            None => format!("/{}/cover", album_id),
+            Some(disc_id) => format!("/{album_id}/{disc_id}/cover"),
+            None => format!("/{album_id}/cover"),
         };
         let resp = self
             .get(&path, &Range::FULL)

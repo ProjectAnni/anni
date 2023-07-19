@@ -11,6 +11,7 @@ use uuid::Uuid;
 
 /// `NoCacheStrictLocalProvider` defines a providers which serves local files without caching,
 /// which is useful for development and testing.
+///
 /// The main purpose of using this provider is to support annil for anni workspace.
 pub struct NoCacheStrictLocalProvider {
     /// Root directory of an strict annil
