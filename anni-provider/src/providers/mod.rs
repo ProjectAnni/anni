@@ -8,6 +8,7 @@ pub use no_cache::NoCacheStrictLocalProvider;
 pub use proxy::ProxyBackend;
 #[cfg(feature = "strict")]
 pub use strict::CommonStrictProvider;
+pub use priority::PriorityProvider;
 
 #[cfg(feature = "convention")]
 mod convention;
@@ -15,6 +16,7 @@ mod convention;
 pub mod drive;
 mod multiple;
 mod no_cache;
+mod priority;
 #[cfg(feature = "proxy")]
 mod proxy;
 #[cfg(feature = "strict")]
