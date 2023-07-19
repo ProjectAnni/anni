@@ -79,10 +79,13 @@ impl AnniProvider for MultipleProviders {
     }
 
     async fn reload(&mut self) -> crate::Result<()> {
+        let mut error = Ok(());
         for provider in self.0.iter_mut() {
-            provider.reload().await?;
+            if let (Ok(()), Err(e)) = (&error, provider.reload().await) {
+                error = Err(e);
+            }
         }
 
-        Ok(())
+        error
     }
 }
