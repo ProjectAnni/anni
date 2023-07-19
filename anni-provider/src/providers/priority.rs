@@ -79,3 +79,34 @@ impl AnniProvider for PriorityProvider {
         error.unwrap_or(Ok(()))
     }
 }
+
+#[cfg(test)]
+mod test {
+    use crate::{providers::MultipleProviders, AnniProvider};
+
+    use super::PriorityProvider;
+
+    #[test]
+    fn test_new() {
+        let providers: PriorityProvider = vec![
+            (
+                -5,
+                Box::new(MultipleProviders::new(vec![])) as Box<dyn AnniProvider + Send + Sync>,
+            ),
+            (3, Box::new(MultipleProviders::new(vec![]))),
+            (2, Box::new(MultipleProviders::new(vec![]))),
+            (3, Box::new(MultipleProviders::new(vec![]))),
+        ]
+        .into_iter()
+        .collect();
+        assert_eq!(
+            providers
+                .0
+                .iter()
+                .map(|(p, _)| *p)
+                .collect::<Vec<_>>()
+                .as_slice(),
+            &[3, 3, 2, -5]
+        );
+    }
+}
