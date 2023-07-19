@@ -1,9 +1,10 @@
 use crate::{AnniProvider, AudioInfo, AudioResourceReader, ProviderError, Range, ResourceReader};
+use anni_common::models::{RawTrackIdentifier, TrackIdentifier};
 use async_trait::async_trait;
 use dashmap::DashMap;
 use lru::LruCache;
 use parking_lot::RwLock;
-use std::borrow::Cow;
+use std::borrow::{Borrow, Cow};
 use std::collections::HashSet;
 use std::future::Future;
 use std::num::NonZeroU8;
@@ -16,7 +17,7 @@ use tokio::io::{AsyncRead, AsyncReadExt, ReadBuf};
 use tokio::sync::Mutex;
 use tokio::time::Duration;
 
-pub struct Cache<T>
+pub struct CacheProvider<T>
 where
     T: AnniProvider + Send,
 {
@@ -24,7 +25,7 @@ where
     pool: Arc<CachePool>,
 }
 
-impl<T> Cache<T>
+impl<T> CacheProvider<T>
 where
     T: AnniProvider + Send,
 {
@@ -32,19 +33,18 @@ where
         Self { inner, pool }
     }
 
-    pub fn invalidate(&self, album_id: &str, disc_id: u8, track_id: u8) {
-        self.pool
-            .remove(&do_hash(format!("{album_id}/{disc_id:02}/{track_id:02}",)));
+    pub async fn invalidate(&self, album_id: &str, disc_id: NonZeroU8, track_id: NonZeroU8) {
+        let key = RawTrackIdentifier::new(album_id, disc_id, track_id);
+        self.pool.remove(&key).await;
     }
 }
 
 #[async_trait]
-impl<T> AnniProvider for Cache<T>
+impl<T> AnniProvider for CacheProvider<T>
 where
     T: AnniProvider + Send,
 {
     async fn albums(&self) -> Result<HashSet<Cow<str>>, ProviderError> {
-        // refresh should not be cached
         self.inner.albums().await
     }
 
@@ -54,6 +54,7 @@ where
         disc_id: NonZeroU8,
         track_id: NonZeroU8,
     ) -> Result<AudioInfo, ProviderError> {
+        // TODO: if the audio is cached, we can get audio info from cache directly
         // audio info request are passed to the inner provider directly
         self.inner.get_audio_info(album_id, disc_id, track_id).await
     }
@@ -67,13 +68,15 @@ where
     ) -> Result<AudioResourceReader, ProviderError> {
         self.pool
             .fetch(
-                do_hash(format!("{}/{:02}/{:02}", album_id, disc_id, track_id)),
+                album_id,
+                disc_id,
+                track_id,
                 range,
                 self.inner.get_audio(
                     album_id,
                     disc_id,
                     track_id,
-                    Range::FULL, /* cache does not pass range to the underlying provider */
+                    Range::FULL, // cache does not pass range to the underlying provider
                 ),
             )
             .await
@@ -98,41 +101,50 @@ pub struct CachePool {
     /// Root of cache folder
     root: PathBuf,
     /// Maximum space used by cache
-    /// 0 means unlimited
-    max_size: usize,
-    cache: DashMap<String, Arc<CacheItem>>,
+    max_size: Option<usize>,
+    cache: DashMap<TrackIdentifier, Arc<CacheItem>>,
     // https://github.com/xacrimon/dashmap/issues/189
-    // FIXME: this structure acts like Mutex for now, since there's no reader at all
-    last_used: RwLock<LruCache<String, Arc<Mutex<u8>>>>,
+    // TODO: Use LFU instead of LRU
+    last_used: Mutex<LruCache<TrackIdentifier, Arc<Mutex<u8>>>>,
 }
 
 impl CachePool {
-    pub fn new<P: AsRef<Path>>(root: P, max_size: usize) -> Self {
+    pub fn new<P>(root: P, max_size: Option<usize>) -> Self
+    where
+        P: AsRef<Path>,
+    {
         Self {
             root: PathBuf::from(root.as_ref()),
-            max_size: if max_size == 0 { usize::MAX } else { max_size },
+            max_size,
             cache: Default::default(),
-            last_used: RwLock::new(LruCache::unbounded()),
+            last_used: Mutex::new(LruCache::unbounded()),
         }
     }
 
     async fn fetch(
         &self,
-        key: String,
+        album_id: &str,
+        disc_id: NonZeroU8,
+        track_id: NonZeroU8,
         range: Range,
         on_miss: impl Future<Output = Result<AudioResourceReader, ProviderError>>,
     ) -> Result<AudioResourceReader, ProviderError> {
-        let item = if !self.has_cache(&key) {
+        let key = RawTrackIdentifier::new(album_id, disc_id, track_id);
+        let item = if !self.has_cache(album_id, disc_id, track_id).await {
             // on miss, set state to cached first
             let mutex = Arc::new(Mutex::new(0));
             let handle = mutex.clone().lock_owned().await;
-            self.last_used.write().put(key.clone(), mutex);
+            self.last_used.lock().await.put(key.to_owned(), mutex);
 
             // get data, return directly if it's a partial request
             let result = on_miss.await?;
 
             // prepare for new item
-            let path = self.root.join(&key);
+            let path = self.root.join(key.album_id.as_ref()).join(format!(
+                "{}_{}",
+                key.disc_id.get(),
+                key.track_id.get()
+            ));
             let mut file = File::create(&path).await?;
 
             let AudioResourceReader {
@@ -141,17 +153,19 @@ impl CachePool {
             let item = Arc::new(CacheItem::new(path, info, false));
 
             // remove old item if space is full
-            if self.space_used() > self.max_size {
-                // get the first item of BTreeMap
-                let mut write = self.last_used.write();
-                let key = write.pop_lru().unwrap();
-                // remove it from cache map
-                // drop would do the removal
-                self.remove(&key.0);
+            if let Some(max_size) = self.max_size {
+                if self.space_used() > max_size {
+                    // get the first item of BTreeMap
+                    let mut write = self.last_used.lock().await;
+                    let key = write.pop_lru().unwrap();
+                    // remove it from cache map
+                    // drop would do the removal
+                    self.remove(&key.0.borrow()).await;
+                }
             }
 
             // write to map
-            self.cache.insert(key.clone(), item.clone());
+            self.cache.insert(key.to_owned(), item.clone());
             // item is set to cached, release lock
             drop(handle);
 
@@ -170,13 +184,13 @@ impl CachePool {
             if !self.cache.contains_key(&key) {
                 // await cache mutex
                 let mutex = {
-                    let mut map = self.last_used.write();
+                    let mut map = self.last_used.lock().await;
                     map.get(&key).unwrap().clone()
                 };
                 let _ = mutex.lock().await;
             }
             // update last_used time
-            self.last_used.write().get(&key).unwrap();
+            self.last_used.lock().await.get(&key).unwrap();
             self.cache.get(&key).unwrap().clone()
         };
 
@@ -185,13 +199,16 @@ impl CachePool {
             .await)
     }
 
-    fn remove(&self, key: &str) {
+    async fn remove<'a>(&self, key: &RawTrackIdentifier<'a>) {
         self.cache.remove(key).map(|r| r.1.set_cached(false));
-        self.last_used.write().pop(key);
+        self.last_used.lock().await.pop(key);
     }
 
-    fn has_cache(&self, key: &str) -> bool {
-        self.last_used.read().contains(key)
+    async fn has_cache(&self, album_id: &str, disc_id: NonZeroU8, track_id: NonZeroU8) -> bool {
+        self.last_used
+            .lock()
+            .await
+            .contains(&RawTrackIdentifier::new(album_id, disc_id, track_id))
     }
 
     fn space_used(&self) -> usize {
@@ -201,14 +218,6 @@ impl CachePool {
             .reduce(|a, b| a + b)
             .unwrap_or(0)
     }
-}
-
-fn do_hash(key: String) -> String {
-    use sha2::{Digest, Sha256};
-    let mut hasher = Sha256::new();
-    Sha256::update(&mut hasher, key);
-    let result = hasher.finalize();
-    hex::encode(result)
 }
 
 struct CacheItem {

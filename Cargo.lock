@@ -203,18 +203,17 @@ dependencies = [
 name = "anni-provider"
 version = "0.3.0"
 dependencies = [
+ "anni-common",
  "anni-flac",
  "anni-google-drive3",
  "anni-repo",
  "async-trait",
  "dashmap",
  "futures",
- "hex",
  "log",
  "lru 0.10.1",
  "parking_lot 0.12.1",
  "reqwest",
- "sha2",
  "thiserror",
  "tokio",
  "tokio-stream",
