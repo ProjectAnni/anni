@@ -54,9 +54,15 @@ where
         disc_id: NonZeroU8,
         track_id: NonZeroU8,
     ) -> Result<AudioInfo, ProviderError> {
-        // TODO: if the audio is cached, we can get audio info from cache directly
-        // audio info request are passed to the inner provider directly
-        self.inner.get_audio_info(album_id, disc_id, track_id).await
+        if let Some(info) = self
+            .pool
+            .get_cached_audio_info(album_id, disc_id, track_id)
+            .await
+        {
+            Ok(info)
+        } else {
+            self.inner.get_audio_info(album_id, disc_id, track_id).await
+        }
     }
 
     async fn get_audio(
@@ -67,7 +73,7 @@ where
         range: Range,
     ) -> Result<AudioResourceReader, ProviderError> {
         self.pool
-            .fetch(
+            .fetch_audio(
                 album_id,
                 disc_id,
                 track_id,
@@ -121,7 +127,7 @@ impl CachePool {
         }
     }
 
-    async fn fetch(
+    async fn fetch_audio(
         &self,
         album_id: &str,
         disc_id: NonZeroU8,
@@ -174,6 +180,7 @@ impl CachePool {
             tokio::spawn(async move {
                 let actual_size = tokio::io::copy(&mut reader, &mut file).await.unwrap() as usize;
                 if item_spawn.size() != actual_size {
+                    // TODO: should not happen, throw error here
                     item_spawn.set_size(actual_size);
                 }
                 item_spawn.set_cached(true);
@@ -202,6 +209,27 @@ impl CachePool {
     async fn remove<'a>(&self, key: &RawTrackIdentifier<'a>) {
         self.cache.remove(key).map(|r| r.1.set_cached(false));
         self.last_used.lock().await.pop(key);
+    }
+
+    async fn get_cached_audio_info(
+        &self,
+        album_id: &str,
+        disc_id: NonZeroU8,
+        track_id: NonZeroU8,
+    ) -> Option<AudioInfo> {
+        self.cache
+            .get(&RawTrackIdentifier::new(album_id, disc_id, track_id))
+            .and_then(|r| {
+                if *r.cached.read() {
+                    Some(AudioInfo {
+                        extension: r.ext.clone(),
+                        size: *r.size.read(),
+                        duration: r.duration,
+                    })
+                } else {
+                    None
+                }
+            })
     }
 
     async fn has_cache(&self, album_id: &str, disc_id: NonZeroU8, track_id: NonZeroU8) -> bool {
