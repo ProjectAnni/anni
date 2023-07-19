@@ -13,6 +13,12 @@ impl PriorityProvider {
 
         Self(providers)
     }
+
+    pub fn insert(&mut self, provider: Box<dyn AnniProvider + Send + Sync>, priority: i32) {
+        match self.0.binary_search_by(|(p, _)| p.cmp(&priority).reverse()) {
+            Ok(pos) | Err(pos) => self.0.insert(pos, (priority, provider)),
+        };
+    }
 }
 
 impl FromIterator<(i32, Box<dyn AnniProvider + Send + Sync>)> for PriorityProvider {
@@ -97,24 +103,55 @@ mod test {
 
     use super::PriorityProvider;
 
+    fn generate_provider(priorities: Vec<i32>) -> PriorityProvider {
+        priorities
+            .into_iter()
+            .map(|p| (p, MultipleProviders::new(vec![])))
+            .collect()
+    }
+
+    fn get_priorities(provider: &PriorityProvider) -> Vec<i32> {
+        provider.0.iter().map(|(p, _)| *p).collect::<Vec<_>>()
+    }
+
     #[test]
-    fn test_new() {
-        let providers: PriorityProvider = vec![
-            (-5, MultipleProviders::new(vec![])),
-            (3, MultipleProviders::new(vec![])),
-            (2, MultipleProviders::new(vec![])),
-            (3, MultipleProviders::new(vec![])),
-        ]
-        .into_iter()
-        .collect();
+    fn new() {
+        let providers = generate_provider(vec![-5, 3, 2, 3]);
+        assert_eq!(get_priorities(&providers), vec![3, 3, 2, -5]);
+    }
+
+    #[test]
+    fn insert() {
+        let mut providers = generate_provider(vec![1, 3, 9, -10, 1, 6, 0, 3, 3]);
+
+        providers.insert(Box::new(MultipleProviders::new(vec![])), 8);
         assert_eq!(
-            providers
-                .0
-                .iter()
-                .map(|(p, _)| *p)
-                .collect::<Vec<_>>()
-                .as_slice(),
-            &[3, 3, 2, -5]
+            get_priorities(&providers),
+            vec![9, 8, 6, 3, 3, 3, 1, 1, 0, -10]
+        );
+
+        providers.insert(Box::new(MultipleProviders::new(vec![])), 3);
+        assert_eq!(
+            get_priorities(&providers),
+            vec![9, 8, 6, 3, 3, 3, 3, 1, 1, 0, -10]
+        );
+
+        providers.insert(Box::new(MultipleProviders::new(vec![])), 1);
+        assert_eq!(
+            get_priorities(&providers),
+            vec![9, 8, 6, 3, 3, 3, 3, 1, 1, 1, 0, -10]
+        );
+
+        providers.insert(Box::new(MultipleProviders::new(vec![])), 10);
+        assert_eq!(
+            get_priorities(&providers),
+            vec![10, 9, 8, 6, 3, 3, 3, 3, 1, 1, 1, 0, -10]
+        );
+
+        providers.insert(Box::new(MultipleProviders::new(vec![])), -912876510);
+        assert_eq!(
+            get_priorities(&providers),
+            vec![10, 9, 8, 6, 3, 3, 3, 3, 1, 1, 1, 0, -10, -912876510]
         );
     }
 }
