@@ -30,9 +30,10 @@ reqwest = { workspace = true, features = ["json", "stream"], optional = true }
 
 [features]
 default = ["full"]
-full = ["convention", "drive", "proxy", "strict"]
+full = ["convention", "drive", "proxy", "strict", "priority"]
 convention = ["repo"]
 drive = ["repo", "anni-google-drive3"]
 proxy = ["reqwest"]
 repo = ["anni-repo"]
 strict = []
+priority = []

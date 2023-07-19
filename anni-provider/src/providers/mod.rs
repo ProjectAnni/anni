@@ -4,6 +4,7 @@ pub use convention::CommonConventionProvider;
 pub use drive::DriveProvider;
 pub use multiple::MultipleProviders;
 pub use no_cache::NoCacheStrictLocalProvider;
+#[cfg(feature = "priority")]
 pub use priority::PriorityProvider;
 #[cfg(feature = "proxy")]
 pub use proxy::ProxyBackend;
@@ -16,6 +17,7 @@ mod convention;
 pub mod drive;
 mod multiple;
 mod no_cache;
+#[cfg(feature = "priority")]
 mod priority;
 #[cfg(feature = "proxy")]
 mod proxy;
