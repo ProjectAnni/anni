@@ -16,11 +16,22 @@ impl PriorityProvider {
 }
 
 impl FromIterator<(i32, Box<dyn AnniProvider + Send + Sync>)> for PriorityProvider {
-    fn from_iter<T: IntoIterator<Item = (i32, Box<dyn AnniProvider + Send + Sync>)>>(iter: T) -> Self {
+    fn from_iter<T: IntoIterator<Item = (i32, Box<dyn AnniProvider + Send + Sync>)>>(
+        iter: T,
+    ) -> Self {
         Self::new(iter.into_iter().collect())
     }
 }
 
+impl<P: AnniProvider + Send + Sync + 'static> FromIterator<(i32, P)> for PriorityProvider {
+    fn from_iter<T: IntoIterator<Item = (i32, P)>>(iter: T) -> Self {
+        Self::new(
+            iter.into_iter()
+                .map(|(priority, provider)| (priority, Box::new(provider) as _))
+                .collect(),
+        )
+    }
+}
 
 #[async_trait]
 impl AnniProvider for PriorityProvider {
@@ -82,20 +93,17 @@ impl AnniProvider for PriorityProvider {
 
 #[cfg(test)]
 mod test {
-    use crate::{providers::MultipleProviders, AnniProvider};
+    use crate::providers::MultipleProviders;
 
     use super::PriorityProvider;
 
     #[test]
     fn test_new() {
         let providers: PriorityProvider = vec![
-            (
-                -5,
-                Box::new(MultipleProviders::new(vec![])) as Box<dyn AnniProvider + Send + Sync>,
-            ),
-            (3, Box::new(MultipleProviders::new(vec![]))),
-            (2, Box::new(MultipleProviders::new(vec![]))),
-            (3, Box::new(MultipleProviders::new(vec![]))),
+            (-5, MultipleProviders::new(vec![])),
+            (3, MultipleProviders::new(vec![])),
+            (2, MultipleProviders::new(vec![])),
+            (3, MultipleProviders::new(vec![])),
         ]
         .into_iter()
         .collect();
