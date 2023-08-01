@@ -19,6 +19,14 @@ impl PriorityProvider {
             Ok(pos) | Err(pos) => self.0.insert(pos, (priority, provider)),
         };
     }
+
+    pub fn iter(&self) -> impl Iterator<Item = &(i32, Box<dyn AnniProvider + Send + Sync>)> + '_ {
+        self.0.iter()
+    }
+
+    pub fn providers(&self) -> impl Iterator<Item = &Box<dyn AnniProvider + Send + Sync>> + '_ {
+        self.iter().map(|(_, provider)| provider)
+    }
 }
 
 impl FromIterator<(i32, Box<dyn AnniProvider + Send + Sync>)> for PriorityProvider {
@@ -109,7 +117,7 @@ mod test {
     }
 
     fn get_priorities(provider: &PriorityProvider) -> Vec<i32> {
-        provider.0.iter().map(|(p, _)| *p).collect::<Vec<_>>()
+        provider.iter().map(|(p, _)| *p).collect::<Vec<_>>()
     }
 
     #[test]
