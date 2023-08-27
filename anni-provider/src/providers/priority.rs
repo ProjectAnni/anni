@@ -29,6 +29,10 @@ impl<P> TypedPriorityProvider<P> {
     pub fn providers(&self) -> impl Iterator<Item = &P> + '_ {
         self.iter().map(|(_, provider)| provider)
     }
+
+    pub fn providers_mut(&mut self) -> impl Iterator<Item = &mut P> + '_ {
+        self.0.iter_mut().map(|(_, provider)| provider)
+    }
 }
 
 impl<P: AnniProvider + Send + Sync + 'static> TypedPriorityProvider<P> {
