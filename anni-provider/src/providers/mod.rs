@@ -5,7 +5,7 @@ pub use drive::DriveProvider;
 pub use multiple::MultipleProviders;
 pub use no_cache::NoCacheStrictLocalProvider;
 #[cfg(feature = "priority")]
-pub use priority::PriorityProvider;
+pub use priority::{PriorityProvider, TypedPriorityProvider};
 #[cfg(feature = "proxy")]
 pub use proxy::ProxyBackend;
 #[cfg(feature = "strict")]
