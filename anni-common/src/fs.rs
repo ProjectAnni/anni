@@ -270,19 +270,32 @@ where
         ));
     }
 
-    if let Err(e) = rename(from.as_ref(), to.as_ref()) {
-        if e.kind() != io::ErrorKind::CrossesDevices {
-            return Err(e);
+    match rename(from.as_ref(), to.as_ref()) {
+        Err(e) if is_cross_device_error(&e) => {
+            debug!("Failed to rename across filesystems. Copying instead.");
+
+            copy_dir(from.as_ref(), to.as_ref())?;
+            debug!("Copying done. Removing source directory.");
+
+            fs::remove_dir_all(from.as_ref())?;
+            debug!("Source directory removed.");
         }
-
-        debug!("Failed to rename across filesystems. Copying instead.");
-
-        copy_dir(from.as_ref(), to.as_ref())?;
-        debug!("Copying done. Removing source directory.");
-
-        fs::remove_dir_all(from.as_ref())?;
-        debug!("Source directory removed.");
-    }
+        _ => {}
+    };
 
     Ok(())
+}
+
+fn is_cross_device_error(error: &io::Error) -> bool {
+    let code = error.raw_os_error();
+    #[cfg(windows)]
+    {
+        code == Some(17)
+    }
+    #[cfg(unix)]
+    {
+        code == Some(18)
+    }
+    #[cfg(all(not(windows), not(unix)))]
+    compile_error!("unsupported platform")
 }

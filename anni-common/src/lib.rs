@@ -1,5 +1,3 @@
-#![feature(io_error_more)]
-
 pub mod decode;
 pub mod diagnostic;
 pub mod encode;
