@@ -4,51 +4,50 @@ use async_trait::async_trait;
 
 use crate::{AnniProvider, AudioResourceReader, ProviderError, Range, ResourceReader, Result};
 
-#[derive(Default)]
-pub struct PriorityProvider(Vec<(i32, Box<dyn AnniProvider + Send + Sync>)>);
+pub type PriorityProvider = TypedPriorityProvider<Box<dyn AnniProvider + Send + Sync>>;
 
-impl PriorityProvider {
-    pub fn new(mut providers: Vec<(i32, Box<dyn AnniProvider + Send + Sync>)>) -> Self {
+#[derive(Default)]
+pub struct TypedPriorityProvider<P>(Vec<(i32, P)>);
+
+impl<P> TypedPriorityProvider<P> {
+    pub fn new(mut providers: Vec<(i32, P)>) -> Self {
         providers.sort_by(|(x, _), (y, _)| x.cmp(y).reverse());
 
         Self(providers)
     }
 
-    pub fn insert(&mut self, provider: Box<dyn AnniProvider + Send + Sync>, priority: i32) {
+    pub fn insert(&mut self, provider: P, priority: i32) {
         match self.0.binary_search_by(|(p, _)| p.cmp(&priority).reverse()) {
             Ok(pos) | Err(pos) => self.0.insert(pos, (priority, provider)),
         };
     }
 
-    pub fn iter(&self) -> impl Iterator<Item = &(i32, Box<dyn AnniProvider + Send + Sync>)> + '_ {
+    pub fn iter(&self) -> impl Iterator<Item = &(i32, P)> + '_ {
         self.0.iter()
     }
 
-    pub fn providers(&self) -> impl Iterator<Item = &Box<dyn AnniProvider + Send + Sync>> + '_ {
+    pub fn providers(&self) -> impl Iterator<Item = &P> + '_ {
         self.iter().map(|(_, provider)| provider)
     }
 }
 
-impl FromIterator<(i32, Box<dyn AnniProvider + Send + Sync>)> for PriorityProvider {
-    fn from_iter<T: IntoIterator<Item = (i32, Box<dyn AnniProvider + Send + Sync>)>>(
-        iter: T,
-    ) -> Self {
+impl<P: AnniProvider + Send + Sync + 'static> TypedPriorityProvider<P> {
+    pub fn into_boxed(self) -> PriorityProvider {
+        self.0
+            .into_iter()
+            .map(|(priority, provider)| (priority, Box::new(provider) as _))
+            .collect()
+    }
+}
+
+impl<P> FromIterator<(i32, P)> for TypedPriorityProvider<P> {
+    fn from_iter<T: IntoIterator<Item = (i32, P)>>(iter: T) -> Self {
         Self::new(iter.into_iter().collect())
     }
 }
 
-impl<P: AnniProvider + Send + Sync + 'static> FromIterator<(i32, P)> for PriorityProvider {
-    fn from_iter<T: IntoIterator<Item = (i32, P)>>(iter: T) -> Self {
-        Self::new(
-            iter.into_iter()
-                .map(|(priority, provider)| (priority, Box::new(provider) as _))
-                .collect(),
-        )
-    }
-}
-
 #[async_trait]
-impl AnniProvider for PriorityProvider {
+impl<P: AnniProvider + Send + Sync> AnniProvider for TypedPriorityProvider<P> {
     async fn albums(&self) -> Result<HashSet<Cow<str>>> {
         let mut res = HashSet::new();
 
@@ -105,14 +104,14 @@ impl AnniProvider for PriorityProvider {
 
 #[cfg(test)]
 mod test {
-    use crate::providers::MultipleProviders;
+    use crate::{common::AnniProvider, providers::MultipleProviders};
 
     use super::PriorityProvider;
 
     fn generate_provider(priorities: Vec<i32>) -> PriorityProvider {
         priorities
             .into_iter()
-            .map(|p| (p, MultipleProviders::new(vec![])))
+            .map(|p| (p, Box::new(MultipleProviders::new(vec![])) as _))
             .collect()
     }
 
@@ -159,5 +158,11 @@ mod test {
             get_priorities(&providers),
             vec![10, 9, 8, 6, 3, 3, 3, 3, 1, 1, 1, 0, -10, -912876510]
         );
+    }
+
+    #[test]
+    fn check_anni_provider_impl() {
+        fn check<P: AnniProvider>() {}
+        check::<PriorityProvider>();
     }
 }
