@@ -297,5 +297,8 @@ fn is_cross_device_error(error: &io::Error) -> bool {
         code == Some(18)
     }
     #[cfg(all(not(windows), not(unix)))]
-    compile_error!("unsupported platform")
+    {
+        // unsupported platform
+        false
+    }
 }
