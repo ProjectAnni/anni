@@ -286,6 +286,10 @@ where
     Ok(())
 }
 
+/// Checks raw os error code of `error`.
+///
+/// Returns true if the code is [`EXDEV`](https://github.com/rust-lang/rust/blob/master/library/std/src/sys/unix/mod.rs#L284) on unix
+/// or [`ERROR_NOT_SAME_DEVICE`](https://github.com/rust-lang/rust/blob/master/library/std/src/sys/windows/mod.rs#L114) on windows
 fn is_cross_device_error(error: &io::Error) -> bool {
     let code = error.raw_os_error();
     #[cfg(windows)]
