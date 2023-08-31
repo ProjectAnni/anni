@@ -127,6 +127,10 @@ impl Controls {
         self.set_is_stopped(false);
     }
 
+    pub fn play_preload(&self) {
+        self.send_internal_event(InternalPlayerEvent::PlayPreload);
+    }
+
     pub fn pause(&self) {
         if !self.is_playing() {
             return;
