@@ -16,7 +16,7 @@
 
 use std::sync::{atomic::AtomicBool, Arc};
 
-use symphonia_core::io::MediaSource;
+pub use symphonia_core::io::MediaSource;
 
 /// Provides the current progress of the player.
 #[derive(Clone, Copy)]

@@ -24,3 +24,5 @@ pub use controls::Controls;
 pub use decoder::Decoder;
 pub mod sources;
 pub mod types;
+
+pub use utils::create_unbound_channel;

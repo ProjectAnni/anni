@@ -4,9 +4,11 @@ use std::{
     thread,
 };
 
-use anni_playback::{types::PlayerEvent, Controls, Decoder};
-use crossbeam::channel::unbounded;
-use symphonia::core::io::MediaSource;
+use anni_playback::{
+    create_unbound_channel,
+    types::{MediaSource, PlayerEvent},
+    Controls, Decoder,
+};
 
 pub struct Player {
     controls: Controls,
@@ -15,7 +17,7 @@ pub struct Player {
 impl Player {
     pub fn new() -> Player {
         let controls = Controls::default();
-        let thread_killer = unbounded();
+        let thread_killer = create_unbound_channel();
 
         thread::spawn({
             let controls = controls.clone();

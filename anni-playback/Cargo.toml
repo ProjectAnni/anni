@@ -8,7 +8,6 @@ repository.workspace = true
 license = "LGPL-3.0"
 
 [dependencies]
-
 cpal = "0.15.2"
 reqwest = { version = "0", features = [
     "blocking",
@@ -26,10 +25,4 @@ arrayvec = "0.7.2"
 ebur128 = "0.1.7"
 anyhow = "1.0.69"
 lazy_static = "1.4.0"
-audiopus = "0.3.0-rc.0"
-
-[profile.release]
-lto = true
-
-[patch.crates-io]
-audiopus_sys = { git = "https://github.com/erikas-taroza/audiopus_sys" }
+audiopus = { git = "https://github.com/erikas-taroza/audiopus_sys" }
