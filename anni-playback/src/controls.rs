@@ -50,6 +50,7 @@ type EventHandler = (Sender<PlayerEvent>, Receiver<PlayerEvent>);
 
 #[derive(Clone)]
 pub struct Controls {
+    /// Decoder event channel
     event_handler: Arc<RwLock<EventHandler>>,
     is_playing: Arc<AtomicBool>,
     is_stopped: Arc<AtomicBool>,
@@ -59,42 +60,12 @@ pub struct Controls {
     volume: Arc<RwLock<f32>>,
     seek_ts: Arc<RwLock<Option<u64>>>,
     progress: Arc<RwLock<ProgressState>>,
+
+    player_event_sender: Arc<std::sync::mpsc::Sender<RealPlayerEvent>>,
 }
 
 impl Controls {
-    getset_rwlock!(event_handler, _set_event_handler, EventHandler);
-    getset_atomic_bool!(is_playing, set_is_playing);
-    getset_atomic_bool!(is_stopped, set_is_stopped);
-    getset_atomic_bool!(is_looping, set_is_looping);
-    getset_atomic_bool!(is_normalizing, set_is_normalizing);
-    getset_atomic_bool!(is_file_preloaded, set_is_file_preloaded);
-    getset_rwlock!(volume, set_volume, f32);
-    getset_rwlock!(seek_ts, set_seek_ts, Option<u64>);
-
-    pub fn progress(&self) -> ProgressState {
-        self.progress.read().unwrap().clone()
-    }
-
-    pub fn set_progress(&self, value: ProgressState) {
-        *self.progress.write().unwrap() = value;
-        self.event_handler().0.send(PlayerEvent::Progress).unwrap();
-    }
-
-    pub fn play(&self) {
-        self.event_handler().0.send(PlayerEvent::Play).unwrap();
-        self.set_is_playing(true);
-        self.set_is_stopped(false);
-    }
-
-    pub fn pause(&self) {
-        self.event_handler().0.send(PlayerEvent::Pause).unwrap();
-        self.set_is_playing(false);
-        self.set_is_stopped(false);
-    }
-}
-
-impl Default for Controls {
-    fn default() -> Self {
+    pub fn new(player_event_sender: std::sync::mpsc::Sender<RealPlayerEvent>) -> Self {
         Controls {
             event_handler: Arc::new(RwLock::new(unbounded())),
             is_playing: Arc::new(AtomicBool::new(false)),
@@ -108,6 +79,48 @@ impl Default for Controls {
                 position: 0,
                 duration: 0,
             })),
+
+            player_event_sender: Arc::new(player_event_sender),
         }
+    }
+
+    getset_rwlock!(event_handler, _set_event_handler, EventHandler);
+    getset_atomic_bool!(is_playing, set_is_playing);
+    getset_atomic_bool!(is_stopped, set_is_stopped);
+    getset_atomic_bool!(is_looping, set_is_looping);
+    getset_atomic_bool!(is_normalizing, set_is_normalizing);
+    getset_atomic_bool!(is_file_preloaded, set_is_file_preloaded);
+    getset_rwlock!(volume, set_volume, f32);
+    getset_rwlock!(seek_ts, set_seek_ts, Option<u64>);
+
+    fn send_player_event(&self, event: RealPlayerEvent) {
+        self.player_event_sender.send(event).unwrap();
+    }
+
+    pub fn progress(&self) -> ProgressState {
+        self.progress.read().unwrap().clone()
+    }
+
+    pub fn set_progress(&self, value: ProgressState) {
+        *self.progress.write().unwrap() = value;
+        self.send_player_event(RealPlayerEvent::Progress(value));
+    }
+
+    pub fn play(&self) {
+        self.event_handler().0.send(PlayerEvent::Play).unwrap();
+        self.send_player_event(RealPlayerEvent::Play);
+        self.set_is_playing(true);
+        self.set_is_stopped(false);
+    }
+
+    pub fn pause(&self) {
+        self.event_handler().0.send(PlayerEvent::Pause).unwrap();
+        self.send_player_event(RealPlayerEvent::Pause);
+        self.set_is_playing(false);
+        self.set_is_stopped(false);
+    }
+
+    pub fn done(&self) {
+        self.send_player_event(RealPlayerEvent::Done);
     }
 }

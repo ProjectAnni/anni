@@ -207,7 +207,6 @@ impl Decoder {
 
                     self.controls.play();
                 }
-                PlayerEvent::Progress => {}
             },
         }
 
@@ -334,7 +333,7 @@ impl Decoder {
         // Send the done message once cpal finishes flushing.
         // There may be samples left over and we don't want to
         // start playing another file before they are read.
-        // update_playback_state_stream(PlaybackState::Done);
+        self.controls.done();
 
         let progress_state = ProgressState {
             position: 0,

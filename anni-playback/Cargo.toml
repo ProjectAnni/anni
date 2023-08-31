@@ -26,4 +26,3 @@ ebur128 = "0.1.7"
 anyhow = "1.0.69"
 lazy_static = "1.4.0"
 audiopus = "0.3.0-rc.0"
-audiopus_sys = { git = "https://github.com/erikas-taroza/audiopus_sys" }

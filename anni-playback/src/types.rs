@@ -16,6 +16,7 @@
 
 use std::sync::{atomic::AtomicBool, Arc};
 
+pub use crossbeam::channel::{Receiver, Sender};
 pub use symphonia_core::io::MediaSource;
 
 /// Provides the current progress of the player.
@@ -38,6 +39,17 @@ pub enum PlayerEvent {
     DeviceChanged,
     Preload(Box<dyn MediaSource>, Arc<AtomicBool>),
     PlayPreload,
+}
+
+pub enum RealPlayerEvent {
+    /// Started playing
+    Play,
+    /// Paused
+    Pause,
+    /// Finished playing
+    Stop,
+    /// Finished playing, waiting for next (preloaded) track to be played
+    Done,
     /// Playback progress updated
-    Progress,
+    Progress(ProgressState),
 }

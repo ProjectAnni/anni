@@ -38,3 +38,4 @@ once_cell = "1"
 rusqlite = { git = "https://github.com/ProjectAnni/rusqlite", branch = "wasm32-unknown-unknown" }
 # Remove this patch after https://github.com/mackwic/colored/pull/119 was merged
 colored = { git = "https://github.com/ProjectAnni/colored", branch = "master" }
+audiopus_sys = { git = "https://github.com/erikas-taroza/audiopus_sys" }
