@@ -20,11 +20,11 @@ pub use crossbeam::channel::{Receiver, Sender};
 pub use symphonia_core::io::MediaSource;
 
 /// Provides the current progress of the player.
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, PartialEq, Eq)]
 pub struct ProgressState {
-    /// The position, in seconds, of the player.
+    /// The position, in milliseconds, of the player.
     pub position: u64,
-    /// The duration, in seconds, of the file that
+    /// The duration, in milliseconds, of the file that
     /// is being played.
     pub duration: u64,
 }

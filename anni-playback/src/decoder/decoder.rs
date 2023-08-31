@@ -292,7 +292,8 @@ impl Decoder {
             .context("Could not decode audio packet.")?;
 
         let position = if let Some(timebase) = playback.timebase {
-            timebase.calc_time(packet.ts()).seconds
+            let time = timebase.calc_time(packet.ts());
+            time.seconds * 1000 + (time.frac * 1000.0) as u64
         } else {
             0
         };
@@ -385,7 +386,10 @@ impl Decoder {
             .map(|frames| track.codec_params.start_ts + frames);
 
         let duration = match (timebase, ts) {
-            (Some(timebase), Some(ts)) => timebase.calc_time(ts).seconds,
+            (Some(timebase), Some(ts)) => {
+                let time = timebase.calc_time(ts);
+                time.seconds * 1000 + (time.frac * 1000.0) as u64
+            }
             _ => 0,
         };
 
