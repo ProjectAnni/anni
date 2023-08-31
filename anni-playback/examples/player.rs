@@ -6,7 +6,7 @@ use std::{
 
 use anni_playback::{
     create_unbound_channel,
-    types::{MediaSource, PlayerEvent, RealPlayerEvent},
+    types::{MediaSource, PlayerEvent},
     Controls, Decoder,
 };
 
@@ -15,7 +15,7 @@ pub struct Player {
 }
 
 impl Player {
-    pub fn new() -> (Player, Receiver<RealPlayerEvent>) {
+    pub fn new() -> (Player, Receiver<PlayerEvent>) {
         let (sender, receiver) = std::sync::mpsc::channel();
         let controls = Controls::new(sender);
         let thread_killer = create_unbound_channel();
@@ -33,12 +33,7 @@ impl Player {
 
     pub fn open(&self, source: Box<dyn MediaSource>) -> anyhow::Result<()> {
         let buffer_signal = Arc::new(AtomicBool::new(false));
-
-        self.controls
-            .event_handler()
-            .0
-            .send(PlayerEvent::Open(source, buffer_signal))?;
-
+        self.controls.open(source, buffer_signal);
         self.controls.play();
 
         Ok(())
@@ -50,9 +45,10 @@ impl Player {
 }
 
 fn main() -> anyhow::Result<()> {
-    let filename = std::env::args()
-        .nth(1)
-        .expect("Please provide the filename to play");
+    let Some(filename) = std::env::args().nth(1) else {
+        println!("Please provide the filename to play!");
+        std::process::exit(1);
+    };
 
     let (player, receiver) = Player::new();
 
@@ -60,16 +56,16 @@ fn main() -> anyhow::Result<()> {
         move || loop {
             match receiver.recv() {
                 Ok(msg) => match msg {
-                    RealPlayerEvent::Play => println!("Play"),
-                    RealPlayerEvent::Pause => println!("Pause"),
-                    RealPlayerEvent::Stop => println!("Stop"),
-                    RealPlayerEvent::Done => println!("Done"),
-                    RealPlayerEvent::Progress(progress) => {
+                    PlayerEvent::Play => println!("Play"),
+                    PlayerEvent::Pause => println!("Pause"),
+                    PlayerEvent::Stop => println!("Stop"),
+                    PlayerEvent::Done => println!("Done"),
+                    PlayerEvent::Progress(progress) => {
                         println!("Progress: {}/{}", progress.position, progress.duration);
                     }
                 },
                 Err(e) => {
-                    println!("{}", e);
+                    eprintln!("{}", e);
                 }
             }
         }

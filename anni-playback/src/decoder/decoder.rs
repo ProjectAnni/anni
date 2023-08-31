@@ -128,7 +128,7 @@ impl Decoder {
 
         // If the player is paused, then block this thread until a message comes in
         // to save the CPU.
-        let recv: Option<PlayerEvent> = if self.state.is_idle() || self.state.is_paused() {
+        let recv: Option<InternalPlayerEvent> = if self.state.is_idle() || self.state.is_paused() {
             self.controls.event_handler().1.recv().ok()
         } else {
             self.controls.event_handler().1.try_recv().ok()
@@ -137,11 +137,11 @@ impl Decoder {
         match recv {
             None => (),
             Some(message) => match message {
-                PlayerEvent::Open(source, buffer_signal) => {
+                InternalPlayerEvent::Open(source, buffer_signal) => {
                     self.cpal_output = None;
                     self.playback = Some(Self::open(source, buffer_signal)?);
                 }
-                PlayerEvent::Play => {
+                InternalPlayerEvent::Play => {
                     self.state = DecoderState::Playing;
 
                     // Windows handles play/pause differently.
@@ -150,7 +150,7 @@ impl Decoder {
                         cpal_output.stream.play()?;
                     }
                 }
-                PlayerEvent::Pause => {
+                InternalPlayerEvent::Pause => {
                     self.state = DecoderState::Paused;
 
                     // Windows handles play/pause differently.
@@ -159,7 +159,7 @@ impl Decoder {
                         cpal_output.stream.pause()?;
                     }
                 }
-                PlayerEvent::Stop => {
+                InternalPlayerEvent::Stop => {
                     self.state = DecoderState::Idle;
                     self.cpal_output = None;
                     self.playback = None;
@@ -169,7 +169,7 @@ impl Decoder {
                 // To make a new connection, dispose of the current cpal_output
                 // and pause playback. Once the user is ready, they can start
                 // playback themselves.
-                PlayerEvent::DeviceChanged => {
+                InternalPlayerEvent::DeviceChanged => {
                     self.cpal_output = None;
                     self.controls.pause();
 
@@ -189,13 +189,13 @@ impl Decoder {
                         ));
                     }
                 }
-                PlayerEvent::Preload(source, buffer_signal) => {
+                InternalPlayerEvent::Preload(source, buffer_signal) => {
                     self.preload_playback = None;
                     self.controls.set_is_file_preloaded(false);
                     let handle = self.preload(source, buffer_signal);
                     self.preload_thread = Some(handle);
                 }
-                PlayerEvent::PlayPreload => {
+                InternalPlayerEvent::PlayPreload => {
                     if self.preload_playback.is_none() {
                         return Ok(false);
                     }

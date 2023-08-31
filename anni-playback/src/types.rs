@@ -29,7 +29,7 @@ pub struct ProgressState {
     pub duration: u64,
 }
 
-pub enum PlayerEvent {
+pub(crate) enum InternalPlayerEvent {
     Open(Box<dyn MediaSource>, Arc<AtomicBool>),
     Play,
     Pause,
@@ -38,10 +38,11 @@ pub enum PlayerEvent {
     /// audio was changed/disconnected.
     DeviceChanged,
     Preload(Box<dyn MediaSource>, Arc<AtomicBool>),
+    /// TODO: remove PlayPreload event
     PlayPreload,
 }
 
-pub enum RealPlayerEvent {
+pub enum PlayerEvent {
     /// Started playing
     Play,
     /// Paused

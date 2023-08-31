@@ -23,7 +23,7 @@ use cpal::{
 };
 use symphonia::core::audio::{AudioBufferRef, SampleBuffer, SignalSpec};
 
-use crate::types::PlayerEvent;
+use crate::types::InternalPlayerEvent;
 use crate::utils::blocking_rb::*;
 
 use super::{
@@ -142,7 +142,7 @@ impl CpalOutput {
                             controls
                                 .event_handler()
                                 .0
-                                .send(PlayerEvent::DeviceChanged)
+                                .send(InternalPlayerEvent::DeviceChanged)
                                 .unwrap();
                             ring_buffer_writer.cancel_write();
                         }

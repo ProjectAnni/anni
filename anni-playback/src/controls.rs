@@ -46,7 +46,7 @@ macro_rules! getset_rwlock {
     };
 }
 
-type EventHandler = (Sender<PlayerEvent>, Receiver<PlayerEvent>);
+type EventHandler = (Sender<InternalPlayerEvent>, Receiver<InternalPlayerEvent>);
 
 #[derive(Clone)]
 pub struct Controls {
@@ -61,11 +61,11 @@ pub struct Controls {
     seek_ts: Arc<RwLock<Option<u64>>>,
     progress: Arc<RwLock<ProgressState>>,
 
-    player_event_sender: Arc<std::sync::mpsc::Sender<RealPlayerEvent>>,
+    player_event_sender: Arc<std::sync::mpsc::Sender<PlayerEvent>>,
 }
 
 impl Controls {
-    pub fn new(player_event_sender: std::sync::mpsc::Sender<RealPlayerEvent>) -> Self {
+    pub fn new(player_event_sender: std::sync::mpsc::Sender<PlayerEvent>) -> Self {
         Controls {
             event_handler: Arc::new(RwLock::new(unbounded())),
             is_playing: Arc::new(AtomicBool::new(false)),
@@ -84,17 +84,24 @@ impl Controls {
         }
     }
 
-    getset_rwlock!(event_handler, _set_event_handler, EventHandler);
-    getset_atomic_bool!(is_playing, set_is_playing);
-    getset_atomic_bool!(is_stopped, set_is_stopped);
-    getset_atomic_bool!(is_looping, set_is_looping);
-    getset_atomic_bool!(is_normalizing, set_is_normalizing);
-    getset_atomic_bool!(is_file_preloaded, set_is_file_preloaded);
-    getset_rwlock!(volume, set_volume, f32);
-    getset_rwlock!(seek_ts, set_seek_ts, Option<u64>);
+    pub fn open(&self, source: Box<dyn MediaSource>, buffer_signal: Arc<AtomicBool>) {
+        self.send_internal_event(InternalPlayerEvent::Open(source, buffer_signal));
+    }
 
-    fn send_player_event(&self, event: RealPlayerEvent) {
+    pub fn preload(&self, source: Box<dyn MediaSource>, buffer_signal: Arc<AtomicBool>) {
+        self.send_internal_event(InternalPlayerEvent::Preload(source, buffer_signal));
+    }
+
+    pub(crate) fn event_handler(&self) -> RwLockReadGuard<'_, EventHandler> {
+        self.event_handler.read().unwrap()
+    }
+
+    fn send_player_event(&self, event: PlayerEvent) {
         self.player_event_sender.send(event).unwrap();
+    }
+
+    fn send_internal_event(&self, event: InternalPlayerEvent) {
+        self.event_handler().0.send(event).unwrap();
     }
 
     pub fn progress(&self) -> ProgressState {
@@ -103,24 +110,66 @@ impl Controls {
 
     pub fn set_progress(&self, value: ProgressState) {
         *self.progress.write().unwrap() = value;
-        self.send_player_event(RealPlayerEvent::Progress(value));
+        self.send_player_event(PlayerEvent::Progress(value));
     }
 
     pub fn play(&self) {
-        self.event_handler().0.send(PlayerEvent::Play).unwrap();
-        self.send_player_event(RealPlayerEvent::Play);
+        if self.is_playing() {
+            return;
+        }
+
+        self.send_internal_event(InternalPlayerEvent::Play);
+        self.send_player_event(PlayerEvent::Play);
         self.set_is_playing(true);
         self.set_is_stopped(false);
     }
 
     pub fn pause(&self) {
-        self.event_handler().0.send(PlayerEvent::Pause).unwrap();
-        self.send_player_event(RealPlayerEvent::Pause);
+        if !self.is_playing() {
+            return;
+        }
+
+        self.send_internal_event(InternalPlayerEvent::Pause);
+        self.send_player_event(PlayerEvent::Pause);
         self.set_is_playing(false);
         self.set_is_stopped(false);
     }
 
-    pub fn done(&self) {
-        self.send_player_event(RealPlayerEvent::Done);
+    pub fn stop(&self) {
+        if self.is_stopped() {
+            return;
+        }
+
+        self.send_internal_event(InternalPlayerEvent::Stop);
+
+        let progress = ProgressState {
+            position: 0,
+            duration: 0,
+        };
+
+        self.set_progress(progress);
+        self.send_player_event(PlayerEvent::Pause);
+        self.set_is_playing(false);
+        self.set_is_stopped(true);
     }
+
+    pub fn seek(&self, seconds: u64) {
+        self.set_seek_ts(Some(seconds));
+        self.set_progress(ProgressState {
+            position: seconds,
+            duration: self.progress().duration,
+        });
+    }
+
+    pub fn done(&self) {
+        self.send_player_event(PlayerEvent::Done);
+    }
+
+    getset_atomic_bool!(is_playing, set_is_playing);
+    getset_atomic_bool!(is_stopped, set_is_stopped);
+    getset_atomic_bool!(is_looping, set_is_looping);
+    getset_atomic_bool!(is_normalizing, set_is_normalizing);
+    getset_atomic_bool!(is_file_preloaded, set_is_file_preloaded);
+    getset_rwlock!(volume, set_volume, f32);
+    getset_rwlock!(seek_ts, set_seek_ts, Option<u64>);
 }
