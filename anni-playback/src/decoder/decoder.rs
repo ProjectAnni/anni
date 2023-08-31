@@ -207,6 +207,7 @@ impl Decoder {
 
                     self.controls.play();
                 }
+                PlayerEvent::Progress => {}
             },
         }
 

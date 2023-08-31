@@ -70,7 +70,15 @@ impl Controls {
     getset_atomic_bool!(is_file_preloaded, set_is_file_preloaded);
     getset_rwlock!(volume, set_volume, f32);
     getset_rwlock!(seek_ts, set_seek_ts, Option<u64>);
-    getset_rwlock!(progress, set_progress, ProgressState);
+
+    pub fn progress(&self) -> ProgressState {
+        self.progress.read().unwrap().clone()
+    }
+
+    pub fn set_progress(&self, value: ProgressState) {
+        *self.progress.write().unwrap() = value;
+        self.event_handler().0.send(PlayerEvent::Progress).unwrap();
+    }
 
     pub fn play(&self) {
         self.event_handler().0.send(PlayerEvent::Play).unwrap();

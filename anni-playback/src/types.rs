@@ -38,4 +38,6 @@ pub enum PlayerEvent {
     DeviceChanged,
     Preload(Box<dyn MediaSource>, Arc<AtomicBool>),
     PlayPreload,
+    /// Playback progress updated
+    Progress,
 }
