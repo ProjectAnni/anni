@@ -69,8 +69,13 @@ impl Playlist {
         }
     }
 
-    fn next(&mut self, player: &Player) {
+    fn next(&mut self, player: &Player) -> bool {
+        if self.current == self.playlist.len() - 1 {
+            return false;
+        }
+
         player.play_preloaded();
+        return true;
     }
 
     fn previous(&mut self, player: &Player) {
@@ -188,7 +193,9 @@ fn run_app<B: Backend>(
                 } else if event.code == crossterm::event::KeyCode::Up {
                     playlist.previous(&player);
                 } else if event.code == crossterm::event::KeyCode::Down {
-                    playlist.next(&player);
+                    if !playlist.next(&player) {
+                        break;
+                    }
                 }
             }
             Event::Resize => {
