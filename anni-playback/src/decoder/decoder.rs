@@ -20,7 +20,6 @@ use std::{
 };
 
 use anyhow::{anyhow, Context};
-use cpal::traits::StreamTrait;
 use crossbeam::channel::Receiver;
 use lazy_static::lazy_static;
 use symphonia::{
@@ -35,7 +34,7 @@ use symphonia::{
     default::{self, register_enabled_codecs},
 };
 use symphonia_core::{
-    audio::{Channels, Layout, SignalSpec},
+    audio::{Layout, SignalSpec},
     codecs::CodecRegistry,
 };
 
@@ -75,7 +74,8 @@ impl Decoder {
             controls: controls.clone(),
             state: DecoderState::Idle,
             cpal_output_stream: CpalOutputStream::new(
-                SignalSpec::new_with_layout(48000, Layout::Stereo),
+                // TODO: allow specifying sample rate by user
+                SignalSpec::new_with_layout(44100, Layout::Stereo),
                 controls,
             )
             .unwrap(),
@@ -160,7 +160,7 @@ impl Decoder {
                     // Windows handles play/pause differently.
                     #[cfg(not(target_os = "windows"))]
                     if let Some(cpal_output) = &self.cpal_output {
-                        self.cpal_output_stream.stream.play()?;
+                        self.cpal_output_stream.play();
                     }
                 }
                 InternalPlayerEvent::Pause => {
@@ -169,7 +169,7 @@ impl Decoder {
                     // Windows handles play/pause differently.
                     #[cfg(not(target_os = "windows"))]
                     if let Some(cpal_output) = &self.cpal_output {
-                        self.cpal_output_stream.stream.pause()?;
+                        self.cpal_output_stream.pause();
                     }
                 }
                 InternalPlayerEvent::Stop => {
@@ -194,7 +194,7 @@ impl Decoder {
                         self.preload_playback.replace((
                             playback,
                             self.cpal_output_stream.create_output(
-                                cpal_output.buffer_signal,
+                                buffer_signal,
                                 cpal_output.spec,
                                 cpal_output.duration,
                             ),
