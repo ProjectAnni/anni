@@ -326,7 +326,7 @@ impl Decoder {
             self.playback = Some(playback);
             self.cpal_output = Some(cpal_output);
 
-            self.controls.play();
+            self.controls.send_internal_event(InternalPlayerEvent::Play);
             self.controls.preload_played();
         } else {
             self.controls.stop();

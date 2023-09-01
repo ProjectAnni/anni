@@ -87,23 +87,28 @@ impl Controls {
         }
     }
 
-    pub fn open(&self, source: Box<dyn MediaSource>, buffer_signal: Arc<AtomicBool>) {
-        self.send_internal_event(InternalPlayerEvent::Open(source, buffer_signal));
+    pub fn open(
+        &self,
+        source: Box<dyn MediaSource>,
+        buffer_signal: Arc<AtomicBool>,
+        is_preload: bool,
+    ) {
+        if is_preload {
+            self.send_internal_event(InternalPlayerEvent::Preload(source, buffer_signal));
+        } else {
+            self.send_internal_event(InternalPlayerEvent::Open(source, buffer_signal));
+        }
     }
 
-    pub fn open_file<P>(&self, path: P) -> anyhow::Result<()>
+    pub fn open_file<P>(&self, path: P, is_preload: bool) -> anyhow::Result<()>
     where
         P: AsRef<Path>,
     {
         let buffer_signal = Arc::new(AtomicBool::new(false));
         let source = Box::new(std::fs::File::open(path)?);
-        self.open(source, buffer_signal);
+        self.open(source, buffer_signal, is_preload);
 
         Ok(())
-    }
-
-    pub fn preload(&self, source: Box<dyn MediaSource>, buffer_signal: Arc<AtomicBool>) {
-        self.send_internal_event(InternalPlayerEvent::Preload(source, buffer_signal));
     }
 
     pub(crate) fn event_handler(&self) -> RwLockReadGuard<'_, EventHandler> {
@@ -114,7 +119,7 @@ impl Controls {
         self.player_event_sender.send(event).unwrap();
     }
 
-    fn send_internal_event(&self, event: InternalPlayerEvent) {
+    pub(crate) fn send_internal_event(&self, event: InternalPlayerEvent) {
         self.event_handler().0.send(event).unwrap();
     }
 

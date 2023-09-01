@@ -33,20 +33,36 @@ impl Deref for Player {
 }
 
 fn main() -> anyhow::Result<()> {
-    let Some(filename) = std::env::args().nth(1) else {
-        println!("Please provide the filename to play!");
+    let (Some(first), Some(second), Some(third)) = (
+        std::env::args().nth(1),
+        std::env::args().nth(2),
+        std::env::args().nth(3),
+    ) else {
+        println!("Please provide three filenames to play!");
         std::process::exit(1);
     };
 
     let (player, receiver) = Player::new();
 
     let thread = thread::spawn({
+        let controls = player.controls.clone();
+
         move || loop {
             match receiver.recv() {
                 Ok(msg) => match msg {
-                    PlayerEvent::Play => println!("Play"),
+                    PlayerEvent::Play => {
+                        println!("Play");
+
+                        // Preload the second track after first track has started playing
+                        let _ = controls.open_file(second.clone(), true);
+                    }
                     PlayerEvent::Pause => println!("Pause"),
-                    PlayerEvent::PreloadPlayed => println!("PreloadPlayed"),
+                    PlayerEvent::PreloadPlayed => {
+                        println!("PreloadPlayed");
+
+                        // The second track is played, load the third track
+                        let _ = controls.open_file(third.clone(), true);
+                    }
                     PlayerEvent::Progress(progress) => {
                         println!("Progress: {}/{}", progress.position, progress.duration);
                     }
@@ -58,7 +74,7 @@ fn main() -> anyhow::Result<()> {
         }
     });
 
-    player.open_file(filename, false)?;
+    player.open_file(first, false)?;
     player.play();
     thread.join().unwrap();
 
