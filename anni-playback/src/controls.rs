@@ -111,6 +111,10 @@ impl Controls {
         Ok(())
     }
 
+    pub fn play_preloaded(&self) {
+        self.send_internal_event(InternalPlayerEvent::PlayPreloaded);
+    }
+
     pub(crate) fn event_handler(&self) -> RwLockReadGuard<'_, EventHandler> {
         self.event_handler.read().unwrap()
     }

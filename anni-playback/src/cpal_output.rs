@@ -14,7 +14,7 @@
 // You should have received a copy of the GNU Lesser General Public License along with this program.
 // If not, see <https://www.gnu.org/licenses/>.
 
-use std::sync::{atomic::AtomicBool, Arc, Condvar, Mutex};
+use std::sync::{atomic::AtomicBool, Arc};
 
 use anyhow::Context;
 use cpal::{
@@ -36,43 +36,20 @@ use super::{
 /// will help to reduce it.
 const BASE_VOLUME: f32 = 0.8;
 
-//TODO: Support i16 and u16 instead of only f32.
-pub struct CpalOutput {
+pub struct CpalOutputStream {
     pub stream: Stream,
-    pub spec: SignalSpec,
-    pub duration: u64,
     pub ring_buffer_reader: BlockingRb<f32, Consumer>,
-    ring_buffer_writer: BlockingRb<f32, Producer>,
-    sample_buffer: SampleBuffer<f32>,
-    resampler: Option<Resampler<f32>>,
-    is_stream_done: Arc<(Mutex<bool>, Condvar)>,
-    normalizer: Normalizer,
+    pub ring_buffer_writer: BlockingRb<f32, Producer>,
+    pub device: Device,
+    pub config: StreamConfig,
+    //
     controls: Controls,
 }
 
-impl CpalOutput {
-    /// Starts a new stream on the default device.
-    pub fn new(
-        controls: Controls,
-        buffer_signal: Arc<AtomicBool>,
-        spec: SignalSpec,
-        duration: u64,
-    ) -> anyhow::Result<Self> {
+impl CpalOutputStream {
+    pub fn new(spec: SignalSpec, controls: Controls) -> anyhow::Result<Self> {
         // Get the output config.
         let (device, config) = Self::get_config(spec)?;
-
-        // Create a resampler only if the code is running on Windows
-        // and if the output config's sample rate doesn't match the audio's.
-        let resampler: Option<Resampler<f32>> =
-            if cfg!(target_os = "windows") && spec.rate != config.sample_rate.0 {
-                Some(Resampler::new(
-                    spec,
-                    config.sample_rate.0 as usize,
-                    duration,
-                ))
-            } else {
-                None
-            };
 
         // Create a ring buffer with a capacity for up-to `buf_len_ms` of audio.
         let channels = spec.channels.count();
@@ -85,51 +62,39 @@ impl CpalOutput {
         let ring_buffer_writer = rb.0;
         let ring_buffer_reader = rb.1;
 
-        let sample_buffer = SampleBuffer::<f32>::new(duration, spec);
-
-        let is_stream_done = Arc::new((Mutex::new(false), Condvar::new()));
-
         let stream = device.build_output_stream(
             &config,
             {
                 let controls = controls.clone();
-                let is_stream_done = is_stream_done.clone();
                 move |data: &mut [f32], _: &cpal::OutputCallbackInfo| {
-                    let buffering = buffer_signal.load(std::sync::atomic::Ordering::SeqCst);
+                    // let buffering = buffer_signal.load(std::sync::atomic::Ordering::SeqCst);
 
-                    // "Pause" the stream.
-                    // What this really does is mute the stream.
-                    // With only a return statement, the current sample still plays.
-                    // CPAL states that `stream.pause()` may not work for all devices.
-                    // `stream.pause()` is the ideal way to play/pause.
-                    if (cfg!(target_os = "windows")
-                        && !controls.is_playing()
-                        && !controls.is_stopped())
-                        || buffering
-                    {
-                        data.iter_mut().for_each(|s| *s = 0.0);
+                    // // "Pause" the stream.
+                    // // What this really does is mute the stream.
+                    // // With only a return statement, the current sample still plays.
+                    // // CPAL states that `stream.pause()` may not work for all devices.
+                    // // `stream.pause()` is the ideal way to play/pause.
+                    // if (cfg!(target_os = "windows")
+                    //     && !controls.is_playing()
+                    //     && !controls.is_stopped())
+                    //     || buffering
+                    // {
+                    //     data.iter_mut().for_each(|s| *s = 0.0);
 
-                        if buffering {
-                            ring_buffer_reader.skip_all();
-                        }
+                    //     if buffering {
+                    //         ring_buffer_reader.skip_all();
+                    //     }
 
-                        return;
-                    }
-
-                    let written = ring_buffer_reader.read(data);
-
-                    // Notify that the stream was finished reading.
-                    if written.is_none() {
-                        let (mutex, cvar) = &*is_stream_done;
-                        *mutex.lock().unwrap() = true;
-                        cvar.notify_one();
-                        return;
-                    }
+                    //     return;
+                    // }
 
                     // Set the volume.
-                    data[0..written.unwrap()]
-                        .iter_mut()
-                        .for_each(|s| *s *= BASE_VOLUME * *controls.volume());
+                    // TODO: allow user to not normalize the volume.
+                    if let Some(written) = ring_buffer_reader.read(data) {
+                        data[0..written]
+                            .iter_mut()
+                            .for_each(|s| *s *= BASE_VOLUME * *controls.volume());
+                    }
                 }
             },
             {
@@ -139,11 +104,7 @@ impl CpalOutput {
                         cpal::StreamError::DeviceNotAvailable => {
                             // Tell the decoder that there is no longer a valid device.
                             // The decoder will make a new `cpal_output`.
-                            controls
-                                .event_handler()
-                                .0
-                                .send(InternalPlayerEvent::DeviceChanged)
-                                .unwrap();
+                            controls.send_internal_event(InternalPlayerEvent::DeviceChanged);
                             ring_buffer_writer.cancel_write();
                         }
                         cpal::StreamError::BackendSpecific { err } => {
@@ -159,20 +120,43 @@ impl CpalOutput {
         let stream = stream.context("Could not build the stream.")?;
         stream.play()?;
 
-        let sample_rate = config.sample_rate.0;
-
-        Ok(CpalOutput {
+        Ok(Self {
             stream,
-            spec,
-            duration,
+            device,
+            config,
             ring_buffer_writer: rb_clone.0,
             ring_buffer_reader: rb_clone.1,
-            sample_buffer,
-            resampler,
-            is_stream_done,
-            normalizer: Normalizer::new(spec.channels.count(), sample_rate),
             controls,
         })
+    }
+
+    /// Starts a new stream on the default device.
+    pub fn create_output(
+        &self,
+        buffer_signal: Arc<AtomicBool>,
+        spec: SignalSpec,
+        duration: u64,
+    ) -> CpalOutput {
+        CpalOutput::new(
+            buffer_signal,
+            spec,
+            duration,
+            self.config.clone(),
+            self.controls.clone(),
+            self.ring_buffer_writer.clone(),
+        )
+    }
+
+    pub fn play(&self) {
+        if self.stream.play().is_err() {
+            // TODO: stream play is not supported, use another way to play
+        }
+    }
+
+    pub fn pause(&self) {
+        if self.stream.pause().is_err() {
+            // TODO: stream pause is not supported, use another way to pause
+        }
     }
 
     fn get_config(spec: SignalSpec) -> anyhow::Result<(Device, StreamConfig)> {
@@ -206,6 +190,56 @@ impl CpalOutput {
         }
 
         Ok((device, config))
+    }
+}
+
+//TODO: Support i16 and u16 instead of only f32.
+pub struct CpalOutput {
+    pub spec: SignalSpec,
+    pub duration: u64,
+    pub buffer_signal: Arc<AtomicBool>,
+    ring_buffer_writer: BlockingRb<f32, Producer>,
+    sample_buffer: SampleBuffer<f32>,
+    resampler: Option<Resampler<f32>>,
+    normalizer: Normalizer,
+    controls: Controls,
+}
+
+impl CpalOutput {
+    pub fn new(
+        buffer_signal: Arc<AtomicBool>,
+        spec: SignalSpec,
+        duration: u64,
+        config: StreamConfig,
+        controls: Controls,
+        ring_buffer_writer: BlockingRb<f32, Producer>,
+    ) -> Self {
+        // Create a resampler only if the code is running on Windows
+        // or if the output config's sample rate doesn't match the audio's.
+        let resampler: Option<Resampler<f32>> =
+            if cfg!(target_os = "windows") || spec.rate != config.sample_rate.0 {
+                Some(Resampler::new(
+                    spec,
+                    config.sample_rate.0 as usize,
+                    duration,
+                ))
+            } else {
+                None
+            };
+
+        let sample_buffer = SampleBuffer::<f32>::new(duration, spec);
+        let sample_rate = config.sample_rate.0;
+
+        Self {
+            spec,
+            duration,
+            buffer_signal,
+            ring_buffer_writer,
+            sample_buffer,
+            resampler,
+            normalizer: Normalizer::new(spec.channels.count(), sample_rate),
+            controls: controls,
+        }
     }
 
     /// Write the `AudioBufferRef` to the buffers.
@@ -245,12 +279,6 @@ impl CpalOutput {
                 remaining_samples = &remaining_samples[written..];
             }
         }
-
-        // Wait for all the samples to be read.
-        let (mutex, cvar) = &*self.is_stream_done;
-        let _lock = cvar.wait(mutex.lock().unwrap());
-
-        self.stream.pause().unwrap();
     }
 }
 

@@ -20,7 +20,6 @@ use std::{
 };
 
 use anyhow::{anyhow, Context};
-use cpal::traits::StreamTrait;
 use crossbeam::channel::Receiver;
 use lazy_static::lazy_static;
 use symphonia::{
@@ -34,10 +33,17 @@ use symphonia::{
     },
     default::{self, register_enabled_codecs},
 };
-use symphonia_core::codecs::CodecRegistry;
+use symphonia_core::{
+    audio::{Layout, SignalSpec},
+    codecs::CodecRegistry,
+};
 
 use super::opus::OpusDecoder;
-use crate::{controls::*, cpal_output::CpalOutput, types::*};
+use crate::{
+    controls::*,
+    cpal_output::{CpalOutput, CpalOutputStream},
+    types::*,
+};
 
 lazy_static! {
     static ref CODEC_REGISTRY: CodecRegistry = {
@@ -52,6 +58,7 @@ pub struct Decoder {
     thread_killer: Receiver<bool>,
     controls: Controls,
     state: DecoderState,
+    cpal_output_stream: CpalOutputStream,
     cpal_output: Option<CpalOutput>,
     playback: Option<Playback>,
     preload_playback: Option<(Playback, CpalOutput)>,
@@ -64,8 +71,14 @@ impl Decoder {
     pub fn new(controls: Controls, thread_killer: Receiver<bool>) -> Self {
         Decoder {
             thread_killer,
-            controls,
+            controls: controls.clone(),
             state: DecoderState::Idle,
+            cpal_output_stream: CpalOutputStream::new(
+                // TODO: allow specifying sample rate by user
+                SignalSpec::new_with_layout(44100, Layout::Stereo),
+                controls,
+            )
+            .unwrap(),
             cpal_output: None,
             playback: None,
             preload_playback: None,
@@ -105,7 +118,7 @@ impl Decoder {
                 Ok(playback_complete) => {
                     if playback_complete {
                         self.state = DecoderState::Idle;
-                        self.finish_playback();
+                        self.finish_playback(false);
                     }
                 }
                 Err(_) => {
@@ -147,7 +160,7 @@ impl Decoder {
                     // Windows handles play/pause differently.
                     #[cfg(not(target_os = "windows"))]
                     if let Some(cpal_output) = &self.cpal_output {
-                        cpal_output.stream.play()?;
+                        self.cpal_output_stream.play();
                     }
                 }
                 InternalPlayerEvent::Pause => {
@@ -156,7 +169,7 @@ impl Decoder {
                     // Windows handles play/pause differently.
                     #[cfg(not(target_os = "windows"))]
                     if let Some(cpal_output) = &self.cpal_output {
-                        cpal_output.stream.pause()?;
+                        self.cpal_output_stream.pause();
                     }
                 }
                 InternalPlayerEvent::Stop => {
@@ -180,12 +193,11 @@ impl Decoder {
 
                         self.preload_playback.replace((
                             playback,
-                            CpalOutput::new(
-                                self.controls.clone(),
+                            self.cpal_output_stream.create_output(
                                 buffer_signal,
                                 cpal_output.spec,
                                 cpal_output.duration,
-                            )?,
+                            ),
                         ));
                     }
                 }
@@ -194,6 +206,9 @@ impl Decoder {
                     self.controls.set_is_file_preloaded(false);
                     let handle = self.preload(source, buffer_signal);
                     self.preload_thread = Some(handle);
+                }
+                InternalPlayerEvent::PlayPreloaded => {
+                    self.finish_playback(true);
                 }
             },
         }
@@ -220,12 +235,13 @@ impl Decoder {
             if self.cpal_output.is_none() {
                 let spec = *preload.spec();
                 let duration = preload.capacity() as u64;
-                self.cpal_output.replace(CpalOutput::new(
-                    self.controls.clone(),
-                    playback.buffer_signal.clone(),
-                    spec,
-                    duration,
-                )?);
+
+                self.cpal_output
+                    .replace(self.cpal_output_stream.create_output(
+                        playback.buffer_signal.clone(),
+                        spec,
+                        duration,
+                    ));
             }
 
             let buffer_ref = preload.as_audio_buffer_ref();
@@ -249,7 +265,7 @@ impl Decoder {
             // Clear the ring buffer which prevents the writer
             // from blocking.
             if let Some(cpal_output) = self.cpal_output.as_ref() {
-                cpal_output.ring_buffer_reader.skip_all();
+                self.cpal_output_stream.ring_buffer_reader.skip_all();
             }
             return Ok(false);
         }
@@ -298,12 +314,12 @@ impl Decoder {
         if self.cpal_output.is_none() {
             let spec = *decoded.spec();
             let duration = decoded.capacity() as u64;
-            self.cpal_output.replace(CpalOutput::new(
-                self.controls.clone(),
-                playback.buffer_signal.clone(),
-                spec,
-                duration,
-            )?);
+            self.cpal_output
+                .replace(self.cpal_output_stream.create_output(
+                    playback.buffer_signal.clone(),
+                    spec,
+                    duration,
+                ));
         }
 
         self.cpal_output.as_mut().unwrap().write(decoded);
@@ -314,11 +330,15 @@ impl Decoder {
     /// Called when the file is finished playing.
     ///
     /// Flushes `cpal_output` and sends a `Done` message to Dart.
-    fn finish_playback(&mut self) {
-        if let Some(cpal_output) = self.cpal_output.as_mut() {
-            // There may be samples left over and we don't want to
-            // start playing another file before they are read.
-            cpal_output.flush();
+    fn finish_playback(&mut self, skip_future_samples: bool) {
+        if !skip_future_samples {
+            if let Some(cpal_output) = self.cpal_output.as_mut() {
+                // There may be samples left over and we don't want to
+                // start playing another file before they are read.
+                cpal_output.flush();
+            }
+        } else {
+            self.cpal_output_stream.ring_buffer_reader.skip_all();
         }
 
         // If there is a preloaded file, then swap it with the current playback.
@@ -399,6 +419,9 @@ impl Decoder {
         buffer_signal: Arc<AtomicBool>,
     ) -> JoinHandle<anyhow::Result<(Playback, CpalOutput)>> {
         let controls = self.controls.clone();
+        let config = self.cpal_output_stream.config.clone();
+        let ring_buffer_writer = self.cpal_output_stream.ring_buffer_writer.clone();
+
         thread::spawn(move || {
             let mut playback = Self::open(source, buffer_signal.clone())?;
             // Preload
@@ -412,10 +435,14 @@ impl Decoder {
             buf_ref.convert(&mut buf);
             playback.preload = Some(buf);
 
-            let cpal_output = CpalOutput::new(controls, buffer_signal, spec, duration)?;
-            // Pausing the stream on Windows breaks the output stream.
-            #[cfg(not(target_os = "windows"))]
-            cpal_output.stream.pause()?;
+            let cpal_output = CpalOutput::new(
+                buffer_signal,
+                spec,
+                duration,
+                config,
+                controls,
+                ring_buffer_writer,
+            );
 
             Ok((playback, cpal_output))
         })
