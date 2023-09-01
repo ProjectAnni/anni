@@ -1,14 +1,6 @@
-use std::{
-    fs::File,
-    sync::{atomic::AtomicBool, mpsc::Receiver, Arc},
-    thread,
-};
+use std::{ops::Deref, sync::mpsc::Receiver, thread};
 
-use anni_playback::{
-    create_unbound_channel,
-    types::{MediaSource, PlayerEvent},
-    Controls, Decoder,
-};
+use anni_playback::{create_unbound_channel, types::PlayerEvent, Controls, Decoder};
 
 pub struct Player {
     controls: Controls,
@@ -30,17 +22,13 @@ impl Player {
 
         (Player { controls }, receiver)
     }
+}
 
-    pub fn open(&self, source: Box<dyn MediaSource>) -> anyhow::Result<()> {
-        let buffer_signal = Arc::new(AtomicBool::new(false));
-        self.controls.open(source, buffer_signal);
-        self.controls.play();
+impl Deref for Player {
+    type Target = Controls;
 
-        Ok(())
-    }
-
-    pub fn is_playing(&self) -> bool {
-        self.controls.is_playing()
+    fn deref(&self) -> &Self::Target {
+        &self.controls
     }
 }
 
@@ -53,18 +41,12 @@ fn main() -> anyhow::Result<()> {
     let (player, receiver) = Player::new();
 
     let thread = thread::spawn({
-        // let controls = player.controls.clone();
-
         move || loop {
             match receiver.recv() {
                 Ok(msg) => match msg {
                     PlayerEvent::Play => println!("Play"),
                     PlayerEvent::Pause => println!("Pause"),
-                    PlayerEvent::PreloadPlayed => {
-                        println!("PreloadPlayed");
-                        // TODO: Load the next track
-                        // controls.open(source, buffer_signal)
-                    }
+                    PlayerEvent::PreloadPlayed => println!("PreloadPlayed"),
                     PlayerEvent::Progress(progress) => {
                         println!("Progress: {}/{}", progress.position, progress.duration);
                     }
@@ -76,8 +58,7 @@ fn main() -> anyhow::Result<()> {
         }
     });
 
-    let source = Box::new(File::open(filename)?);
-    player.open(source)?;
+    player.open_file(filename)?;
     thread.join().unwrap();
 
     Ok(())

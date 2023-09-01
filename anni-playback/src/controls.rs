@@ -14,7 +14,10 @@
 // You should have received a copy of the GNU Lesser General Public License along with this program.
 // If not, see <https://www.gnu.org/licenses/>.
 
-use std::sync::{atomic::AtomicBool, Arc, RwLock, RwLockReadGuard};
+use std::{
+    path::Path,
+    sync::{atomic::AtomicBool, Arc, RwLock, RwLockReadGuard},
+};
 
 use crossbeam::channel::{unbounded, Receiver, Sender};
 
@@ -86,6 +89,17 @@ impl Controls {
 
     pub fn open(&self, source: Box<dyn MediaSource>, buffer_signal: Arc<AtomicBool>) {
         self.send_internal_event(InternalPlayerEvent::Open(source, buffer_signal));
+    }
+
+    pub fn open_file<P>(&self, path: P) -> anyhow::Result<()>
+    where
+        P: AsRef<Path>,
+    {
+        let buffer_signal = Arc::new(AtomicBool::new(false));
+        let source = Box::new(std::fs::File::open(path)?);
+        self.open(source, buffer_signal);
+
+        Ok(())
     }
 
     pub fn preload(&self, source: Box<dyn MediaSource>, buffer_signal: Arc<AtomicBool>) {
