@@ -127,10 +127,6 @@ impl Controls {
         self.set_is_stopped(false);
     }
 
-    pub fn play_preload(&self) {
-        self.send_internal_event(InternalPlayerEvent::PlayPreload);
-    }
-
     pub fn pause(&self) {
         if !self.is_playing() {
             return;
@@ -168,8 +164,9 @@ impl Controls {
         });
     }
 
-    pub fn done(&self) {
-        self.send_player_event(PlayerEvent::Done);
+    pub(crate) fn preload_played(&self) {
+        self.set_is_file_preloaded(false);
+        self.send_player_event(PlayerEvent::PreloadPlayed);
     }
 
     getset_atomic_bool!(is_playing, set_is_playing);

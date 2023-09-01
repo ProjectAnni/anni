@@ -195,18 +195,6 @@ impl Decoder {
                     let handle = self.preload(source, buffer_signal);
                     self.preload_thread = Some(handle);
                 }
-                InternalPlayerEvent::PlayPreload => {
-                    if self.preload_playback.is_none() {
-                        return Ok(false);
-                    }
-
-                    let (playback, cpal_output) = self.preload_playback.take().unwrap();
-                    self.playback = Some(playback);
-                    self.cpal_output = Some(cpal_output);
-                    self.controls.set_is_file_preloaded(false);
-
-                    self.controls.play();
-                }
             },
         }
 
@@ -328,23 +316,21 @@ impl Decoder {
     /// Flushes `cpal_output` and sends a `Done` message to Dart.
     fn finish_playback(&mut self) {
         if let Some(cpal_output) = self.cpal_output.as_mut() {
+            // There may be samples left over and we don't want to
+            // start playing another file before they are read.
             cpal_output.flush();
         }
 
-        // Send the done message once cpal finishes flushing.
-        // There may be samples left over and we don't want to
-        // start playing another file before they are read.
-        self.controls.done();
+        // If there is a preloaded file, then swap it with the current playback.
+        if let Some((playback, cpal_output)) = self.preload_playback.take() {
+            self.playback = Some(playback);
+            self.cpal_output = Some(cpal_output);
 
-        let progress_state = ProgressState {
-            position: 0,
-            duration: 0,
-        };
-
-        self.controls.set_progress(progress_state);
-
-        self.controls.set_is_playing(false);
-        self.controls.set_is_stopped(true);
+            self.controls.play();
+            self.controls.preload_played();
+        } else {
+            self.controls.stop();
+        }
     }
 
     /// Opens the given source for playback. Returns a `Playback`

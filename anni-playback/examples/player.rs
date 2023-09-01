@@ -53,17 +53,17 @@ fn main() -> anyhow::Result<()> {
     let (player, receiver) = Player::new();
 
     let thread = thread::spawn({
-        let controls = player.controls.clone();
+        // let controls = player.controls.clone();
 
         move || loop {
             match receiver.recv() {
                 Ok(msg) => match msg {
                     PlayerEvent::Play => println!("Play"),
                     PlayerEvent::Pause => println!("Pause"),
-                    PlayerEvent::Stop => println!("Stop"),
-                    PlayerEvent::Done => {
-                        controls.play_preload();
-                        // TODO: preload next track
+                    PlayerEvent::PreloadPlayed => {
+                        println!("PreloadPlayed");
+                        // TODO: Load the next track
+                        // controls.open(source, buffer_signal)
                     }
                     PlayerEvent::Progress(progress) => {
                         println!("Progress: {}/{}", progress.position, progress.duration);

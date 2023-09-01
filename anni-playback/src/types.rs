@@ -38,8 +38,6 @@ pub(crate) enum InternalPlayerEvent {
     /// audio was changed/disconnected.
     DeviceChanged,
     Preload(Box<dyn MediaSource>, Arc<AtomicBool>),
-    /// TODO: remove PlayPreload event
-    PlayPreload,
 }
 
 pub enum PlayerEvent {
@@ -47,10 +45,8 @@ pub enum PlayerEvent {
     Play,
     /// Paused
     Pause,
-    /// Finished playing
-    Stop,
-    /// Finished playing, waiting for next (preloaded) track to be played
-    Done,
+    /// Preload track is played. Should set next track to play
+    PreloadPlayed,
     /// Playback progress updated
     Progress(ProgressState),
 }
