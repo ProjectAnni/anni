@@ -38,6 +38,7 @@ pub(crate) enum InternalPlayerEvent {
     /// audio was changed/disconnected.
     DeviceChanged,
     Preload(Box<dyn MediaSource>, Arc<AtomicBool>),
+    PlayPreloaded,
 }
 
 pub enum PlayerEvent {

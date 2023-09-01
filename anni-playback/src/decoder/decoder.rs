@@ -118,7 +118,7 @@ impl Decoder {
                 Ok(playback_complete) => {
                     if playback_complete {
                         self.state = DecoderState::Idle;
-                        self.finish_playback();
+                        self.finish_playback(false);
                     }
                 }
                 Err(_) => {
@@ -206,6 +206,9 @@ impl Decoder {
                     self.controls.set_is_file_preloaded(false);
                     let handle = self.preload(source, buffer_signal);
                     self.preload_thread = Some(handle);
+                }
+                InternalPlayerEvent::PlayPreloaded => {
+                    self.finish_playback(true);
                 }
             },
         }
@@ -327,11 +330,15 @@ impl Decoder {
     /// Called when the file is finished playing.
     ///
     /// Flushes `cpal_output` and sends a `Done` message to Dart.
-    fn finish_playback(&mut self) {
-        if let Some(cpal_output) = self.cpal_output.as_mut() {
-            // There may be samples left over and we don't want to
-            // start playing another file before they are read.
-            cpal_output.flush();
+    fn finish_playback(&mut self, skip_future_samples: bool) {
+        if !skip_future_samples {
+            if let Some(cpal_output) = self.cpal_output.as_mut() {
+                // There may be samples left over and we don't want to
+                // start playing another file before they are read.
+                cpal_output.flush();
+            }
+        } else {
+            self.cpal_output_stream.ring_buffer_reader.skip_all();
         }
 
         // If there is a preloaded file, then swap it with the current playback.
