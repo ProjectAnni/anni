@@ -252,7 +252,10 @@ impl Decoder {
 
         if let Some(seek_ts) = *self.controls.seek_ts() {
             let seek_to = SeekTo::Time {
-                time: Time::from(seek_ts),
+                time: Time {
+                    seconds: seek_ts / 1000,
+                    frac: (seek_ts % 1000) as f64 / 1000.0,
+                },
                 track_id: Some(playback.track_id),
             };
             playback.reader.seek(SeekMode::Coarse, seek_to)?;

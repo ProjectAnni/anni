@@ -179,10 +179,10 @@ impl Controls {
         self.set_is_stopped(true);
     }
 
-    pub fn seek(&self, seconds: u64) {
-        self.set_seek_ts(Some(seconds));
+    pub fn seek(&self, milliseconds: u64) {
+        self.set_seek_ts(Some(milliseconds));
         self.set_progress(ProgressState {
-            position: seconds * 1000,
+            position: milliseconds,
             duration: self.progress().duration,
         });
     }
