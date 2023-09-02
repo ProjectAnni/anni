@@ -95,7 +95,7 @@ fn main() -> Result<(), Box<dyn Error>> {
         println!("Please provide at least one filename to play!");
         std::process::exit(1);
     }
-    let mut playlist = Playlist {
+    let playlist = Playlist {
         current: 0,
         playlist: files,
         progress: ProgressState {
