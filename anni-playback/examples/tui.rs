@@ -221,6 +221,7 @@ fn run_app<B: Backend>(
                 PlayerEvent::Progress(progress) => {
                     playlist.progress = progress;
                 }
+                PlayerEvent::Stop => break,
             },
         };
     }

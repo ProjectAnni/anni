@@ -174,7 +174,7 @@ impl Controls {
         };
 
         self.set_progress(progress);
-        self.send_player_event(PlayerEvent::Pause);
+        self.send_player_event(PlayerEvent::Stop);
         self.set_is_playing(false);
         self.set_is_stopped(true);
     }

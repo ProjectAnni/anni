@@ -50,6 +50,7 @@ fn main() -> anyhow::Result<()> {
                     PlayerEvent::Progress(progress) => {
                         println!("Progress: {}/{}", progress.position, progress.duration);
                     }
+                    PlayerEvent::Stop => break,
                 },
                 Err(e) => {
                     eprintln!("{}", e);

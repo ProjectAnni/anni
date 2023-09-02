@@ -46,6 +46,8 @@ pub enum PlayerEvent {
     Play,
     /// Paused
     Pause,
+    /// Stopped
+    Stop,
     /// Preload track is played. Should set next track to play
     PreloadPlayed,
     /// Playback progress updated

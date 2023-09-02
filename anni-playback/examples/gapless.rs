@@ -61,11 +61,13 @@ fn main() -> anyhow::Result<()> {
                         println!("PreloadPlayed");
 
                         // The second track is played, load the third track
+                        // FIXME: only load once
                         let _ = controls.open_file(third.clone(), true);
                     }
                     PlayerEvent::Progress(progress) => {
                         println!("Progress: {}/{}", progress.position, progress.duration);
                     }
+                    PlayerEvent::Stop => println!("Stop"),
                 },
                 Err(e) => {
                     eprintln!("{}", e);
