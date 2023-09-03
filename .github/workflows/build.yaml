@@ -20,7 +20,7 @@ jobs:
             os: windows-latest
             name: anni-x86_64-pc-windows-msvc.zip
           - target: x86_64-apple-darwin
-            os: macOS-latest
+            os: macos-latest
             name: anni-x86_64-apple-darwin.tar.gz
 
     runs-on: ${{ matrix.os }}
