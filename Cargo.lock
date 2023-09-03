@@ -600,7 +600,7 @@ dependencies = [
 [[package]]
 name = "audiopus_sys"
 version = "0.2.2"
-source = "git+https://github.com/erikas-taroza/audiopus_sys#80542b524ecee73bc352c843358519186951cf0a"
+source = "git+https://github.com/ProjectAnni/audiopus_sys#80542b524ecee73bc352c843358519186951cf0a"
 dependencies = [
  "cmake",
  "log",
