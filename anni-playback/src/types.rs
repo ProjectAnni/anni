@@ -20,7 +20,7 @@ pub use crossbeam::channel::{Receiver, Sender};
 pub use symphonia_core::io::MediaSource;
 
 /// Provides the current progress of the player.
-#[derive(Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ProgressState {
     /// The position, in milliseconds, of the player.
     pub position: u64,
@@ -41,6 +41,7 @@ pub(crate) enum InternalPlayerEvent {
     PlayPreloaded,
 }
 
+#[derive(Debug)]
 pub enum PlayerEvent {
     /// Started playing
     Play,
