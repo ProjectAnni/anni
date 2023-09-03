@@ -118,7 +118,22 @@ mod tests {
 
     #[test]
     fn test_large_packet_size() {
-        // FIXME: this should be assert_eq, investigate why
-        assert_ne!(opus_file_size(1201, 64, 60), 10696);
+        // For large packets, it should not always use 60ms for the last packet
+        // If the last packet actually needs 0~19ms, then use a 20ms packet
+        // If the last packet actually needs 20~39ms, then use a 40ms packet
+        // If the last packet actually needs 40~59ms, then use a 60ms packet
+        // FIXME: replace assert_ne below with assert_eq when the bug is fixed
+        assert_eq!(opus_file_size(1200, 64, 60), 10696);
+        assert_eq!(opus_file_size(1201, 64, 60), 10696);
+        assert_eq!(opus_file_size(1220, 64, 60), 10857); // 1.24
+        assert_eq!(opus_file_size(1221, 64, 60), 10857);
+        assert_eq!(opus_file_size(1233, 64, 60), 10857);
+        assert_eq!(opus_file_size(1234, 64, 60), 11017); // 1.26
+        assert_eq!(opus_file_size(1235, 64, 60), 11017);
+        assert_eq!(opus_file_size(1240, 64, 60), 11017);
+        assert_eq!(opus_file_size(1251, 64, 60), 11017);
+        assert_eq!(opus_file_size(1253, 64, 60), 11017);
+        assert_eq!(opus_file_size(1254, 64, 60), 11178); // 1.28
+        assert_eq!(opus_file_size(1259, 64, 60), 11178);
     }
 }
