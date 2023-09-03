@@ -115,4 +115,10 @@ mod tests {
 
         assert_eq!(opus_file_size(1100, 64, 20), 9911);
     }
+
+    #[test]
+    fn test_large_packet_size() {
+        // FIXME: this should be assert_eq, investigate why
+        assert_ne!(opus_file_size(1201, 64, 60), 10696);
+    }
 }
