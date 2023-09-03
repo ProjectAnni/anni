@@ -45,6 +45,13 @@ use crate::{
     types::*,
 };
 
+enum PlaybackState {
+    Playing,
+    Switched,
+    Completed,
+    Idle,
+}
+
 lazy_static! {
     static ref CODEC_REGISTRY: CodecRegistry = {
         let mut registry = CodecRegistry::new();
@@ -115,12 +122,16 @@ impl Decoder {
 
             // Decode and output the samples.
             match self.do_playback() {
-                Ok(playback_complete) => {
-                    if playback_complete {
+                Ok(playback_state) => match playback_state {
+                    PlaybackState::Switched => {
+                        self.finish_playback(true);
+                    }
+                    PlaybackState::Completed => {
                         self.state = DecoderState::Idle;
                         self.finish_playback(false);
                     }
-                }
+                    _ => (),
+                },
                 Err(_) => {
                     // update_callback_stream(Callback::DecodeError);
                 }
@@ -220,10 +231,10 @@ impl Decoder {
     ///
     /// Returns `true` when the playback is complete.
     /// Returns `false` otherwise.
-    fn do_playback(&mut self) -> anyhow::Result<bool> {
+    fn do_playback(&mut self) -> anyhow::Result<PlaybackState> {
         // Nothing to do.
         if self.playback.is_none() || self.state.is_idle() || self.state.is_paused() {
-            return Ok(false);
+            return Ok(PlaybackState::Idle);
         }
 
         let playback = self.playback.as_mut().unwrap();
@@ -247,7 +258,7 @@ impl Decoder {
             let buffer_ref = preload.as_audio_buffer_ref();
             self.cpal_output.as_mut().unwrap().write(buffer_ref);
 
-            return Ok(false);
+            return Ok(PlaybackState::Playing);
         }
 
         if let Some(seek_ts) = *self.controls.seek_ts() {
@@ -270,7 +281,7 @@ impl Decoder {
             if let Some(cpal_output) = self.cpal_output.as_ref() {
                 self.cpal_output_stream.ring_buffer_reader.skip_all();
             }
-            return Ok(false);
+            return Ok(PlaybackState::Playing);
         }
 
         // Decode the next packet.
@@ -282,15 +293,15 @@ impl Decoder {
                 if self.controls.is_looping() {
                     self.controls.set_seek_ts(Some(0));
                     // crate::utils::callback_stream::update_callback_stream(Callback::PlaybackLooped);
-                    return Ok(false);
+                    return Ok(PlaybackState::Playing);
                 }
 
-                return Ok(true);
+                return Ok(PlaybackState::Completed);
             }
         };
 
         if packet.track_id() != playback.track_id {
-            return Ok(false);
+            return Ok(PlaybackState::Switched);
         }
 
         let decoded = playback
@@ -327,7 +338,7 @@ impl Decoder {
 
         self.cpal_output.as_mut().unwrap().write(decoded);
 
-        Ok(false)
+        Ok(PlaybackState::Playing)
     }
 
     /// Called when the file is finished playing.
@@ -351,7 +362,9 @@ impl Decoder {
 
             self.controls.send_internal_event(InternalPlayerEvent::Play);
             self.controls.preload_played();
-        } else {
+        } else if !skip_future_samples {
+            // do not skip future samples, which means the track has finished playing without user interaction
+            // stop the playback, and send `Stop` event
             self.controls.stop();
         }
     }
