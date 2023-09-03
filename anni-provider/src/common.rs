@@ -180,11 +180,11 @@ pub trait AnniProvider: Sync {
 #[async_trait]
 impl AnniProvider for Box<dyn AnniProvider + Send + Sync> {
     async fn albums(&self) -> Result<HashSet<Cow<str>>> {
-        self.albums().await
+        self.as_ref().albums().await
     }
 
     async fn has_album(&self, album_id: &str) -> bool {
-        self.has_album(album_id).await
+        self.as_ref().has_album(album_id).await
     }
 
     async fn get_audio_info(
@@ -193,15 +193,9 @@ impl AnniProvider for Box<dyn AnniProvider + Send + Sync> {
         disc_id: NonZeroU8,
         track_id: NonZeroU8,
     ) -> Result<AudioInfo> {
-        self.get_audio_info(album_id, disc_id, track_id).await
-    }
-
-    async fn get_cover(
-        &self,
-        album_id: &str,
-        disc_id: Option<NonZeroU8>,
-    ) -> Result<ResourceReader> {
-        self.get_cover(album_id, disc_id).await
+        self.as_ref()
+            .get_audio_info(album_id, disc_id, track_id)
+            .await
     }
 
     async fn get_audio(
@@ -211,11 +205,21 @@ impl AnniProvider for Box<dyn AnniProvider + Send + Sync> {
         track_id: NonZeroU8,
         range: Range,
     ) -> Result<AudioResourceReader> {
-        self.get_audio(album_id, disc_id, track_id, range).await
+        self.as_ref()
+            .get_audio(album_id, disc_id, track_id, range)
+            .await
+    }
+
+    async fn get_cover(
+        &self,
+        album_id: &str,
+        disc_id: Option<NonZeroU8>,
+    ) -> Result<ResourceReader> {
+        self.as_ref().get_cover(album_id, disc_id).await
     }
 
     async fn reload(&mut self) -> Result<()> {
-        self.reload().await
+        self.as_mut().reload().await
     }
 }
 
