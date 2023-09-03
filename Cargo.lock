@@ -233,6 +233,7 @@ dependencies = [
  "crossterm 0.27.0",
  "ebur128",
  "lazy_static 1.4.0",
+ "log",
  "rangemap",
  "ratatui",
  "reqwest",
@@ -4978,17 +4979,10 @@ source = "git+https://github.com/erikas-taroza/Symphonia?branch=mp4-opus-improve
 dependencies = [
  "lazy_static 1.4.0",
  "symphonia-bundle-flac",
- "symphonia-bundle-mp3",
  "symphonia-codec-aac",
- "symphonia-codec-adpcm",
- "symphonia-codec-alac",
- "symphonia-codec-pcm",
  "symphonia-codec-vorbis",
  "symphonia-core",
- "symphonia-format-isomp4",
- "symphonia-format-mkv",
  "symphonia-format-ogg",
- "symphonia-format-wav",
  "symphonia-metadata",
 ]
 
@@ -5004,50 +4998,11 @@ dependencies = [
 ]
 
 [[package]]
-name = "symphonia-bundle-mp3"
-version = "0.5.2"
-source = "git+https://github.com/erikas-taroza/Symphonia?branch=mp4-opus-improvements#bb1314974788c1f0b74e7876fa644bf070a23e37"
-dependencies = [
- "bitflags 1.3.2",
- "lazy_static 1.4.0",
- "log",
- "symphonia-core",
- "symphonia-metadata",
-]
-
-[[package]]
 name = "symphonia-codec-aac"
 version = "0.5.2"
 source = "git+https://github.com/erikas-taroza/Symphonia?branch=mp4-opus-improvements#bb1314974788c1f0b74e7876fa644bf070a23e37"
 dependencies = [
  "lazy_static 1.4.0",
- "log",
- "symphonia-core",
-]
-
-[[package]]
-name = "symphonia-codec-adpcm"
-version = "0.5.2"
-source = "git+https://github.com/erikas-taroza/Symphonia?branch=mp4-opus-improvements#bb1314974788c1f0b74e7876fa644bf070a23e37"
-dependencies = [
- "log",
- "symphonia-core",
-]
-
-[[package]]
-name = "symphonia-codec-alac"
-version = "0.5.2"
-source = "git+https://github.com/erikas-taroza/Symphonia?branch=mp4-opus-improvements#bb1314974788c1f0b74e7876fa644bf070a23e37"
-dependencies = [
- "log",
- "symphonia-core",
-]
-
-[[package]]
-name = "symphonia-codec-pcm"
-version = "0.5.2"
-source = "git+https://github.com/erikas-taroza/Symphonia?branch=mp4-opus-improvements#bb1314974788c1f0b74e7876fa644bf070a23e37"
-dependencies = [
  "log",
  "symphonia-core",
 ]
@@ -5075,30 +5030,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "symphonia-format-isomp4"
-version = "0.5.2"
-source = "git+https://github.com/erikas-taroza/Symphonia?branch=mp4-opus-improvements#bb1314974788c1f0b74e7876fa644bf070a23e37"
-dependencies = [
- "encoding_rs",
- "log",
- "symphonia-core",
- "symphonia-metadata",
- "symphonia-utils-xiph",
-]
-
-[[package]]
-name = "symphonia-format-mkv"
-version = "0.5.2"
-source = "git+https://github.com/erikas-taroza/Symphonia?branch=mp4-opus-improvements#bb1314974788c1f0b74e7876fa644bf070a23e37"
-dependencies = [
- "lazy_static 1.4.0",
- "log",
- "symphonia-core",
- "symphonia-metadata",
- "symphonia-utils-xiph",
-]
-
-[[package]]
 name = "symphonia-format-ogg"
 version = "0.5.2"
 source = "git+https://github.com/erikas-taroza/Symphonia?branch=mp4-opus-improvements#bb1314974788c1f0b74e7876fa644bf070a23e37"
@@ -5107,16 +5038,6 @@ dependencies = [
  "symphonia-core",
  "symphonia-metadata",
  "symphonia-utils-xiph",
-]
-
-[[package]]
-name = "symphonia-format-wav"
-version = "0.5.2"
-source = "git+https://github.com/erikas-taroza/Symphonia?branch=mp4-opus-improvements#bb1314974788c1f0b74e7876fa644bf070a23e37"
-dependencies = [
- "log",
- "symphonia-core",
- "symphonia-metadata",
 ]
 
 [[package]]
