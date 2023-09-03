@@ -104,8 +104,8 @@ impl Decoder {
     pub fn start(mut self) {
         loop {
             // Check if the preload thread is done.
-            if self.poll_preload_thread().is_err() {
-                // update_callback_stream(Callback::DecodeError);
+            if let Err(e) = self.poll_preload_thread() {
+                log::error!("Decode error on poll_preload_thread: {e}");
             }
 
             // Check for incoming `ThreadMessage`s.
@@ -115,8 +115,8 @@ impl Decoder {
                         break;
                     }
                 }
-                Err(_) => {
-                    // update_callback_stream(Callback::DecodeError);
+                Err(e) => {
+                    log::error!("Decode error on listen_for_message: {e}");
                 }
             }
 
@@ -132,8 +132,8 @@ impl Decoder {
                     }
                     _ => (),
                 },
-                Err(_) => {
-                    // update_callback_stream(Callback::DecodeError);
+                Err(e) => {
+                    log::error!("Decode error on do_playback: {e}");
                 }
             }
         }

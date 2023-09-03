@@ -201,8 +201,8 @@ impl Read for HlsStream {
                 thread::spawn(move || {
                     let result = Self::read_chunk(tx, url, start, file_size);
 
-                    if result.is_err() {
-                        // update_callback_stream(Callback::NetworkStreamError)
+                    if let Err(e) = result {
+                        log::error!("Network stream error on hls::read_chunk : {e}");
                     }
                 });
 
