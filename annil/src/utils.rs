@@ -42,7 +42,9 @@ pub fn opus_file_size(milliseconds: u64, bit_rate: u16, frame_size: u8) -> u64 {
     const FIXED_OGG_PAGE_HEADER_SIZE: u64 = 26 + 1;
     const MAX_DELAY: u64 = 1000;
 
-    let total_opus_packets = milliseconds.div_ceil(frame_size as u64);
+    // 110ms, frame_size = 20, produces 6 packets
+    // 120ms, frame_size = 20, produces 7 packets
+    let total_opus_packets = (milliseconds / frame_size as u64) + 1;
     let total_ogg_pages = total_opus_packets.div_ceil(MAX_DELAY / frame_size as u64);
 
     let opus_packet_size = bit_rate as u64 * frame_size as u64 / 8;
@@ -70,5 +72,47 @@ mod tests {
     #[test]
     fn test_sakuranotoki_opus_size() {
         assert_eq!(opus_file_size(80361372 * 1000 / 44100, 64, 20), 14719255);
+    }
+
+    #[test]
+    fn test_silence_opus_size() {
+        // New logical stream (#1, serial: 5219954f): type opus
+        // Encoded with libopus 1.4, libopusenc 0.2.1
+        // User comments section follows...
+        // 	ENCODER=opusenc from opus-tools 0.2
+        // 	ENCODER_OPTIONS=--bitrate 64 --hard-cbr --music --comp 0 --discard-comments --discard-pictures
+        // Opus stream 1:
+        // 	Pre-skip: 312
+        // 	Playback gain: 0 dB
+        // 	Channels: 2
+        // 	Original sample rate: 48000 Hz
+        // 	Packet duration:   20.0ms (max),   20.0ms (avg),   20.0ms (min)
+        // 	Page duration:   1000.0ms (max),  610.0ms (avg),  220.0ms (min)
+        // 	Total data length: 10716 bytes (overhead: 8.92%)
+        // 	Playback length: 0m:01.201s
+        // 	Average bitrate: 71.38 kbit/s, w/o overhead: 65.01 kbit/s (hard-CBR)
+        // Logical stream 1 ended
+        assert_eq!(opus_file_size(1200, 64, 20), 10716);
+        assert_eq!(opus_file_size(1201, 64, 20), 10716);
+
+        // New logical stream (#1, serial: 1d1a460c): type opus
+        // Encoded with libopus 1.4, libopusenc 0.2.1
+        // User comments section follows...
+        // 	ENCODER=opusenc from opus-tools 0.2
+        // 	ENCODER_OPTIONS=--bitrate 192 --hard-cbr --music --framesize 20 --comp 0 --discard-comments --discard-pictures
+        // Opus stream 1:
+        // 	Pre-skip: 312
+        // 	Playback gain: 0 dB
+        // 	Channels: 2
+        // 	Original sample rate: 44100 Hz
+        // 	Packet duration:   20.0ms (max),   20.0ms (avg),   20.0ms (min)
+        // 	Page duration:   1000.0ms (max),  996.5ms (avg),  100.0ms (min)
+        // 	Total data length: 6107409 bytes (overhead: 0.54%)
+        // 	Playback length: 4m:13.079s
+        // 	Average bitrate: 193.1 kbit/s, w/o overhead: 192 kbit/s (hard-CBR)
+        // Logical stream 1 ended
+        assert_eq!(opus_file_size(253080, 192, 20), 6107409);
+
+        assert_eq!(opus_file_size(1100, 64, 20), 9911);
     }
 }
