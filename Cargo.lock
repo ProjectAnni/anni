@@ -591,8 +591,7 @@ dependencies = [
 [[package]]
 name = "audiopus"
 version = "0.3.0-rc.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ab55eb0e56d7c6de3d59f544e5db122d7725ec33be6a276ee8241f3be6473955"
+source = "git+https://github.com/ProjectAnni/audiopus#f28d23f92e22d3f0ff7fdb706c50dae8ee660793"
 dependencies = [
  "audiopus_sys",
 ]
