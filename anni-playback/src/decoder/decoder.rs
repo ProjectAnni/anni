@@ -170,7 +170,7 @@ impl Decoder {
 
                     // Windows handles play/pause differently.
                     #[cfg(not(target_os = "windows"))]
-                    if let Some(cpal_output) = &self.cpal_output {
+                    if self.cpal_output.is_some() {
                         self.cpal_output_stream.play();
                     }
                 }
@@ -179,7 +179,7 @@ impl Decoder {
 
                     // Windows handles play/pause differently.
                     #[cfg(not(target_os = "windows"))]
-                    if let Some(cpal_output) = &self.cpal_output {
+                    if self.cpal_output.is_some() {
                         self.cpal_output_stream.pause();
                     }
                 }
@@ -278,7 +278,7 @@ impl Decoder {
             playback.decoder.reset();
             // Clear the ring buffer which prevents the writer
             // from blocking.
-            if let Some(cpal_output) = self.cpal_output.as_ref() {
+            if self.cpal_output.is_some() {
                 self.cpal_output_stream.ring_buffer_reader.skip_all();
             }
             return Ok(PlaybackState::Playing);

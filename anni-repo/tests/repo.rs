@@ -1,5 +1,5 @@
 use anni_repo::{error::Error, prelude::*, RepositoryManager};
-use std::{path::PathBuf, str::FromStr};
+use std::str::FromStr;
 
 fn repo_from_str() -> Repository {
     Repository::from_str(
