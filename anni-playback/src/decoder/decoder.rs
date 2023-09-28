@@ -168,8 +168,6 @@ impl Decoder {
                 InternalPlayerEvent::Play => {
                     self.state = DecoderState::Playing;
 
-                    // Windows handles play/pause differently.
-                    #[cfg(not(target_os = "windows"))]
                     if self.cpal_output.is_some() {
                         self.cpal_output_stream.play();
                     }
@@ -177,8 +175,6 @@ impl Decoder {
                 InternalPlayerEvent::Pause => {
                     self.state = DecoderState::Paused;
 
-                    // Windows handles play/pause differently.
-                    #[cfg(not(target_os = "windows"))]
                     if self.cpal_output.is_some() {
                         self.cpal_output_stream.pause();
                     }

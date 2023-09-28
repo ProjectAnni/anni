@@ -4344,9 +4344,9 @@ dependencies = [
 
 [[package]]
 name = "rubato"
-version = "0.12.0"
+version = "0.14.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "cd70209c27d5b08f5528bdc779ea3ffb418954e28987f9f9775c6eac41003f9c"
+checksum = "e6dd52e80cfc21894deadf554a5673002938ae4625f7a283e536f9cf7c17b0d5"
 dependencies = [
  "num-complex",
  "num-integer",
@@ -4980,7 +4980,6 @@ dependencies = [
  "lazy_static 1.4.0",
  "symphonia-bundle-flac",
  "symphonia-codec-aac",
- "symphonia-codec-vorbis",
  "symphonia-core",
  "symphonia-format-ogg",
  "symphonia-metadata",
@@ -5005,16 +5004,6 @@ dependencies = [
  "lazy_static 1.4.0",
  "log",
  "symphonia-core",
-]
-
-[[package]]
-name = "symphonia-codec-vorbis"
-version = "0.5.2"
-source = "git+https://github.com/erikas-taroza/Symphonia?branch=mp4-opus-improvements#bb1314974788c1f0b74e7876fa644bf070a23e37"
-dependencies = [
- "log",
- "symphonia-core",
- "symphonia-utils-xiph",
 ]
 
 [[package]]
