@@ -11,6 +11,7 @@ use musicbrainz_rs::entity::artist_credit::ArtistCredit;
 use musicbrainz_rs::entity::release::Release;
 use musicbrainz_rs::Fetch;
 use std::path::PathBuf;
+use uuid::Uuid;
 
 #[derive(Args, Handler, Debug, Clone)]
 pub struct RepoGetAction {
@@ -261,6 +262,9 @@ async fn repo_get_musicbrainz(
 
     let mut album = Album::new(
         AlbumInfo {
+            album_id: Uuid::parse_str(&options.id)
+                .ok()
+                .unwrap_or_else(Uuid::new_v4),
             title: release.title,
             artist,
             release_date,
