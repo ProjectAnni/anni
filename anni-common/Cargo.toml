@@ -1,6 +1,6 @@
 [package]
 name = "anni-common"
-version = "0.1.3"
+version = "0.1.4"
 description = "Common library used by Project Anni."
 
 edition.workspace = true

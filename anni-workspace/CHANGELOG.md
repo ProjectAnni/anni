@@ -11,6 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Added `AnniWorkspace::new` to quickly find a workspace from `current_dir`
 - Added `AnniWorkspace::open` to open a workspace from a path without checking its parents recursively
 - Upgrade `anni-repo` to `0.4.1`
+- Upgrade `anni-common` to `0.1.4`
 
 ## 0.2.1
 
