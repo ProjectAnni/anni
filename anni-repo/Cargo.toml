@@ -1,6 +1,6 @@
 [package]
 name = "anni-repo"
-version = "0.3.2"
+version = "0.4.1"
 description = "Operate on anni metadata repository."
 
 edition.workspace = true
@@ -47,7 +47,9 @@ serde_rusqlite = { version = "0.31.0", optional = true }
 
 # Search
 tantivy = { version = "0.19.2", optional = true }
-lindera-tantivy = { version = "0.23.0", optional = true, features = ["ipadic-compress"] }
+lindera-tantivy = { version = "0.23.0", optional = true, features = [
+    "ipadic-compress",
+] }
 
 
 # WASM dependencies

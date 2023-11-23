@@ -16,7 +16,9 @@ futures = "0.3"
 async-trait = "0.1"
 
 anni-google-drive3 = { version = "0.1.0", path = "../third_party/google-drive3", optional = true }
-anni-repo = { version = "0.3.2", path = "../anni-repo", features = ["db-read"], optional = true }
+anni-repo = { version = "0.4.1", path = "../anni-repo", features = [
+    "db-read",
+], optional = true }
 anni-common = { version = "0.1.3", path = "../anni-common" }
 
 thiserror.workspace = true

@@ -5,12 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## 0.4.1
 
 - `load_albums` now return error on tag resolve failure instead of panic
 - Add `AnniDate::to_short_string` to print date in `YYMMDD` format
 
-## 0.4.0
+## 0.3.2
 
 - [Deprecation] Rename `RepoDatabaseRead::get_tag` to `get_item_tags`
 - Added `RepoDatabaseRead::get_tag_relationship`
