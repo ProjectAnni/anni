@@ -190,8 +190,12 @@ impl Decoder {
                 // and pause playback. Once the user is ready, they can start
                 // playback themselves.
                 InternalPlayerEvent::DeviceChanged => {
-                    self.cpal_output = None;
                     self.controls.pause();
+                    self.cpal_output = None;
+                    self.cpal_output_stream = CpalOutputStream::new(
+                        SignalSpec::new_with_layout(44100, Layout::Stereo),
+                        self.controls.clone(),
+                    )?;
 
                     // The device change will also affect the preloaded playback.
                     if self.preload_playback.is_some() {
