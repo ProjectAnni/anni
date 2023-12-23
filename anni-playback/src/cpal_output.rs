@@ -132,19 +132,19 @@ impl CpalOutputStream {
 
     /// Starts a new stream on the default device.
     pub fn create_output(
-        &mut self,
+        &self,
         buffer_signal: Arc<AtomicBool>,
         spec: SignalSpec,
         duration: u64,
     ) -> CpalOutput {
         CpalOutput::new(
-                    buffer_signal,
-                    spec,
-                    duration,
-                    self.config.clone(),
-                    self.controls.clone(),
-                    self.ring_buffer_writer.clone(),
-                )
+            buffer_signal,
+            spec,
+            duration,
+            self.config.clone(),
+            self.controls.clone(),
+            self.ring_buffer_writer.clone(),
+        )
     }
 
     pub fn play(&self) {
