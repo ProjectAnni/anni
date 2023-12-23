@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **[Breaking]** Change definition of `AudioInfo::duration`. Now this value uses milliseconds instead of seconds.
 - Added `PriorityProvider` and `priority` feature
+- Upgrade `anni-common` to 0.1.4
 
 ## 0.2.0
 

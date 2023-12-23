@@ -193,7 +193,7 @@ impl Decoder {
                     log::info!("device changed");
                     self.controls.pause();
                     self.cpal_output = None;
-                }
+               }
                 InternalPlayerEvent::Preload(source, buffer_signal) => {
                     self.preload_playback = None;
                     self.controls.set_is_file_preloaded(false);
