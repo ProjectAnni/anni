@@ -49,7 +49,7 @@ pub struct CpalOutputStream {
 impl CpalOutputStream {
     pub fn new(spec: SignalSpec, controls: Controls) -> anyhow::Result<Self> {
         // Get the output config.
-        let (device, config) = Self::get_config(spec)?;
+        let (device, config) = Self::get_config()?;
 
         // Create a ring buffer with a capacity for up-to `buf_len_ms` of audio.
         let channels = spec.channels.count();
@@ -132,19 +132,19 @@ impl CpalOutputStream {
 
     /// Starts a new stream on the default device.
     pub fn create_output(
-        &self,
+        &mut self,
         buffer_signal: Arc<AtomicBool>,
         spec: SignalSpec,
         duration: u64,
     ) -> CpalOutput {
         CpalOutput::new(
-            buffer_signal,
-            spec,
-            duration,
-            self.config.clone(),
-            self.controls.clone(),
-            self.ring_buffer_writer.clone(),
-        )
+                    buffer_signal,
+                    spec,
+                    duration,
+                    self.config.clone(),
+                    self.controls.clone(),
+                    self.ring_buffer_writer.clone(),
+                )
     }
 
     pub fn play(&self) {
@@ -159,11 +159,13 @@ impl CpalOutputStream {
         }
     }
 
-    fn get_config(spec: SignalSpec) -> anyhow::Result<(Device, StreamConfig)> {
+    fn get_config() -> anyhow::Result<(Device, StreamConfig)> {
         let host = cpal::default_host();
         let device = host
             .default_output_device()
             .context("Failed to get default output device.")?;
+
+        log::info!("default device: {:?}", device.name());
 
         let config;
 

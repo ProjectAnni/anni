@@ -68,28 +68,28 @@ pub struct Decoder {
     cpal_output_stream: CpalOutputStream,
     cpal_output: Option<CpalOutput>,
     playback: Option<Playback>,
-    preload_playback: Option<(Playback, CpalOutput)>,
+    preload_playback: Option<Playback>,
     /// The `JoinHandle` for the thread that preloads a file.
-    preload_thread: Option<JoinHandle<anyhow::Result<(Playback, CpalOutput)>>>,
+    preload_thread: Option<JoinHandle<anyhow::Result<Playback>>>,
+    spec: SignalSpec,
 }
 
 impl Decoder {
     /// Creates a new decoder.
     pub fn new(controls: Controls, thread_killer: Receiver<bool>) -> Self {
+        // TODO: allow specifying sample rate by user
+        let spec = SignalSpec::new_with_layout(44100, Layout::Stereo);
+
         Decoder {
             thread_killer,
             controls: controls.clone(),
             state: DecoderState::Idle,
-            cpal_output_stream: CpalOutputStream::new(
-                // TODO: allow specifying sample rate by user
-                SignalSpec::new_with_layout(44100, Layout::Stereo),
-                controls,
-            )
-            .unwrap(),
+            cpal_output_stream: CpalOutputStream::new(spec, controls).unwrap(),
             cpal_output: None,
             playback: None,
             preload_playback: None,
             preload_thread: None,
+            spec,
         }
     }
 
@@ -190,27 +190,9 @@ impl Decoder {
                 // and pause playback. Once the user is ready, they can start
                 // playback themselves.
                 InternalPlayerEvent::DeviceChanged => {
+                    log::info!("device changed");
                     self.controls.pause();
                     self.cpal_output = None;
-                    self.cpal_output_stream = CpalOutputStream::new(
-                        SignalSpec::new_with_layout(44100, Layout::Stereo),
-                        self.controls.clone(),
-                    )?;
-
-                    // The device change will also affect the preloaded playback.
-                    if self.preload_playback.is_some() {
-                        let (playback, cpal_output) = self.preload_playback.take().unwrap();
-                        let buffer_signal = playback.buffer_signal.clone();
-
-                        self.preload_playback.replace((
-                            playback,
-                            self.cpal_output_stream.create_output(
-                                buffer_signal,
-                                cpal_output.spec,
-                                cpal_output.duration,
-                            ),
-                        ));
-                    }
                 }
                 InternalPlayerEvent::Preload(source, buffer_signal) => {
                     self.preload_playback = None;
@@ -247,6 +229,7 @@ impl Decoder {
                 let spec = *preload.spec();
                 let duration = preload.capacity() as u64;
 
+                self.cpal_output_stream = CpalOutputStream::new(self.spec, self.controls.clone())?;
                 self.cpal_output
                     .replace(self.cpal_output_stream.create_output(
                         playback.buffer_signal.clone(),
@@ -328,6 +311,7 @@ impl Decoder {
         if self.cpal_output.is_none() {
             let spec = *decoded.spec();
             let duration = decoded.capacity() as u64;
+            self.cpal_output_stream = CpalOutputStream::new(self.spec, self.controls.clone())?;
             self.cpal_output
                 .replace(self.cpal_output_stream.create_output(
                     playback.buffer_signal.clone(),
@@ -356,9 +340,9 @@ impl Decoder {
         }
 
         // If there is a preloaded file, then swap it with the current playback.
-        if let Some((playback, cpal_output)) = self.preload_playback.take() {
+        if let Some(playback) = self.preload_playback.take() {
             self.playback = Some(playback);
-            self.cpal_output = Some(cpal_output);
+            // self.cpal_output = Some(cpal_output);
 
             self.controls.send_internal_event(InternalPlayerEvent::Play);
             self.controls.preload_played();
@@ -433,11 +417,7 @@ impl Decoder {
         &self,
         source: Box<dyn MediaSource>,
         buffer_signal: Arc<AtomicBool>,
-    ) -> JoinHandle<anyhow::Result<(Playback, CpalOutput)>> {
-        let controls = self.controls.clone();
-        let config = self.cpal_output_stream.config.clone();
-        let ring_buffer_writer = self.cpal_output_stream.ring_buffer_writer.clone();
-
+    ) -> JoinHandle<anyhow::Result<Playback>> {
         thread::spawn(move || {
             let mut playback = Self::open(source, buffer_signal.clone())?;
             // Preload
@@ -451,16 +431,7 @@ impl Decoder {
             buf_ref.convert(&mut buf);
             playback.preload = Some(buf);
 
-            let cpal_output = CpalOutput::new(
-                buffer_signal,
-                spec,
-                duration,
-                config,
-                controls,
-                ring_buffer_writer,
-            );
-
-            Ok((playback, cpal_output))
+            Ok(playback)
         })
     }
 
