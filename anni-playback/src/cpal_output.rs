@@ -49,7 +49,7 @@ pub struct CpalOutputStream {
 impl CpalOutputStream {
     pub fn new(spec: SignalSpec, controls: Controls) -> anyhow::Result<Self> {
         // Get the output config.
-        let (device, config) = Self::get_config()?;
+        let (device, config) = Self::get_config(spec)?;
 
         // Create a ring buffer with a capacity for up-to `buf_len_ms` of audio.
         let channels = spec.channels.count();
@@ -159,7 +159,7 @@ impl CpalOutputStream {
         }
     }
 
-    fn get_config() -> anyhow::Result<(Device, StreamConfig)> {
+    fn get_config(spec: SignalSpec) -> anyhow::Result<(Device, StreamConfig)> {
         let host = cpal::default_host();
         let device = host
             .default_output_device()
