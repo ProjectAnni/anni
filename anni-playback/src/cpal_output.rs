@@ -165,7 +165,7 @@ impl CpalOutputStream {
             .default_output_device()
             .context("Failed to get default output device.")?;
 
-        log::info!("default device: {:?}", device.name());
+        log::debug!("default device: {:?}", device.name());
 
         let config;
 

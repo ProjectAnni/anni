@@ -190,7 +190,7 @@ impl Decoder {
                 // and pause playback. Once the user is ready, they can start
                 // playback themselves.
                 InternalPlayerEvent::DeviceChanged => {
-                    log::info!("device changed");
+                    log::debug!("device changed");
                     self.controls.pause();
                     self.cpal_output = None;
                }
@@ -342,7 +342,6 @@ impl Decoder {
         // If there is a preloaded file, then swap it with the current playback.
         if let Some(playback) = self.preload_playback.take() {
             self.playback = Some(playback);
-            // self.cpal_output = Some(cpal_output);
 
             self.controls.send_internal_event(InternalPlayerEvent::Play);
             self.controls.preload_played();
