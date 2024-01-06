@@ -1143,8 +1143,7 @@ dependencies = [
 [[package]]
 name = "cpal"
 version = "0.15.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6d959d90e938c5493000514b446987c07aed46c668faaa7d34d6c7a67b1a578c"
+source = "git+https://github.com/sidit77/cpal.git?branch=master#7e82d99bfaa8036cf6e7c7d214254014ad050139"
 dependencies = [
  "alsa",
  "core-foundation-sys",
@@ -6137,6 +6136,8 @@ version = "0.46.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "cdacb41e6a96a052c6cb63a144f24900236121c6f63f4f8219fef5977ecb0c25"
 dependencies = [
+ "windows-implement",
+ "windows-interface",
  "windows-targets 0.42.2",
 ]
 
@@ -6156,6 +6157,28 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "33ab640c8d7e35bf8ba19b884ba838ceb4fba93a4e8c65a9059d08afcfc683d9"
 dependencies = [
  "windows-targets 0.52.0",
+]
+
+[[package]]
+name = "windows-implement"
+version = "0.46.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c9b4fb59529addad98f7677797a3449b0c79f527e1384a86f74557860d387c26"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 1.0.109",
+]
+
+[[package]]
+name = "windows-interface"
+version = "0.46.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ac1f330b1edbef4041defea6c10bbb196add3c94c7e1b77778b6603e60ff0729"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 1.0.109",
 ]
 
 [[package]]
