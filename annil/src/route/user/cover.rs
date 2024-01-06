@@ -1,4 +1,4 @@
-use axum::body::StreamBody;
+use axum::body::Body;
 use axum::extract::Path;
 use axum::http::header::{CACHE_CONTROL, CONTENT_TYPE};
 use axum::http::StatusCode;
@@ -40,7 +40,7 @@ where
                 (CONTENT_TYPE, "image/jpeg"),
                 (CACHE_CONTROL, "public, max-age=31536000"),
             ]),
-            StreamBody::new(ReaderStream::new(cover)),
+            Body::from_stream(ReaderStream::new(cover)),
         )
             .into_response(),
         Err(_) => (StatusCode::NOT_FOUND, [(CACHE_CONTROL, "private")]).into_response(),

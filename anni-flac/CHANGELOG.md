@@ -7,9 +7,4 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-- Upgraded `which` to `5.0.0`
-
-## 0.1.0
-
-- Initial release
-
+- Remove dependency of `num-traits` and `num-derive`

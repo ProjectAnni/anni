@@ -9,8 +9,8 @@ repository.workspace = true
 license.workspace = true
 
 [dependencies]
-axum = { version = "0.6.1", features = ["macros"] }
-tower-http = { version = "0.4.0", features = ["cors"] }
+axum = { workspace = true, features = ["macros"] }
+tower-http = { version = "0.5.0", features = ["cors"] }
 tokio = { version = "1", features = ["full"] }
 tokio-util = { version = "0.7.4", features = ["io"] }
 futures = "0.3"
@@ -29,8 +29,8 @@ anni-provider = { version = "0.3.0", path = "../anni-provider" }
 serde.workspace = true
 toml.workspace = true
 log.workspace = true
-env_logger = "0.10.0"
-jwt-simple = "0.11.0"
+env_logger = "0.10"
+jwt-simple = "0.12.6"
 uuid.workspace = true
 base64 = "0.21.0"
 

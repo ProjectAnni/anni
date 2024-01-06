@@ -35,13 +35,13 @@ annil = { path = "../annil", default-features = false }
 anni-workspace = { path = "../anni-workspace" }
 clap-handler = { version = "0.1.1", features = ["async"] }
 
-i18n-embed = { version = "0.13.8", features = [
+i18n-embed = { version = "0.14.1", features = [
     "fluent-system",
     "desktop-requester",
     "filesystem-assets",
 ] }
-i18n-embed-fl = "0.6.6"
-rust-embed = "6.3.0"
+i18n-embed-fl = "0.7.0"
+rust-embed = "8.2.0"
 
 log.workspace = true
 env_logger = "0.10.0"
@@ -66,13 +66,13 @@ colored = "2.0.0"
 chrono = "0.4"
 
 inquire = "0.6.0"
-notify = { version = "5.0.0", default-features = false, features = [
+notify = { version = "6.1.1", default-features = false, features = [
     "macos_kqueue",
 ] }
-notify-debouncer-mini = { version = "0.2.1", default-features = false }
+notify-debouncer-mini = { version = "0.4.1", default-features = false }
 anni-google-drive3 = { path = "../third_party/google-drive3" }
 
-axum = "0.6.1"
+axum.workspace = true
 reqwest = { workspace = true, features = ["json"] }
 
 [dev-dependencies]

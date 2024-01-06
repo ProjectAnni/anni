@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Implemented OPUS transcoding.
 - Fixed http range logic for audio needs transcode.
+- Upgraded `axum` to `0.7`
 
 ## 0.2.0
 

@@ -2,9 +2,9 @@ use crate::error::FlacError;
 use crate::prelude::*;
 use crate::utils::*;
 use byteorder::{BigEndian, ReadBytesExt, WriteBytesExt};
-use num_traits::FromPrimitive;
 use std::borrow::Cow;
 use std::fmt;
+use std::fmt::Display;
 use std::io::{Read, Write};
 use std::path::Path;
 use std::str::FromStr;
@@ -36,8 +36,7 @@ pub struct BlockPicture {
 
 impl Decode for BlockPicture {
     fn from_reader<R: Read>(reader: &mut R) -> Result<Self> {
-        let picture_type: PictureType = FromPrimitive::from_u32(reader.read_u32::<BigEndian>()?)
-            .unwrap_or(PictureType::Unknown);
+        let picture_type: PictureType = reader.read_u32::<BigEndian>()?.into();
         let mime_type_length = reader.read_u32::<BigEndian>()?;
         let mime_type = take_string(reader, mime_type_length as usize)?;
         let description_length = reader.read_u32::<BigEndian>()?;
@@ -71,8 +70,7 @@ impl AsyncDecode for BlockPicture {
     where
         R: AsyncRead + Unpin + Send,
     {
-        let picture_type: PictureType =
-            FromPrimitive::from_u32(reader.read_u32().await?).unwrap_or(PictureType::Unknown);
+        let picture_type: PictureType = reader.read_u32().await?.into();
         let mime_type_length = reader.read_u32().await?;
         let mime_type = take_string_async(reader, mime_type_length as usize).await?;
         let description_length = reader.read_u32().await?;
@@ -131,7 +129,7 @@ impl fmt::Debug for BlockPicture {
             f,
             "{prefix}type: {} ({})",
             self.picture_type as u8,
-            self.picture_type.as_str(),
+            self.picture_type,
             prefix = prefix
         )?;
         writeln!(f, "{prefix}MIME type: {}", self.mime_type, prefix = prefix)?;
@@ -200,7 +198,7 @@ impl BlockPicture {
 /// The picture type according to the ID3v2 APIC frame:
 /// Others are reserved and should not be used. There may only be one each of picture type 1 and 2 in a file.
 #[repr(u32)]
-#[derive(Copy, Clone, Debug, FromPrimitive, PartialEq, Eq)]
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub enum PictureType {
     /// 0 - Other
     Other,
@@ -248,32 +246,65 @@ pub enum PictureType {
     Unknown,
 }
 
-impl PictureType {
-    pub fn as_str(&self) -> &'static str {
-        match self {
-            PictureType::Other => "Other",
-            PictureType::FileIcon => "32x32 pixels 'file icon' (PNG only)",
-            PictureType::OtherFileIcon => "Other file icon",
-            PictureType::CoverFront => "Cover (front)",
-            PictureType::CoverBack => "Cover (back)",
-            PictureType::LeafletPage => "Leaflet page",
-            PictureType::Media => "Media (e.g. label side of CD)",
-            PictureType::LeadArtist => "Lead artist/lead performer/soloist",
-            PictureType::Artist => "Artist/performer",
-            PictureType::Conductor => "Conductor",
-            PictureType::Band => "Band/Orchestra",
-            PictureType::Composer => "Composer",
-            PictureType::Lyricist => "Lyricist/text writer",
-            PictureType::RecordingLocation => "Recording Location",
-            PictureType::DuringRecording => "During recording",
-            PictureType::DuringPerformance => "During performance",
-            PictureType::MovieVideoScreenCapture => "Movie/video screen capture",
-            PictureType::BrightColoredFish => "A bright coloured fish",
-            PictureType::Illustration => "Illustration",
-            PictureType::BandArtistLogotype => "Band/artist logotype",
-            PictureType::PublisherStudioLogotype => "Publisher/Studio logotype",
-            PictureType::Unknown => "Unknown",
+impl From<u32> for PictureType {
+    fn from(value: u32) -> Self {
+        match value {
+            0 => PictureType::Other,
+            1 => PictureType::FileIcon,
+            2 => PictureType::OtherFileIcon,
+            3 => PictureType::CoverFront,
+            4 => PictureType::CoverBack,
+            5 => PictureType::LeafletPage,
+            6 => PictureType::Media,
+            7 => PictureType::LeadArtist,
+            8 => PictureType::Artist,
+            9 => PictureType::Conductor,
+            10 => PictureType::Band,
+            11 => PictureType::Composer,
+            12 => PictureType::Lyricist,
+            13 => PictureType::RecordingLocation,
+            14 => PictureType::DuringRecording,
+            15 => PictureType::DuringPerformance,
+            16 => PictureType::MovieVideoScreenCapture,
+            17 => PictureType::BrightColoredFish,
+            18 => PictureType::Illustration,
+            19 => PictureType::BandArtistLogotype,
+            20 => PictureType::PublisherStudioLogotype,
+            _ => PictureType::Unknown,
         }
+    }
+}
+
+impl Display for PictureType {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "{}",
+            match self {
+                PictureType::Other => "Other",
+                PictureType::FileIcon => "32x32 pixels 'file icon' (PNG only)",
+                PictureType::OtherFileIcon => "Other file icon",
+                PictureType::CoverFront => "Cover (front)",
+                PictureType::CoverBack => "Cover (back)",
+                PictureType::LeafletPage => "Leaflet page",
+                PictureType::Media => "Media (e.g. label side of CD)",
+                PictureType::LeadArtist => "Lead artist/lead performer/soloist",
+                PictureType::Artist => "Artist/performer",
+                PictureType::Conductor => "Conductor",
+                PictureType::Band => "Band/Orchestra",
+                PictureType::Composer => "Composer",
+                PictureType::Lyricist => "Lyricist/text writer",
+                PictureType::RecordingLocation => "Recording Location",
+                PictureType::DuringRecording => "During recording",
+                PictureType::DuringPerformance => "During performance",
+                PictureType::MovieVideoScreenCapture => "Movie/video screen capture",
+                PictureType::BrightColoredFish => "A bright coloured fish",
+                PictureType::Illustration => "Illustration",
+                PictureType::BandArtistLogotype => "Band/artist logotype",
+                PictureType::PublisherStudioLogotype => "Publisher/Studio logotype",
+                PictureType::Unknown => "Unknown",
+            }
+        )
     }
 }
 
@@ -284,7 +315,7 @@ impl FromStr for PictureType {
         if let Ok(n) = u32::from_str(s) {
             if n <= 20 {
                 // n is valid, should not fail
-                return Ok(FromPrimitive::from_u32(n).unwrap());
+                return Ok(n.into());
             }
         }
 

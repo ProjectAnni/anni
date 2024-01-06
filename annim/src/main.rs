@@ -6,10 +6,11 @@ use async_graphql_axum::{GraphQLRequest, GraphQLResponse};
 use axum::{
     response::{Html, IntoResponse},
     routing::get,
-    Extension, Router, Server,
+    Extension, Router,
 };
 use model::{build_schema, AppSchema};
-use std::{env::args, net::SocketAddr};
+use std::env::args;
+use tokio::net::TcpListener;
 
 async fn graphql_handler(schema: Extension<AppSchema>, req: GraphQLRequest) -> GraphQLResponse {
     schema.execute(req.into_inner()).await.into()
@@ -30,10 +31,8 @@ async fn main() -> anyhow::Result<()> {
         .route("/graphql", get(graphql_playground).post(graphql_handler))
         .layer(Extension(schema));
 
-    let addr = SocketAddr::from(([127, 0, 0, 1], 9929));
-    Server::bind(&addr)
-        .serve(app.into_make_service())
-        .await
-        .unwrap();
+    let listener = TcpListener::bind("127.0.0.1:9929").await.unwrap();
+    axum::serve(listener, app).await.unwrap();
+
     Ok(())
 }

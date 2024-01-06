@@ -228,7 +228,7 @@ fn run_app<B: Backend>(
     Ok(())
 }
 
-fn ui<B: Backend>(f: &mut Frame<B>, playlist: &Playlist) {
+fn ui(f: &mut Frame, playlist: &Playlist) {
     let size = f.size();
 
     let block = Block::default()

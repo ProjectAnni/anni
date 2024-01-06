@@ -12,13 +12,18 @@ serde.workspace = true
 uuid.workspace = true
 
 tokio = { version = "1", features = ["full"] }
-axum = "0.6.1"
-async-graphql = { version = "5.0.3", features = ["uuid"] }
-async-graphql-axum = "5.0.3"
+axum.workspace = true
+async-graphql = { version = "7.0.0", features = ["uuid"] }
+async-graphql-axum = "7.0.0"
 
 log.workspace = true
-env_logger = "0.10.0"
+env_logger = "0.10"
 anyhow.workspace = true
 thiserror.workspace = true
 
-anni-repo = { path = "../anni-repo", features = ["db", "git", "flac", "search"] }
+anni-repo = { path = "../anni-repo", features = [
+    "db",
+    "git",
+    "flac",
+    "search",
+] }

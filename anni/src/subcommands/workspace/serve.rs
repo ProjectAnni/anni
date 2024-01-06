@@ -4,9 +4,10 @@ use annil::provider::AnnilProvider;
 use annil::route::user;
 use annil::state::{AnnilKeys, AnnilState};
 use axum::routing::get;
-use axum::{Extension, Router, Server};
+use axum::{Extension, Router};
 use std::net::SocketAddr;
 use std::sync::Arc;
+use tokio::net::TcpListener;
 
 /// The `serve` subcommand would launch three web services:
 ///
@@ -67,10 +68,8 @@ pub async fn handle_workspace_serve(this: WorkspaceServeAction) -> anyhow::Resul
     let app = Router::new().nest("/l", annil);
 
     let addr = SocketAddr::from(([127, 0, 0, 1], this.port));
-    Server::bind(&addr)
-        .serve(app.into_make_service())
-        .await
-        .unwrap();
+    let listener = TcpListener::bind(&addr).await.unwrap();
+    axum::serve(listener, app).await.unwrap();
 
     Ok(())
 }

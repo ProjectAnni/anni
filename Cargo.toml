@@ -23,7 +23,9 @@ license = "Apache-2.0"
 [workspace.dependencies]
 log = "0.4"
 uuid = { version = "1", features = ["v4"] }
-reqwest = { version = "0.11.15", features = ["rustls"], default-features = false }
+reqwest = { version = "0.11.15", features = [
+    "rustls",
+], default-features = false }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 toml = "0.7.3"
@@ -31,9 +33,13 @@ anyhow = { version = "1.0", features = ["backtrace"] }
 thiserror = "1.0"
 once_cell = "1"
 
+axum = "0.7.3"
+
 [patch.crates-io]
-# Remove this patch after https://github.com/rusqlite/rusqlite/pull/1010 was merged
-rusqlite = { git = "https://github.com/ProjectAnni/rusqlite", branch = "wasm32-unknown-unknown" }
+# Dropping wasm support before anni 1.0
+# https://github.com/rusqlite/rusqlite/pull/1010 may not be merged recently
+# rusqlite = { git = "https://github.com/ProjectAnni/rusqlite", branch = "wasm32-unknown-unknown" }
+
 # Remove this patch after https://github.com/mackwic/colored/pull/119 was merged
 colored = { git = "https://github.com/ProjectAnni/colored", branch = "master" }
 cpal = { git = "https://github.com/sidit77/cpal.git", branch = "master" }
