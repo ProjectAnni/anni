@@ -1,3 +1,4 @@
+use crate::extractor::admin::AnnilAdmin;
 use crate::extractor::token::{AnnilClaim, ShareToken, UserClaim};
 use crate::state::AnnilKeys;
 use axum::{Extension, Json};
@@ -12,6 +13,7 @@ pub struct SignPayload {
 }
 
 pub async fn sign(
+    _: AnnilAdmin,
     Extension(keys): Extension<Arc<AnnilKeys>>,
     Json(info): Json<SignPayload>,
 ) -> String {

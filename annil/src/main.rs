@@ -211,6 +211,7 @@ async fn main() -> anyhow::Result<()> {
 
 mod config {
     use annil::metadata::MetadataConfig;
+    use anyhow::Context;
     use serde::Deserialize;
     use std::collections::HashMap;
     use std::fs;
@@ -226,8 +227,9 @@ mod config {
 
     impl Config {
         pub fn from_file<P: AsRef<Path>>(config_path: P) -> anyhow::Result<Self> {
-            let string = fs::read_to_string(config_path)?;
-            let result = toml::from_str(&string)?;
+            let string =
+                fs::read_to_string(config_path).with_context(|| "Failed to load config file")?;
+            let result = toml::from_str(&string).with_context(|| "Failed to parse config file")?;
             Ok(result)
         }
     }

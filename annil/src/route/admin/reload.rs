@@ -1,3 +1,4 @@
+use crate::extractor::admin::AnnilAdmin;
 use crate::provider::AnnilProvider;
 use crate::state::AnnilState;
 use anni_provider::AnniProvider;
@@ -6,6 +7,7 @@ use std::sync::Arc;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 pub async fn reload<P>(
+    _: AnnilAdmin,
     Extension(data): Extension<Arc<AnnilState>>,
     Extension(provider): Extension<Arc<AnnilProvider<P>>>,
 ) where
