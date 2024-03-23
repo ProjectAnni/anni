@@ -5,13 +5,16 @@ use std::path::PathBuf;
 
 #[derive(Args, Debug, Clone)]
 pub struct WorkspaceUpdateAction {
-    pub path: PathBuf,
+    #[clap(long)]
+    detailed: bool,
+
+    path: PathBuf,
 }
 
 #[handler(WorkspaceUpdateAction)]
 pub async fn handle_workspace_update(me: WorkspaceUpdateAction) -> anyhow::Result<()> {
     let workspace = AnniWorkspace::new()?;
-    workspace.apply_tags(me.path)?;
+    workspace.apply_tags(me.path, me.detailed)?;
 
     Ok(())
 }

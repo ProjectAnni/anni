@@ -220,8 +220,14 @@ impl Album {
     /// Apply album metadata to a directory formatted with strict album format.
     ///
     /// This function applies both metadata and cover.
+    ///
+    /// The argument `detailed` determines whether to write metadata(such as title and artist) and cover to flac files.
     #[cfg(feature = "apply")]
-    pub fn apply_strict<P>(&self, directory: P) -> Result<(), crate::error::AlbumApplyError>
+    pub fn apply_strict<P>(
+        &self,
+        directory: P,
+        detailed: bool,
+    ) -> Result<(), crate::error::AlbumApplyError>
     where
         P: AsRef<std::path::Path>,
     {
@@ -319,13 +325,17 @@ impl Album {
 
                 // let mut modified = false;
                 // no comment block exist, or comments is not correct
+                // TODO: the comparison is not accurate if `detailed` = false
                 if comments.is_none() || comments.unwrap().to_string() != meta {
                     let comments = flac.comments_mut();
                     comments.clear();
-                    comments.push(UserComment::title(track.title()));
-                    comments.push(UserComment::album(disc.title()));
-                    comments.push(UserComment::artist(track.artist()));
-                    comments.push(UserComment::date(self.release_date()));
+
+                    if detailed {
+                        comments.push(UserComment::title(track.title()));
+                        comments.push(UserComment::album(disc.title()));
+                        comments.push(UserComment::artist(track.artist()));
+                        comments.push(UserComment::date(self.release_date()));
+                    }
                     comments.push(UserComment::track_number(track_num));
                     comments.push(UserComment::track_total(track_total));
                     comments.push(UserComment::disc_number(disc_num));
@@ -333,15 +343,21 @@ impl Album {
                     // modified = true;
                 }
 
-                // TODO: do not modify flac file if embed cover is the same as the one in folder
-                let cover_path = file.with_file_name("cover.jpg");
-                let picture =
-                    BlockPicture::new(cover_path, PictureType::CoverFront, String::new())?;
-                flac.blocks
-                    .retain(|block| !matches!(block.data, MetadataBlockData::Picture(_)));
-                flac.blocks
-                    .push(MetadataBlock::new(MetadataBlockData::Picture(picture)));
-                // modified = true;
+                if detailed {
+                    // TODO: do not modify flac file if embed cover is the same as the one in folder
+                    let cover_path = file.with_file_name("cover.jpg");
+                    let picture =
+                        BlockPicture::new(cover_path, PictureType::CoverFront, String::new())?;
+                    flac.blocks
+                        .retain(|block| !matches!(block.data, MetadataBlockData::Picture(_)));
+                    flac.blocks
+                        .push(MetadataBlock::new(MetadataBlockData::Picture(picture)));
+                    // modified = true;
+                } else {
+                    // remove cover block
+                    flac.blocks
+                        .retain(|block| !matches!(block.data, MetadataBlockData::Picture(_)));
+                }
 
                 // if modified {
                 flac.save::<String>(None)?;

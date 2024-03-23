@@ -68,7 +68,7 @@ pub fn library_apply_tag(
                 .albums()
                 .get(&Uuid::parse_str(folder_name.as_ref())?)
                 .ok_or_else(|| anyhow::anyhow!("Album {} not found", folder_name))?;
-            album.apply_strict(&path)?;
+            album.apply_strict(&path, true)?;
         } else if let Ok(AlbumFolderInfo {
             release_date,
             catalog,

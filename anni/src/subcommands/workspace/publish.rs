@@ -8,8 +8,8 @@ use std::path::PathBuf;
 pub struct WorkspacePublishAction {
     // #[clap(long)]
     // copy: bool,
-    #[clap(short = 'w', long = "write")]
-    write: bool,
+    #[clap(long)]
+    detailed: bool,
 
     #[clap(short = 'u', long = "uuid")]
     parse_path_as_uuid: bool,
@@ -58,10 +58,7 @@ pub async fn handle_workspace_publish(mut me: WorkspacePublishAction) -> anyhow:
         .collect();
 
     for path in me.path {
-        if me.write {
-            workspace.apply_tags(&path)?;
-        }
-
+        workspace.apply_tags(&path, me.detailed)?;
         workspace.publish(path, me.soft)?;
     }
     Ok(())
