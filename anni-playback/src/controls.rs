@@ -19,7 +19,7 @@ use std::{
     sync::{atomic::AtomicBool, Arc, RwLock, RwLockReadGuard},
 };
 
-use crossbeam::channel::{unbounded, Receiver, Sender};
+use crossbeam::channel::unbounded;
 
 use crate::types::*;
 

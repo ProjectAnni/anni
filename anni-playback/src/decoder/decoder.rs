@@ -20,13 +20,12 @@ use std::{
 };
 
 use anyhow::{anyhow, Context};
-use crossbeam::channel::Receiver;
-use lazy_static::lazy_static;
+use once_cell::sync::Lazy;
 use symphonia::{
     core::{
         audio::{AsAudioBufferRef, AudioBuffer},
         formats::{FormatOptions, FormatReader, SeekMode, SeekTo},
-        io::{MediaSource, MediaSourceStream},
+        io::MediaSourceStream,
         meta::MetadataOptions,
         probe::Hint,
         units::{Time, TimeBase},
@@ -52,14 +51,12 @@ enum PlaybackState {
     Idle,
 }
 
-lazy_static! {
-    static ref CODEC_REGISTRY: CodecRegistry = {
-        let mut registry = CodecRegistry::new();
-        register_enabled_codecs(&mut registry);
-        registry.register_all::<OpusDecoder>();
-        registry
-    };
-}
+static CODEC_REGISTRY: Lazy<CodecRegistry> = Lazy::new(|| {
+    let mut registry = CodecRegistry::new();
+    register_enabled_codecs(&mut registry);
+    registry.register_all::<OpusDecoder>();
+    registry
+});
 
 pub struct Decoder {
     thread_killer: Receiver<bool>,
@@ -193,7 +190,7 @@ impl Decoder {
                     log::debug!("device changed");
                     self.controls.pause();
                     self.cpal_output = None;
-               }
+                }
                 InternalPlayerEvent::Preload(source, buffer_signal) => {
                     self.preload_playback = None;
                     self.controls.set_is_file_preloaded(false);
