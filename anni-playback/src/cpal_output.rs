@@ -159,7 +159,7 @@ impl CpalOutputStream {
         }
     }
 
-    fn get_config(spec: SignalSpec) -> anyhow::Result<(Device, StreamConfig)> {
+    fn get_config(_spec: SignalSpec) -> anyhow::Result<(Device, StreamConfig)> {
         let host = cpal::default_host();
         let device = host
             .default_output_device()
@@ -283,5 +283,3 @@ impl CpalOutput {
         }
     }
 }
-
-unsafe impl Send for CpalOutput {}
