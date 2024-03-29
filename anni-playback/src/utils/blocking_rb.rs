@@ -106,6 +106,7 @@ impl<T: Copy + Clone + Default + Sync + Send> BlockingRb<T, Producer> {
             // available or that the operation should be cancelled.
             let (mutex, cvar) = &*self.producer_events;
             let event = mutex.lock().unwrap();
+            // todo: solve remaining problems in https://github.com/ProjectAnni/anni/pull/41
             let (event, timeout) = cvar
                 .wait_timeout(event, Duration::from_millis(500))
                 .unwrap();
