@@ -159,7 +159,9 @@ impl CpalOutputStream {
         }
     }
 
-    fn get_config(_spec: SignalSpec) -> anyhow::Result<(Device, StreamConfig)> {
+    fn get_config(
+        #[cfg_attr(target_os = "windows", allow(unused))] spec: SignalSpec,
+    ) -> anyhow::Result<(Device, StreamConfig)> {
         let host = cpal::default_host();
         let device = host
             .default_output_device()
