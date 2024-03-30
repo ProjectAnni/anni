@@ -14,7 +14,10 @@
 // You should have received a copy of the GNU Lesser General Public License along with this program.
 // If not, see <https://www.gnu.org/licenses/>.
 
-use std::sync::{atomic::AtomicUsize, Arc, Condvar, Mutex};
+use std::{
+    sync::{atomic::AtomicUsize, Arc, Condvar, Mutex},
+    time::Duration,
+};
 
 /// Provides the producer methods of the ring buffer.
 #[derive(Clone)]
@@ -102,8 +105,15 @@ impl<T: Copy + Clone + Default + Sync + Send> BlockingRb<T, Producer> {
             // Wait for the event to tell us that there free space
             // available or that the operation should be cancelled.
             let (mutex, cvar) = &*self.producer_events;
-            let mut event = mutex.lock().unwrap();
-            event = cvar.wait(event).unwrap();
+            let event = mutex.lock().unwrap();
+            // todo: solve remaining problems in https://github.com/ProjectAnni/anni/pull/41
+            let (event, timeout) = cvar
+                .wait_timeout(event, Duration::from_millis(500))
+                .unwrap();
+
+            if timeout.timed_out() {
+                return None;
+            }
 
             match *event {
                 Event::CancelWrite => return None,
