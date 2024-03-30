@@ -140,17 +140,17 @@ impl CachePool {
             // on miss, set state to cached first
             let mutex = Arc::new(Mutex::new(0));
             let handle = mutex.clone().lock_owned().await;
+            // TODO: The following procedure may fail, but the entry would still be added to `last_used`
+            //       We should remove it from `last_used` and fail all correspoding requests.
             self.last_used.lock().await.put(key.to_owned(), mutex);
 
             // get data, return directly if it's a partial request
             let result = on_miss.await?;
 
             // prepare for new item
-            let path = self.root.join(key.album_id.as_ref()).join(format!(
-                "{}_{}",
-                key.disc_id.get(),
-                key.track_id.get()
-            ));
+            let mut path = self.root.join(key.album_id.as_ref());
+            tokio::fs::create_dir_all(&path).await?;
+            path.push(format!("{}_{}", key.disc_id.get(), key.track_id.get()));
             let mut file = File::create(&path).await?;
 
             let AudioResourceReader {
