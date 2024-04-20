@@ -94,6 +94,10 @@ impl CpalOutputStream {
                         data[0..written]
                             .iter_mut()
                             .for_each(|s| *s *= BASE_VOLUME * *controls.volume());
+
+                        data[written..].fill(0.);
+                    } else {
+                        data.fill(0.);
                     }
                 }
             },
