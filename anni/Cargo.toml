@@ -50,7 +50,7 @@ anyhow.workspace = true
 cuna = "0.7.0"
 id3 = "1"
 anni-vgmdb = "0.3.1"
-musicbrainz_rs = { version = "0.5.0", default-features = false, features = [
+musicbrainz_rs = { git = "https://github.com/ProjectAnni/musicbrainz_rs.git", default-features = false, features = [
     "rustls",
     "async",
 ] }

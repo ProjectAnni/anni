@@ -190,6 +190,13 @@ async fn repo_get_cue(
 
 #[derive(Args, Debug, Clone)]
 pub struct RepoGetMusicbrainz {
+    #[clap(
+        env = "MUSICBRAINZ_BASE_URL",
+        default_value = "https://musicbrainz.org/ws/2"
+    )]
+    #[clap(long)]
+    base_url: String,
+
     #[clap(long)]
     id: String,
     catalog: String,
@@ -201,6 +208,8 @@ async fn repo_get_musicbrainz(
     manager: &RepositoryManager,
     get: &RepoGetAction,
 ) -> anyhow::Result<()> {
+    musicbrainz_rs::config::set_base_url(options.base_url);
+
     let release = Release::fetch()
         .id(&options.id)
         .with_release_groups()

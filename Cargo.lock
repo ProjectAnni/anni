@@ -3292,8 +3292,7 @@ checksum = "d9380db4c04d219ac5c51d14996bbf2c2e9a15229771b53f8671eb6c83cf44df"
 [[package]]
 name = "musicbrainz_rs"
 version = "0.5.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8baffdd450f73b33d47c91b509eebc25233c8e0f896f9c0c83d72f53b4e9fb63"
+source = "git+https://github.com/ProjectAnni/musicbrainz_rs.git#a15f0f73dabb4d69ffce35a7094d422a5b652c38"
 dependencies = [
  "chrono",
  "lucene_query_builder",
