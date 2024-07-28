@@ -20,7 +20,7 @@ serde_json.workspace = true
 toml.workspace = true
 directories-next = "2.0.0"
 
-anni-common = { path = "../anni-common" }
+anni-common = { path = "../anni-common", features = ["tarsh"] }
 anni-flac = { path = "../anni-flac" }
 anni-split = { path = "../anni-split" }
 anni-repo = { path = "../anni-repo", features = [

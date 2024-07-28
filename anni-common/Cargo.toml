@@ -1,15 +1,12 @@
 [package]
 name = "anni-common"
-version = "0.1.4"
+version = "0.2.0"
 description = "Common library used by Project Anni."
 
 edition.workspace = true
 authors.workspace = true
 repository.workspace = true
 license.workspace = true
-
-[features]
-default = ["trash"]
 
 [dependencies]
 byteorder = "1"
