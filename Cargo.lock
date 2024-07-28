@@ -151,7 +151,7 @@ checksum = "ec66320836265a59098af8343573a2160b12b8db033b6b879fa01fbcf95a50ed"
 
 [[package]]
 name = "anni-common"
-version = "0.1.4"
+version = "0.2.0"
 dependencies = [
  "anni-artist",
  "byteorder",

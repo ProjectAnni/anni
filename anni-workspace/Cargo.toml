@@ -14,7 +14,7 @@ anni-repo = { version = "0.4.1", path = "../anni-repo", features = [
     "flac",
     "apply",
 ] }
-anni-common = { version = "0.1.4", path = "../anni-common" }
+anni-common.workspace = true
 anni-flac = { version = "0.2.2", path = "../anni-flac" }
 
 uuid.workspace = true

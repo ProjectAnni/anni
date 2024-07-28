@@ -19,7 +19,7 @@ anni-google-drive3 = { version = "0.1.0", path = "../third_party/google-drive3",
 anni-repo = { version = "0.4.1", path = "../anni-repo", features = [
     "db-read",
 ], optional = true }
-anni-common = { version = "0.1.4", path = "../anni-common" }
+anni-common.workspace = true
 
 thiserror.workspace = true
 log.workspace = true
