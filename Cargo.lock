@@ -203,6 +203,8 @@ dependencies = [
 name = "anni-playback"
 version = "0.1.0"
 dependencies = [
+ "anni-common",
+ "anni-provider",
  "anyhow",
  "arrayvec",
  "audiopus",
