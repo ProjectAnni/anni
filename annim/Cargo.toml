@@ -25,5 +25,5 @@ anni-repo = { path = "../anni-repo", features = [
     "db",
     "git",
     "flac",
-    "search",
+    # "search",
 ] }
