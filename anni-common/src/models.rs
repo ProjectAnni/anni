@@ -3,6 +3,8 @@ use std::fmt::Display;
 use std::num::NonZeroU8;
 use std::str::{FromStr, Split};
 
+use thiserror::Error;
+
 #[derive(Hash, PartialEq, Eq)]
 pub struct RawTrackIdentifier<'album_id> {
     pub album_id: Cow<'album_id, str>,
@@ -65,14 +67,19 @@ impl FromStr for TrackIdentifier {
     type Err = ParseError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        let read_u8 =
-            |s: &mut Split<_>| s.next().ok_or(ParseError)?.parse().map_err(|_| ParseError);
+        let mut split = s.splitn(2, '/');
 
-        let mut sp = s.split('/');
-
-        let album_id = sp.next().ok_or(ParseError)?;
-        let disc_id = read_u8(&mut sp)?;
-        let track_id = read_u8(&mut sp)?;
+        let album_id = split.next().ok_or(ParseError::InvalidFormat)?;
+        let disc_id = split
+            .next()
+            .ok_or(ParseError::InvalidFormat)?
+            .parse()
+            .map_err(|_| ParseError::InvalidDiscId)?;
+        let track_id = split
+            .next()
+            .ok_or(ParseError::InvalidFormat)?
+            .parse()
+            .map_err(|_| ParseError::InvalidTrackId)?;
 
         Ok(RawTrackIdentifier::new(album_id, disc_id, track_id).to_owned())
     }
@@ -90,13 +97,14 @@ impl Clone for TrackIdentifier {
     }
 }
 
-#[derive(Debug, Clone, Copy)]
-pub struct ParseError;
-
-impl Display for ParseError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "fail to parse track identifier")
-    }
+#[derive(Debug, Clone, Copy, Error)]
+pub enum ParseError {
+    #[error("invalid album id")]
+    InvalidAlbumId,
+    #[error("invalid disc id")]
+    InvalidDiscId,
+    #[error("invalid track id")]
+    InvalidTrackId,
+    #[error("invalid format")]
+    InvalidFormat,
 }
-
-impl std::error::Error for ParseError {}
