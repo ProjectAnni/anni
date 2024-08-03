@@ -51,7 +51,7 @@ enum PlaybackState {
     Idle,
 }
 
-static CODEC_REGISTRY: Lazy<CodecRegistry> = Lazy::new(|| {
+pub static CODEC_REGISTRY: Lazy<CodecRegistry> = Lazy::new(|| {
     let mut registry = CodecRegistry::new();
     register_enabled_codecs(&mut registry);
     registry.register_all::<OpusDecoder>();

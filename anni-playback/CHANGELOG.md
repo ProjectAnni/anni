@@ -7,4 +7,5 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- Make `decoder::CODEC_REGISTRY` public
 - Upgraded `ratatui` used by example

@@ -21,7 +21,7 @@ mod dsp;
 mod utils;
 
 pub use controls::Controls;
-pub use decoder::Decoder;
+pub use decoder::*;
 pub mod sources;
 pub mod types;
 
