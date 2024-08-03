@@ -1,5 +1,7 @@
 use std::borrow::{Borrow, Cow};
+use std::fmt::Display;
 use std::num::NonZeroU8;
+use std::str::{FromStr, Split};
 
 #[derive(Hash, PartialEq, Eq)]
 pub struct RawTrackIdentifier<'album_id> {
@@ -26,6 +28,10 @@ impl<'a> RawTrackIdentifier<'a> {
             },
         }
     }
+
+    pub fn copied(&'a self) -> Self {
+        Self::new(&self.album_id, self.disc_id, self.track_id)
+    }
 }
 
 impl<'a> Clone for RawTrackIdentifier<'a> {
@@ -38,9 +44,15 @@ impl<'a> Clone for RawTrackIdentifier<'a> {
     }
 }
 
+impl<'a> Display for RawTrackIdentifier<'a> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}/{}/{}", self.album_id, self.disc_id, self.track_id)
+    }
+}
+
 #[derive(Hash, PartialEq, Eq)]
 pub struct TrackIdentifier {
-    inner: RawTrackIdentifier<'static>,
+    pub inner: RawTrackIdentifier<'static>,
 }
 
 impl<'a> Borrow<RawTrackIdentifier<'a>> for TrackIdentifier {
@@ -48,3 +60,43 @@ impl<'a> Borrow<RawTrackIdentifier<'a>> for TrackIdentifier {
         &self.inner
     }
 }
+
+impl FromStr for TrackIdentifier {
+    type Err = ParseError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let read_u8 =
+            |s: &mut Split<_>| s.next().ok_or(ParseError)?.parse().map_err(|_| ParseError);
+
+        let mut sp = s.split('/');
+
+        let album_id = sp.next().ok_or(ParseError)?;
+        let disc_id = read_u8(&mut sp)?;
+        let track_id = read_u8(&mut sp)?;
+
+        Ok(RawTrackIdentifier::new(album_id, disc_id, track_id).to_owned())
+    }
+}
+
+impl Display for TrackIdentifier {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        self.inner.fmt(f)
+    }
+}
+
+impl Clone for TrackIdentifier {
+    fn clone(&self) -> Self {
+        self.inner.to_owned()
+    }
+}
+
+#[derive(Debug, Clone, Copy)]
+pub struct ParseError;
+
+impl Display for ParseError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "fail to parse track identifier")
+    }
+}
+
+impl std::error::Error for ParseError {}
