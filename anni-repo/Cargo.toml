@@ -1,6 +1,6 @@
 [package]
 name = "anni-repo"
-version = "0.4.1"
+version = "0.4.2"
 description = "Operate on anni metadata repository."
 
 edition.workspace = true

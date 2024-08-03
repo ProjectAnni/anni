@@ -1,6 +1,6 @@
 [package]
 name = "anni-provider"
-version = "0.3.0"
+version = "0.3.1"
 description = "Storage providers for Project Anni."
 
 edition.workspace = true
@@ -16,7 +16,7 @@ futures = "0.3"
 async-trait = "0.1"
 
 anni-google-drive3 = { version = "0.1.0", path = "../third_party/google-drive3", optional = true }
-anni-repo = { version = "0.4.1", path = "../anni-repo", features = [
+anni-repo = { version = "0.4.2", path = "../anni-repo", features = [
     "db-read",
 ], optional = true }
 anni-common.workspace = true

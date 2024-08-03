@@ -222,7 +222,7 @@ dependencies = [
 
 [[package]]
 name = "anni-provider"
-version = "0.3.0"
+version = "0.3.1"
 dependencies = [
  "anni-common",
  "anni-flac",
@@ -244,7 +244,7 @@ dependencies = [
 
 [[package]]
 name = "anni-repo"
-version = "0.4.1"
+version = "0.4.2"
 dependencies = [
  "alphanumeric-sort",
  "anni-artist",

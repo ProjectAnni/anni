@@ -9,7 +9,7 @@ repository.workspace = true
 license.workspace = true
 
 [dependencies]
-anni-repo = { version = "0.4.1", path = "../anni-repo", features = [
+anni-repo = { version = "0.4.2", path = "../anni-repo", features = [
     "git",
     "flac",
     "apply",

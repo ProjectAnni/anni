@@ -20,11 +20,11 @@ thiserror.workspace = true
 async-trait = "0.1"
 
 anni-flac = { version = "0.2.2", path = "../anni-flac", features = ["async"] }
-anni-repo = { version = "0.4.1", path = "../anni-repo", features = [
+anni-repo = { version = "0.4.2", path = "../anni-repo", features = [
     "git",
     "db-write",
 ], optional = true }
-anni-provider = { version = "0.3.0", path = "../anni-provider" }
+anni-provider = { version = "0.3.1", path = "../anni-provider" }
 
 serde.workspace = true
 toml.workspace = true
