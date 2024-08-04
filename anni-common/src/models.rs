@@ -1,7 +1,7 @@
 use std::borrow::{Borrow, Cow};
 use std::fmt::Display;
 use std::num::NonZeroU8;
-use std::str::{FromStr, Split};
+use std::str::FromStr;
 
 use thiserror::Error;
 
@@ -67,7 +67,7 @@ impl FromStr for TrackIdentifier {
     type Err = ParseError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        let mut split = s.splitn(2, '/');
+        let mut split = s.splitn(3, '/');
 
         let album_id = split.next().ok_or(ParseError::InvalidFormat)?;
         let disc_id = split
