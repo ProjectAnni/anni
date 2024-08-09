@@ -83,7 +83,7 @@ impl AnniPlayer {
     pub fn open(&self, track: TrackIdentifier, quality: AudioQuality) -> anyhow::Result<()> {
         log::info!("loading track: {track}");
 
-        self.controls.stop();
+        self.controls.pause();
 
         let provider = self.provider.read().unwrap();
 
