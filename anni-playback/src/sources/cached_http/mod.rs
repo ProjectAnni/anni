@@ -71,8 +71,6 @@ impl CachedHttpSource {
         log::debug!("got duration {duration:?}");
 
         thread::spawn({
-            let mut response = client.get(url).send()?;
-
             let mut cache = cache.try_clone()?;
             let buf_len = Arc::clone(&buf_len);
             let pos = Arc::clone(&pos);
@@ -80,30 +78,40 @@ impl CachedHttpSource {
             let is_buffering = Arc::clone(&is_buffering);
             let identifier = identifier.clone();
 
-            move || loop {
-                match response.read(&mut buf) {
-                    Ok(0) => {
-                        is_buffering.store(false, Ordering::Release);
-                        log::info!("{identifier} reached eof");
-                        break;
-                    }
-                    Ok(n) => {
-                        let pos = pos.load(Ordering::Acquire);
-                        if let Err(e) = cache.write_all(&buf[..n]) {
-                            log::error!("{e}")
-                        }
-
-                        log::trace!("wrote {n} bytes to {identifier}");
-
-                        let _ = cache.seek(std::io::SeekFrom::Start(pos as u64));
-                        let _ = cache.flush();
-
-                        buf_len.fetch_add(n, Ordering::AcqRel);
-                    }
-                    Err(e) if e.kind() == ErrorKind::Interrupted => {}
+            move || {
+                let mut response = match client.get(url).send() {
+                    Ok(r) => r,
                     Err(e) => {
-                        log::error!("{e}");
-                        is_buffering.store(false, Ordering::Release);
+                        log::error!("failed to send request: {e}");
+                        return;
+                    }
+                };
+
+                loop {
+                    match response.read(&mut buf) {
+                        Ok(0) => {
+                            is_buffering.store(false, Ordering::Release);
+                            log::info!("{identifier} reached eof");
+                            break;
+                        }
+                        Ok(n) => {
+                            let pos = pos.load(Ordering::Acquire);
+                            if let Err(e) = cache.write_all(&buf[..n]) {
+                                log::error!("{e}")
+                            }
+
+                            log::trace!("wrote {n} bytes to {identifier}");
+
+                            let _ = cache.seek(std::io::SeekFrom::Start(pos as u64));
+                            let _ = cache.flush();
+
+                            buf_len.fetch_add(n, Ordering::AcqRel);
+                        }
+                        Err(e) if e.kind() == ErrorKind::Interrupted => {}
+                        Err(e) => {
+                            log::error!("{e}");
+                            is_buffering.store(false, Ordering::Release);
+                        }
                     }
                 }
             }
