@@ -21,6 +21,8 @@ use provider::{AudioQuality, ProviderProxy};
 
 use cache::CacheStore;
 
+use super::AnniSource;
+
 const BUF_SIZE: usize = 1024 * 64; // 64k
 
 pub struct CachedHttpSource {
@@ -31,13 +33,14 @@ pub struct CachedHttpSource {
     is_buffering: Arc<AtomicBool>,
     #[allow(unused)]
     buffer_signal: Arc<AtomicBool>,
+    duration: Option<u64>,
 }
 
 impl CachedHttpSource {
     /// `cache_path` is the path to cache file.
     pub fn new(
         identifier: TrackIdentifier,
-        url: impl FnOnce() -> Option<Url>,
+        url: impl FnOnce() -> Option<(Url, Option<u64>)>,
         cache_store: &CacheStore,
         client: Client,
         buffer_signal: Arc<AtomicBool>,
@@ -53,6 +56,7 @@ impl CachedHttpSource {
                     pos: Arc::new(AtomicUsize::new(0)),
                     is_buffering: Arc::new(AtomicBool::new(false)),
                     buffer_signal,
+                    duration: None,
                 });
             }
             Err(cache) => cache,
@@ -62,8 +66,12 @@ impl CachedHttpSource {
         let is_buffering = Arc::new(AtomicBool::new(true));
         let pos = Arc::new(AtomicUsize::new(0));
 
+        let (url, duration) = url().ok_or(anyhow!("no audio"))?;
+
+        log::debug!("got duration {duration:?}");
+
         thread::spawn({
-            let mut response = client.get(url().ok_or(anyhow!("no audio"))?).send()?;
+            let mut response = client.get(url).send()?;
 
             let mut cache = cache.try_clone()?;
             let buf_len = Arc::clone(&buf_len);
@@ -108,6 +116,7 @@ impl CachedHttpSource {
             pos,
             is_buffering,
             buffer_signal,
+            duration,
         })
     }
 }
@@ -158,6 +167,12 @@ impl MediaSource for CachedHttpSource {
     }
 }
 
+impl AnniSource for CachedHttpSource {
+    fn duration_hint(&self) -> Option<u64> {
+        self.duration
+    }
+}
+
 pub struct CachedAnnilSource(CachedHttpSource);
 
 impl CachedAnnilSource {
@@ -179,7 +194,13 @@ impl CachedAnnilSource {
                     .inspect_err(|e| log::warn!("{e}"))
                     .ok()
             })
-            .map(|r| r.url().clone());
+            .map(|response| {
+                let duration = response
+                    .headers()
+                    .get("X-Duration-Seconds")
+                    .and_then(|v| v.to_str().ok().and_then(|dur| dur.parse().ok()));
+                (response.url().clone(), duration)
+            });
 
         CachedHttpSource::new(track, || source.next(), cache_store, client, buffer_signal).map(Self)
     }
@@ -204,5 +225,11 @@ impl MediaSource for CachedAnnilSource {
 
     fn byte_len(&self) -> Option<u64> {
         self.0.byte_len()
+    }
+}
+
+impl AnniSource for CachedAnnilSource {
+    fn duration_hint(&self) -> Option<u64> {
+        self.0.duration
     }
 }

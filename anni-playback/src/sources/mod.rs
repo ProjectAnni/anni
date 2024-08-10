@@ -14,6 +14,8 @@
 // You should have received a copy of the GNU Lesser General Public License along with this program.
 // If not, see <https://www.gnu.org/licenses/>.
 
+use symphonia_core::io::MediaSource;
+
 pub mod cached_http;
 pub mod http;
 pub mod streamable;
@@ -24,3 +26,32 @@ struct Receiver {
     id: u128,
     receiver: std::sync::mpsc::Receiver<(usize, Vec<u8>)>,
 }
+
+pub trait AnniSource: MediaSource {
+    /// The duration of underlying source in seconds.
+    fn duration_hint(&self) -> Option<u64> {
+        None
+    }
+}
+
+impl MediaSource for Box<dyn AnniSource> {
+    fn is_seekable(&self) -> bool {
+        self.as_ref().is_seekable()
+    }
+
+    fn byte_len(&self) -> Option<u64> {
+        self.as_ref().byte_len()
+    }
+}
+
+impl AnniSource for std::fs::File {}
+
+// Specialization is not well-supported so far (even the unstable feature is unstable ww).
+// Therefore, we do not provide the default implementation below.
+// Users can use a newtype pattern if needed.
+//
+// default impl<T: MediaSource> AnniSource for T {
+//     fn duration_hint(&self) -> Option<u64> {
+//         None
+//     }
+// }

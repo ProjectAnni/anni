@@ -89,7 +89,7 @@ impl Controls {
 
     pub fn open(
         &self,
-        source: Box<dyn MediaSource>,
+        source: Box<dyn AnniSource>,
         buffer_signal: Arc<AtomicBool>,
         is_preload: bool,
     ) {
