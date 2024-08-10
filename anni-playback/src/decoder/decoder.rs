@@ -39,9 +39,7 @@ use symphonia_core::{
 
 use super::opus::OpusDecoder;
 use crate::{
-    controls::*,
-    cpal_output::{CpalOutput, CpalOutputStream},
-    types::*,
+    controls::*, cpal_output::{CpalOutput, CpalOutputStream}, sources::AnniSource, types::*
 };
 
 enum PlaybackState {
@@ -352,10 +350,11 @@ impl Decoder {
     /// Opens the given source for playback. Returns a `Playback`
     /// for the source.
     fn open(
-        source: Box<dyn MediaSource>,
+        source: Box<dyn AnniSource>,
         buffer_signal: Arc<AtomicBool>,
     ) -> anyhow::Result<Playback> {
-        let mss = MediaSourceStream::new(source, Default::default());
+        let duration_hint = source.duration_hint();
+        let mss = MediaSourceStream::new(Box::new(source), Default::default());
         let format_options = FormatOptions {
             enable_gapless: true,
             ..Default::default()
@@ -392,7 +391,7 @@ impl Decoder {
                 let time = timebase.calc_time(ts);
                 time.seconds * 1000 + (time.frac * 1000.0) as u64
             }
-            _ => 0,
+            _ => duration_hint.map(|dur| dur * 1000).unwrap_or(0),
         };
 
         Ok(Playback {
@@ -411,7 +410,7 @@ impl Decoder {
     /// Returns a preloaded `Playback` and `CpalOutput` when complete.
     fn preload(
         &self,
-        source: Box<dyn MediaSource>,
+        source: Box<dyn AnniSource>,
         buffer_signal: Arc<AtomicBool>,
     ) -> JoinHandle<anyhow::Result<Playback>> {
         thread::spawn(move || {

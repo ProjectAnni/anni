@@ -19,6 +19,8 @@ use std::sync::{atomic::AtomicBool, Arc};
 pub use crossbeam::channel::{Receiver, Sender};
 pub use symphonia_core::io::MediaSource;
 
+pub use crate::sources::AnniSource;
+
 /// Provides the current progress of the player.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ProgressState {
@@ -30,14 +32,14 @@ pub struct ProgressState {
 }
 
 pub(crate) enum InternalPlayerEvent {
-    Open(Box<dyn MediaSource>, Arc<AtomicBool>),
+    Open(Box<dyn AnniSource>, Arc<AtomicBool>),
     Play,
     Pause,
     Stop,
     /// Called by `cpal_output` in the event the device outputting
     /// audio was changed/disconnected.
     DeviceChanged,
-    Preload(Box<dyn MediaSource>, Arc<AtomicBool>),
+    Preload(Box<dyn AnniSource>, Arc<AtomicBool>),
     PlayPreloaded,
 }
 
