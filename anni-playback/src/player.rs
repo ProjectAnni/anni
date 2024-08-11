@@ -86,6 +86,7 @@ impl AnniPlayer {
         &self,
         track: TrackIdentifier,
         quality: AudioQuality,
+        opus: bool,
     ) -> Result<(), OpenTrackError> {
         log::info!("loading track: {track}");
 
@@ -101,6 +102,7 @@ impl AnniPlayer {
             self.client.clone(),
             &provider,
             buffer_signal.clone(),
+            opus,
         )?;
 
         self.controls.open(Box::new(source), buffer_signal, false);
@@ -112,8 +114,9 @@ impl AnniPlayer {
         &self,
         track: TrackIdentifier,
         quality: AudioQuality,
+        opus: bool,
     ) -> Result<(), OpenTrackError> {
-        self.open(track, quality)?;
+        self.open(track, quality, opus)?;
         self.play();
 
         Ok(())
