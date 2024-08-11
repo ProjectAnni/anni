@@ -13,8 +13,8 @@ use std::{
 
 use anni_common::models::TrackIdentifier;
 use anni_provider::providers::TypedPriorityProvider;
-use anyhow::anyhow;
 use reqwest::{blocking::Client, Url};
+use thiserror::Error;
 
 use crate::types::MediaSource;
 use provider::{AudioQuality, ProviderProxy};
@@ -44,7 +44,7 @@ impl CachedHttpSource {
         cache_store: &CacheStore,
         client: Client,
         buffer_signal: Arc<AtomicBool>,
-    ) -> anyhow::Result<Self> {
+    ) -> Result<Self, OpenTrackError> {
         let cache = match cache_store.acquire(identifier.inner.copied())? {
             Ok(cache) => {
                 let buf_len = cache.metadata()?.len() as usize;
@@ -66,7 +66,7 @@ impl CachedHttpSource {
         let is_buffering = Arc::new(AtomicBool::new(true));
         let pos = Arc::new(AtomicUsize::new(0));
 
-        let (url, duration) = url().ok_or(anyhow!("no audio"))?;
+        let (url, duration) = url().ok_or(OpenTrackError::NoAvailableAnnil)?;
 
         log::debug!("got duration {duration:?}");
 
@@ -191,7 +191,7 @@ impl CachedAnnilSource {
         client: Client,
         provider: &TypedPriorityProvider<ProviderProxy>,
         buffer_signal: Arc<AtomicBool>,
-    ) -> anyhow::Result<Self> {
+    ) -> Result<Self, OpenTrackError> {
         let cloned_track = track.clone();
 
         let mut source = provider
@@ -240,4 +240,12 @@ impl AnniSource for CachedAnnilSource {
     fn duration_hint(&self) -> Option<u64> {
         self.0.duration
     }
+}
+
+#[derive(Debug, Error)]
+pub enum OpenTrackError {
+    #[error("No available annil")]
+    NoAvailableAnnil,
+    #[error("Io Error: {0}")]
+    Io(#[from] std::io::Error),
 }
