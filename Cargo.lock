@@ -220,6 +220,7 @@ dependencies = [
  "rubato",
  "symphonia",
  "symphonia-core",
+ "thiserror",
 ]
 
 [[package]]

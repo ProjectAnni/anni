@@ -32,6 +32,7 @@ audiopus = { git = "https://github.com/ProjectAnni/audiopus" }
 log.workspace = true
 anni-provider = { version = "0.3.1", path = "../anni-provider", default-features = false, features = ["priority"] }
 anni-common = { version = "0.2", path = "../anni-common" }
+thiserror.workspace = true
 
 [dev-dependencies]
 # used by tui example

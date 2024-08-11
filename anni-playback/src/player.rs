@@ -18,7 +18,9 @@ use std::{
 use anni_common::models::TrackIdentifier;
 
 use crate::{
-    sources::cached_http::{cache::CacheStore, provider::ProviderProxy, CachedAnnilSource},
+    sources::cached_http::{
+        cache::CacheStore, provider::ProviderProxy, CachedAnnilSource, OpenTrackError,
+    },
     types::PlayerEvent,
     Controls, Decoder,
 };
@@ -80,7 +82,11 @@ impl AnniPlayer {
         *provider = TypedPriorityProvider::new(vec![]);
     }
 
-    pub fn open(&self, track: TrackIdentifier, quality: AudioQuality) -> anyhow::Result<()> {
+    pub fn open(
+        &self,
+        track: TrackIdentifier,
+        quality: AudioQuality,
+    ) -> Result<(), OpenTrackError> {
         log::info!("loading track: {track}");
 
         self.controls.pause();
@@ -106,7 +112,7 @@ impl AnniPlayer {
         &self,
         track: TrackIdentifier,
         quality: AudioQuality,
-    ) -> anyhow::Result<()> {
+    ) -> Result<(), OpenTrackError> {
         self.open(track, quality)?;
         self.play();
 
