@@ -191,13 +191,14 @@ impl CachedAnnilSource {
         client: Client,
         provider: &TypedPriorityProvider<ProviderProxy>,
         buffer_signal: Arc<AtomicBool>,
+        opus: bool,
     ) -> anyhow::Result<Self> {
         let cloned_track = track.clone();
 
         let mut source = provider
             .providers()
             .filter_map(|p| {
-                p.head(cloned_track.inner.copied(), quality)
+                p.head(cloned_track.inner.copied(), quality, opus)
                     .and_then(|r| r.error_for_status())
                     .inspect_err(|e| log::warn!("{e}"))
                     .ok()

@@ -34,20 +34,37 @@ impl ProviderProxy {
         Self { url, auth, client }
     }
 
-    pub fn format_url(&self, track: RawTrackIdentifier, quality: AudioQuality) -> String {
+    pub fn format_url(
+        &self,
+        track: RawTrackIdentifier,
+        quality: AudioQuality,
+        opus: bool,
+    ) -> String {
         format!(
-            "{}/{}?auth={}&quality={}",
-            self.url, track, self.auth, quality
+            "{}/{}?auth={}&quality={}&opus={}",
+            self.url, track, self.auth, quality, opus
         )
     }
 
-    pub fn get(&self, track: RawTrackIdentifier, quality: AudioQuality) -> reqwest::Result<Response> {
-        self.client.get(self.format_url(track, quality)).send()
+    pub fn get(
+        &self,
+        track: RawTrackIdentifier,
+        quality: AudioQuality,
+        opus: bool,
+    ) -> reqwest::Result<Response> {
+        self.client
+            .get(self.format_url(track, quality, opus))
+            .send()
     }
 
-    pub fn head(&self, track: RawTrackIdentifier, quality: AudioQuality) -> reqwest::Result<Response> {
+    pub fn head(
+        &self,
+        track: RawTrackIdentifier,
+        quality: AudioQuality,
+        opus: bool,
+    ) -> reqwest::Result<Response> {
         self.client
-            .get(self.format_url(track, quality))
+            .get(self.format_url(track, quality, opus))
             // .header("Authorization", &self.auth)
             .send()
     }

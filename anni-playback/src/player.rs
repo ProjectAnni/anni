@@ -80,7 +80,12 @@ impl AnniPlayer {
         *provider = TypedPriorityProvider::new(vec![]);
     }
 
-    pub fn open(&self, track: TrackIdentifier, quality: AudioQuality) -> anyhow::Result<()> {
+    pub fn open(
+        &self,
+        track: TrackIdentifier,
+        quality: AudioQuality,
+        opus: bool,
+    ) -> anyhow::Result<()> {
         log::info!("loading track: {track}");
 
         self.controls.pause();
@@ -95,6 +100,7 @@ impl AnniPlayer {
             self.client.clone(),
             &provider,
             buffer_signal.clone(),
+            opus,
         )?;
 
         self.controls.open(Box::new(source), buffer_signal, false);
@@ -106,8 +112,9 @@ impl AnniPlayer {
         &self,
         track: TrackIdentifier,
         quality: AudioQuality,
+        opus: bool,
     ) -> anyhow::Result<()> {
-        self.open(track, quality)?;
+        self.open(track, quality, opus)?;
         self.play();
 
         Ok(())
