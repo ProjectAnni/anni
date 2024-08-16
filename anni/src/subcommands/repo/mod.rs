@@ -102,26 +102,30 @@ pub struct RepoImportAction {
     #[clap(short = 'f', long, default_value = "toml")]
     format: RepoImportFormat,
 
-    file: ActionFile,
+    files: Vec<ActionFile>,
 }
 
 #[derive(ValueEnum, Debug, Clone)]
 pub enum RepoImportFormat {
-    // Json,
+    Json,
     Toml,
 }
 
 #[handler(RepoImportAction)]
 fn repo_import(me: &RepoImportAction, manager: &RepositoryManager) -> anyhow::Result<()> {
-    let mut reader = me.file.to_reader()?;
-    let mut result = String::new();
-    reader.read_to_string(&mut result)?;
+    for file in me.files.iter() {
+        let mut reader = file.to_reader()?;
+        let mut result = String::new();
+        reader.read_to_string(&mut result)?;
 
-    match me.format {
-        RepoImportFormat::Toml => {
-            let album = Album::from_str(&result)?;
-            manager.add_album(album, me.allow_duplicate)?;
-        }
+        let album = match me.format {
+            RepoImportFormat::Toml => Album::from_str(&result)?,
+            RepoImportFormat::Json => {
+                let album = JsonAlbum::from_str(&result)?;
+                album.try_into()?
+            }
+        };
+        manager.add_album(album, me.allow_duplicate)?;
     }
     Ok(())
 }
