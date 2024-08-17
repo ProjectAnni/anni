@@ -41,7 +41,7 @@ impl MigrationTrait for Migration {
                 Table::create()
                     .table(Disc::Table)
                     .col(annim_pk_auto(Disc::Id))
-                    .col(annim_pk_foreign(Disc::Album))
+                    .col(annim_pk_foreign(Disc::AlbumDbId))
                     .col(integer(Disc::Index))
                     .col(string(Disc::Title))
                     .col(string_null(Disc::Catalog))
@@ -49,7 +49,7 @@ impl MigrationTrait for Migration {
                     .foreign_key(
                         ForeignKeyCreateStatement::new()
                             .name("fk-disc_album")
-                            .from(Disc::Table, Disc::Album)
+                            .from(Disc::Table, Disc::AlbumDbId)
                             .to(Album::Table, Album::Id),
                     )
                     .to_owned(),
@@ -62,8 +62,8 @@ impl MigrationTrait for Migration {
                 Table::create()
                     .table(Track::Table)
                     .col(annim_pk_auto(Track::Id))
-                    .col(annim_pk_foreign(Track::Album))
-                    .col(annim_pk_foreign(Track::Disc))
+                    .col(annim_pk_foreign(Track::AlbumDbId))
+                    .col(annim_pk_foreign(Track::DiscDbId))
                     .col(string(Track::Title))
                     .col(string(Track::Artist))
                     .col(enumeration(
@@ -74,13 +74,13 @@ impl MigrationTrait for Migration {
                     .foreign_key(
                         ForeignKeyCreateStatement::new()
                             .name("fk-track_album")
-                            .from(Track::Table, Track::Album)
+                            .from(Track::Table, Track::AlbumDbId)
                             .to(Album::Table, Album::Id),
                     )
                     .foreign_key(
                         ForeignKey::create()
                             .name("fk-track_disc")
-                            .from(Track::Table, Track::Disc)
+                            .from(Track::Table, Track::DiscDbId)
                             .to(Disc::Table, Disc::Id),
                     )
                     .to_owned(),
@@ -157,7 +157,7 @@ pub enum Disc {
     /// Disc Table ID
     Id,
     /// Album Table ID
-    Album,
+    AlbumDbId,
     /// Disc Index, starting from 0
     Index,
     Title,
@@ -171,9 +171,9 @@ pub enum Track {
     /// Track Table ID
     Id,
     /// Album Table ID
-    Album,
+    AlbumDbId,
     /// Disc Table ID
-    Disc,
+    DiscDbId,
     /// Track Index, starting from 0
     Index,
     Title,
