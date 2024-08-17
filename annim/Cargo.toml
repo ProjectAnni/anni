@@ -15,6 +15,16 @@ tokio = { version = "1", features = ["full"] }
 axum.workspace = true
 async-graphql = { version = "7.0.0", features = ["uuid"] }
 async-graphql-axum = "7.0.0"
+sea-orm = { version = "1.0.0", features = [
+    "sqlx-sqlite",
+    "runtime-tokio-rustls",
+    "with-uuid",
+] }
+sea-orm-migration = { version = "1.0.0", features = [
+    "sqlx-sqlite",
+    "runtime-tokio-rustls",
+    "with-uuid",
+] }
 
 log.workspace = true
 env_logger = "0.10"

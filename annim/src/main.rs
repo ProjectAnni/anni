@@ -1,3 +1,4 @@
+mod migrator;
 mod model;
 
 use anni_repo::RepositoryManager;
@@ -9,6 +10,7 @@ use axum::{
     Extension, Router,
 };
 use model::{build_schema, AppSchema};
+use sea_orm::{ConnectionTrait, Database, DbBackend};
 use std::env::args;
 use tokio::net::TcpListener;
 
@@ -22,17 +24,13 @@ async fn graphql_playground() -> impl IntoResponse {
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
-    let path = args().next().expect("Repository path not provided");
-    let manager = RepositoryManager::new(path)?;
-    let manager = manager.into_owned_manager()?;
-    let schema = build_schema(manager);
-
-    let app = Router::new()
-        .route("/graphql", get(graphql_playground).post(graphql_handler))
-        .layer(Extension(schema));
-
-    let listener = TcpListener::bind("127.0.0.1:9929").await.unwrap();
-    axum::serve(listener, app).await.unwrap();
+    let db = Database::connect("sqlite://tmp/annim.sqlite?mode=rwc").await?;
+    let db = &match db.get_database_backend() {
+        DbBackend::MySql | DbBackend::Postgres => {
+            unimplemented!()
+        }
+        DbBackend::Sqlite => db,
+    };
 
     Ok(())
 }
