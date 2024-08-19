@@ -1,11 +1,7 @@
-use std::{collections::HashMap, ops::Deref};
+use async_graphql::{Context, EmptyMutation, EmptySubscription, Enum, Object, Schema, ID};
+use sea_orm::{ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, QueryOrder};
 
-use async_graphql::{Context, EmptyMutation, EmptySubscription, Object, Schema};
-use sea_orm::{
-    ColumnTrait, Database, DatabaseConnection, EntityTrait, FromQueryResult, QueryFilter,
-};
-
-use crate::entities::album;
+use crate::entities::{album, disc, track};
 
 pub type AppSchema = Schema<MetadataQuery, EmptyMutation, EmptySubscription>;
 
@@ -15,106 +11,151 @@ pub fn build_schema(db: DatabaseConnection) -> AppSchema {
         .finish()
 }
 
-// struct AlbumInfo<'album>(&'album Album);
+struct AlbumInfo(album::Model);
 
-// #[Object]
-// impl<'album> AlbumInfo<'album> {
-//     async fn album_id(&self) -> String {
-//         self.0.album_id.to_string()
-//     }
+#[Object]
+impl AlbumInfo {
+    async fn id(&self) -> ID {
+        ID(self.0.id.to_string())
+    }
 
-//     async fn title(&self) -> &str {
-//         self.0.title_raw()
-//     }
+    /// Unique UUID of the album.
+    async fn album_id(&self) -> String {
+        self.0.album_id.to_string()
+    }
 
-//     async fn edition(&self) -> Option<&str> {
-//         self.0.edition()
-//     }
+    /// Title of the album.
+    async fn title(&self) -> &str {
+        self.0.title.as_str()
+    }
 
-//     async fn catalog(&self) -> &str {
-//         self.0.catalog()
-//     }
+    /// Optional edition of the album.
+    async fn edition(&self) -> Option<&str> {
+        self.0.edition.as_deref()
+    }
 
-//     async fn artist(&self) -> &str {
-//         self.0.artist()
-//     }
+    /// Optional catalog number of the album.
+    async fn catalog(&self) -> Option<&str> {
+        self.0.catalog.as_deref()
+    }
 
-//     async fn artists(&self) -> Option<&HashMap<String, String>> {
-//         self.0.artists.as_ref()
-//     }
+    /// Artist of the album.
+    async fn artist(&self) -> &str {
+        self.0.artist.as_str()
+    }
 
-//     #[graphql(name = "date")]
-//     async fn release_date(&self) -> String {
-//         self.0.release_date().to_string()
-//     }
+    /// Release year of the album.
+    #[graphql(name = "year")]
+    async fn release_year(&self) -> i32 {
+        self.0.release_year
+    }
 
-//     async fn tags(&self) -> Vec<TagInfo<'album>> {
-//         self.0.tags.iter().map(|t| TagInfo(t.deref())).collect()
-//     }
+    /// Optional release month of the album.
+    #[graphql(name = "month")]
+    async fn release_month(&self) -> Option<i16> {
+        self.0.release_month
+    }
 
-//     // we do not provide album type because it's useless
+    /// Optional release day of the album.
+    #[graphql(name = "day")]
+    async fn release_day(&self) -> Option<i16> {
+        self.0.release_day
+    }
 
-//     async fn discs(&self) -> Vec<DiscInfo> {
-//         self.0.iter().map(DiscInfo).collect()
-//     }
-// }
+    async fn discs<'ctx>(&self, ctx: &Context<'ctx>) -> anyhow::Result<Vec<DiscInfo>> {
+        let db = ctx.data::<DatabaseConnection>().unwrap();
+        let models = disc::Entity::find()
+            .filter(disc::Column::AlbumDbId.eq(self.0.id))
+            .order_by_asc(disc::Column::Index)
+            .all(db)
+            .await?;
+        Ok(models.into_iter().map(|model| DiscInfo(model)).collect())
+    }
+}
 
-// struct DiscInfo<'album>(DiscRef<'album>);
+struct DiscInfo(disc::Model);
 
-// #[Object]
-// impl<'album> DiscInfo<'album> {
-//     async fn title(&self) -> Option<&str> {
-//         self.0.title_raw()
-//     }
+#[Object]
+impl DiscInfo {
+    async fn id(&self) -> ID {
+        ID(self.0.id.to_string())
+    }
 
-//     async fn catalog(&self) -> &str {
-//         self.0.catalog()
-//     }
+    async fn index(&self) -> i32 {
+        self.0.index
+    }
 
-//     async fn artist(&self) -> Option<&str> {
-//         self.0.artist_raw()
-//     }
+    async fn title(&self) -> Option<&str> {
+        self.0.title.as_deref()
+    }
 
-//     async fn artists(&self) -> Option<&HashMap<String, String>> {
-//         self.0.artists()
-//     }
+    async fn catalog(&self) -> Option<&str> {
+        self.0.catalog.as_deref()
+    }
 
-//     async fn tags(&self) -> Vec<TagInfo> {
-//         self.0.tags_iter().map(TagInfo).collect()
-//     }
+    async fn artist(&self) -> Option<&str> {
+        self.0.artist.as_deref()
+    }
 
-//     // we do not provide disc type because it's useless
+    async fn tracks<'ctx>(&self, ctx: &Context<'ctx>) -> anyhow::Result<Vec<TrackInfo>> {
+        let db = ctx.data::<DatabaseConnection>().unwrap();
+        let models = track::Entity::find()
+            .filter(
+                track::Column::AlbumDbId
+                    .eq(self.0.album_db_id)
+                    .and(track::Column::DiscDbId.eq(self.0.id)),
+            )
+            .order_by_asc(track::Column::Index)
+            .all(db)
+            .await?;
+        Ok(models.into_iter().map(|model| TrackInfo(model)).collect())
+    }
+}
 
-//     async fn tracks<'disc>(&'disc self) -> Vec<TrackInfo<'album, 'disc>> {
-//         self.0.iter().map(TrackInfo).collect()
-//     }
-// }
+struct TrackInfo(track::Model);
 
-// struct TrackInfo<'album, 'disc>(TrackRef<'album, 'disc>);
+#[Object]
+impl TrackInfo {
+    async fn id(&self) -> ID {
+        ID(self.0.id.to_string())
+    }
 
-// #[Object]
-// impl TrackInfo<'_, '_> {
-//     async fn title(&self) -> &str {
-//         self.0.title()
-//     }
+    async fn index(&self) -> i32 {
+        self.0.index
+    }
 
-//     async fn artist(&self) -> &str {
-//         self.0.artist()
-//     }
+    async fn title(&self) -> &str {
+        self.0.title.as_str()
+    }
 
-//     #[graphql(name = "type")]
-//     async fn track_type(&self) -> &str {
-//         self.0.track_type().as_ref()
-//     }
+    async fn artist(&self) -> &str {
+        self.0.artist.as_str()
+    }
 
-//     async fn artists(&self) -> Option<&HashMap<String, String>> {
-//         self.0.artists()
-//     }
+    #[graphql(name = "type")]
+    async fn track_type(&self) -> TrackType {
+        match self.0.r#type.as_str() {
+            "normal" => TrackType::Normal,
+            "instrumental" => TrackType::Instrumental,
+            "absolute" => TrackType::Absolute,
+            "drama" => TrackType::Drama,
+            "radio" => TrackType::Radio,
+            "vocal" => TrackType::Vocal,
+            _ => TrackType::Unknown,
+        }
+    }
+}
 
-//     async fn tags(&self) -> Vec<TagInfo> {
-//         self.0.tags_iter().map(TagInfo).collect()
-//     }
-// }
+#[derive(Enum, Copy, Clone, Eq, PartialEq)]
+pub enum TrackType {
+    Normal,
+    Instrumental,
+    Absolute,
+    Drama,
+    Radio,
+    Vocal,
+    Unknown,
+}
 
 // struct TagInfo<'tag>(&'tag TagRef<'tag>);
 
@@ -176,12 +217,13 @@ impl MetadataQuery {
         &self,
         ctx: &Context<'ctx>,
         album_id: String,
-    ) -> anyhow::Result<Option<album::Model>> {
+    ) -> anyhow::Result<Option<AlbumInfo>> {
         let db = ctx.data::<DatabaseConnection>().unwrap();
-        Ok(album::Entity::find()
+        let model = album::Entity::find()
             .filter(album::Column::AlbumId.contains(album_id))
             .one(db)
-            .await?)
+            .await?;
+        Ok(model.map(|model| AlbumInfo(model)))
     }
 
     // async fn albums_by_tag<'ctx>(&self, ctx: &Context<'ctx>, tag: String) -> Vec<AlbumInfo<'ctx>> {

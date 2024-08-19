@@ -2,7 +2,7 @@
 
 use sea_orm::entity::prelude::*;
 
-#[derive(Clone, Debug, PartialEq, DeriveEntityModel, Eq, async_graphql :: SimpleObject)]
+#[derive(Clone, Debug, PartialEq, DeriveEntityModel, Eq)]
 #[sea_orm(table_name = "album")]
 pub struct Model {
     #[sea_orm(primary_key)]
@@ -39,11 +39,3 @@ impl Related<super::track::Entity> for Entity {
 }
 
 impl ActiveModelBehavior for ActiveModel {}
-
-#[derive(Copy, Clone, Debug, EnumIter, DeriveRelatedEntity)]
-pub enum RelatedEntity {
-    #[sea_orm(entity = "super::disc::Entity")]
-    Disc,
-    #[sea_orm(entity = "super::track::Entity")]
-    Track,
-}

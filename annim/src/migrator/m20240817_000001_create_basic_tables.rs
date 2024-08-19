@@ -43,7 +43,7 @@ impl MigrationTrait for Migration {
                     .col(annim_pk_auto(Disc::Id))
                     .col(annim_pk_foreign(Disc::AlbumDbId))
                     .col(integer(Disc::Index))
-                    .col(string(Disc::Title))
+                    .col(string_null(Disc::Title))
                     .col(string_null(Disc::Catalog))
                     .col(string_null(Disc::Artist))
                     .foreign_key(
@@ -64,6 +64,7 @@ impl MigrationTrait for Migration {
                     .col(annim_pk_auto(Track::Id))
                     .col(annim_pk_foreign(Track::AlbumDbId))
                     .col(annim_pk_foreign(Track::DiscDbId))
+                    .col(integer(Track::Index))
                     .col(string(Track::Title))
                     .col(string(Track::Artist))
                     .col(enumeration(
