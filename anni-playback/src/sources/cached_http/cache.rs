@@ -1,5 +1,7 @@
 use std::{
-    fs::{self, File}, io::{self, ErrorKind}, path::{Path, PathBuf}
+    fs::{self, File},
+    io::{self, ErrorKind},
+    path::{Path, PathBuf},
 };
 
 use crate::CODEC_REGISTRY;
@@ -26,7 +28,7 @@ impl CacheStore {
     /// Returns the path to given `track`
     pub fn loaction_of(&self, track: RawTrackIdentifier) -> PathBuf {
         let mut tmp = self.base.clone();
-        
+
         tmp.extend([
             track.album_id.as_ref(),
             &format!(
@@ -58,12 +60,15 @@ impl CacheStore {
 
         create_dir_all(path.parent().unwrap())?; // parent of `path` exists
 
-        File::options()
-            .read(true)
-            .append(true)
+        let _ = File::options()
+            .write(true)
+            .truncate(true)
             .create(true)
-            .open(path)
-            .map(|f| Err(f))
+            .open(&path)?; // truncate the file first to clear incorrect data
+
+        let f = File::options().read(true).append(true).open(path)?;
+
+        Ok(Err(f))
     }
 
     pub fn add(&self, path: &Path, track: RawTrackIdentifier) -> io::Result<()> {
