@@ -3,6 +3,7 @@ pub mod provider;
 
 use std::{
     fs::File,
+    hint::spin_loop,
     io::{ErrorKind, Read, Seek, Write},
     sync::{
         atomic::{AtomicBool, AtomicUsize, Ordering},
@@ -29,7 +30,7 @@ pub struct CachedHttpSource {
     identifier: TrackIdentifier,
     cache: File,
     buf_len: Arc<AtomicUsize>,
-    pos: Arc<AtomicUsize>,
+    pos: usize,
     is_buffering: Arc<AtomicBool>,
     #[allow(unused)]
     buffer_signal: Arc<AtomicBool>,
@@ -45,7 +46,7 @@ impl CachedHttpSource {
         client: Client,
         buffer_signal: Arc<AtomicBool>,
     ) -> Result<Self, OpenTrackError> {
-        let cache = match cache_store.acquire(identifier.inner.copied())? {
+        let (reader, writer) = match cache_store.acquire(identifier.inner.copied())? {
             Ok(cache) => {
                 let buf_len = cache.metadata()?.len() as usize;
 
@@ -53,7 +54,7 @@ impl CachedHttpSource {
                     identifier,
                     cache,
                     buf_len: Arc::new(AtomicUsize::new(buf_len)),
-                    pos: Arc::new(AtomicUsize::new(0)),
+                    pos: 0,
                     is_buffering: Arc::new(AtomicBool::new(false)),
                     buffer_signal,
                     duration: None,
@@ -64,16 +65,14 @@ impl CachedHttpSource {
 
         let buf_len = Arc::new(AtomicUsize::new(0));
         let is_buffering = Arc::new(AtomicBool::new(true));
-        let pos = Arc::new(AtomicUsize::new(0));
 
         let (url, duration) = url().ok_or(OpenTrackError::NoAvailableAnnil)?;
 
         log::debug!("got duration {duration:?}");
 
         thread::spawn({
-            let mut cache = cache.try_clone()?;
+            let mut cache = writer;
             let buf_len = Arc::clone(&buf_len);
-            let pos = Arc::clone(&pos);
             let mut buf = [0; BUF_SIZE];
             let is_buffering = Arc::clone(&is_buffering);
             let identifier = identifier.clone();
@@ -83,6 +82,7 @@ impl CachedHttpSource {
                     Ok(r) => r,
                     Err(e) => {
                         log::error!("failed to send request: {e}");
+                        is_buffering.store(false, Ordering::Release);
                         return;
                     }
                 };
@@ -90,38 +90,37 @@ impl CachedHttpSource {
                 loop {
                     match response.read(&mut buf) {
                         Ok(0) => {
-                            is_buffering.store(false, Ordering::Release);
                             log::info!("{identifier} reached eof");
                             break;
                         }
                         Ok(n) => {
-                            let pos = pos.load(Ordering::Acquire);
                             if let Err(e) = cache.write_all(&buf[..n]) {
-                                log::error!("{e}")
+                                log::error!("{e}");
+                                break;
                             }
 
-                            log::trace!("wrote {n} bytes to {identifier}");
-
-                            let _ = cache.seek(std::io::SeekFrom::Start(pos as u64));
                             let _ = cache.flush();
-
                             buf_len.fetch_add(n, Ordering::AcqRel);
+
+                            log::trace!("wrote {n} bytes to {identifier}");
                         }
                         Err(e) if e.kind() == ErrorKind::Interrupted => {}
                         Err(e) => {
                             log::error!("{e}");
-                            is_buffering.store(false, Ordering::Release);
+                            break;
                         }
                     }
                 }
+
+                is_buffering.store(false, Ordering::Release);
             }
         });
 
         Ok(Self {
             identifier,
-            cache,
+            cache: reader,
             buf_len,
-            pos,
+            pos: 0,
             is_buffering,
             buffer_signal,
             duration,
@@ -131,25 +130,25 @@ impl CachedHttpSource {
 
 impl Read for CachedHttpSource {
     fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
-        // let n = self.cache.read(buf)?;
-        // self.pos.fetch_add(n, Ordering::AcqRel);
-        // log::trace!("read {n} bytes");
-        // Ok(n)
-
+        // A naive spin loop that waits until we have more data to read.
         loop {
-            let has_buf = self.buf_len.load(Ordering::Acquire) > self.pos.load(Ordering::Acquire);
             let is_buffering = self.is_buffering.load(Ordering::Acquire);
+            let buf_len = self.buf_len.load(Ordering::Acquire);
+            let has_buf = buf_len > self.pos;
 
             if has_buf {
-                let n = self.cache.read(buf)?;
+                let n = <File as Read>::by_ref(&mut self.cache)
+                    .take((buf_len - self.pos) as u64)
+                    .read(buf)?; // ensure not exceeding the buffer
+
                 log::trace!("read {n} bytes from {}", self.identifier);
-                if n == 0 {
-                    continue;
-                }
-                self.pos.fetch_add(n, Ordering::AcqRel);
+
+                self.pos += n;
                 break Ok(n);
             } else if !is_buffering {
                 break Ok(0);
+            } else {
+                spin_loop();
             }
         }
     }
@@ -158,14 +157,14 @@ impl Read for CachedHttpSource {
 impl Seek for CachedHttpSource {
     fn seek(&mut self, pos: std::io::SeekFrom) -> std::io::Result<u64> {
         let p = self.cache.seek(pos)?;
-        self.pos.store(p as usize, Ordering::Release);
+        self.pos += p as usize;
         Ok(p)
     }
 }
 
 impl MediaSource for CachedHttpSource {
     fn is_seekable(&self) -> bool {
-        !self.is_buffering.load(Ordering::Relaxed)
+        !self.is_buffering.load(Ordering::Acquire)
     }
 
     fn byte_len(&self) -> Option<u64> {
