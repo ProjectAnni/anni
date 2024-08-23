@@ -1,5 +1,7 @@
 use std::{
-    fs::{self, File}, io::{self, ErrorKind}, path::{Path, PathBuf}
+    fs::{self, File},
+    io::{self, ErrorKind},
+    path::{Path, PathBuf},
 };
 
 use crate::CODEC_REGISTRY;
@@ -26,7 +28,7 @@ impl CacheStore {
     /// Returns the path to given `track`
     pub fn loaction_of(&self, track: RawTrackIdentifier) -> PathBuf {
         let mut tmp = self.base.clone();
-        
+
         tmp.extend([
             track.album_id.as_ref(),
             &format!(
@@ -40,12 +42,13 @@ impl CacheStore {
 
     /// Attempts to open a cache file corresponding to `track` and validates it.
     ///
-    /// On success, returns a `Result<File, File>`.
+    /// On success, returns a `Result<File, (File, File)>`.
     /// If the cache exists and is valid, opens it in read mode and returns an `Ok(_)`.
-    /// Otherwise, opens or creates a cache file in append mode and returns an `Err(_)`.
+    /// Otherwise, creates or truncates a cache file, opens it in read mode as a `reader`
+    /// and append mode as a `writer`, and returns an `Err((reader, writer))`
     ///
     /// On error, an [`Error`](std::io::Error) is returned.
-    pub fn acquire(&self, track: RawTrackIdentifier) -> io::Result<Result<File, File>> {
+    pub fn acquire(&self, track: RawTrackIdentifier) -> io::Result<Result<File, (File, File)>> {
         let path = self.loaction_of(track.copied());
 
         if path.exists() {
@@ -58,12 +61,16 @@ impl CacheStore {
 
         create_dir_all(path.parent().unwrap())?; // parent of `path` exists
 
-        File::options()
-            .read(true)
-            .append(true)
+        let _ = File::options()
+            .write(true)
+            .truncate(true)
             .create(true)
-            .open(path)
-            .map(|f| Err(f))
+            .open(&path)?; // truncate the file first to clear incorrect data
+
+        let reader = File::options().read(true).open(&path)?;
+        let writer = File::options().append(true).open(path)?;
+
+        Ok(Err((reader, writer)))
     }
 
     pub fn add(&self, path: &Path, track: RawTrackIdentifier) -> io::Result<()> {
