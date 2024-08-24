@@ -1,7 +1,7 @@
 use sea_orm::{EnumIter, Iterable};
 use sea_orm_migration::{prelude::*, schema::*};
 
-use super::helper::{annim_pk_auto, annim_pk_foreign};
+use super::helper::pk_foreign;
 
 pub struct Migration;
 
@@ -19,7 +19,7 @@ impl MigrationTrait for Migration {
             .create_table(
                 Table::create()
                     .table(Album::Table)
-                    .col(annim_pk_auto(Album::Id))
+                    .col(pk_auto(Album::Id))
                     .col(uuid_uniq(Album::AlbumId))
                     .col(string(Album::Title))
                     .col(string_null(Album::Edition))
@@ -40,8 +40,8 @@ impl MigrationTrait for Migration {
             .create_table(
                 Table::create()
                     .table(Disc::Table)
-                    .col(annim_pk_auto(Disc::Id))
-                    .col(annim_pk_foreign(Disc::AlbumDbId))
+                    .col(pk_auto(Disc::Id))
+                    .col(pk_foreign(Disc::AlbumDbId))
                     .col(integer(Disc::Index))
                     .col(string_null(Disc::Title))
                     .col(string_null(Disc::Catalog))
@@ -61,9 +61,9 @@ impl MigrationTrait for Migration {
             .create_table(
                 Table::create()
                     .table(Track::Table)
-                    .col(annim_pk_auto(Track::Id))
-                    .col(annim_pk_foreign(Track::AlbumDbId))
-                    .col(annim_pk_foreign(Track::DiscDbId))
+                    .col(pk_auto(Track::Id))
+                    .col(pk_foreign(Track::AlbumDbId))
+                    .col(pk_foreign(Track::DiscDbId))
                     .col(integer(Track::Index))
                     .col(string(Track::Title))
                     .col(string(Track::Artist))

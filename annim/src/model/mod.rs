@@ -1,9 +1,11 @@
 mod input;
 
+use std::str::FromStr;
+
 use async_graphql::{Context, EmptySubscription, Enum, Object, Schema, ID};
 use sea_orm::{
     prelude::Uuid, ActiveModelTrait, ActiveValue, ColumnTrait, DatabaseConnection, EntityTrait,
-    QueryFilter, QueryOrder,
+    QueryFilter, QueryOrder, TransactionTrait,
 };
 
 use crate::entities::{album, disc, track};
@@ -18,7 +20,7 @@ pub fn build_schema(db: DatabaseConnection) -> AppSchema {
 
 struct AlbumInfo(album::Model);
 
-#[Object]
+#[Object(name = "Album")]
 impl AlbumInfo {
     async fn id(&self) -> ID {
         ID(self.0.id.to_string())
@@ -67,6 +69,7 @@ impl AlbumInfo {
         self.0.release_day
     }
 
+    /// Discs of the album.
     async fn discs<'ctx>(&self, ctx: &Context<'ctx>) -> anyhow::Result<Vec<DiscInfo>> {
         let db = ctx.data::<DatabaseConnection>().unwrap();
         let models = disc::Entity::find()
@@ -80,7 +83,7 @@ impl AlbumInfo {
 
 struct DiscInfo(disc::Model);
 
-#[Object]
+#[Object(name = "Disc")]
 impl DiscInfo {
     async fn id(&self) -> ID {
         ID(self.0.id.to_string())
@@ -119,7 +122,7 @@ impl DiscInfo {
 
 struct TrackInfo(track::Model);
 
-#[Object]
+#[Object(name = "Track")]
 impl TrackInfo {
     async fn id(&self) -> ID {
         ID(self.0.id.to_string())
@@ -139,15 +142,7 @@ impl TrackInfo {
 
     #[graphql(name = "type")]
     async fn track_type(&self) -> TrackType {
-        match self.0.r#type.as_str() {
-            "normal" => TrackType::Normal,
-            "instrumental" => TrackType::Instrumental,
-            "absolute" => TrackType::Absolute,
-            "drama" => TrackType::Drama,
-            "radio" => TrackType::Radio,
-            "vocal" => TrackType::Vocal,
-            _ => TrackType::Unknown,
-        }
+        TrackType::from_str(self.0.r#type.as_str()).unwrap()
     }
 }
 
@@ -160,6 +155,36 @@ pub enum TrackType {
     Radio,
     Vocal,
     Unknown,
+}
+
+impl ToString for TrackType {
+    fn to_string(&self) -> String {
+        match self {
+            TrackType::Normal => "normal".to_string(),
+            TrackType::Instrumental => "instrumental".to_string(),
+            TrackType::Absolute => "absolute".to_string(),
+            TrackType::Drama => "drama".to_string(),
+            TrackType::Radio => "radio".to_string(),
+            TrackType::Vocal => "vocal".to_string(),
+            TrackType::Unknown => "unknown".to_string(),
+        }
+    }
+}
+
+impl FromStr for TrackType {
+    type Err = ();
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "normal" => Ok(TrackType::Normal),
+            "instrumental" => Ok(TrackType::Instrumental),
+            "absolute" => Ok(TrackType::Absolute),
+            "drama" => Ok(TrackType::Drama),
+            "radio" => Ok(TrackType::Radio),
+            "vocal" => Ok(TrackType::Vocal),
+            _ => Ok(TrackType::Unknown),
+        }
+    }
 }
 
 // struct TagInfo<'tag>(&'tag TagRef<'tag>);
@@ -253,9 +278,11 @@ impl MetadataMutation {
     async fn create_album<'ctx>(
         &self,
         ctx: &Context<'ctx>,
-        input: input::CreateAlbumInfoInput,
+        input: input::CreateAlbumInput,
     ) -> anyhow::Result<AlbumInfo> {
         let db = ctx.data::<DatabaseConnection>().unwrap();
+
+        let txn = db.begin().await?;
         let album = album::ActiveModel {
             album_id: ActiveValue::set(input.album_id.unwrap_or_else(|| Uuid::new_v4())),
             title: ActiveValue::set(input.title),
@@ -267,8 +294,39 @@ impl MetadataMutation {
             release_day: ActiveValue::set(input.release_day),
             ..Default::default()
         };
-        let model = album.insert(db).await?;
-        Ok(AlbumInfo(model))
+        let album = album.insert(&txn).await?;
+
+        // insert discs
+        let album_db_id = album.id;
+        for (index, input) in input.discs.into_iter().enumerate() {
+            let disc = disc::ActiveModel {
+                album_db_id: ActiveValue::set(album_db_id),
+                index: ActiveValue::set(index as i32),
+                title: ActiveValue::set(input.title),
+                catalog: ActiveValue::set(input.catalog),
+                artist: ActiveValue::set(input.artist),
+                ..Default::default()
+            };
+            let disc = disc.insert(&txn).await?;
+
+            // insert tracks
+            let disc_db_id = disc.id;
+            for (index, input) in input.tracks.into_iter().enumerate() {
+                let track = track::ActiveModel {
+                    album_db_id: ActiveValue::set(album_db_id),
+                    disc_db_id: ActiveValue::set(disc_db_id),
+                    index: ActiveValue::set(index as i32),
+                    title: ActiveValue::set(input.title),
+                    artist: ActiveValue::set(input.artist),
+                    r#type: ActiveValue::set(input.r#type.to_string()),
+                    ..Default::default()
+                };
+                track.insert(&txn).await?;
+            }
+        }
+
+        txn.commit().await?;
+        Ok(AlbumInfo(album))
     }
 
     async fn update_album<'ctx>(
@@ -295,7 +353,7 @@ impl MetadataMutation {
         .unwrap();
 
         let album: album::ActiveModel = model.into();
-        let album = input.apply(album).update(db).await?;
+        let album = input.update(album, db).await?;
 
         Ok(Some(AlbumInfo(album)))
     }
