@@ -3,20 +3,14 @@
 use sea_orm::entity::prelude::*;
 
 #[derive(Clone, Debug, PartialEq, DeriveEntityModel, Eq)]
-#[sea_orm(table_name = "track")]
+#[sea_orm(table_name = "album_tag_relation")]
 pub struct Model {
     #[sea_orm(primary_key)]
     pub id: i32,
+    pub tag_db_id: i32,
     pub album_db_id: i32,
     pub disc_db_id: i32,
-    pub index: i32,
-    pub title: String,
-    pub artist: String,
-    pub artists: Option<Json>,
-    pub created_at: DateTimeUtc,
-    pub updated_at: DateTimeUtc,
-    #[sea_orm(column_type = "custom(\"enum_text\")")]
-    pub r#type: String,
+    pub track_db_id: i32,
 }
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
@@ -29,8 +23,6 @@ pub enum Relation {
         on_delete = "NoAction"
     )]
     Album,
-    #[sea_orm(has_many = "super::album_tag_relation::Entity")]
-    AlbumTagRelation,
     #[sea_orm(
         belongs_to = "super::disc::Entity",
         from = "Column::DiscDbId",
@@ -39,6 +31,22 @@ pub enum Relation {
         on_delete = "NoAction"
     )]
     Disc,
+    #[sea_orm(
+        belongs_to = "super::tag_info::Entity",
+        from = "Column::TagDbId",
+        to = "super::tag_info::Column::Id",
+        on_update = "NoAction",
+        on_delete = "NoAction"
+    )]
+    TagInfo,
+    #[sea_orm(
+        belongs_to = "super::track::Entity",
+        from = "Column::TrackDbId",
+        to = "super::track::Column::Id",
+        on_update = "NoAction",
+        on_delete = "NoAction"
+    )]
+    Track,
 }
 
 impl Related<super::album::Entity> for Entity {
@@ -47,15 +55,21 @@ impl Related<super::album::Entity> for Entity {
     }
 }
 
-impl Related<super::album_tag_relation::Entity> for Entity {
-    fn to() -> RelationDef {
-        Relation::AlbumTagRelation.def()
-    }
-}
-
 impl Related<super::disc::Entity> for Entity {
     fn to() -> RelationDef {
         Relation::Disc.def()
+    }
+}
+
+impl Related<super::tag_info::Entity> for Entity {
+    fn to() -> RelationDef {
+        Relation::TagInfo.def()
+    }
+}
+
+impl Related<super::track::Entity> for Entity {
+    fn to() -> RelationDef {
+        Relation::Track.def()
     }
 }
 

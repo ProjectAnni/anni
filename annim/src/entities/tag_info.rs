@@ -3,21 +3,13 @@
 use sea_orm::entity::prelude::*;
 
 #[derive(Clone, Debug, PartialEq, DeriveEntityModel, Eq)]
-#[sea_orm(table_name = "album")]
+#[sea_orm(table_name = "tag_info")]
 pub struct Model {
     #[sea_orm(primary_key)]
     pub id: i32,
-    #[sea_orm(unique)]
-    pub album_id: Uuid,
-    pub title: String,
-    pub edition: Option<String>,
-    pub catalog: Option<String>,
-    pub artist: String,
-    pub release_year: i32,
-    pub release_month: Option<i16>,
-    pub release_day: Option<i16>,
+    pub name: String,
     #[sea_orm(column_type = "custom(\"enum_text\")")]
-    pub level: String,
+    pub r#type: String,
     pub created_at: DateTimeUtc,
     pub updated_at: DateTimeUtc,
 }
@@ -26,27 +18,11 @@ pub struct Model {
 pub enum Relation {
     #[sea_orm(has_many = "super::album_tag_relation::Entity")]
     AlbumTagRelation,
-    #[sea_orm(has_many = "super::disc::Entity")]
-    Disc,
-    #[sea_orm(has_many = "super::track::Entity")]
-    Track,
 }
 
 impl Related<super::album_tag_relation::Entity> for Entity {
     fn to() -> RelationDef {
         Relation::AlbumTagRelation.def()
-    }
-}
-
-impl Related<super::disc::Entity> for Entity {
-    fn to() -> RelationDef {
-        Relation::Disc.def()
-    }
-}
-
-impl Related<super::track::Entity> for Entity {
-    fn to() -> RelationDef {
-        Relation::Track.def()
     }
 }
 

@@ -26,6 +26,8 @@ pub enum Relation {
         on_delete = "NoAction"
     )]
     Album,
+    #[sea_orm(has_many = "super::album_tag_relation::Entity")]
+    AlbumTagRelation,
     #[sea_orm(has_many = "super::track::Entity")]
     Track,
 }
@@ -33,6 +35,12 @@ pub enum Relation {
 impl Related<super::album::Entity> for Entity {
     fn to() -> RelationDef {
         Relation::Album.def()
+    }
+}
+
+impl Related<super::album_tag_relation::Entity> for Entity {
+    fn to() -> RelationDef {
+        Relation::AlbumTagRelation.def()
     }
 }
 
