@@ -206,6 +206,23 @@ pub struct UpdateAlbumOrganizeLevelInput {
     pub level: MetadataOrganizeLevel,
 }
 
+/// List albums by conditions.
+#[derive(OneofObject)]
+pub enum AlbumsBy {
+    /// Get albums by their AlbumIDs.
+    AlbumIds(Vec<Uuid>),
+    /// Get albums recently added to the database.
+    RecentlyCreated(u64 /* LIMIT */),
+    /// Get albums recently updated in the database.
+    RecentlyUpdated(u64 /* LIMIT */),
+    /// Get albums recently released.
+    RecentlyReleased(u64 /* LIMIT */),
+    /// Search albums by keyword.
+    Keyword(String),
+    /// Get albums of certain organize level.
+    OrganizeLevel(MetadataOrganizeLevel),
+}
+
 pub type UpdateString = UpdateValue<String>;
 pub type UpdateI16 = UpdateValue<i16>;
 pub type UpdateJson = UpdateValue<serde_json::Value>;
