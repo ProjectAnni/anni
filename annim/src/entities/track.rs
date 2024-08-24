@@ -12,6 +12,7 @@ pub struct Model {
     pub index: i32,
     pub title: String,
     pub artist: String,
+    pub artists: Json,
     #[sea_orm(column_type = "custom(\"enum_text\")")]
     pub r#type: String,
 }

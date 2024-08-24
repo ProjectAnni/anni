@@ -25,12 +25,12 @@ macro_rules! may_update_optional {
 
 #[derive(OneofObject)]
 pub enum UpsertAlbumInfoInput {
-    Insert(CreateAlbumInput),
+    Insert(AddAlbumInput),
     Update(UpdateAlbumInfoInput),
 }
 
 #[derive(InputObject)]
-pub struct CreateAlbumInput {
+pub struct AddAlbumInput {
     pub album_id: Option<Uuid>,
     pub title: String,
     pub edition: Option<String>,

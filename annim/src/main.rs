@@ -1,4 +1,4 @@
-use async_graphql::http::{playground_source, GraphQLPlaygroundConfig};
+use async_graphql::http::graphiql_source;
 use async_graphql_axum::GraphQL;
 use axum::{
     http::Method,
@@ -30,7 +30,7 @@ lazy_static! {
 }
 
 async fn graphql_playground() -> impl IntoResponse {
-    response::Html(playground_source(GraphQLPlaygroundConfig::new(&*ENDPOINT)))
+    response::Html(graphiql_source(&*ENDPOINT, None))
 }
 
 #[tokio::main]

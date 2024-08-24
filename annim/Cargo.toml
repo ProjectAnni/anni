@@ -17,6 +17,8 @@ async-graphql = { version = "7.0.0", features = [
     "chrono",
     "dataloader",
     "dynamic-schema",
+    "graphiql",
+    "raw_value",
 ] }
 async-graphql-axum = "7.0.0"
 sea-orm = { version = "1.0.0", features = [
@@ -37,6 +39,7 @@ dotenv = "0.15.0"
 tracing = { version = "0.1.37" }
 tracing-subscriber = { version = "0.3.17" }
 lazy_static = { version = "1.4.0" }
+serde_json = "1.0"
 
 [dependencies.seaography]
 version = "~1.0.0"                         # seaography version

@@ -67,6 +67,7 @@ impl MigrationTrait for Migration {
                     .col(integer(Track::Index))
                     .col(string(Track::Title))
                     .col(string(Track::Artist))
+                    .col(json(Track::Artists))
                     .col(enumeration(
                         Track::Type,
                         Alias::new("type"),
@@ -179,6 +180,8 @@ pub enum Track {
     Index,
     Title,
     Artist,
+    /// Additonal artist(s) on the track
+    Artists,
     Type,
 }
 

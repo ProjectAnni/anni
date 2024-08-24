@@ -140,6 +140,10 @@ impl TrackInfo {
         self.0.artist.as_str()
     }
 
+    async fn artists(&self) -> &serde_json::Value {
+        &self.0.artists
+    }
+
     #[graphql(name = "type")]
     async fn track_type(&self) -> TrackType {
         TrackType::from_str(self.0.r#type.as_str()).unwrap()
@@ -275,10 +279,11 @@ pub struct MetadataMutation;
 
 #[Object]
 impl MetadataMutation {
-    async fn create_album<'ctx>(
+    /// Add the metatada of a full album to annim.
+    async fn add_album<'ctx>(
         &self,
         ctx: &Context<'ctx>,
-        input: input::CreateAlbumInput,
+        input: input::AddAlbumInput,
     ) -> anyhow::Result<AlbumInfo> {
         let db = ctx.data::<DatabaseConnection>().unwrap();
 
