@@ -20,6 +20,7 @@ pub struct Model {
     pub level: String,
     pub created_at: DateTimeUtc,
     pub updated_at: DateTimeUtc,
+    pub extra: Option<Json>,
 }
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]

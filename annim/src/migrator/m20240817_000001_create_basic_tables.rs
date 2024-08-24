@@ -41,6 +41,7 @@ impl MigrationTrait for Migration {
                     )
                     .col(timestamp(Album::CreatedAt).default(Expr::current_timestamp()))
                     .col(timestamp(Album::UpdatedAt).default(Expr::current_timestamp()))
+                    .col(json_null(Album::Extra))
                     .to_owned(),
             )
             .await?;
@@ -172,6 +173,7 @@ pub enum Album {
     // Metadata
     CreatedAt,
     UpdatedAt,
+    Extra,
 }
 
 #[derive(Iden)]

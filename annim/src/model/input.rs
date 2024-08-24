@@ -22,12 +22,6 @@ macro_rules! may_update_optional {
     };
 }
 
-#[derive(OneofObject)]
-pub enum UpsertAlbumInfoInput {
-    Insert(AddAlbumInput),
-    Update(UpdateAlbumInfoInput),
-}
-
 #[derive(InputObject)]
 pub struct AddAlbumInput {
     pub album_id: Option<Uuid>,
@@ -41,6 +35,7 @@ pub struct AddAlbumInput {
     pub release_month: Option<i16>,
     #[graphql(name = "day")]
     pub release_day: Option<i16>,
+    pub extra: serde_json::Value,
     pub discs: Vec<CreateAlbumDiscInput>,
 }
 
@@ -120,6 +115,7 @@ pub struct UpdateAlbumInfoInput {
     pub release_month: Option<UpdateI16>,
     #[graphql(name = "day")]
     pub release_day: Option<UpdateI16>,
+    pub extra: Option<UpdateJson>,
 }
 
 impl UpdateAlbumInfoInput {
@@ -135,6 +131,7 @@ impl UpdateAlbumInfoInput {
         may_update_required!(self, model, release_year);
         may_update_optional!(self, model, release_month);
         may_update_optional!(self, model, release_day);
+        may_update_optional!(self, model, extra);
 
         model.updated_at = ActiveValue::set(chrono::Utc::now());
         model.update(db).await
@@ -211,11 +208,13 @@ pub struct UpdateAlbumOrganizeLevelInput {
 
 pub type UpdateString = UpdateValue<String>;
 pub type UpdateI16 = UpdateValue<i16>;
+pub type UpdateJson = UpdateValue<serde_json::Value>;
 
 #[derive(InputObject)]
 #[graphql(concrete(name = "UpdateString", params(String)))]
 #[graphql(concrete(name = "UpdateI32", params(i32)))]
 #[graphql(concrete(name = "UpdateI16", params(i16)))]
+#[graphql(concrete(name = "UpdateJson", params(serde_json::Value)))]
 pub struct UpdateValue<T: InputType> {
     value: Option<T>,
 }

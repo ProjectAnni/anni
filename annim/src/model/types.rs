@@ -75,6 +75,11 @@ impl AlbumInfo {
         MetadataOrganizeLevel::from_str(&self.0.level).unwrap()
     }
 
+    /// Extra metadata of the album.
+    async fn extra(&self) -> Option<&serde_json::Value> {
+        self.0.extra.as_ref()
+    }
+
     /// Discs of the album.
     async fn discs<'ctx>(&self, ctx: &Context<'ctx>) -> anyhow::Result<Vec<DiscInfo>> {
         let db = ctx.data::<DatabaseConnection>().unwrap();
