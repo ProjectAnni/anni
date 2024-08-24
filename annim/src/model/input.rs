@@ -1,7 +1,9 @@
 use async_graphql::{InputObject, InputType, OneofObject, ID};
-use sea_orm::{prelude::Uuid, ActiveModelTrait, DatabaseConnection, DbErr};
+use sea_orm::{
+    prelude::Uuid, ActiveModelTrait, ActiveValue, ConnectionTrait, DatabaseConnection, DbErr,
+};
 
-use crate::entities::album;
+use crate::entities::{album, disc, track};
 
 use super::TrackType;
 
@@ -51,6 +53,31 @@ pub struct CreateAlbumDiscInput {
     pub tracks: Vec<CreateAlbumTrackInput>,
 }
 
+impl CreateAlbumDiscInput {
+    pub(crate) async fn insert<C: ConnectionTrait>(
+        self,
+        txn: &C,
+        album_db_id: i32,
+        index: i32,
+    ) -> anyhow::Result<disc::Model> {
+        let disc = disc::ActiveModel {
+            album_db_id: ActiveValue::set(album_db_id),
+            index: ActiveValue::set(index),
+            title: ActiveValue::set(self.title),
+            catalog: ActiveValue::set(self.catalog),
+            artist: ActiveValue::set(self.artist),
+            ..Default::default()
+        };
+        let disc = disc.insert(txn).await?;
+
+        let disc_db_id = disc.id;
+        for (i, track) in self.tracks.into_iter().enumerate() {
+            track.insert(txn, album_db_id, disc_db_id, i as i32).await?;
+        }
+        Ok(disc)
+    }
+}
+
 #[derive(InputObject)]
 pub struct CreateAlbumTrackInput {
     pub title: String,
@@ -58,11 +85,31 @@ pub struct CreateAlbumTrackInput {
     pub r#type: TrackType,
 }
 
+impl CreateAlbumTrackInput {
+    pub(crate) async fn insert<C: ConnectionTrait>(
+        self,
+        txn: &C,
+        album_db_id: i32,
+        disc_db_id: i32,
+        index: i32,
+    ) -> anyhow::Result<track::Model> {
+        let track = track::ActiveModel {
+            album_db_id: ActiveValue::set(album_db_id),
+            disc_db_id: ActiveValue::set(disc_db_id),
+            index: ActiveValue::set(index),
+            title: ActiveValue::set(self.title),
+            artist: ActiveValue::set(self.artist),
+            r#type: ActiveValue::set(self.r#type.to_string()),
+            ..Default::default()
+        };
+        let track = track.insert(txn).await?;
+        Ok(track)
+    }
+}
+
 #[derive(InputObject)]
 pub struct UpdateAlbumInfoInput {
-    // IDs can not be modified. They are used to identify the record.
-    pub id: Option<ID>,
-    pub album_id: Option<Uuid>,
+    pub id: ID,
 
     pub title: Option<String>,
     pub edition: Option<UpdateString>,
@@ -94,19 +141,65 @@ impl UpdateAlbumInfoInput {
     }
 }
 
-// impl CreateAlbumDiscInput {
-//     pub(crate) async fn update(
-//         self,
-//         mut model: disc::ActiveModel,
-//         db: &DatabaseConnection,
-//     ) -> Result<disc::Model, DbErr> {
-//         may_update_optional!(self, model, title);
-//         may_update_optional!(self, model, catalog);
-//         may_update_optional!(self, model, artist);
+#[derive(InputObject)]
+pub struct UpdateDiscInfoInput {
+    pub id: ID,
 
-//         model.update(db).await
-//     }
-// }
+    pub title: Option<UpdateString>,
+    pub catalog: Option<UpdateString>,
+    pub artist: Option<UpdateString>,
+}
+
+impl UpdateDiscInfoInput {
+    pub(crate) async fn update(
+        self,
+        mut model: disc::ActiveModel,
+        db: &DatabaseConnection,
+    ) -> Result<disc::Model, DbErr> {
+        may_update_optional!(self, model, title);
+        may_update_optional!(self, model, catalog);
+        may_update_optional!(self, model, artist);
+
+        model.update(db).await
+    }
+}
+
+#[derive(InputObject)]
+pub struct UpdateTrackInfoInput {
+    pub id: ID,
+
+    pub title: Option<String>,
+    pub artist: Option<String>,
+    pub r#type: Option<TrackType>,
+}
+
+impl UpdateTrackInfoInput {
+    pub(crate) async fn update(
+        self,
+        mut model: track::ActiveModel,
+        db: &DatabaseConnection,
+    ) -> Result<track::Model, DbErr> {
+        may_update_required!(self, model, title);
+        may_update_required!(self, model, artist);
+        if let Some(r#type) = self.r#type {
+            model.r#type = sea_orm::ActiveValue::set(r#type.to_string());
+        }
+
+        model.update(db).await
+    }
+}
+
+#[derive(InputObject)]
+pub struct ReplaceAlbumDiscsInput {
+    pub id: ID,
+    pub discs: Vec<CreateAlbumDiscInput>,
+}
+
+#[derive(InputObject)]
+pub struct ReplaceDiscTracksInput {
+    pub id: ID,
+    pub tracks: Vec<CreateAlbumTrackInput>,
+}
 
 pub type UpdateString = UpdateValue<String>;
 pub type UpdateI16 = UpdateValue<i16>;

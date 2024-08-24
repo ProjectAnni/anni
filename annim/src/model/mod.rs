@@ -299,62 +299,154 @@ impl MetadataMutation {
         // insert discs
         let album_db_id = album.id;
         for (index, input) in input.discs.into_iter().enumerate() {
-            let disc = disc::ActiveModel {
-                album_db_id: ActiveValue::set(album_db_id),
-                index: ActiveValue::set(index as i32),
-                title: ActiveValue::set(input.title),
-                catalog: ActiveValue::set(input.catalog),
-                artist: ActiveValue::set(input.artist),
-                ..Default::default()
-            };
-            let disc = disc.insert(&txn).await?;
-
-            // insert tracks
-            let disc_db_id = disc.id;
-            for (index, input) in input.tracks.into_iter().enumerate() {
-                let track = track::ActiveModel {
-                    album_db_id: ActiveValue::set(album_db_id),
-                    disc_db_id: ActiveValue::set(disc_db_id),
-                    index: ActiveValue::set(index as i32),
-                    title: ActiveValue::set(input.title),
-                    artist: ActiveValue::set(input.artist),
-                    r#type: ActiveValue::set(input.r#type.to_string()),
-                    ..Default::default()
-                };
-                track.insert(&txn).await?;
-            }
+            input.insert(&txn, album_db_id, index as i32).await?;
         }
 
         txn.commit().await?;
         Ok(AlbumInfo(album))
     }
 
-    async fn update_album<'ctx>(
+    /// Update basic album information.
+    /// Use this method to update basic album information such as title, artist and others.
+    ///
+    /// If you need to update disc or track information, use [updateDiscInfo] or [updateTrackInfo].
+    /// If you need to change the structure of the album, use [replaceAlbumDiscs] or [replaceDiscTracks].
+    async fn update_album_info<'ctx>(
         &self,
         ctx: &Context<'ctx>,
         input: input::UpdateAlbumInfoInput,
     ) -> anyhow::Result<Option<AlbumInfo>> {
         let db = ctx.data::<DatabaseConnection>().unwrap();
-        let model = match (&input.id, input.album_id) {
-            (Some(id), None) => {
-                album::Entity::find()
-                    .filter(album::Column::Id.eq(id.parse::<i32>()?))
-                    .one(db)
-                    .await?
-            }
-            (None, Some(album_id)) => {
-                album::Entity::find()
-                    .filter(album::Column::AlbumId.eq(album_id))
-                    .one(db)
-                    .await?
-            }
-            _ => return Ok(None),
-        }
-        .unwrap();
+        let Some(model) = album::Entity::find()
+            .filter(album::Column::Id.eq(input.id.parse::<i32>()?))
+            .one(db)
+            .await?
+        else {
+            return Ok(None);
+        };
 
         let album: album::ActiveModel = model.into();
         let album = input.update(album, db).await?;
 
         Ok(Some(AlbumInfo(album)))
+    }
+
+    /// Update basic disc information.
+    async fn update_disc_info<'ctx>(
+        &self,
+        ctx: &Context<'ctx>,
+        input: input::UpdateDiscInfoInput,
+    ) -> anyhow::Result<Option<DiscInfo>> {
+        let db = ctx.data::<DatabaseConnection>().unwrap();
+        let Some(model) = disc::Entity::find()
+            .filter(disc::Column::Id.eq(input.id.parse::<i32>()?))
+            .one(db)
+            .await?
+        else {
+            return Ok(None);
+        };
+
+        let disc: disc::ActiveModel = model.into();
+        let disc = input.update(disc, db).await?;
+
+        Ok(Some(DiscInfo(disc)))
+    }
+
+    /// Update basic track information.
+    async fn update_track_info<'ctx>(
+        &self,
+        ctx: &Context<'ctx>,
+        input: input::UpdateTrackInfoInput,
+    ) -> anyhow::Result<Option<TrackInfo>> {
+        let db = ctx.data::<DatabaseConnection>().unwrap();
+        let Some(model) = track::Entity::find()
+            .filter(track::Column::Id.eq(input.id.parse::<i32>()?))
+            .one(db)
+            .await?
+        else {
+            return Ok(None);
+        };
+
+        let track: track::ActiveModel = model.into();
+        let track = input.update(track, db).await?;
+
+        Ok(Some(TrackInfo(track)))
+    }
+
+    /// Replace discs of an album.
+    async fn replace_album_discs<'ctx>(
+        &self,
+        ctx: &Context<'ctx>,
+        input: input::ReplaceAlbumDiscsInput,
+    ) -> anyhow::Result<Option<AlbumInfo>> {
+        let db = ctx.data::<DatabaseConnection>().unwrap();
+        let Some(album) = album::Entity::find()
+            .filter(album::Column::Id.eq(input.id.parse::<i32>()?))
+            .one(db)
+            .await?
+        else {
+            return Ok(None);
+        };
+
+        let album_db_id = album.id;
+        let txn = db.begin().await?;
+
+        // 1. remove old discs
+        disc::Entity::delete_many()
+            .filter(disc::Column::AlbumDbId.eq(album_db_id))
+            .exec(&txn)
+            .await?;
+
+        // 2. remove old tracks
+        track::Entity::delete_many()
+            .filter(track::Column::AlbumDbId.eq(album_db_id))
+            .exec(&txn)
+            .await?;
+
+        // 3. insert new discs and tracks
+        for (index, disc) in input.discs.into_iter().enumerate() {
+            disc.insert(&txn, album_db_id, index as i32).await?;
+        }
+
+        txn.commit().await?;
+
+        Ok(Some(AlbumInfo(album)))
+    }
+
+    /// Replace tracks of a disc.
+    async fn replace_disc_tracks<'ctx>(
+        &self,
+        ctx: &Context<'ctx>,
+        input: input::ReplaceDiscTracksInput,
+    ) -> anyhow::Result<Option<DiscInfo>> {
+        let db = ctx.data::<DatabaseConnection>().unwrap();
+        let Some(disc) = disc::Entity::find()
+            .filter(disc::Column::Id.eq(input.id.parse::<i32>()?))
+            .one(db)
+            .await?
+        else {
+            return Ok(None);
+        };
+
+        let album_db_id = disc.album_db_id;
+        let disc_db_id = disc.id;
+        let txn = db.begin().await?;
+
+        // 1. remove old tracks
+        track::Entity::delete_many()
+            .filter(track::Column::DiscDbId.eq(disc_db_id))
+            .exec(&txn)
+            .await?;
+
+        // 2. insert new tracks
+        for (index, track) in input.tracks.into_iter().enumerate() {
+            track
+                .insert(&txn, album_db_id, disc_db_id, index as i32)
+                .await?;
+        }
+
+        txn.commit().await?;
+
+        Ok(Some(DiscInfo(disc)))
     }
 }
