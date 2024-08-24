@@ -66,6 +66,10 @@ impl AlbumInfo {
         &self.0.updated_at
     }
 
+    async fn level(&self) -> MetadataOrganizeLevel {
+        MetadataOrganizeLevel::from_str(&self.0.level).unwrap()
+    }
+
     /// Discs of the album.
     async fn discs<'ctx>(&self, ctx: &Context<'ctx>) -> anyhow::Result<Vec<DiscInfo>> {
         let db = ctx.data::<DatabaseConnection>().unwrap();
@@ -157,8 +161,7 @@ impl TrackInfo {
         &self.0.updated_at
     }
 
-    #[graphql(name = "type")]
-    async fn track_type(&self) -> TrackType {
+    async fn r#type(&self) -> TrackType {
         TrackType::from_str(self.0.r#type.as_str()).unwrap()
     }
 }
@@ -200,6 +203,55 @@ impl FromStr for TrackType {
             "radio" => Ok(TrackType::Radio),
             "vocal" => Ok(TrackType::Vocal),
             _ => Ok(TrackType::Unknown),
+        }
+    }
+}
+
+#[derive(Enum, Copy, Clone, Eq, PartialEq)]
+pub enum MetadataOrganizeLevel {
+    /// Level 1: Initial organization. Principal errors may exist, such as mismatches in the number of album tracks.
+    ///
+    /// Organizer behavior: The metadata should be completed as soon as possible and upgraded to the PARTIAL level.
+    /// Client behavior: Can only use cached data in a purely offline state, in other scenarios **must** query in real-time.
+    Initial,
+    /// Level 2: Partially completed. Principal information (such as the number of discs, number of tracks) has been confirmed as correct and will not change.
+    ///
+    /// Organizer behavior: Can remain at this level for a long time, but the metadata should be completed and confirmed by reviewers as soon as possible, then upgraded to the CONFIRMED level.
+    /// Client behavior: Can cache this metadata, but should check for changes every hour.
+    Partial,
+    /// Level 3: Reviewed. The metadata has been reviewed and confirmed by some organizers, and is relatively reliable.
+    ///
+    /// Organizer behavior: Can be changed, but be aware that the client may take a longer time to refresh.
+    /// Client behavior: Can cache this metadata for a long period of time.
+    Reviewed,
+    /// Level 4: Completed. The metadata has been fully organized and will not change.
+    ///
+    /// Organizer behavior: Cannot be changed.
+    /// Client behavior: Can cache this metadata permanently without considering any changes.
+    Finished,
+}
+
+impl ToString for MetadataOrganizeLevel {
+    fn to_string(&self) -> String {
+        match self {
+            MetadataOrganizeLevel::Initial => "initial".to_string(),
+            MetadataOrganizeLevel::Partial => "partial".to_string(),
+            MetadataOrganizeLevel::Reviewed => "reviewed".to_string(),
+            MetadataOrganizeLevel::Finished => "finished".to_string(),
+        }
+    }
+}
+
+impl FromStr for MetadataOrganizeLevel {
+    type Err = ();
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "initial" => Ok(MetadataOrganizeLevel::Initial),
+            "partial" => Ok(MetadataOrganizeLevel::Partial),
+            "reviewed" => Ok(MetadataOrganizeLevel::Reviewed),
+            "finished" => Ok(MetadataOrganizeLevel::Finished),
+            _ => Err(()),
         }
     }
 }

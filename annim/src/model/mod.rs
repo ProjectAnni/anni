@@ -281,4 +281,29 @@ impl MetadataMutation {
 
         Ok(Some(DiscInfo(disc)))
     }
+
+    /// Update organize level of an album.
+    ///
+    /// The organize level should only increase. However, it is not enforced by the server.
+    async fn update_organize_level<'ctx>(
+        &self,
+        ctx: &Context<'ctx>,
+        input: input::UpdateAlbumOrganizeLevelInput,
+    ) -> anyhow::Result<Option<AlbumInfo>> {
+        let db = ctx.data::<DatabaseConnection>().unwrap();
+        let Some(album) = album::Entity::find()
+            .filter(album::Column::Id.eq(input.id.parse::<i32>()?))
+            .one(db)
+            .await?
+        else {
+            return Ok(None);
+        };
+
+        let mut album: album::ActiveModel = album.into();
+        album.level = ActiveValue::set(input.level.to_string());
+        album.updated_at = ActiveValue::set(chrono::Utc::now());
+
+        let album = album.update(db).await?;
+        Ok(Some(AlbumInfo(album)))
+    }
 }

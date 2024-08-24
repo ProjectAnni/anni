@@ -3,7 +3,7 @@ use sea_orm::{
     prelude::Uuid, ActiveModelTrait, ActiveValue, ConnectionTrait, DatabaseConnection, DbErr,
 };
 
-use super::types::TrackType;
+use super::types::{MetadataOrganizeLevel, TrackType};
 use crate::entities::{album, disc, track};
 
 macro_rules! may_update_required {
@@ -201,6 +201,12 @@ pub struct ReplaceAlbumDiscsInput {
 pub struct ReplaceDiscTracksInput {
     pub id: ID,
     pub tracks: Vec<CreateAlbumTrackInput>,
+}
+
+#[derive(InputObject)]
+pub struct UpdateAlbumOrganizeLevelInput {
+    pub id: ID,
+    pub level: MetadataOrganizeLevel,
 }
 
 pub type UpdateString = UpdateValue<String>;

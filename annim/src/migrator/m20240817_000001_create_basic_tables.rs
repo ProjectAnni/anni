@@ -31,6 +31,14 @@ impl MigrationTrait for Migration {
                     .col(integer(Album::ReleaseYear))
                     .col(small_integer_null(Album::ReleaseMonth))
                     .col(small_integer_null(Album::ReleaseDay))
+                    .col(
+                        enumeration(
+                            Album::Level,
+                            Alias::new("level"),
+                            MetadataOrganizeLevel::iter(),
+                        )
+                        .default("initial"),
+                    )
                     .col(timestamp(Album::CreatedAt).default(Expr::current_timestamp()))
                     .col(timestamp(Album::UpdatedAt).default(Expr::current_timestamp()))
                     .to_owned(),
@@ -158,6 +166,9 @@ pub enum Album {
     ReleaseMonth,
     ReleaseDay,
 
+    // Metadata Organize Level
+    Level,
+
     // Metadata
     CreatedAt,
     UpdatedAt,
@@ -212,4 +223,12 @@ enum TrackType {
     Radio,
     Vocal,
     Unknown,
+}
+
+#[derive(Iden, EnumIter)]
+enum MetadataOrganizeLevel {
+    Initial,
+    Partial,
+    Reviewed,
+    Finished,
 }
