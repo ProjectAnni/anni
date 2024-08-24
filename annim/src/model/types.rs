@@ -2,7 +2,8 @@ use std::str::FromStr;
 
 use async_graphql::{Context, Enum, Object, ID};
 use sea_orm::{
-    prelude::DateTimeUtc, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, QueryOrder,
+    prelude::{DateTimeUtc, Uuid},
+    ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, QueryOrder,
 };
 
 use crate::entities::{album, disc, track};
@@ -16,8 +17,8 @@ impl AlbumInfo {
     }
 
     /// Unique UUID of the album.
-    async fn album_id(&self) -> String {
-        self.0.album_id.to_string()
+    async fn album_id(&self) -> Uuid {
+        self.0.album_id.try_into().unwrap()
     }
 
     /// Title of the album.
@@ -58,14 +59,17 @@ impl AlbumInfo {
         self.0.release_day
     }
 
+    /// Creation time of this album in the database. (UTC)
     async fn created_at(&self) -> &DateTimeUtc {
         &self.0.created_at
     }
 
+    /// Last update time of this album in the database. (UTC)
     async fn updated_at(&self) -> &DateTimeUtc {
         &self.0.updated_at
     }
 
+    /// Organize level of the album.
     async fn level(&self) -> MetadataOrganizeLevel {
         MetadataOrganizeLevel::from_str(&self.0.level).unwrap()
     }
