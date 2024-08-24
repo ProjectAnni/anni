@@ -35,7 +35,7 @@ pub struct AddAlbumInput {
     pub release_month: Option<i16>,
     #[graphql(name = "day")]
     pub release_day: Option<i16>,
-    pub extra: serde_json::Value,
+    pub extra: Option<serde_json::Value>,
     pub discs: Vec<CreateAlbumDiscInput>,
 }
 

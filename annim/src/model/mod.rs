@@ -149,6 +149,7 @@ impl MetadataMutation {
             release_year: ActiveValue::set(input.release_year),
             release_month: ActiveValue::set(input.release_month),
             release_day: ActiveValue::set(input.release_day),
+            extra: ActiveValue::set(input.extra),
             ..Default::default()
         };
         let album = album.insert(&txn).await?;
