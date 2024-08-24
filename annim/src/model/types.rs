@@ -3,10 +3,11 @@ use std::str::FromStr;
 use async_graphql::{Context, Enum, Object, ID};
 use sea_orm::{
     prelude::{DateTimeUtc, Uuid},
-    ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, QueryOrder,
+    ColumnTrait, DatabaseConnection, EntityTrait, JoinType, QueryFilter, QueryOrder, QuerySelect,
+    RelationTrait,
 };
 
-use crate::entities::{album, disc, track};
+use crate::entities::{album, disc, tag_info, tag_relation, track};
 
 pub struct AlbumInfo(pub(crate) album::Model);
 
@@ -256,6 +257,106 @@ impl FromStr for MetadataOrganizeLevel {
             "reviewed" => Ok(MetadataOrganizeLevel::Reviewed),
             "finished" => Ok(MetadataOrganizeLevel::Finished),
             _ => Err(()),
+        }
+    }
+}
+
+pub struct TagInfo(pub(crate) tag_info::Model);
+
+#[Object(name = "Tag")]
+impl TagInfo {
+    async fn id(&self) -> ID {
+        ID(self.0.id.to_string())
+    }
+
+    async fn name(&self) -> &str {
+        self.0.name.as_str()
+    }
+
+    async fn r#type(&self) -> TagType {
+        TagType::from_str(self.0.r#type.as_str()).unwrap()
+    }
+
+    async fn created_at(&self) -> &DateTimeUtc {
+        &self.0.created_at
+    }
+
+    async fn updated_at(&self) -> &DateTimeUtc {
+        &self.0.updated_at
+    }
+
+    async fn includes<'ctx>(&self, ctx: &Context<'ctx>) -> anyhow::Result<Vec<TagInfo>> {
+        let db = ctx.data::<DatabaseConnection>().unwrap();
+        let models = tag_relation::Entity::find()
+            .filter(tag_relation::Column::ParentTagDbId.eq(self.0.id))
+            .join(JoinType::LeftJoin, tag_relation::Relation::TagInfo1.def())
+            .select_also(tag_info::Entity)
+            .all(db)
+            .await?;
+        Ok(models
+            .into_iter()
+            .map(|(_, model)| TagInfo(model.unwrap()))
+            .collect())
+    }
+
+    async fn included_by<'ctx>(&self, ctx: &Context<'ctx>) -> anyhow::Result<Vec<TagInfo>> {
+        let db = ctx.data::<DatabaseConnection>().unwrap();
+        let models = tag_relation::Entity::find()
+            .filter(tag_relation::Column::TagDbId.eq(self.0.id))
+            .join(JoinType::LeftJoin, tag_relation::Relation::TagInfo2.def())
+            .select_also(tag_info::Entity)
+            .all(db)
+            .await?;
+        Ok(models
+            .into_iter()
+            .map(|(_, model)| TagInfo(model.unwrap()))
+            .collect())
+    }
+}
+
+#[derive(Enum, Copy, Clone, Eq, PartialEq)]
+pub enum TagType {
+    Artist,
+    Group,
+    Animation,
+    Radio,
+    Series,
+    Project,
+    Game,
+    Organization,
+    Others,
+}
+
+impl ToString for TagType {
+    fn to_string(&self) -> String {
+        match self {
+            TagType::Artist => "artist".to_string(),
+            TagType::Group => "group".to_string(),
+            TagType::Animation => "animation".to_string(),
+            TagType::Radio => "radio".to_string(),
+            TagType::Series => "series".to_string(),
+            TagType::Project => "project".to_string(),
+            TagType::Game => "game".to_string(),
+            TagType::Organization => "organization".to_string(),
+            TagType::Others => "others".to_string(),
+        }
+    }
+}
+
+impl FromStr for TagType {
+    type Err = ();
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "artist" => Ok(TagType::Artist),
+            "group" => Ok(TagType::Group),
+            "animation" => Ok(TagType::Animation),
+            "radio" => Ok(TagType::Radio),
+            "series" => Ok(TagType::Series),
+            "project" => Ok(TagType::Project),
+            "game" => Ok(TagType::Game),
+            "organization" => Ok(TagType::Organization),
+            _ => Ok(TagType::Others),
         }
     }
 }

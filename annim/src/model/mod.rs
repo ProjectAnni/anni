@@ -6,9 +6,9 @@ use sea_orm::{
     prelude::Uuid, ActiveModelTrait, ActiveValue, ColumnTrait, DatabaseConnection, EntityTrait,
     QueryFilter, TransactionTrait,
 };
-use types::{AlbumInfo, DiscInfo, TrackInfo};
+use types::{AlbumInfo, DiscInfo, TagInfo, TagType, TrackInfo};
 
-use crate::entities::{album, disc, track};
+use crate::entities::{album, disc, tag_info, track};
 
 pub type AppSchema = Schema<MetadataQuery, MetadataMutation, EmptySubscription>;
 
@@ -17,58 +17,6 @@ pub fn build_schema(db: DatabaseConnection) -> AppSchema {
         .data(db)
         .finish()
 }
-
-// struct TagInfo<'tag>(&'tag TagRef<'tag>);
-
-// #[Object]
-// impl<'tag> TagInfo<'tag> {
-//     async fn name(&self) -> &str {
-//         self.0.name()
-//     }
-
-//     #[graphql(name = "type")]
-//     async fn tag_type(&self) -> &str {
-//         self.0.tag_type().as_ref()
-//     }
-
-//     async fn includes<'ctx>(&'tag self, ctx: &Context<'ctx>) -> Vec<TagInfo<'tag>>
-//     where
-//         'ctx: 'tag,
-//     {
-//         let manager = ctx.data_unchecked::<OwnedRepositoryManager>();
-//         manager
-//             .child_tags(self.0)
-//             .into_iter()
-//             .map(TagInfo)
-//             .collect()
-//     }
-
-//     #[graphql(flatten)]
-//     async fn detail<'ctx>(&self, ctx: &Context<'ctx>) -> TagDetail<'tag>
-//     where
-//         'ctx: 'tag,
-//     {
-//         let manager = ctx.data_unchecked::<OwnedRepositoryManager>();
-//         TagDetail(manager.tag(self.0).unwrap())
-//     }
-// }
-
-// struct TagDetail<'tag>(&'tag Tag);
-
-// #[Object]
-// impl<'tag> TagDetail<'tag> {
-//     async fn names(&self) -> &HashMap<String, String> {
-//         self.0.names()
-//     }
-
-//     async fn included_by(&self) -> Vec<TagInfo> {
-//         self.0
-//             .parents()
-//             .iter()
-//             .map(|t| TagInfo(t.deref()))
-//             .collect()
-//     }
-// }
 
 pub struct MetadataQuery;
 
@@ -85,6 +33,25 @@ impl MetadataQuery {
             .one(db)
             .await?;
         Ok(model.map(|model| AlbumInfo(model)))
+    }
+
+    async fn tag<'ctx>(
+        &self,
+        ctx: &Context<'ctx>,
+        tag_name: String,
+        tag_type: Option<TagType>,
+    ) -> anyhow::Result<Vec<TagInfo>> {
+        let db = ctx.data::<DatabaseConnection>().unwrap();
+        let model = tag_info::Entity::find()
+            .filter(match tag_type {
+                Some(tag_type) => tag_info::Column::Name
+                    .eq(tag_name)
+                    .and(tag_info::Column::Type.eq(tag_type.to_string())),
+                None => tag_info::Column::Name.eq(tag_name),
+            })
+            .all(db)
+            .await?;
+        Ok(model.into_iter().map(|model| TagInfo(model)).collect())
     }
 
     // async fn albums_by_tag<'ctx>(&self, ctx: &Context<'ctx>, tag: String) -> Vec<AlbumInfo<'ctx>> {

@@ -55,13 +55,13 @@ impl MigrationTrait for Migration {
                     .col(pk_foreign(TagRelation::TagDbId))
                     .col(pk_foreign(TagRelation::ParentTagDbId))
                     .foreign_key(
-                        ForeignKeyCreateStatement::new()
+                        ForeignKey::create()
                             .name("fk-tag-relation-tag")
                             .from(TagRelation::Table, TagRelation::TagDbId)
                             .to(TagInfo::Table, TagInfo::Id),
                     )
                     .foreign_key(
-                        ForeignKeyCreateStatement::new()
+                        ForeignKey::create()
                             .name("fk-tag-relation-parent-tag")
                             .from(TagRelation::Table, TagRelation::ParentTagDbId)
                             .to(TagInfo::Table, TagInfo::Id),

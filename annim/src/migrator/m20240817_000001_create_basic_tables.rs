@@ -59,7 +59,7 @@ impl MigrationTrait for Migration {
                     .col(timestamp(Disc::CreatedAt).default(Expr::current_timestamp()))
                     .col(timestamp(Disc::UpdatedAt).default(Expr::current_timestamp()))
                     .foreign_key(
-                        ForeignKeyCreateStatement::new()
+                        ForeignKey::create()
                             .name("fk-disc_album")
                             .from(Disc::Table, Disc::AlbumDbId)
                             .to(Album::Table, Album::Id),
@@ -88,7 +88,7 @@ impl MigrationTrait for Migration {
                         TrackType::iter(),
                     ))
                     .foreign_key(
-                        ForeignKeyCreateStatement::new()
+                        ForeignKey::create()
                             .name("fk-track_album")
                             .from(Track::Table, Track::AlbumDbId)
                             .to(Album::Table, Album::Id),
