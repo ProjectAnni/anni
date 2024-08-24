@@ -246,11 +246,11 @@ impl MetadataQuery {
     async fn album<'ctx>(
         &self,
         ctx: &Context<'ctx>,
-        album_id: String,
+        album_id: Uuid,
     ) -> anyhow::Result<Option<AlbumInfo>> {
         let db = ctx.data::<DatabaseConnection>().unwrap();
         let model = album::Entity::find()
-            .filter(album::Column::AlbumId.contains(album_id))
+            .filter(album::Column::AlbumId.eq(album_id))
             .one(db)
             .await?;
         Ok(model.map(|model| AlbumInfo(model)))

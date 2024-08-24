@@ -1,6 +1,7 @@
 use async_graphql::http::{playground_source, GraphQLPlaygroundConfig};
 use async_graphql_axum::GraphQL;
 use axum::{
+    http::Method,
     response::{self, IntoResponse},
     routing::get,
     Router,
@@ -11,6 +12,8 @@ use sea_orm::Database;
 use sea_orm_migration::MigratorTrait;
 use std::env;
 use tokio::net::TcpListener;
+use tower_http::cors;
+use tower_http::cors::CorsLayer;
 
 lazy_static! {
     static ref URL: String = env::var("URL").unwrap_or("localhost:8000".into());
@@ -47,10 +50,17 @@ async fn main() {
 
     let schema = annim::model::build_schema(database);
     // let schema = annim::query_root::schema(database, *DEPTH_LIMIT, *COMPLEXITY_LIMIT).unwrap();
-    let app = Router::new().route(
-        "/",
-        get(graphql_playground).post_service(GraphQL::new(schema)),
-    );
+    let app = Router::new()
+        .route(
+            "/",
+            get(graphql_playground).post_service(GraphQL::new(schema)),
+        )
+        .layer(
+            CorsLayer::new()
+                .allow_methods([Method::GET, Method::POST])
+                .allow_origin(cors::Any)
+                .allow_headers(cors::Any),
+        );
     println!("Visit GraphQL Playground at http://{}", *URL);
     axum::serve(TcpListener::bind(&*URL).await.unwrap(), app)
         .await

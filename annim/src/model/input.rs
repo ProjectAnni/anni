@@ -34,8 +34,11 @@ pub struct CreateAlbumInput {
     pub edition: Option<String>,
     pub catalog: Option<String>,
     pub artist: String,
+    #[graphql(name = "year")]
     pub release_year: i32,
+    #[graphql(name = "month")]
     pub release_month: Option<i16>,
+    #[graphql(name = "day")]
     pub release_day: Option<i16>,
     pub discs: Vec<CreateAlbumDiscInput>,
 }
@@ -65,8 +68,11 @@ pub struct UpdateAlbumInfoInput {
     pub edition: Option<UpdateString>,
     pub catalog: Option<UpdateString>,
     pub artist: Option<String>,
+    #[graphql(name = "year")]
     pub release_year: Option<i32>,
+    #[graphql(name = "month")]
     pub release_month: Option<UpdateI16>,
+    #[graphql(name = "day")]
     pub release_day: Option<UpdateI16>,
 }
 
