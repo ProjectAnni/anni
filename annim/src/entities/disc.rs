@@ -12,6 +12,8 @@ pub struct Model {
     pub title: Option<String>,
     pub catalog: Option<String>,
     pub artist: Option<String>,
+    pub created_at: DateTimeUtc,
+    pub updated_at: DateTimeUtc,
 }
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]

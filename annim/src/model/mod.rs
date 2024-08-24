@@ -4,8 +4,9 @@ use std::str::FromStr;
 
 use async_graphql::{Context, EmptySubscription, Enum, Object, Schema, ID};
 use sea_orm::{
-    prelude::Uuid, ActiveModelTrait, ActiveValue, ColumnTrait, DatabaseConnection, EntityTrait,
-    QueryFilter, QueryOrder, TransactionTrait,
+    prelude::{DateTimeUtc, Uuid},
+    ActiveModelTrait, ActiveValue, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter,
+    QueryOrder, TransactionTrait,
 };
 
 use crate::entities::{album, disc, track};
@@ -69,6 +70,14 @@ impl AlbumInfo {
         self.0.release_day
     }
 
+    async fn created_at(&self) -> &DateTimeUtc {
+        &self.0.created_at
+    }
+
+    async fn updated_at(&self) -> &DateTimeUtc {
+        &self.0.updated_at
+    }
+
     /// Discs of the album.
     async fn discs<'ctx>(&self, ctx: &Context<'ctx>) -> anyhow::Result<Vec<DiscInfo>> {
         let db = ctx.data::<DatabaseConnection>().unwrap();
@@ -103,6 +112,14 @@ impl DiscInfo {
 
     async fn artist(&self) -> Option<&str> {
         self.0.artist.as_deref()
+    }
+
+    async fn created_at(&self) -> &DateTimeUtc {
+        &self.0.created_at
+    }
+
+    async fn updated_at(&self) -> &DateTimeUtc {
+        &self.0.updated_at
     }
 
     async fn tracks<'ctx>(&self, ctx: &Context<'ctx>) -> anyhow::Result<Vec<TrackInfo>> {
@@ -140,8 +157,16 @@ impl TrackInfo {
         self.0.artist.as_str()
     }
 
-    async fn artists(&self) -> &serde_json::Value {
-        &self.0.artists
+    async fn artists(&self) -> Option<&serde_json::Value> {
+        self.0.artists.as_ref()
+    }
+
+    async fn created_at(&self) -> &DateTimeUtc {
+        &self.0.created_at
+    }
+
+    async fn updated_at(&self) -> &DateTimeUtc {
+        &self.0.updated_at
     }
 
     #[graphql(name = "type")]

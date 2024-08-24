@@ -137,6 +137,7 @@ impl UpdateAlbumInfoInput {
         may_update_optional!(self, model, release_month);
         may_update_optional!(self, model, release_day);
 
+        model.updated_at = ActiveValue::set(chrono::Utc::now());
         model.update(db).await
     }
 }
@@ -160,6 +161,7 @@ impl UpdateDiscInfoInput {
         may_update_optional!(self, model, catalog);
         may_update_optional!(self, model, artist);
 
+        model.updated_at = ActiveValue::set(chrono::Utc::now());
         model.update(db).await
     }
 }
@@ -185,6 +187,7 @@ impl UpdateTrackInfoInput {
             model.r#type = sea_orm::ActiveValue::set(r#type.to_string());
         }
 
+        model.updated_at = ActiveValue::set(chrono::Utc::now());
         model.update(db).await
     }
 }

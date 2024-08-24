@@ -31,6 +31,8 @@ impl MigrationTrait for Migration {
                     .col(integer(Album::ReleaseYear))
                     .col(small_integer_null(Album::ReleaseMonth))
                     .col(small_integer_null(Album::ReleaseDay))
+                    .col(timestamp(Album::CreatedAt).default(Expr::current_timestamp()))
+                    .col(timestamp(Album::UpdatedAt).default(Expr::current_timestamp()))
                     .to_owned(),
             )
             .await?;
@@ -46,6 +48,8 @@ impl MigrationTrait for Migration {
                     .col(string_null(Disc::Title))
                     .col(string_null(Disc::Catalog))
                     .col(string_null(Disc::Artist))
+                    .col(timestamp(Disc::CreatedAt).default(Expr::current_timestamp()))
+                    .col(timestamp(Disc::UpdatedAt).default(Expr::current_timestamp()))
                     .foreign_key(
                         ForeignKeyCreateStatement::new()
                             .name("fk-disc_album")
@@ -67,7 +71,9 @@ impl MigrationTrait for Migration {
                     .col(integer(Track::Index))
                     .col(string(Track::Title))
                     .col(string(Track::Artist))
-                    .col(json(Track::Artists))
+                    .col(json_null(Track::Artists))
+                    .col(timestamp(Track::CreatedAt).default(Expr::current_timestamp()))
+                    .col(timestamp(Track::UpdatedAt).default(Expr::current_timestamp()))
                     .col(enumeration(
                         Track::Type,
                         Alias::new("type"),
@@ -151,6 +157,10 @@ pub enum Album {
     ReleaseYear,
     ReleaseMonth,
     ReleaseDay,
+
+    // Metadata
+    CreatedAt,
+    UpdatedAt,
 }
 
 #[derive(Iden)]
@@ -165,6 +175,10 @@ pub enum Disc {
     Title,
     Artist,
     Catalog,
+
+    // Metadata
+    CreatedAt,
+    UpdatedAt,
 }
 
 #[derive(Iden)]
@@ -183,6 +197,10 @@ pub enum Track {
     /// Additonal artist(s) on the track
     Artists,
     Type,
+
+    // Metadata
+    CreatedAt,
+    UpdatedAt,
 }
 
 #[derive(Iden, EnumIter)]

@@ -16,6 +16,8 @@ pub struct Model {
     pub release_year: i32,
     pub release_month: Option<i16>,
     pub release_day: Option<i16>,
+    pub created_at: DateTimeUtc,
+    pub updated_at: DateTimeUtc,
 }
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
