@@ -380,6 +380,7 @@ dependencies = [
  "sea-orm",
  "sea-orm-migration",
  "seaography",
+ "serde",
  "serde_json",
  "thiserror",
  "tokio",

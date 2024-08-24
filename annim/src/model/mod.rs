@@ -9,11 +9,14 @@ use sea_orm::{
 };
 use types::{AlbumInfo, DiscInfo, TagInfo, TagType, TrackInfo};
 
-use crate::entities::{album, disc, tag_info, track};
+use crate::{
+    auth::require_auth,
+    entities::{album, disc, tag_info, track},
+};
 
-pub type AppSchema = Schema<MetadataQuery, MetadataMutation, EmptySubscription>;
+pub type MetadataSchema = Schema<MetadataQuery, MetadataMutation, EmptySubscription>;
 
-pub fn build_schema(db: DatabaseConnection) -> AppSchema {
+pub fn build_schema(db: DatabaseConnection) -> MetadataSchema {
     Schema::build(MetadataQuery, MetadataMutation, EmptySubscription)
         .data(db)
         .finish()
@@ -137,6 +140,7 @@ impl MetadataMutation {
         ctx: &Context<'ctx>,
         input: input::AddAlbumInput,
     ) -> anyhow::Result<AlbumInfo> {
+        require_auth(ctx)?;
         let db = ctx.data::<DatabaseConnection>().unwrap();
 
         let txn = db.begin().await?;
@@ -174,6 +178,7 @@ impl MetadataMutation {
         ctx: &Context<'ctx>,
         input: input::UpdateAlbumInfoInput,
     ) -> anyhow::Result<Option<AlbumInfo>> {
+        require_auth(ctx)?;
         let db = ctx.data::<DatabaseConnection>().unwrap();
         let Some(model) = album::Entity::find()
             .filter(album::Column::Id.eq(input.id.parse::<i32>()?))
@@ -195,6 +200,7 @@ impl MetadataMutation {
         ctx: &Context<'ctx>,
         input: input::UpdateDiscInfoInput,
     ) -> anyhow::Result<Option<DiscInfo>> {
+        require_auth(ctx)?;
         let db = ctx.data::<DatabaseConnection>().unwrap();
         let Some(model) = disc::Entity::find()
             .filter(disc::Column::Id.eq(input.id.parse::<i32>()?))
@@ -216,6 +222,7 @@ impl MetadataMutation {
         ctx: &Context<'ctx>,
         input: input::UpdateTrackInfoInput,
     ) -> anyhow::Result<Option<TrackInfo>> {
+        require_auth(ctx)?;
         let db = ctx.data::<DatabaseConnection>().unwrap();
         let Some(model) = track::Entity::find()
             .filter(track::Column::Id.eq(input.id.parse::<i32>()?))
@@ -237,6 +244,7 @@ impl MetadataMutation {
         ctx: &Context<'ctx>,
         input: input::ReplaceAlbumDiscsInput,
     ) -> anyhow::Result<Option<AlbumInfo>> {
+        require_auth(ctx)?;
         let db = ctx.data::<DatabaseConnection>().unwrap();
         let Some(album) = album::Entity::find()
             .filter(album::Column::Id.eq(input.id.parse::<i32>()?))
@@ -277,6 +285,7 @@ impl MetadataMutation {
         ctx: &Context<'ctx>,
         input: input::ReplaceDiscTracksInput,
     ) -> anyhow::Result<Option<DiscInfo>> {
+        require_auth(ctx)?;
         let db = ctx.data::<DatabaseConnection>().unwrap();
         let Some(disc) = disc::Entity::find()
             .filter(disc::Column::Id.eq(input.id.parse::<i32>()?))
@@ -316,6 +325,7 @@ impl MetadataMutation {
         ctx: &Context<'ctx>,
         input: input::UpdateAlbumOrganizeLevelInput,
     ) -> anyhow::Result<Option<AlbumInfo>> {
+        require_auth(ctx)?;
         let db = ctx.data::<DatabaseConnection>().unwrap();
         let Some(album) = album::Entity::find()
             .filter(album::Column::Id.eq(input.id.parse::<i32>()?))
