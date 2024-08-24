@@ -3,9 +3,8 @@ use sea_orm::{
     prelude::Uuid, ActiveModelTrait, ActiveValue, ConnectionTrait, DatabaseConnection, DbErr,
 };
 
+use super::types::TrackType;
 use crate::entities::{album, disc, track};
-
-use super::TrackType;
 
 macro_rules! may_update_required {
     ($self: ident, $model: ident, $field: ident) => {
