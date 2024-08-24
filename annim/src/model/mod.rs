@@ -1,12 +1,17 @@
-use async_graphql::{Context, EmptyMutation, EmptySubscription, Enum, Object, Schema, ID};
-use sea_orm::{ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, QueryOrder};
+mod input;
+
+use async_graphql::{Context, EmptySubscription, Enum, Object, Schema, ID};
+use sea_orm::{
+    prelude::Uuid, ActiveModelTrait, ActiveValue, ColumnTrait, DatabaseConnection, EntityTrait,
+    QueryFilter, QueryOrder,
+};
 
 use crate::entities::{album, disc, track};
 
-pub type AppSchema = Schema<MetadataQuery, EmptyMutation, EmptySubscription>;
+pub type AppSchema = Schema<MetadataQuery, MetadataMutation, EmptySubscription>;
 
 pub fn build_schema(db: DatabaseConnection) -> AppSchema {
-    Schema::build(MetadataQuery, EmptyMutation, EmptySubscription)
+    Schema::build(MetadataQuery, MetadataMutation, EmptySubscription)
         .data(db)
         .finish()
 }
@@ -239,4 +244,59 @@ impl MetadataQuery {
     //         })
     //         .unwrap_or_else(|| Vec::new())
     // }
+}
+
+pub struct MetadataMutation;
+
+#[Object]
+impl MetadataMutation {
+    async fn create_album<'ctx>(
+        &self,
+        ctx: &Context<'ctx>,
+        input: input::CreateAlbumInfoInput,
+    ) -> anyhow::Result<AlbumInfo> {
+        let db = ctx.data::<DatabaseConnection>().unwrap();
+        let album = album::ActiveModel {
+            album_id: ActiveValue::set(input.album_id.unwrap_or_else(|| Uuid::new_v4())),
+            title: ActiveValue::set(input.title),
+            edition: ActiveValue::set(input.edition),
+            catalog: ActiveValue::set(input.catalog),
+            artist: ActiveValue::set(input.artist),
+            release_year: ActiveValue::set(input.release_year),
+            release_month: ActiveValue::set(input.release_month),
+            release_day: ActiveValue::set(input.release_day),
+            ..Default::default()
+        };
+        let model = album.insert(db).await?;
+        Ok(AlbumInfo(model))
+    }
+
+    async fn update_album<'ctx>(
+        &self,
+        ctx: &Context<'ctx>,
+        input: input::UpdateAlbumInfoInput,
+    ) -> anyhow::Result<Option<AlbumInfo>> {
+        let db = ctx.data::<DatabaseConnection>().unwrap();
+        let model = match (&input.id, input.album_id) {
+            (Some(id), None) => {
+                album::Entity::find()
+                    .filter(album::Column::Id.eq(id.parse::<i32>()?))
+                    .one(db)
+                    .await?
+            }
+            (None, Some(album_id)) => {
+                album::Entity::find()
+                    .filter(album::Column::AlbumId.eq(album_id))
+                    .one(db)
+                    .await?
+            }
+            _ => return Ok(None),
+        }
+        .unwrap();
+
+        let album: album::ActiveModel = model.into();
+        let album = input.apply(album).update(db).await?;
+
+        Ok(Some(AlbumInfo(album)))
+    }
 }
