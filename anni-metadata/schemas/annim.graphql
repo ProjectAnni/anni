@@ -11,6 +11,7 @@ input AddAlbumInput {
   year: Int!
   month: Int
   day: Int
+  extra: JSON
   discs: [CreateAlbumDiscInput!]!
 }
 
@@ -48,6 +49,7 @@ type Album {
   Optional release day of the album.
   """
   day: Int
+  tags: [Tag!]!
   """
   Creation time of this album in the database. (UTC)
   """
@@ -61,9 +63,72 @@ type Album {
   """
   level: MetadataOrganizeLevel!
   """
+  Extra metadata of the album.
+  """
+  extra: JSON
+  """
   Discs of the album.
   """
   discs: [Disc!]!
+}
+
+type AlbumConnection {
+  """
+  Information to aid in pagination.
+  """
+  pageInfo: PageInfo!
+  """
+  A list of edges.
+  """
+  edges: [AlbumEdge!]!
+  """
+  A list of nodes.
+  """
+  nodes: [Album!]!
+}
+
+"""
+An edge in a connection.
+"""
+type AlbumEdge {
+  """
+  The item at the end of the edge
+  """
+  node: Album!
+  """
+  A cursor for use in pagination
+  """
+  cursor: String!
+}
+
+"""
+List albums by conditions.
+"""
+input AlbumsBy {
+  """
+  List albums by conditions.
+  """
+  albumIds: [UUID!]
+  """
+  List albums by conditions.
+  """
+  recentlyCreated: Int
+  """
+  List albums by conditions.
+  """
+  recentlyUpdated: Int
+  """
+  List albums by conditions.
+  """
+  recentlyReleased: Int
+  """
+  List albums by conditions.
+  """
+  keyword: String
+  """
+  List albums by conditions.
+  """
+  organizeLevel: MetadataOrganizeLevel
 }
 
 input CreateAlbumDiscInput {
@@ -92,6 +157,7 @@ type Disc {
   title: String
   catalog: String
   artist: String
+  tags: [Tag!]!
   createdAt: DateTime!
   updatedAt: DateTime!
   tracks: [Track!]!
@@ -101,6 +167,12 @@ type Disc {
 A scalar that can represent any JSON value.
 """
 scalar JSON
+
+input MetadataIDInput {
+  album: ID
+  disc: ID
+  track: ID
+}
 
 type MetadataMutation {
   """
@@ -125,10 +197,14 @@ type MetadataMutation {
   updateTrackInfo(input: UpdateTrackInfoInput!): Track
   """
   Replace discs of an album.
+
+  This method only works if the organize level of the album is INITIAL.
   """
   replaceAlbumDiscs(input: ReplaceAlbumDiscsInput!): Album
   """
   Replace tracks of a disc.
+
+  This method only works if the organize level of the album is INITIAL.
   """
   replaceDiscTracks(input: ReplaceDiscTracksInput!): Disc
   """
@@ -137,6 +213,15 @@ type MetadataMutation {
   The organize level should only increase. However, it is not enforced by the server.
   """
   updateOrganizeLevel(input: UpdateAlbumOrganizeLevelInput!): Album
+  """
+  Add a new tag `type:name` to the database.
+  """
+  addTag(name: String!, type: TagType!): Tag!
+  updateTagRelation(tagId: ID!, parentId: ID!, remove: Boolean): TagRelation
+  """
+  Update tags of an album, disc or track.
+  """
+  updateMetadataTags(input: MetadataIDInput!, tags: [ID!]!): Album!
 }
 
 enum MetadataOrganizeLevel {
@@ -172,6 +257,30 @@ enum MetadataOrganizeLevel {
 
 type MetadataQuery {
   album(albumId: UUID!): Album
+  albums(by: AlbumsBy!, after: String, first: Int): AlbumConnection!
+  tag(tagName: String!, tagType: TagType): [Tag!]!
+}
+
+"""
+Information about pagination in a connection
+"""
+type PageInfo {
+  """
+  When paginating backwards, are there more items?
+  """
+  hasPreviousPage: Boolean!
+  """
+  When paginating forwards, are there more items?
+  """
+  hasNextPage: Boolean!
+  """
+  When paginating backwards, the cursor to continue.
+  """
+  startCursor: String
+  """
+  When paginating forwards, the cursor to continue.
+  """
+  endCursor: String
 }
 
 input ReplaceAlbumDiscsInput {
@@ -184,15 +293,44 @@ input ReplaceDiscTracksInput {
   tracks: [CreateAlbumTrackInput!]!
 }
 
+type Tag {
+  id: ID!
+  name: String!
+  type: TagType!
+  createdAt: DateTime!
+  updatedAt: DateTime!
+  includes: [Tag!]!
+  includedBy: [Tag!]!
+}
+
+type TagRelation {
+  id: ID!
+  tag: Tag!
+  parent: Tag!
+}
+
+enum TagType {
+  ARTIST
+  GROUP
+  ANIMATION
+  RADIO
+  SERIES
+  PROJECT
+  GAME
+  ORGANIZATION
+  OTHERS
+}
+
 type Track {
   id: ID!
   index: Int!
   title: String!
   artist: String!
+  type: TrackType!
   artists: JSON
+  tags: [Tag!]!
   createdAt: DateTime!
   updatedAt: DateTime!
-  type: TrackType!
 }
 
 enum TrackType {
@@ -226,6 +364,7 @@ input UpdateAlbumInfoInput {
   year: Int
   month: UpdateI16
   day: UpdateI16
+  extra: UpdateJson
 }
 
 input UpdateAlbumOrganizeLevelInput {
@@ -242,6 +381,10 @@ input UpdateDiscInfoInput {
 
 input UpdateI16 {
   value: Int
+}
+
+input UpdateJson {
+  value: JSON
 }
 
 input UpdateString {
