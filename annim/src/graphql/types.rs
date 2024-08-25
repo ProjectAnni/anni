@@ -217,7 +217,7 @@ impl FromStr for TrackType {
     }
 }
 
-#[derive(Enum, Copy, Clone, Eq, PartialEq)]
+#[derive(Enum, Copy, Clone, Eq, PartialEq, Debug)]
 pub enum MetadataOrganizeLevel {
     /// Level 1: Initial organization. Principal errors may exist, such as mismatches in the number of album tracks.
     ///
@@ -253,7 +253,7 @@ impl ToString for MetadataOrganizeLevel {
 }
 
 impl FromStr for MetadataOrganizeLevel {
-    type Err = ();
+    type Err = anyhow::Error;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s {
@@ -261,7 +261,7 @@ impl FromStr for MetadataOrganizeLevel {
             "partial" => Ok(MetadataOrganizeLevel::Partial),
             "reviewed" => Ok(MetadataOrganizeLevel::Reviewed),
             "finished" => Ok(MetadataOrganizeLevel::Finished),
-            _ => Err(()),
+            _ => anyhow::bail!("Invalid metadata organize level: {s}"),
         }
     }
 }

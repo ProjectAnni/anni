@@ -1,6 +1,8 @@
 mod input;
 mod types;
 
+use std::str::FromStr;
+
 use anyhow::Ok;
 use async_graphql::{
     connection::{Connection, Edge},
@@ -12,7 +14,7 @@ use sea_orm::{
     DatabaseConnection, EntityTrait, Order, QueryFilter, QueryOrder, QuerySelect, TransactionTrait,
 };
 use seaography::{apply_pagination, CursorInput, PaginationInput};
-use types::{AlbumInfo, DiscInfo, TagInfo, TagType, TrackInfo};
+use types::{AlbumInfo, DiscInfo, MetadataOrganizeLevel, TagInfo, TagType, TrackInfo};
 
 use crate::{
     auth::require_auth,
@@ -240,6 +242,8 @@ impl MetadataMutation {
     }
 
     /// Replace discs of an album.
+    ///
+    /// This method only works if the organize level of the album is INITIAL.
     async fn replace_album_discs<'ctx>(
         &self,
         ctx: &Context<'ctx>,
@@ -254,6 +258,11 @@ impl MetadataMutation {
         else {
             return Ok(None);
         };
+
+        let level = MetadataOrganizeLevel::from_str(&album.level)?;
+        if level != MetadataOrganizeLevel::Initial {
+            anyhow::bail!("Cannot replace discs of an album with organize level {level:?}",);
+        }
 
         let album_db_id = album.id;
         let txn = db.begin().await?;
@@ -281,6 +290,8 @@ impl MetadataMutation {
     }
 
     /// Replace tracks of a disc.
+    ///
+    /// This method only works if the organize level of the album is INITIAL.
     async fn replace_disc_tracks<'ctx>(
         &self,
         ctx: &Context<'ctx>,
@@ -297,6 +308,19 @@ impl MetadataMutation {
         };
 
         let album_db_id = disc.album_db_id;
+        let level: String = album::Entity::find()
+            .select_only()
+            .column(album::Column::Level)
+            .filter(album::Column::Id.eq(album_db_id))
+            .into_tuple()
+            .one(db)
+            .await?
+            .unwrap();
+        let level = MetadataOrganizeLevel::from_str(&level)?;
+        if level != MetadataOrganizeLevel::Initial {
+            anyhow::bail!("Cannot replace discs of an album with organize level {level:?}",);
+        }
+
         let disc_db_id = disc.id;
         let txn = db.begin().await?;
 
