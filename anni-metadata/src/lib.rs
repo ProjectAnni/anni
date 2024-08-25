@@ -20,17 +20,14 @@ impl AnnimClient {
         }
     }
 
-    pub async fn album(&self, album_id: Uuid) {
+    pub async fn album(&self, album_id: Uuid) -> anyhow::Result<Option<query::album::Album>> {
         let query = AlbumQuery::build(AlbumVariables { album_id });
-        let response = self
-            .client
-            .post(&self.endpoint)
-            .run_graphql(query)
-            .await
-            .unwrap();
+        let response = self.client.post(&self.endpoint).run_graphql(query).await?;
+        if let Some(errors) = response.errors {
+            return Err(anyhow::anyhow!("GraphQL error: {:?}", errors));
+        }
 
-        let album = response.data.unwrap().album.unwrap();
-        println!("{:?}", album);
+        Ok(response.data.and_then(|data| data.album))
     }
 }
 
@@ -41,10 +38,13 @@ mod tests {
     use super::*;
 
     #[tokio::test]
-    async fn test_album() {
+    async fn test_album() -> anyhow::Result<()> {
         let client = AnnimClient::new("http://localhost:8000/".to_string());
-        client
-            .album(Uuid::from_str("cee3c2fa-14b4-422b-ab0d-290c4f0020f4").unwrap())
-            .await;
+        let result = client
+            .album(Uuid::from_str("8da26cf7-9c9c-4209-9ed5-f5fb39e32051").unwrap())
+            .await?;
+        println!("{result:?}");
+
+        Ok(())
     }
 }
