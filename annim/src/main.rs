@@ -1,6 +1,6 @@
 use annim::{
     auth::{on_connection_init, AuthToken},
-    model::{MetadataMutation, MetadataQuery, MetadataSchema},
+    graphql::{MetadataMutation, MetadataQuery, MetadataSchema},
 };
 use async_graphql::{
     http::{graphiql_source, ALL_WEBSOCKET_PROTOCOLS},

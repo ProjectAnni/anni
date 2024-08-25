@@ -1,12 +1,17 @@
 mod input;
 mod types;
 
-use async_graphql::{Context, EmptySubscription, Object, Schema};
+use anyhow::Ok;
+use async_graphql::{
+    connection::{Connection, Edge},
+    Context, EmptySubscription, Object, Schema,
+};
 use input::AlbumsBy;
 use sea_orm::{
     prelude::Uuid, sea_query::NullOrdering, ActiveModelTrait, ActiveValue, ColumnTrait,
     DatabaseConnection, EntityTrait, Order, QueryFilter, QueryOrder, QuerySelect, TransactionTrait,
 };
+use seaography::{apply_pagination, CursorInput, PaginationInput};
 use types::{AlbumInfo, DiscInfo, TagInfo, TagType, TrackInfo};
 
 use crate::{
@@ -39,61 +44,57 @@ impl MetadataQuery {
         Ok(model.map(|model| AlbumInfo(model)))
     }
 
-    // TODO: support pagination
     async fn albums<'ctx>(
         &self,
         ctx: &Context<'ctx>,
         by: AlbumsBy,
-    ) -> anyhow::Result<Vec<AlbumInfo>> {
+        after: Option<String>,
+        // before: Option<String>,
+        first: Option<u64>,
+        // last: Option<i32>,
+    ) -> anyhow::Result<Connection<String, AlbumInfo>> {
         let db = ctx.data::<DatabaseConnection>().unwrap();
 
-        match by {
+        let query = match by {
             AlbumsBy::AlbumIds(album_ids) => {
-                let model = album::Entity::find()
-                    .filter(album::Column::AlbumId.is_in(album_ids))
-                    .all(db)
-                    .await?;
-                Ok(model.into_iter().map(|model| AlbumInfo(model)).collect())
+                album::Entity::find().filter(album::Column::AlbumId.is_in(album_ids))
             }
-            AlbumsBy::RecentlyCreated(limit) => {
-                let model = album::Entity::find()
-                    .order_by_desc(album::Column::CreatedAt)
-                    .limit(limit)
-                    .all(db)
-                    .await?;
-                Ok(model.into_iter().map(|model| AlbumInfo(model)).collect())
-            }
-            AlbumsBy::RecentlyUpdated(limit) => {
-                let model = album::Entity::find()
-                    .order_by_desc(album::Column::UpdatedAt)
-                    .limit(limit)
-                    .all(db)
-                    .await?;
-                Ok(model.into_iter().map(|model| AlbumInfo(model)).collect())
-            }
-            AlbumsBy::RecentlyReleased(limit) => {
-                let model = album::Entity::find()
-                    .order_by_desc(album::Column::ReleaseYear)
-                    .order_by_with_nulls(
-                        album::Column::ReleaseMonth,
-                        Order::Desc,
-                        NullOrdering::Last,
-                    )
-                    .order_by_with_nulls(album::Column::ReleaseDay, Order::Desc, NullOrdering::Last)
-                    .limit(limit)
-                    .all(db)
-                    .await?;
-                Ok(model.into_iter().map(|model| AlbumInfo(model)).collect())
-            }
+            AlbumsBy::RecentlyCreated(limit) => album::Entity::find()
+                .order_by_desc(album::Column::CreatedAt)
+                .limit(limit),
+            AlbumsBy::RecentlyUpdated(limit) => album::Entity::find()
+                .order_by_desc(album::Column::UpdatedAt)
+                .limit(limit),
+            AlbumsBy::RecentlyReleased(limit) => album::Entity::find()
+                .order_by_desc(album::Column::ReleaseYear)
+                .order_by_with_nulls(album::Column::ReleaseMonth, Order::Desc, NullOrdering::Last)
+                .order_by_with_nulls(album::Column::ReleaseDay, Order::Desc, NullOrdering::Last)
+                .limit(limit),
             AlbumsBy::Keyword(_) => unimplemented!(),
             AlbumsBy::OrganizeLevel(level) => {
-                let model = album::Entity::find()
-                    .filter(album::Column::Level.eq(level.to_string()))
-                    .all(db)
-                    .await?;
-                Ok(model.into_iter().map(|model| AlbumInfo(model)).collect())
+                album::Entity::find().filter(album::Column::Level.eq(level.to_string()))
             }
-        }
+        };
+
+        let pagination = PaginationInput {
+            cursor: Some(CursorInput {
+                cursor: after,
+                limit: first.unwrap_or(20),
+            }),
+            page: None,
+            offset: None,
+        };
+        let conn = apply_pagination::<album::Entity>(db, query, pagination).await?;
+        let mut connection = Connection::new(
+            conn.page_info.has_previous_page,
+            conn.page_info.has_next_page,
+        );
+        connection.edges.extend(
+            conn.edges
+                .into_iter()
+                .map(|e| Edge::new(e.cursor, AlbumInfo(e.node))),
+        );
+        Ok(connection)
     }
 
     async fn tag<'ctx>(
