@@ -7,7 +7,7 @@ use sea_orm::{
     RelationTrait,
 };
 
-use crate::entities::{album, disc, tag_info, tag_relation, track};
+use crate::entities::{album, album_tag_relation, disc, tag_info, tag_relation, track};
 
 pub struct AlbumInfo(pub(crate) album::Model);
 
@@ -58,6 +58,25 @@ impl AlbumInfo {
     #[graphql(name = "day")]
     async fn release_day(&self) -> Option<i16> {
         self.0.release_day
+    }
+
+    async fn tags<'ctx>(&self, ctx: &Context<'ctx>) -> anyhow::Result<Vec<TagInfo>> {
+        let db = ctx.data::<DatabaseConnection>().unwrap();
+        let models = album_tag_relation::Entity::find()
+            .filter(
+                album_tag_relation::Column::AlbumDbId
+                    .eq(self.0.id)
+                    .and(album_tag_relation::Column::DiscDbId.is_null())
+                    .and(album_tag_relation::Column::TrackDbId.is_null()),
+            )
+            .left_join(tag_info::Entity)
+            .select_also(tag_info::Entity)
+            .all(db)
+            .await?;
+        Ok(models
+            .into_iter()
+            .map(|(_, model)| TagInfo(model.unwrap()))
+            .collect())
     }
 
     /// Creation time of this album in the database. (UTC)
@@ -116,6 +135,24 @@ impl DiscInfo {
         self.0.artist.as_deref()
     }
 
+    async fn tags<'ctx>(&self, ctx: &Context<'ctx>) -> anyhow::Result<Vec<TagInfo>> {
+        let db = ctx.data::<DatabaseConnection>().unwrap();
+        let models = album_tag_relation::Entity::find()
+            .filter(
+                album_tag_relation::Column::DiscDbId
+                    .eq(self.0.id)
+                    .and(album_tag_relation::Column::TrackDbId.is_null()),
+            )
+            .left_join(tag_info::Entity)
+            .select_also(tag_info::Entity)
+            .all(db)
+            .await?;
+        Ok(models
+            .into_iter()
+            .map(|(_, model)| TagInfo(model.unwrap()))
+            .collect())
+    }
+
     async fn created_at(&self) -> &DateTimeUtc {
         &self.0.created_at
     }
@@ -159,8 +196,26 @@ impl TrackInfo {
         self.0.artist.as_str()
     }
 
+    async fn r#type(&self) -> TrackType {
+        TrackType::from_str(self.0.r#type.as_str()).unwrap()
+    }
+
     async fn artists(&self) -> Option<&serde_json::Value> {
         self.0.artists.as_ref()
+    }
+
+    async fn tags<'ctx>(&self, ctx: &Context<'ctx>) -> anyhow::Result<Vec<TagInfo>> {
+        let db = ctx.data::<DatabaseConnection>().unwrap();
+        let models = album_tag_relation::Entity::find()
+            .filter(album_tag_relation::Column::TrackDbId.eq(self.0.id))
+            .left_join(tag_info::Entity)
+            .select_also(tag_info::Entity)
+            .all(db)
+            .await?;
+        Ok(models
+            .into_iter()
+            .map(|(_, model)| TagInfo(model.unwrap()))
+            .collect())
     }
 
     async fn created_at(&self) -> &DateTimeUtc {
@@ -169,10 +224,6 @@ impl TrackInfo {
 
     async fn updated_at(&self) -> &DateTimeUtc {
         &self.0.updated_at
-    }
-
-    async fn r#type(&self) -> TrackType {
-        TrackType::from_str(self.0.r#type.as_str()).unwrap()
     }
 }
 
