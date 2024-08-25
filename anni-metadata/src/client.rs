@@ -29,7 +29,9 @@ impl AnnimClient {
         album: mutation::add_album::AddAlbumInput<'_>,
     ) -> anyhow::Result<Option<query::album::Album>> {
         let query =
-            mutation::add_album::AddAlbum::build(mutation::add_album::AddAlbumVariables { album });
+            mutation::add_album::AddAlbumMutation::build(mutation::add_album::AddAlbumVariables {
+                album,
+            });
         let response = self.client.post(&self.endpoint).run_graphql(query).await?;
         if let Some(errors) = response.errors {
             anyhow::bail!("GraphQL error: {:?}", errors);
@@ -65,7 +67,7 @@ impl AnnimClient {
         name: String,
         tag_type: query::tag::TagType,
     ) -> anyhow::Result<Option<query::tag::Tag>> {
-        let query = mutation::add_tag::AddTag::build(mutation::add_tag::AddTagVariables {
+        let query = mutation::add_tag::AddTagMutation::build(mutation::add_tag::AddTagVariables {
             name: &name,
             type_: tag_type,
         });

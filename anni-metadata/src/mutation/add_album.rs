@@ -1,5 +1,5 @@
 use crate::query::album::{Album, TrackType};
-use crate::schema;
+use crate::{schema, Json, Uuid};
 
 #[derive(cynic::QueryVariables, Debug)]
 pub struct AddAlbumVariables<'a> {
@@ -8,14 +8,14 @@ pub struct AddAlbumVariables<'a> {
 
 #[derive(cynic::QueryFragment, Debug)]
 #[cynic(graphql_type = "MetadataMutation", variables = "AddAlbumVariables")]
-pub struct AddAlbum {
+pub struct AddAlbumMutation {
     #[arguments(input: $album)]
     pub add_album: Option<Album>,
 }
 
 #[derive(cynic::InputObject, Debug)]
 pub struct AddAlbumInput<'a> {
-    pub album_id: Option<crate::Uuid>,
+    pub album_id: Option<Uuid>,
     pub title: &'a str,
     pub edition: Option<&'a str>,
     pub catalog: Option<&'a str>,
@@ -23,7 +23,7 @@ pub struct AddAlbumInput<'a> {
     pub year: i32,
     pub month: Option<i32>,
     pub day: Option<i32>,
-    pub extra: Option<crate::Json>,
+    pub extra: Option<Json>,
     pub discs: Vec<CreateAlbumDiscInput<'a>>,
 }
 

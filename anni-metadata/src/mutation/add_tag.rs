@@ -12,7 +12,7 @@ pub struct AddTagVariables<'a> {
 
 #[derive(cynic::QueryFragment, Debug)]
 #[cynic(graphql_type = "MetadataMutation", variables = "AddTagVariables")]
-pub struct AddTag {
+pub struct AddTagMutation {
     #[arguments(name: $name, type: $type_)]
     pub add_tag: Tag,
 }
