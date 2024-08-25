@@ -1,0 +1,23 @@
+fragment TagBase on Tag {
+    id
+    name
+    type
+    createdAt
+    updatedAt
+}
+
+fragment TagDetail on Tag {
+    ...TagBase
+    includes {
+        ...TagBase
+    }
+    includedBy {
+        ...TagBase
+    }
+}
+
+query tag($name: String!, $type: TagType) {
+    tag(tagName: $name, tagType: $type) {
+        ...TagDetail
+    }
+}

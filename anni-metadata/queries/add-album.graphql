@@ -39,8 +39,8 @@ fragment AlbumDetail on Album {
   }
 }
 
-query album($albumId: UUID) {
-    album(albumId: $albumId) {
-        ...AlbumDetail
-    }
+mutation addAlbum($album: AddAlbumInput!) {
+  addAlbum(input: $album) {
+    ...AlbumDetail
+  }
 }

@@ -2,7 +2,7 @@ use crate::schema;
 
 #[derive(cynic::QueryVariables, Debug)]
 pub struct AlbumVariables {
-    pub album_id: super::Uuid,
+    pub album_id: crate::Uuid,
 }
 
 #[derive(cynic::QueryFragment, Debug)]
@@ -16,7 +16,7 @@ pub struct AlbumQuery {
 #[cynic(graphql_type = "Album")]
 pub struct Album {
     pub id: cynic::Id,
-    pub album_id: super::Uuid,
+    pub album_id: crate::Uuid,
     pub level: MetadataOrganizeLevel,
     pub title: String,
     pub edition: Option<String>,
@@ -25,8 +25,8 @@ pub struct Album {
     pub year: i32,
     pub month: Option<i32>,
     pub day: Option<i32>,
-    pub created_at: super::DateTime,
-    pub updated_at: super::DateTime,
+    pub created_at: crate::DateTime,
+    pub updated_at: crate::DateTime,
     pub discs: Vec<Disc>,
 }
 
@@ -37,8 +37,8 @@ pub struct Disc {
     pub title: Option<String>,
     pub catalog: Option<String>,
     pub artist: Option<String>,
-    pub created_at: super::DateTime,
-    pub updated_at: super::DateTime,
+    pub created_at: crate::DateTime,
+    pub updated_at: crate::DateTime,
     pub tracks: Vec<Track>,
 }
 
@@ -48,11 +48,11 @@ pub struct Track {
     pub index: i32,
     pub title: String,
     pub artist: String,
-    pub artists: Option<super::Json>,
+    pub artists: Option<crate::Json>,
     #[cynic(rename = "type")]
     pub type_: TrackType,
-    pub created_at: super::DateTime,
-    pub updated_at: super::DateTime,
+    pub created_at: crate::DateTime,
+    pub updated_at: crate::DateTime,
 }
 
 #[derive(cynic::Enum, Clone, Copy, Debug)]
