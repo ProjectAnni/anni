@@ -365,3 +365,30 @@ impl FromStr for TagType {
         }
     }
 }
+
+pub struct TagRelation(pub(crate) tag_relation::Model);
+
+#[Object]
+impl TagRelation {
+    pub async fn id(&self) -> ID {
+        ID(self.0.id.to_string())
+    }
+
+    pub async fn tag(&self, ctx: &Context<'_>) -> anyhow::Result<TagInfo> {
+        let db = ctx.data::<DatabaseConnection>().unwrap();
+        let model = tag_info::Entity::find_by_id(self.0.tag_db_id)
+            .one(db)
+            .await?
+            .unwrap();
+        Ok(TagInfo(model))
+    }
+
+    pub async fn parent(&self, ctx: &Context<'_>) -> anyhow::Result<TagInfo> {
+        let db = ctx.data::<DatabaseConnection>().unwrap();
+        let model = tag_info::Entity::find_by_id(self.0.parent_tag_db_id)
+            .one(db)
+            .await?
+            .unwrap();
+        Ok(TagInfo(model))
+    }
+}

@@ -6,19 +6,19 @@ use std::str::FromStr;
 use anyhow::Ok;
 use async_graphql::{
     connection::{Connection, Edge},
-    Context, EmptySubscription, Object, Schema,
+    Context, EmptySubscription, Object, Schema, ID,
 };
-use input::AlbumsBy;
+use input::{AlbumsBy, MetadataIDInput};
 use sea_orm::{
     prelude::Uuid, sea_query::NullOrdering, ActiveModelTrait, ActiveValue, ColumnTrait,
     DatabaseConnection, EntityTrait, Order, QueryFilter, QueryOrder, QuerySelect, TransactionTrait,
 };
 use seaography::{apply_pagination, CursorInput, PaginationInput};
-use types::{AlbumInfo, DiscInfo, MetadataOrganizeLevel, TagInfo, TagType, TrackInfo};
+use types::{AlbumInfo, DiscInfo, MetadataOrganizeLevel, TagInfo, TagRelation, TagType, TrackInfo};
 
 use crate::{
     auth::require_auth,
-    entities::{album, disc, tag_info, track},
+    entities::{album, album_tag_relation, disc, tag_info, tag_relation, track},
 };
 
 pub type MetadataSchema = Schema<MetadataQuery, MetadataMutation, EmptySubscription>;
@@ -183,8 +183,7 @@ impl MetadataMutation {
     ) -> anyhow::Result<Option<AlbumInfo>> {
         require_auth(ctx)?;
         let db = ctx.data::<DatabaseConnection>().unwrap();
-        let Some(model) = album::Entity::find()
-            .filter(album::Column::Id.eq(input.id.parse::<i32>()?))
+        let Some(model) = album::Entity::find_by_id(input.id.parse::<i32>()?)
             .one(db)
             .await?
         else {
@@ -205,8 +204,7 @@ impl MetadataMutation {
     ) -> anyhow::Result<Option<DiscInfo>> {
         require_auth(ctx)?;
         let db = ctx.data::<DatabaseConnection>().unwrap();
-        let Some(model) = disc::Entity::find()
-            .filter(disc::Column::Id.eq(input.id.parse::<i32>()?))
+        let Some(model) = disc::Entity::find_by_id(input.id.parse::<i32>()?)
             .one(db)
             .await?
         else {
@@ -227,8 +225,7 @@ impl MetadataMutation {
     ) -> anyhow::Result<Option<TrackInfo>> {
         require_auth(ctx)?;
         let db = ctx.data::<DatabaseConnection>().unwrap();
-        let Some(model) = track::Entity::find()
-            .filter(track::Column::Id.eq(input.id.parse::<i32>()?))
+        let Some(model) = track::Entity::find_by_id(input.id.parse::<i32>()?)
             .one(db)
             .await?
         else {
@@ -251,8 +248,7 @@ impl MetadataMutation {
     ) -> anyhow::Result<Option<AlbumInfo>> {
         require_auth(ctx)?;
         let db = ctx.data::<DatabaseConnection>().unwrap();
-        let Some(album) = album::Entity::find()
-            .filter(album::Column::Id.eq(input.id.parse::<i32>()?))
+        let Some(album) = album::Entity::find_by_id(input.id.parse::<i32>()?)
             .one(db)
             .await?
         else {
@@ -299,8 +295,7 @@ impl MetadataMutation {
     ) -> anyhow::Result<Option<DiscInfo>> {
         require_auth(ctx)?;
         let db = ctx.data::<DatabaseConnection>().unwrap();
-        let Some(disc) = disc::Entity::find()
-            .filter(disc::Column::Id.eq(input.id.parse::<i32>()?))
+        let Some(disc) = disc::Entity::find_by_id(input.id.parse::<i32>()?)
             .one(db)
             .await?
         else {
@@ -308,10 +303,9 @@ impl MetadataMutation {
         };
 
         let album_db_id = disc.album_db_id;
-        let level: String = album::Entity::find()
+        let level: String = album::Entity::find_by_id(album_db_id)
             .select_only()
             .column(album::Column::Level)
-            .filter(album::Column::Id.eq(album_db_id))
             .into_tuple()
             .one(db)
             .await?
@@ -352,8 +346,7 @@ impl MetadataMutation {
     ) -> anyhow::Result<Option<AlbumInfo>> {
         require_auth(ctx)?;
         let db = ctx.data::<DatabaseConnection>().unwrap();
-        let Some(album) = album::Entity::find()
-            .filter(album::Column::Id.eq(input.id.parse::<i32>()?))
+        let Some(album) = album::Entity::find_by_id(input.id.parse::<i32>()?)
             .one(db)
             .await?
         else {
@@ -366,5 +359,154 @@ impl MetadataMutation {
 
         let album = album.update(db).await?;
         Ok(Some(AlbumInfo(album)))
+    }
+
+    /// Add a new tag `type:name` to the database.
+    async fn add_tag<'ctx>(
+        &self,
+        ctx: &Context<'ctx>,
+        name: String,
+        r#type: TagType,
+    ) -> anyhow::Result<TagInfo> {
+        require_auth(ctx)?;
+        let db = ctx.data::<DatabaseConnection>().unwrap();
+        let tag = tag_info::ActiveModel {
+            name: ActiveValue::set(name),
+            r#type: ActiveValue::set(r#type.to_string()),
+            ..Default::default()
+        };
+        let tag = tag.insert(db).await?;
+        Ok(TagInfo(tag))
+    }
+
+    async fn update_tag_relation(
+        &self,
+        ctx: &Context<'_>,
+        tag_id: ID,
+        parent_id: ID,
+        remove: Option<bool>,
+    ) -> anyhow::Result<Option<TagRelation>> {
+        require_auth(ctx)?;
+        let db = ctx.data::<DatabaseConnection>().unwrap();
+
+        let remove = remove.unwrap_or(false);
+        if remove {
+            // remove relation
+            tag_relation::Entity::delete_many()
+                .filter(
+                    tag_relation::Column::TagDbId
+                        .eq(tag_id.parse::<i32>()?)
+                        .and(tag_relation::Column::ParentTagDbId.eq(parent_id.parse::<i32>()?)),
+                )
+                .exec(db)
+                .await?;
+            Ok(None)
+        } else {
+            // create relation
+            let relation = tag_relation::ActiveModel {
+                tag_db_id: ActiveValue::set(tag_id.parse::<i32>()?),
+                parent_tag_db_id: ActiveValue::set(parent_id.parse::<i32>()?),
+                ..Default::default()
+            };
+            let relation = relation.insert(db).await?;
+            Ok(Some(TagRelation(relation)))
+        }
+    }
+
+    /// Update tags of an album, disc or track.
+    async fn update_metadata_tags(
+        &self,
+        ctx: &Context<'_>,
+        input: MetadataIDInput,
+        tags: Vec<ID>,
+    ) -> anyhow::Result<AlbumInfo> {
+        require_auth(ctx)?;
+        let db = ctx.data::<DatabaseConnection>().unwrap();
+        let tags_id = tags
+            .iter()
+            .map(|id| id.parse::<i32>())
+            .collect::<Result<Vec<_>, _>>()?;
+
+        let album_db_id = match input {
+            MetadataIDInput::Album(album_db_id) => {
+                let album_db_id = album_db_id.parse::<i32>()?;
+                album_tag_relation::Entity::delete_many()
+                    .filter(
+                        album_tag_relation::Column::AlbumDbId
+                            .eq(album_db_id)
+                            .and(album_tag_relation::Column::DiscDbId.is_null())
+                            .and(album_tag_relation::Column::TrackDbId.is_null()),
+                    )
+                    .exec(db)
+                    .await?;
+                album_tag_relation::Entity::insert_many(tags_id.into_iter().map(|tag_id| {
+                    album_tag_relation::ActiveModel {
+                        album_db_id: ActiveValue::set(album_db_id),
+                        tag_db_id: ActiveValue::set(tag_id),
+                        ..Default::default()
+                    }
+                }))
+                .exec(db)
+                .await?;
+
+                album_db_id
+            }
+            MetadataIDInput::Disc(disc_db_id) => {
+                let disc_db_id = disc_db_id.parse::<i32>()?;
+                album_tag_relation::Entity::delete_many()
+                    .filter(
+                        album_tag_relation::Column::DiscDbId
+                            .eq(disc_db_id)
+                            .and(album_tag_relation::Column::TrackDbId.is_null()),
+                    )
+                    .exec(db)
+                    .await?;
+
+                let disc = disc::Entity::find_by_id(disc_db_id).one(db).await?.unwrap();
+                album_tag_relation::Entity::insert_many(tags_id.into_iter().map(|tag_id| {
+                    album_tag_relation::ActiveModel {
+                        album_db_id: ActiveValue::set(disc.album_db_id),
+                        disc_db_id: ActiveValue::set(disc_db_id),
+                        tag_db_id: ActiveValue::set(tag_id),
+                        ..Default::default()
+                    }
+                }))
+                .exec(db)
+                .await?;
+
+                disc.album_db_id
+            }
+            MetadataIDInput::Track(track_db_id) => {
+                let track_db_id = track_db_id.parse::<i32>()?;
+                album_tag_relation::Entity::delete_many()
+                    .filter(album_tag_relation::Column::TrackDbId.eq(track_db_id))
+                    .exec(db)
+                    .await?;
+
+                let track = track::Entity::find_by_id(track_db_id)
+                    .one(db)
+                    .await?
+                    .unwrap();
+                album_tag_relation::Entity::insert_many(tags_id.into_iter().map(|tag_id| {
+                    album_tag_relation::ActiveModel {
+                        album_db_id: ActiveValue::set(track.album_db_id),
+                        disc_db_id: ActiveValue::set(track.disc_db_id),
+                        track_db_id: ActiveValue::set(track_db_id),
+                        tag_db_id: ActiveValue::set(tag_id),
+                        ..Default::default()
+                    }
+                }))
+                .exec(db)
+                .await?;
+
+                track.album_db_id
+            }
+        };
+
+        let album = album::Entity::find_by_id(album_db_id)
+            .one(db)
+            .await?
+            .unwrap();
+        Ok(AlbumInfo(album))
     }
 }

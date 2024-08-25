@@ -235,3 +235,10 @@ pub type UpdateJson = UpdateValue<serde_json::Value>;
 pub struct UpdateValue<T: InputType> {
     value: Option<T>,
 }
+
+#[derive(OneofObject)]
+pub enum MetadataIDInput {
+    Album(ID),
+    Disc(ID),
+    Track(ID),
+}
