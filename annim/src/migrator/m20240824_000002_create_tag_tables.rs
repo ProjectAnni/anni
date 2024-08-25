@@ -58,13 +58,15 @@ impl MigrationTrait for Migration {
                         ForeignKey::create()
                             .name("fk-tag-relation-tag")
                             .from(TagRelation::Table, TagRelation::TagDbId)
-                            .to(TagInfo::Table, TagInfo::Id),
+                            .to(TagInfo::Table, TagInfo::Id)
+                            .on_delete(ForeignKeyAction::Cascade),
                     )
                     .foreign_key(
                         ForeignKey::create()
                             .name("fk-tag-relation-parent-tag")
                             .from(TagRelation::Table, TagRelation::ParentTagDbId)
-                            .to(TagInfo::Table, TagInfo::Id),
+                            .to(TagInfo::Table, TagInfo::Id)
+                            .on_delete(ForeignKeyAction::Cascade),
                     )
                     .to_owned(),
             )
@@ -84,25 +86,29 @@ impl MigrationTrait for Migration {
                         ForeignKeyCreateStatement::new()
                             .name("fk-album-tag-relation-album")
                             .from(AlbumTagRelation::Table, AlbumTagRelation::AlbumDbId)
-                            .to(Album::Table, Album::Id),
+                            .to(Album::Table, Album::Id)
+                            .on_delete(ForeignKeyAction::Cascade),
                     )
                     .foreign_key(
                         ForeignKeyCreateStatement::new()
                             .name("fk-album-tag-relation-disc")
                             .from(AlbumTagRelation::Table, AlbumTagRelation::DiscDbId)
-                            .to(Disc::Table, Disc::Id),
+                            .to(Disc::Table, Disc::Id)
+                            .on_delete(ForeignKeyAction::Cascade),
                     )
                     .foreign_key(
                         ForeignKeyCreateStatement::new()
                             .name("fk-album-tag-relation-track")
                             .from(AlbumTagRelation::Table, AlbumTagRelation::TrackDbId)
-                            .to(Track::Table, Track::Id),
+                            .to(Track::Table, Track::Id)
+                            .on_delete(ForeignKeyAction::Cascade),
                     )
                     .foreign_key(
                         ForeignKeyCreateStatement::new()
                             .name("fk-album-tag-relation-tag")
                             .from(AlbumTagRelation::Table, AlbumTagRelation::TagDbId)
-                            .to(TagInfo::Table, TagInfo::Id),
+                            .to(TagInfo::Table, TagInfo::Id)
+                            .on_delete(ForeignKeyAction::Cascade),
                     )
                     .to_owned(),
             )

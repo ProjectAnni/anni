@@ -63,7 +63,8 @@ impl MigrationTrait for Migration {
                         ForeignKey::create()
                             .name("fk-disc_album")
                             .from(Disc::Table, Disc::AlbumDbId)
-                            .to(Album::Table, Album::Id),
+                            .to(Album::Table, Album::Id)
+                            .on_delete(ForeignKeyAction::Cascade),
                     )
                     .to_owned(),
             )
@@ -92,13 +93,15 @@ impl MigrationTrait for Migration {
                         ForeignKey::create()
                             .name("fk-track_album")
                             .from(Track::Table, Track::AlbumDbId)
-                            .to(Album::Table, Album::Id),
+                            .to(Album::Table, Album::Id)
+                            .on_delete(ForeignKeyAction::Cascade),
                     )
                     .foreign_key(
                         ForeignKey::create()
                             .name("fk-track_disc")
                             .from(Track::Table, Track::DiscDbId)
-                            .to(Disc::Table, Disc::Id),
+                            .to(Disc::Table, Disc::Id)
+                            .on_delete(ForeignKeyAction::Cascade),
                     )
                     .to_owned(),
             )
