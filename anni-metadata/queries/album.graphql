@@ -1,0 +1,47 @@
+fragment AlbumDetail on Album {
+  id
+  albumId
+  level
+
+  title
+  edition
+  catalog
+  artist
+
+  year
+  month
+  day
+
+  createdAt
+  updatedAt
+
+  discs {
+    id
+    index
+    title
+    catalog
+    artist
+
+    createdAt
+    updatedAt
+
+    tracks {
+      id
+      index
+      title
+      artist
+      artists
+      type
+
+      createdAt
+      updatedAt
+    }
+  }
+}
+
+
+query album($albumId: UUID) {
+    album(albumId: $albumId) {
+        ...AlbumDetail
+    }
+}
