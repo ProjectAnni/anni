@@ -353,6 +353,68 @@ impl MetadataMutation {
             return Ok(None);
         };
 
+        let original_level = MetadataOrganizeLevel::from_str(&album.level)?;
+        // Level change rules:
+        match (original_level, input.level) {
+            // 1 -> 2
+            (MetadataOrganizeLevel::Initial, MetadataOrganizeLevel::Partial) => {}
+            // 2 -> 3
+            (MetadataOrganizeLevel::Partial, MetadataOrganizeLevel::Reviewed) => {}
+            // 3 -> 4
+            (MetadataOrganizeLevel::Reviewed, MetadataOrganizeLevel::Finished) => {}
+            // 4 -> *
+            (MetadataOrganizeLevel::Finished, _) => {}
+            // 3 -> 1/2
+            (
+                MetadataOrganizeLevel::Reviewed,
+                MetadataOrganizeLevel::Partial | MetadataOrganizeLevel::Initial,
+            ) => {}
+            // 2 -> 1
+            (MetadataOrganizeLevel::Partial, MetadataOrganizeLevel::Initial) => {}
+            // others are invalid
+            _ => anyhow::bail!(
+                "Cannot decrease organize level from {:?} to {:?}",
+                original_level,
+                input.level
+            ),
+        }
+
+        // make Disc::Index and Track::Index sequential when organize level increases
+        if original_level == MetadataOrganizeLevel::Initial {
+            let txn = db.begin().await?;
+
+            // 1. get all discs
+            let discs = disc::Entity::find()
+                .filter(disc::Column::AlbumDbId.eq(album.id))
+                .order_by_asc(disc::Column::Index)
+                .all(&txn)
+                .await?;
+
+            for (index, disc) in discs.into_iter().enumerate() {
+                // 2. update disc indexes
+                let disc_db_id = disc.id;
+                let mut model: disc::ActiveModel = disc.into();
+                model.index = ActiveValue::set(index as i32);
+                model.update(&txn).await?;
+
+                // 3. get all tracks
+                let tracks = track::Entity::find()
+                    .filter(track::Column::DiscDbId.eq(disc_db_id))
+                    .order_by_asc(track::Column::Index)
+                    .all(&txn)
+                    .await?;
+
+                // 4. update track indexes
+                for (index, track) in tracks.into_iter().enumerate() {
+                    let mut model: track::ActiveModel = track.into();
+                    model.index = ActiveValue::set(index as i32);
+                    model.update(&txn).await?;
+                }
+            }
+
+            txn.commit().await?;
+        }
+
         let mut album: album::ActiveModel = album.into();
         album.level = ActiveValue::set(input.level.to_string());
         album.updated_at = ActiveValue::set(chrono::Utc::now());
