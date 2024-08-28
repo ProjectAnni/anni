@@ -88,7 +88,7 @@ impl CacheStore {
 
     pub fn store_info(&self, track: RawTrackIdentifier, kind: &str, value: &str) -> io::Result<()> {
         let path = {
-            let mut p = self.loaction_of(track);
+            let mut p = self.loaction_of(track.copied());
             p.set_extension("info");
             p
         };
@@ -107,6 +107,7 @@ impl CacheStore {
             .open(path)?;
 
         for (kind, value) in info {
+            log::debug!("{track}: stored {kind} = {value}");
             writeln!(writer, "{kind}:{value}")?;
         }
 
