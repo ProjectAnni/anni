@@ -1,6 +1,7 @@
 use std::{
+    collections::HashMap,
     fs::{self, File},
-    io::{self, ErrorKind},
+    io::{self, BufRead, BufReader, ErrorKind, Write},
     path::{Path, PathBuf},
 };
 
@@ -84,6 +85,64 @@ impl CacheStore {
             Err(io::Error::new(ErrorKind::Other, "invalid cache"))
         }
     }
+
+    pub fn store_info(&self, track: RawTrackIdentifier, kind: &str, value: &str) -> io::Result<()> {
+        let path = {
+            let mut p = self.loaction_of(track);
+            p.set_extension("info");
+            p
+        };
+
+        let mut info = match File::open(&path) {
+            Ok(f) => read_info(&f)?,
+            Err(e) if e.kind() == ErrorKind::NotFound => HashMap::with_capacity(1),
+            Err(e) => return Err(e),
+        };
+        info.insert(kind.to_owned(), value.to_owned());
+
+        let mut writer = File::options()
+            .write(true)
+            .truncate(true)
+            .create(true)
+            .open(path)?;
+
+        for (kind, value) in info {
+            writeln!(writer, "{kind}:{value}")?;
+        }
+
+        Ok(())
+    }
+
+    pub fn acquire_info(&self, track: RawTrackIdentifier) -> io::Result<HashMap<String, String>> {
+        let path = {
+            let mut p = self.loaction_of(track);
+            p.set_extension("info");
+            p
+        };
+
+        match File::open(&path) {
+            Ok(f) => read_info(&f),
+            Err(e) if e.kind() == ErrorKind::NotFound => Ok(HashMap::new()),
+            Err(e) => return Err(e),
+        }
+    }
+}
+
+fn read_info(f: &File) -> io::Result<HashMap<String, String>> {
+    let reader = BufReader::new(f);
+
+    let mut info = HashMap::new();
+
+    for line in reader.lines() {
+        let line = line?;
+        let (key, value) = line
+            .split_once(':')
+            .ok_or(io::Error::new(ErrorKind::Other, "invalid info"))?;
+
+        info.insert(key.to_owned(), value.to_owned());
+    }
+
+    Ok(info)
 }
 
 pub fn create_dir_all(path: impl AsRef<Path>) -> io::Result<()> {
