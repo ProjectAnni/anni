@@ -53,8 +53,13 @@ impl CacheStore {
         let path = self.loaction_of(track.copied());
 
         if path.exists() {
-            if validate_audio(&path).unwrap_or(false) {
-                return File::open(path).map(|f| Ok(f));
+            let info = self.acquire_info(track.copied())?;
+            let f = File::open(&path)?;
+
+            if info.get("content-length").and_then(|l| l.parse().ok()) == Some(f.metadata()?.len())
+                || validate_audio(&path).unwrap_or(false)
+            {
+                return Ok(Ok(f));
             }
 
             log::warn!("cache of {track} exists but is invalid");
