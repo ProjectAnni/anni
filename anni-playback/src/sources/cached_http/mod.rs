@@ -157,7 +157,7 @@ impl Read for CachedHttpSource {
 impl Seek for CachedHttpSource {
     fn seek(&mut self, pos: std::io::SeekFrom) -> std::io::Result<u64> {
         let p = self.cache.seek(pos)?;
-        self.pos += p as usize;
+        self.pos = p as usize;
         Ok(p)
     }
 }
