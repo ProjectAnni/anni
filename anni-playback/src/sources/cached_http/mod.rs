@@ -210,7 +210,7 @@ impl CachedAnnilSource {
                     let _ = cache_store.store_info(
                         cloned_track.inner.copied(),
                         "content-length",
-                        &content_length.to_string(),
+                        content_length,
                     );
                 }
                 (url.clone(), duration)
