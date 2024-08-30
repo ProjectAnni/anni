@@ -23,6 +23,7 @@ license = "Apache-2.0"
 
 [workspace.dependencies]
 anni-common = { version = "0.2.0", path = "./anni-common" }
+anni-metadata = { path = "./anni-metadata" }
 
 log = "0.4"
 uuid = { version = "1", features = ["v4"] }

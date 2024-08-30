@@ -380,6 +380,7 @@ pub enum TagType {
     Project,
     Game,
     Organization,
+    Category,
     Others,
 }
 
@@ -394,6 +395,7 @@ impl ToString for TagType {
             TagType::Project => "project".to_string(),
             TagType::Game => "game".to_string(),
             TagType::Organization => "organization".to_string(),
+            TagType::Category => "category".to_string(),
             TagType::Others => "others".to_string(),
         }
     }

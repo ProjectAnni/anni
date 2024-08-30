@@ -122,6 +122,7 @@ dependencies = [
  "anni-common",
  "anni-flac",
  "anni-google-drive3",
+ "anni-metadata",
  "anni-provider",
  "anni-repo",
  "anni-split",

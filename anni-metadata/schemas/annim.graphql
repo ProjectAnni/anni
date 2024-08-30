@@ -129,6 +129,10 @@ input AlbumsBy {
   List albums by conditions.
   """
   organizeLevel: MetadataOrganizeLevel
+  """
+  List albums by conditions.
+  """
+  tag: Int
 }
 
 input CreateAlbumDiscInput {
@@ -318,6 +322,7 @@ enum TagType {
   PROJECT
   GAME
   ORGANIZATION
+  CATEGORY
   OTHERS
 }
 

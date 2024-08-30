@@ -1,6 +1,7 @@
 mod add;
 mod get;
 mod lint;
+mod migrate;
 mod print;
 mod watch;
 
@@ -9,6 +10,7 @@ use crate::{ball, fl, ll};
 use add::*;
 use anni_workspace::AnniWorkspace;
 use lint::*;
+use migrate::RepoMigrateAction;
 use print::*;
 use watch::*;
 
@@ -72,6 +74,7 @@ pub enum RepoAction {
     #[clap(about = ll!("repo-db"))]
     Database(RepoDatabaseAction),
     Watch(RepoWatchAction),
+    Migrate(RepoMigrateAction),
 }
 
 #[derive(Args, Debug, Clone)]

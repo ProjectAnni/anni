@@ -8,18 +8,25 @@ use std::{
 use toml::Value;
 
 #[derive(PartialEq, Eq, Debug, Clone)]
-pub struct AnniDate {
-    year: u16,
-    month: u8,
-    day: u8,
-}
+pub struct AnniDate(
+    u16, /* year */
+    Option<(u8 /* month */, Option<u8 /* day */>)>,
+);
 
 impl AnniDate {
-    pub const UNKNOWN: AnniDate = AnniDate {
-        year: 0,
-        month: 0,
-        day: 0,
-    };
+    pub const UNKNOWN: AnniDate = AnniDate(0, None);
+
+    pub fn year(&self) -> u16 {
+        self.0
+    }
+
+    pub fn month(&self) -> Option<u8> {
+        self.1.map(|(month, _)| month)
+    }
+
+    pub fn day(&self) -> Option<u8> {
+        self.1.and_then(|(_, day)| day)
+    }
 }
 
 impl Serialize for AnniDate {
@@ -27,21 +34,21 @@ impl Serialize for AnniDate {
     where
         S: Serializer,
     {
-        if self.month > 0 && self.day > 0 {
+        if let (Some(month), Some(day)) = (self.month(), self.day()) {
             let date = toml_edit::Datetime {
                 date: Some(toml_edit::Date {
-                    year: self.year,
-                    month: self.month,
-                    day: self.day,
+                    year: self.year(),
+                    month,
+                    day,
                 }),
                 time: None,
                 offset: None,
             };
             toml_edit::Datetime::serialize(&date, serializer)
         } else {
-            let mut result = format!("{:04}", self.year);
-            if self.month > 0 {
-                result += &format!("-{:02}", self.month);
+            let mut result = format!("{:04}", self.year());
+            if let Some(month) = self.month() {
+                result += &format!("-{:02}", month);
             }
             Value::serialize(&Value::String(result), serializer)
         }
@@ -96,7 +103,7 @@ impl AnniDate {
         if year == 0 {
             Self::UNKNOWN
         } else {
-            Self { year, month, day }
+            Self(year, Some((month, Some(day))))
         }
     }
 
@@ -122,20 +129,21 @@ impl AnniDate {
 
     /// Print date in short format, e.g. 190130
     pub fn to_short_string(&self) -> String {
-        format!("{:02}{:02}{:02}", self.year % 100, self.month, self.day)
+        format!(
+            "{:02}{:02}{:02}",
+            self.year() % 100,
+            self.month().unwrap_or(0),
+            self.day().unwrap_or(0)
+        )
     }
 }
 
 impl Display for AnniDate {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        if self.day == 0 {
-            if self.month == 0 {
-                write!(f, "{}", self.year)
-            } else {
-                write!(f, "{}-{:02}", self.year, self.month)
-            }
-        } else {
-            write!(f, "{}-{:02}-{:02}", self.year, self.month, self.day)
+        match (self.month(), self.day()) {
+            (Some(month), Some(day)) => write!(f, "{}-{:02}-{:02}", self.year(), month, day),
+            (Some(month), None) => write!(f, "{}-{:02}", self.year(), month),
+            _ => write!(f, "{}", self.year()),
         }
     }
 }
@@ -147,31 +155,31 @@ mod tests {
         use super::*;
 
         let date = AnniDate::from_parts("19", "01", "30").unwrap();
-        assert_eq!(date.year, 2019);
-        assert_eq!(date.month, 1);
-        assert_eq!(date.day, 30);
+        assert_eq!(date.year(), 2019);
+        assert_eq!(date.month(), Some(1));
+        assert_eq!(date.day(), Some(30));
         assert_eq!(date.to_string(), "2019-01-30");
         assert_eq!(date.to_short_string(), "190130");
 
         // though there's no cd released in 201-AD
         let date = AnniDate::from_parts("201", "1", "31").unwrap();
-        assert_eq!(date.year, 201);
-        assert_eq!(date.month, 1);
-        assert_eq!(date.day, 31);
+        assert_eq!(date.year(), 201);
+        assert_eq!(date.month(), Some(1));
+        assert_eq!(date.day(), Some(31));
         assert_eq!(date.to_string(), "201-01-31");
         assert_eq!(date.to_short_string(), "010131");
 
         let date = AnniDate::from_parts("1919", "08", "10").unwrap();
-        assert_eq!(date.year, 1919);
-        assert_eq!(date.month, 8);
-        assert_eq!(date.day, 10);
+        assert_eq!(date.year(), 1919);
+        assert_eq!(date.month(), Some(8));
+        assert_eq!(date.day(), Some(10));
         assert_eq!(date.to_string(), "1919-08-10");
         assert_eq!(date.to_short_string(), "190810");
 
         let date = AnniDate::from_parts("1982", "08", "10").unwrap();
-        assert_eq!(date.year, 1982);
-        assert_eq!(date.month, 8);
-        assert_eq!(date.day, 10);
+        assert_eq!(date.year(), 1982);
+        assert_eq!(date.month(), Some(8));
+        assert_eq!(date.day(), Some(10));
         assert_eq!(date.to_string(), "1982-08-10");
         assert_eq!(date.to_short_string(), "820810");
     }
