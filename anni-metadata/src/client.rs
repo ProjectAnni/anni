@@ -13,9 +13,19 @@ enum TagLocation {
 }
 
 impl AnnimClient {
-    pub fn new(endpoint: String) -> Self {
+    pub fn new(endpoint: String, auth: Option<&str>) -> Self {
+        let mut client = reqwest::Client::builder();
+        if let Some(auth) = auth {
+            let mut headers = reqwest::header::HeaderMap::new();
+            headers.insert(
+                reqwest::header::AUTHORIZATION,
+                reqwest::header::HeaderValue::from_str(auth).unwrap(),
+            );
+            client = client.default_headers(headers);
+        }
+
         Self {
-            client: reqwest::Client::new(),
+            client: client.build().unwrap(),
             endpoint,
         }
     }
@@ -49,7 +59,7 @@ impl AnnimClient {
     pub async fn tag(
         &self,
         name: String,
-        tag_type: Option<query::tag::TagType>,
+        tag_type: Option<query::album::TagType>,
     ) -> anyhow::Result<Vec<query::tag::Tag>> {
         let query = query::tag::TagQuery::build(query::tag::TagVariables {
             name: &name,
@@ -71,7 +81,7 @@ impl AnnimClient {
     pub async fn add_tag(
         &self,
         name: String,
-        tag_type: query::tag::TagType,
+        tag_type: query::album::TagType,
     ) -> anyhow::Result<Option<query::tag::Tag>> {
         let query = mutation::add_tag::AddTagMutation::build(mutation::add_tag::AddTagVariables {
             name: &name,
@@ -178,7 +188,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_album() -> anyhow::Result<()> {
-        let client = AnnimClient::new("http://localhost:8000/".to_string());
+        let client = AnnimClient::new("http://localhost:8000/".to_string(), Some("114514"));
         let result = client
             .album(Uuid::from_str("8da26cf7-9c9c-4209-9ed5-f5fb39e32051").unwrap())
             .await?;

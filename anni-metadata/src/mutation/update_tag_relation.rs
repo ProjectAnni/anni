@@ -1,4 +1,4 @@
-use crate::{query::album::Tag, schema};
+use crate::{query::album::TagBase, schema};
 
 #[derive(cynic::QueryVariables, Debug)]
 pub struct UpdateTagRelationVariables<'a> {
@@ -20,6 +20,6 @@ pub struct UpdateTagRelation {
 #[derive(cynic::QueryFragment, Debug)]
 pub struct TagRelation {
     pub id: cynic::Id,
-    pub tag: Tag,
-    pub parent: Tag,
+    pub tag: TagBase,
+    pub parent: TagBase,
 }

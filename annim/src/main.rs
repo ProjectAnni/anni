@@ -26,7 +26,7 @@ async fn graphql_playground() -> impl IntoResponse {
 
 fn get_token_from_headers(headers: &HeaderMap) -> Option<AuthToken> {
     headers
-        .get("Authentication")
+        .get("Authorization")
         .and_then(|value| value.to_str().map(|s| AuthToken(s.to_string())).ok())
 }
 

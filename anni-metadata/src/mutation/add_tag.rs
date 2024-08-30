@@ -1,5 +1,5 @@
 use crate::{
-    query::tag::{Tag, TagType},
+    query::{album::TagType, tag::Tag},
     schema,
 };
 

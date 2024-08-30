@@ -25,7 +25,7 @@ pub struct Album {
     pub year: i32,
     pub month: Option<i32>,
     pub day: Option<i32>,
-    pub tags: Vec<Tag>,
+    pub tags: Vec<TagBase>,
     pub created_at: DateTime,
     pub updated_at: DateTime,
     pub extra: Option<Json>,
@@ -39,7 +39,7 @@ pub struct Disc {
     pub title: Option<String>,
     pub catalog: Option<String>,
     pub artist: Option<String>,
-    pub tags: Vec<Tag>,
+    pub tags: Vec<TagBase>,
     pub created_at: DateTime,
     pub updated_at: DateTime,
     pub tracks: Vec<Track>,
@@ -54,13 +54,14 @@ pub struct Track {
     #[cynic(rename = "type")]
     pub type_: TrackType,
     pub artists: Option<Json>,
-    pub tags: Vec<Tag>,
+    pub tags: Vec<TagBase>,
     pub created_at: DateTime,
     pub updated_at: DateTime,
 }
 
 #[derive(cynic::QueryFragment, Debug)]
-pub struct Tag {
+#[cynic(graphql_type = "Tag")]
+pub struct TagBase {
     pub id: cynic::Id,
     pub name: String,
     #[cynic(rename = "type")]
@@ -98,5 +99,6 @@ pub enum TagType {
     Project,
     Game,
     Organization,
+    Category,
     Others,
 }
