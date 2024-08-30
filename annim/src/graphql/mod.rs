@@ -10,10 +10,11 @@ use async_graphql::{
 };
 use input::{AlbumsBy, MetadataIDInput};
 use sea_orm::{
-    prelude::Uuid, ActiveModelTrait, ActiveValue, ColumnTrait, DatabaseConnection, EntityTrait,
-    ModelTrait, QueryFilter, QueryOrder, QuerySelect, TransactionTrait,
+    prelude::Uuid, sea_query::ValueTuple, ActiveModelTrait, ActiveValue, ColumnTrait,
+    DatabaseConnection, EntityTrait, ModelTrait, QueryFilter, QueryOrder, QuerySelect,
+    TransactionTrait,
 };
-use seaography::{decode_cursor, encode_cursor, map_cursor_values};
+use seaography::{decode_cursor, encode_cursor};
 use types::{AlbumInfo, DiscInfo, MetadataOrganizeLevel, TagInfo, TagRelation, TagType, TrackInfo};
 
 use crate::{
@@ -83,6 +84,7 @@ impl MetadataQuery {
                     album::Column::ReleaseYear,
                     album::Column::ReleaseMonth,
                     album::Column::ReleaseDay,
+                    album::Column::Id,
                 ));
                 cursor.desc();
                 (
@@ -91,6 +93,7 @@ impl MetadataQuery {
                         album::Column::ReleaseYear,
                         album::Column::ReleaseMonth,
                         album::Column::ReleaseDay,
+                        album::Column::Id,
                     ],
                 )
             }
@@ -115,9 +118,7 @@ impl MetadataQuery {
 
         if let Some(cursor) = after {
             let values = decode_cursor(&cursor)?;
-
-            let cursor_values: sea_orm::sea_query::value::ValueTuple = map_cursor_values(values);
-
+            let cursor_values = ValueTuple::Many(values);
             query.after(cursor_values);
         }
 
