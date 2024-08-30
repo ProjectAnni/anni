@@ -19,7 +19,10 @@ pub struct SetMetadataTags {
 #[derive(cynic::InputObject, Debug)]
 #[cynic(graphql_type = "MetadataIDInput")]
 pub struct MetadataIdinput<'a> {
+    #[cynic(skip_serializing_if = "Option::is_none")]
     pub album: Option<&'a cynic::Id>,
+    #[cynic(skip_serializing_if = "Option::is_none")]
     pub disc: Option<&'a cynic::Id>,
+    #[cynic(skip_serializing_if = "Option::is_none")]
     pub track: Option<&'a cynic::Id>,
 }

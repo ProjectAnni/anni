@@ -18,7 +18,7 @@ pub enum Relation {
         from = "Column::ParentTagDbId",
         to = "super::tag_info::Column::Id",
         on_update = "NoAction",
-        on_delete = "NoAction"
+        on_delete = "Cascade"
     )]
     TagInfo2,
     #[sea_orm(
@@ -26,7 +26,7 @@ pub enum Relation {
         from = "Column::TagDbId",
         to = "super::tag_info::Column::Id",
         on_update = "NoAction",
-        on_delete = "NoAction"
+        on_delete = "Cascade"
     )]
     TagInfo1,
 }

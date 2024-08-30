@@ -9,8 +9,8 @@ pub struct Model {
     pub id: i32,
     pub tag_db_id: i32,
     pub album_db_id: i32,
-    pub disc_db_id: i32,
-    pub track_db_id: i32,
+    pub disc_db_id: Option<i32>,
+    pub track_db_id: Option<i32>,
 }
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
@@ -20,7 +20,7 @@ pub enum Relation {
         from = "Column::AlbumDbId",
         to = "super::album::Column::Id",
         on_update = "NoAction",
-        on_delete = "NoAction"
+        on_delete = "Cascade"
     )]
     Album,
     #[sea_orm(
@@ -28,7 +28,7 @@ pub enum Relation {
         from = "Column::DiscDbId",
         to = "super::disc::Column::Id",
         on_update = "NoAction",
-        on_delete = "NoAction"
+        on_delete = "Cascade"
     )]
     Disc,
     #[sea_orm(
@@ -36,7 +36,7 @@ pub enum Relation {
         from = "Column::TagDbId",
         to = "super::tag_info::Column::Id",
         on_update = "NoAction",
-        on_delete = "NoAction"
+        on_delete = "Cascade"
     )]
     TagInfo,
     #[sea_orm(
@@ -44,7 +44,7 @@ pub enum Relation {
         from = "Column::TrackDbId",
         to = "super::track::Column::Id",
         on_update = "NoAction",
-        on_delete = "NoAction"
+        on_delete = "Cascade"
     )]
     Track,
 }
