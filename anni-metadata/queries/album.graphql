@@ -1,42 +1,55 @@
 fragment AlbumDetail on Album {
-  id
-  albumId
-  level
-
-  title
-  edition
-  catalog
-  artist
-
-  year
-  month
-  day
-
-  createdAt
-  updatedAt
-
-  discs {
     id
-    index
+    albumId
+    level
+
     title
+    edition
     catalog
     artist
 
+    year
+    month
+    day
+
+    tags {
+        ...TagBase
+    }
+
     createdAt
     updatedAt
+    extra
 
-    tracks {
-      id
-      index
-      title
-      artist
-      artists
-      type
+    discs {
+        id
+        index
+        title
+        catalog
+        artist
 
-      createdAt
-      updatedAt
+        tags {
+            ...TagBase
+        }
+
+        createdAt
+        updatedAt
+
+        tracks {
+            id
+            index
+            title
+            artist
+            type
+            artists
+
+            tags {
+                ...TagBase
+            }
+
+            createdAt
+            updatedAt
+        }
     }
-  }
 }
 
 query album($albumId: UUID) {

@@ -52,8 +52,17 @@ fragment AlbumDetail on Album {
     }
 }
 
-mutation addAlbum($album: AddAlbumInput!) {
-    addAlbum(input: $album) {
+fragment TagBase on Tag {
+    id
+    name
+    type
+
+    createdAt
+    updatedAt
+}
+
+mutation setMetadataTags($target: MetadataIDInput!, $tags: [ID!]!) {
+    updateMetadataTags(input: $target, tags: $tags) {
         ...AlbumDetail
     }
 }

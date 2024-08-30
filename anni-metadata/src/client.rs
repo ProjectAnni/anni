@@ -1,9 +1,15 @@
-use crate::{mutation, query};
+use crate::{mutation, query, schema::ID};
 use cynic::{http::ReqwestExt, MutationBuilder, QueryBuilder};
 
 pub struct AnnimClient {
     client: reqwest::Client,
     endpoint: String,
+}
+
+enum TagLocation {
+    Album,
+    Disc,
+    Track,
 }
 
 impl AnnimClient {
@@ -77,6 +83,54 @@ impl AnnimClient {
         }
 
         Ok(response.data.map(|data| data.add_tag))
+    }
+
+    pub async fn set_album_tags(
+        &self,
+        id: &ID,
+        tags: Vec<&ID>,
+    ) -> anyhow::Result<query::album::Album> {
+        self.set_tags(TagLocation::Album, id, tags).await
+    }
+
+    pub async fn set_disc_tags(
+        &self,
+        id: &ID,
+        tags: Vec<&ID>,
+    ) -> anyhow::Result<query::album::Album> {
+        self.set_tags(TagLocation::Disc, id, tags).await
+    }
+
+    pub async fn set_track_tags(
+        &self,
+        id: &ID,
+        tags: Vec<&ID>,
+    ) -> anyhow::Result<query::album::Album> {
+        self.set_tags(TagLocation::Track, id, tags).await
+    }
+
+    async fn set_tags(
+        &self,
+        location: TagLocation,
+        id: &ID,
+        tags: Vec<&ID>,
+    ) -> anyhow::Result<query::album::Album> {
+        let query = mutation::set_metadata_tags::SetMetadataTags::build(
+            mutation::set_metadata_tags::SetMetadataTagsVariables {
+                target: mutation::set_metadata_tags::MetadataIdinput {
+                    album: matches!(location, TagLocation::Album).then(|| id),
+                    disc: matches!(location, TagLocation::Disc).then(|| id),
+                    track: matches!(location, TagLocation::Track).then(|| id),
+                },
+                tags,
+            },
+        );
+        let response = self.client.post(&self.endpoint).run_graphql(query).await?;
+        if let Some(errors) = response.errors {
+            anyhow::bail!("GraphQL error: {:?}", errors);
+        }
+
+        Ok(response.data.unwrap().update_metadata_tags)
     }
 }
 
