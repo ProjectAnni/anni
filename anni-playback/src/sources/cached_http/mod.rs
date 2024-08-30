@@ -202,12 +202,18 @@ impl CachedAnnilSource {
                     .inspect_err(|e| log::warn!("{e}"))
                     .ok()
             })
-            .map(|response| {
-                let duration = response
-                    .headers()
-                    .get("X-Duration-Seconds")
-                    .and_then(|v| v.to_str().ok().and_then(|dur| dur.parse().ok()));
-                (response.url().clone(), duration)
+            .map(|r| {
+                let (url, headers) = (r.url(), r.headers());
+                let parse_header = |key| headers.get(key).and_then(|v| v.to_str().ok());
+                let duration = parse_header("X-Duration-Seconds").and_then(|v| v.parse().ok());
+                if let Some(content_length) = r.content_length() {
+                    let _ = cache_store.store_info(
+                        cloned_track.inner.copied(),
+                        "content-length",
+                        content_length,
+                    );
+                }
+                (url.clone(), duration)
             });
 
         CachedHttpSource::new(track, || source.next(), cache_store, client, buffer_signal).map(Self)

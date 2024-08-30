@@ -250,6 +250,8 @@ dependencies = [
  "ratatui",
  "reqwest 0.12.7",
  "rubato",
+ "serde",
+ "serde_json",
  "symphonia",
  "symphonia-core",
  "thiserror",

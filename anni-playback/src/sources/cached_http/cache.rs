@@ -1,10 +1,13 @@
 use std::{
+    collections::HashMap,
     fs::{self, File},
     io::{self, ErrorKind},
     path::{Path, PathBuf},
 };
 
 use crate::CODEC_REGISTRY;
+use serde::{de::DeserializeOwned, Serialize};
+use serde_json::Value;
 use symphonia::{
     core::{
         codecs::DecoderOptions, formats::FormatOptions, io::MediaSourceStream,
@@ -52,8 +55,12 @@ impl CacheStore {
         let path = self.loaction_of(track.copied());
 
         if path.exists() {
-            if validate_audio(&path).unwrap_or(false) {
-                return File::open(path).map(|f| Ok(f));
+            let content_length = self.acquire_info::<u64>(track.copied(), "content-length")?;
+            let f = File::open(&path)?;
+
+            if content_length == Some(f.metadata()?.len()) || validate_audio(&path).unwrap_or(false)
+            {
+                return Ok(Ok(f));
             }
 
             log::warn!("cache of {track} exists but is invalid");
@@ -84,6 +91,59 @@ impl CacheStore {
             Err(io::Error::new(ErrorKind::Other, "invalid cache"))
         }
     }
+
+    pub fn store_info<S>(&self, track: RawTrackIdentifier, key: &str, value: S) -> io::Result<()>
+    where
+        S: Serialize,
+    {
+        let path = {
+            let mut p = self.loaction_of(track.copied());
+            p.set_extension("info");
+            p
+        };
+
+        let mut info = match File::open(&path) {
+            Ok(f) => read_info(&f)?,
+            Err(e) if e.kind() == ErrorKind::NotFound => HashMap::with_capacity(1),
+            Err(e) => return Err(e.into()),
+        };
+        info.insert(key.to_owned(), serde_json::to_value(value)?);
+
+        let writer = File::options()
+            .write(true)
+            .truncate(true)
+            .create(true)
+            .open(path)?;
+
+        serde_json::to_writer(writer, &info)?;
+
+        Ok(())
+    }
+
+    pub fn acquire_info<T: DeserializeOwned>(
+        &self,
+        track: RawTrackIdentifier,
+        key: &str,
+    ) -> io::Result<Option<T>> {
+        let path = {
+            let mut p = self.loaction_of(track);
+            p.set_extension("info");
+            p
+        };
+
+        match File::open(&path) {
+            Ok(f) => Ok(read_info(&f)?
+                .remove(key)
+                .map(|v| serde_json::from_value(v))
+                .transpose()?),
+            Err(e) if e.kind() == ErrorKind::NotFound => Ok(None),
+            Err(e) => return Err(e),
+        }
+    }
+}
+
+fn read_info(f: &File) -> serde_json::Result<HashMap<String, Value>> {
+    serde_json::from_reader(f)
 }
 
 pub fn create_dir_all(path: impl AsRef<Path>) -> io::Result<()> {
