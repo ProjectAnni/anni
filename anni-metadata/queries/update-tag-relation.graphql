@@ -1,0 +1,24 @@
+fragment TagBase on Tag {
+    id
+    name
+    type
+
+    createdAt
+    updatedAt
+}
+
+fragment TagRelationBase on TagRelation {
+    id
+    tag {
+        ...TagBase
+    }
+    parent {
+        ...TagBase
+    }
+}
+
+mutation updateTagRelation($tag: ID!, $parent: ID!, $remove: Boolean!) {
+    updateTagRelation(tagId: $tag, parentId: $parent, remove: $remove) {
+        ...TagRelationBase
+    }
+}

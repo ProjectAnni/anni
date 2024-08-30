@@ -132,6 +132,42 @@ impl AnnimClient {
 
         Ok(response.data.unwrap().update_metadata_tags)
     }
+
+    pub async fn add_tag_relation(
+        &self,
+        tag: &ID,
+        parent: &ID,
+    ) -> anyhow::Result<mutation::update_tag_relation::TagRelation> {
+        let query = mutation::update_tag_relation::UpdateTagRelation::build(
+            mutation::update_tag_relation::UpdateTagRelationVariables {
+                tag,
+                parent,
+                remove: false,
+            },
+        );
+        let response = self.client.post(&self.endpoint).run_graphql(query).await?;
+        if let Some(errors) = response.errors {
+            anyhow::bail!("GraphQL error: {:?}", errors);
+        }
+
+        Ok(response.data.unwrap().update_tag_relation.unwrap())
+    }
+
+    pub async fn remove_tag_relation(&self, tag: &ID, parent: &ID) -> anyhow::Result<()> {
+        let query = mutation::update_tag_relation::UpdateTagRelation::build(
+            mutation::update_tag_relation::UpdateTagRelationVariables {
+                tag,
+                parent,
+                remove: true,
+            },
+        );
+        let response = self.client.post(&self.endpoint).run_graphql(query).await?;
+        if let Some(errors) = response.errors {
+            anyhow::bail!("GraphQL error: {:?}", errors);
+        }
+
+        Ok(())
+    }
 }
 
 #[cfg(test)]
