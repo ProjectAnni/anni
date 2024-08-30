@@ -10,11 +10,10 @@ use async_graphql::{
 };
 use input::{AlbumsBy, MetadataIDInput};
 use sea_orm::{
-    prelude::Uuid, sea_query::NullOrdering, ActiveModelTrait, ActiveValue, ColumnTrait,
-    DatabaseConnection, EntityTrait, Order, QueryFilter, QueryOrder, QuerySelect, Related,
-    TransactionTrait,
+    prelude::Uuid, ActiveModelTrait, ActiveValue, ColumnTrait, DatabaseConnection, EntityTrait,
+    ModelTrait, QueryFilter, QueryOrder, QuerySelect, TransactionTrait,
 };
-use seaography::{apply_pagination, CursorInput, PaginationInput};
+use seaography::{decode_cursor, encode_cursor, map_cursor_values};
 use types::{AlbumInfo, DiscInfo, MetadataOrganizeLevel, TagInfo, TagRelation, TagType, TrackInfo};
 
 use crate::{
@@ -58,48 +57,94 @@ impl MetadataQuery {
     ) -> anyhow::Result<Connection<String, AlbumInfo>> {
         let db = ctx.data::<DatabaseConnection>().unwrap();
 
-        let query = match by {
-            AlbumsBy::AlbumIds(album_ids) => {
-                album::Entity::find().filter(album::Column::AlbumId.is_in(album_ids))
+        let (mut query, columns) = match by {
+            AlbumsBy::AlbumIds(album_ids) => (
+                album::Entity::find()
+                    .filter(album::Column::AlbumId.is_in(album_ids))
+                    .cursor_by(album::Column::Id),
+                vec![album::Column::Id],
+            ),
+            AlbumsBy::RecentlyCreated(limit) => (
+                album::Entity::find()
+                    .order_by_desc(album::Column::CreatedAt)
+                    .limit(limit)
+                    .cursor_by((album::Column::CreatedAt, album::Column::Id)),
+                vec![album::Column::CreatedAt, album::Column::Id],
+            ),
+            AlbumsBy::RecentlyUpdated(limit) => (
+                album::Entity::find()
+                    .order_by_desc(album::Column::UpdatedAt)
+                    .limit(limit)
+                    .cursor_by((album::Column::UpdatedAt, album::Column::Id)),
+                vec![album::Column::UpdatedAt, album::Column::Id],
+            ),
+            AlbumsBy::RecentlyReleased(limit) => {
+                let mut cursor = album::Entity::find().limit(limit).cursor_by((
+                    album::Column::ReleaseYear,
+                    album::Column::ReleaseMonth,
+                    album::Column::ReleaseDay,
+                ));
+                cursor.desc();
+                (
+                    cursor,
+                    vec![
+                        album::Column::ReleaseYear,
+                        album::Column::ReleaseMonth,
+                        album::Column::ReleaseDay,
+                    ],
+                )
             }
-            AlbumsBy::RecentlyCreated(limit) => album::Entity::find()
-                .order_by_desc(album::Column::CreatedAt)
-                .limit(limit),
-            AlbumsBy::RecentlyUpdated(limit) => album::Entity::find()
-                .order_by_desc(album::Column::UpdatedAt)
-                .limit(limit),
-            AlbumsBy::RecentlyReleased(limit) => album::Entity::find()
-                .order_by_desc(album::Column::ReleaseYear)
-                .order_by_with_nulls(album::Column::ReleaseMonth, Order::Desc, NullOrdering::Last)
-                .order_by_with_nulls(album::Column::ReleaseDay, Order::Desc, NullOrdering::Last)
-                .limit(limit),
             AlbumsBy::Keyword(_) => unimplemented!(),
-            AlbumsBy::OrganizeLevel(level) => {
-                album::Entity::find().filter(album::Column::Level.eq(level.to_string()))
-            }
+            AlbumsBy::OrganizeLevel(level) => (
+                album::Entity::find()
+                    .filter(album::Column::Level.eq(level.to_string()))
+                    .cursor_by(album::Column::Id),
+                vec![album::Column::Id],
+            ),
+            AlbumsBy::Tag(_) => unimplemented!(),
             // TODO: test this
-            AlbumsBy::Tag(tag_id) => album_tag_relation::Entity::find_related()
-                .filter(album_tag_relation::Column::TagDbId.eq(tag_id)),
+            // AlbumsBy::Tag(tag_id) => (
+            //     album_tag_relation::Entity::find_related()
+            //         .filter(album_tag_relation::Column::TagDbId.eq(tag_id))
+            //         .cursor_by(album::Column::Id),
+            //     None,
+            // ),
         };
 
-        let pagination = PaginationInput {
-            cursor: Some(CursorInput {
-                cursor: after,
-                limit: first.unwrap_or(20),
-            }),
-            page: None,
-            offset: None,
-        };
-        let conn = apply_pagination::<album::Entity>(db, query, pagination).await?;
-        let mut connection = Connection::new(
-            conn.page_info.has_previous_page,
-            conn.page_info.has_next_page,
-        );
-        connection.edges.extend(
-            conn.edges
-                .into_iter()
-                .map(|e| Edge::new(e.cursor, AlbumInfo(e.node))),
-        );
+        let limit = first.unwrap_or(20);
+
+        if let Some(cursor) = after {
+            let values = decode_cursor(&cursor)?;
+
+            let cursor_values: sea_orm::sea_query::value::ValueTuple = map_cursor_values(values);
+
+            query.after(cursor_values);
+        }
+
+        let mut data = query.first(limit + 1).all(db).await.unwrap();
+        let mut has_next_page = false;
+
+        if data.len() == limit as usize + 1 {
+            data.pop();
+            has_next_page = true;
+        }
+
+        let edges: Vec<_> = data
+            .into_iter()
+            .map(|model| {
+                let values: Vec<sea_orm::Value> = columns
+                    .iter()
+                    .map(|variant| model.get(variant.clone()))
+                    .collect();
+
+                let cursor: String = encode_cursor(values);
+
+                Edge::new(cursor, AlbumInfo(model))
+            })
+            .collect();
+
+        let mut connection = Connection::new(false, has_next_page);
+        connection.edges.extend(edges);
         Ok(connection)
     }
 
