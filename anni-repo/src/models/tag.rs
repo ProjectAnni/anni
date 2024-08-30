@@ -305,8 +305,11 @@ impl Tag {
         self.inner.tag_type()
     }
 
-    pub fn parents(&self) -> &[TagString] {
-        &self.parents
+    pub fn parents<'me, 'tag>(&'me self) -> impl Iterator<Item = &'me TagRef<'tag>>
+    where
+        'tag: 'me,
+    {
+        self.parents.iter().map(|i| &i.0)
     }
 
     pub fn simple_children<'me, 'tag>(&'me self) -> impl Iterator<Item = &'me TagRef<'tag>>

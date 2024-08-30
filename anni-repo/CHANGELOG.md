@@ -7,7 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
-- Change internal structure of AnniDate
+- Changed internal structure of AnniDate
+- Changed return type of `Tag::parents` from `&[TagString]` to `Iterator<&TagRef>`
 
 ## 0.4.2
 

@@ -353,7 +353,7 @@ impl OwnedRepositoryManager {
 
             for tag in tags {
                 for parent in tag.parents() {
-                    self.add_tag_relation(parent.0.clone(), tag.get_owned_ref());
+                    self.add_tag_relation(parent.clone(), tag.get_owned_ref());
                 }
 
                 // add children to set

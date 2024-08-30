@@ -41,13 +41,25 @@ async fn repo_migrate(me: RepoMigrateAction, manager: RepositoryManager) -> anyh
             .await?;
         if let Some(annim_tag) = annim_tag {
             log::info!("Inserted tag {}, id = {}", tag.name(), annim_tag.id.inner());
-            ids.insert(tag, annim_tag.id);
+            ids.insert(tag.get_owned_ref(), annim_tag.id);
         } else {
             log::warn!("Failed to insert tag: {}", tag.name());
         }
     }
     log::info!("Finished tag insertion.");
 
+    log::info!("Start inserting tag relation...");
+    for (tag, id) in ids.iter() {
+        for parent in repo.tag(tag).unwrap().parents() {
+            if let Some(parent_id) = ids.get(parent) {
+                let _relation = client.add_tag_relation(id, parent_id).await?;
+                log::info!("Inserted tag relation {} -> {}", tag.name(), parent.name());
+            }
+        }
+    }
+    log::info!("Finished tag relation insertion.");
+
+    let mut albums = HashMap::new();
     log::info!("Start inserting albums...");
     for album in repo.albums_iter() {
         let discs: Vec<_> = album.iter().collect();
@@ -91,14 +103,48 @@ async fn repo_migrate(me: RepoMigrateAction, manager: RepositoryManager) -> anyh
             .await?;
         if let Some(album) = annim_album {
             log::info!("Inserted album {}, id = {}", album.title, album.id.inner());
+            albums.insert(album.album_id, album);
         } else {
             log::warn!("Failed to insert album: {}", album.full_title());
         }
     }
     log::info!("Finished album insertion.");
 
-    // TODO: insert tag relation
-    // TODO: insert album tags
+    log::info!("Start inserting album tags...");
+    for album in repo.albums_iter() {
+        let album_annim = albums.get(&album.album_id()).unwrap();
+        let tags = album
+            .album_tags()
+            .iter()
+            .filter_map(|tag| ids.get(tag))
+            .collect::<Vec<_>>();
+        if !tags.is_empty() {
+            client.set_album_tags(&album_annim.id, tags).await?;
+        }
+        for (index, disc) in album.iter().enumerate() {
+            let disc_annim = &album_annim.discs[index];
+            let tags = disc
+                .tags_iter()
+                .filter_map(|tag| ids.get(tag))
+                .collect::<Vec<_>>();
+            if !tags.is_empty() {
+                client.set_disc_tags(&disc_annim.id, tags).await?;
+            }
+
+            for (index, track) in disc.iter().enumerate() {
+                let track_annim = &disc_annim.tracks[index];
+                let tags = track
+                    .tags_iter()
+                    .filter_map(|tag| ids.get(tag))
+                    .collect::<Vec<_>>();
+                if !tags.is_empty() {
+                    client.set_track_tags(&track_annim.id, tags).await?;
+                }
+            }
+        }
+        log::info!("Inserted album tags for album {}", album.full_title());
+    }
+    log::info!("Finished album tag insertion.");
 
     Ok(())
 }

@@ -278,12 +278,12 @@ COMMIT;
             // }
 
             // add parents to wait list
-            relation_deferred.insert(id, tag.parents().iter());
+            relation_deferred.insert(id, tag.parents());
         }
 
         for (child_id, parents) in relation_deferred {
             for parent in parents {
-                self.add_parent(child_id, tag_id[&parent.0])?;
+                self.add_parent(child_id, tag_id[parent])?;
             }
         }
         Ok(())
