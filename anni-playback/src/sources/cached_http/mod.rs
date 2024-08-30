@@ -35,13 +35,14 @@ pub struct CachedHttpSource {
     #[allow(unused)]
     buffer_signal: Arc<AtomicBool>,
     duration: Option<u64>,
+    content_length: Option<u64>,
 }
 
 impl CachedHttpSource {
     /// `cache_path` is the path to cache file.
     pub fn new(
         identifier: TrackIdentifier,
-        url: impl FnOnce() -> Option<(Url, Option<u64>)>,
+        url: impl FnOnce() -> Option<(Url, Option<u64>, Option<u64>)>,
         cache_store: &CacheStore,
         client: Client,
         buffer_signal: Arc<AtomicBool>,
@@ -58,6 +59,7 @@ impl CachedHttpSource {
                     is_buffering: Arc::new(AtomicBool::new(false)),
                     buffer_signal,
                     duration: None,
+                    content_length: Some(buf_len as u64),
                 });
             }
             Err(cache) => cache,
@@ -66,7 +68,7 @@ impl CachedHttpSource {
         let buf_len = Arc::new(AtomicUsize::new(0));
         let is_buffering = Arc::new(AtomicBool::new(true));
 
-        let (url, duration) = url().ok_or(OpenTrackError::NoAvailableAnnil)?;
+        let (url, duration, content_length) = url().ok_or(OpenTrackError::NoAvailableAnnil)?;
 
         log::debug!("got duration {duration:?}");
 
@@ -124,6 +126,7 @@ impl CachedHttpSource {
             is_buffering,
             buffer_signal,
             duration,
+            content_length,
         })
     }
 }
@@ -168,9 +171,8 @@ impl MediaSource for CachedHttpSource {
     }
 
     fn byte_len(&self) -> Option<u64> {
-        let len = self.buf_len.load(Ordering::Acquire) as u64;
-        log::trace!("returning buf_len {len}");
-        Some(len)
+        log::trace!("returning byte len {:?}", self.content_length);
+        self.content_length
     }
 }
 
@@ -213,7 +215,7 @@ impl CachedAnnilSource {
                         content_length,
                     );
                 }
-                (url.clone(), duration)
+                (url.clone(), duration, r.content_length())
             });
 
         CachedHttpSource::new(track, || source.next(), cache_store, client, buffer_signal).map(Self)
