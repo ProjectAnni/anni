@@ -578,7 +578,7 @@ impl MetadataMutation {
                 album_tag_relation::Entity::insert_many(tags_id.into_iter().map(|tag_id| {
                     album_tag_relation::ActiveModel {
                         album_db_id: ActiveValue::set(disc.album_db_id),
-                        disc_db_id: ActiveValue::set(disc_db_id),
+                        disc_db_id: ActiveValue::set(Some(disc_db_id)),
                         tag_db_id: ActiveValue::set(tag_id),
                         ..Default::default()
                     }
@@ -602,8 +602,8 @@ impl MetadataMutation {
                 album_tag_relation::Entity::insert_many(tags_id.into_iter().map(|tag_id| {
                     album_tag_relation::ActiveModel {
                         album_db_id: ActiveValue::set(track.album_db_id),
-                        disc_db_id: ActiveValue::set(track.disc_db_id),
-                        track_db_id: ActiveValue::set(track_db_id),
+                        disc_db_id: ActiveValue::set(Some(track.disc_db_id)),
+                        track_db_id: ActiveValue::set(Some(track_db_id)),
                         tag_db_id: ActiveValue::set(tag_id),
                         ..Default::default()
                     }
