@@ -2,7 +2,7 @@ use sea_orm::{EnumIter, Iterable};
 use sea_orm_migration::{prelude::*, schema::*};
 
 use super::{
-    helper::pk_foreign,
+    helper::{pk_foreign, pk_foreign_null},
     m20240817_000001_create_basic_tables::{Album, Disc, Track},
 };
 
@@ -80,8 +80,8 @@ impl MigrationTrait for Migration {
                     .col(pk_auto(AlbumTagRelation::Id))
                     .col(pk_foreign(AlbumTagRelation::TagDbId))
                     .col(pk_foreign(AlbumTagRelation::AlbumDbId))
-                    .col(pk_foreign(AlbumTagRelation::DiscDbId))
-                    .col(pk_foreign(AlbumTagRelation::TrackDbId))
+                    .col(pk_foreign_null(AlbumTagRelation::DiscDbId))
+                    .col(pk_foreign_null(AlbumTagRelation::TrackDbId))
                     .foreign_key(
                         ForeignKeyCreateStatement::new()
                             .name("fk-album-tag-relation-album")
