@@ -17,6 +17,8 @@ use symphonia::{
 };
 
 use anni_common::models::RawTrackIdentifier;
+use symphonia_core::io::MediaSource;
+use thiserror::Error;
 
 #[derive(Debug, Clone)]
 pub struct CacheStore {
@@ -153,8 +155,8 @@ pub fn create_dir_all(path: impl AsRef<Path>) -> io::Result<()> {
     }
 }
 
-pub fn validate_audio(p: &Path) -> symphonia::core::errors::Result<bool> {
-    let source = MediaSourceStream::new(Box::new(File::open(p)?), Default::default());
+pub fn validate(source: Box<dyn MediaSource>) -> Result<bool, ValidationError> {
+    let source = MediaSourceStream::new(source, Default::default());
 
     let format_opts = FormatOptions::default();
     let metadata_opts = MetadataOptions::default();
@@ -173,5 +175,21 @@ pub fn validate_audio(p: &Path) -> symphonia::core::errors::Result<bool> {
         let _ = decoder.decode(&packet)?;
     }
 
-    Ok(decoder.finalize().verify_ok.unwrap_or(false))
+    decoder.finalize().verify_ok.ok_or(ValidationError::Unsupported)
+}
+
+pub fn validate_audio(p: &Path) -> symphonia::core::errors::Result<bool> {
+    match validate(Box::new(File::open(p)?)) {
+        Ok(res) => Ok(res),
+        Err(ValidationError::Decode(e)) => Err(e),
+        Err(ValidationError::Unsupported) => Ok(true),
+    }
+}
+
+#[derive(Debug, Error)]
+pub enum ValidationError {
+    #[error("Decode Error: {0}")]
+    Decode(#[from] symphonia::core::errors::Error),
+    #[error("Validation is not supported on the source")]
+    Unsupported
 }
