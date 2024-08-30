@@ -11,7 +11,8 @@ use async_graphql::{
 use input::{AlbumsBy, MetadataIDInput};
 use sea_orm::{
     prelude::Uuid, sea_query::NullOrdering, ActiveModelTrait, ActiveValue, ColumnTrait,
-    DatabaseConnection, EntityTrait, Order, QueryFilter, QueryOrder, QuerySelect, TransactionTrait,
+    DatabaseConnection, EntityTrait, Order, QueryFilter, QueryOrder, QuerySelect, Related,
+    TransactionTrait,
 };
 use seaography::{apply_pagination, CursorInput, PaginationInput};
 use types::{AlbumInfo, DiscInfo, MetadataOrganizeLevel, TagInfo, TagRelation, TagType, TrackInfo};
@@ -76,6 +77,9 @@ impl MetadataQuery {
             AlbumsBy::OrganizeLevel(level) => {
                 album::Entity::find().filter(album::Column::Level.eq(level.to_string()))
             }
+            // TODO: test this
+            AlbumsBy::Tag(tag_id) => album_tag_relation::Entity::find_related()
+                .filter(album_tag_relation::Column::TagDbId.eq(tag_id)),
         };
 
         let pagination = PaginationInput {
