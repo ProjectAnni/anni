@@ -39,7 +39,10 @@ use symphonia_core::{
 
 use super::opus::OpusDecoder;
 use crate::{
-    controls::*, cpal_output::{CpalOutput, CpalOutputStream}, sources::AnniSource, types::*
+    controls::*,
+    cpal_output::{CpalOutput, CpalOutputStream},
+    sources::AnniSource,
+    types::*,
 };
 
 enum PlaybackState {

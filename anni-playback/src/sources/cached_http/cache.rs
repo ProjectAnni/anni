@@ -175,7 +175,10 @@ pub fn validate(source: Box<dyn MediaSource>) -> Result<bool, ValidationError> {
         let _ = decoder.decode(&packet)?;
     }
 
-    decoder.finalize().verify_ok.ok_or(ValidationError::Unsupported)
+    decoder
+        .finalize()
+        .verify_ok
+        .ok_or(ValidationError::Unsupported)
 }
 
 pub fn validate_audio(p: &Path) -> symphonia::core::errors::Result<bool> {
@@ -191,5 +194,5 @@ pub enum ValidationError {
     #[error("Decode Error: {0}")]
     Decode(#[from] symphonia::core::errors::Error),
     #[error("Validation is not supported on the source")]
-    Unsupported
+    Unsupported,
 }
