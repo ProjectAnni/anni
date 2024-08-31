@@ -97,6 +97,14 @@ impl AnniWorkspace {
         self.dot_anni.join("objects")
     }
 
+    /// Get path of the config file.
+    ///
+    /// This method is used for internal use only.
+    #[doc(hidden)]
+    pub fn config_path(&self) -> PathBuf {
+        self.dot_anni.join("config.toml")
+    }
+
     /// Get album id from symlink target.
     ///
     /// Returns [WorkspaceError::NotAnAlbum] if the symlink is not valid.
@@ -305,6 +313,14 @@ impl AnniWorkspace {
 
     pub fn get_config(&self) -> Result<WorkspaceConfig, WorkspaceError> {
         WorkspaceConfig::new(&self.dot_anni)
+    }
+
+    /// Remove the whole workspace.
+    ///
+    /// The operation is irreversible and marked as unsafe.
+    pub unsafe fn destroy(&self) -> Result<(), WorkspaceError> {
+        fs::remove_dir_all(self.workspace_root(), true)?;
+        Ok(())
     }
 }
 

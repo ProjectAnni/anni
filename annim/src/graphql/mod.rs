@@ -146,6 +146,7 @@ impl MetadataQuery {
         Ok(connection)
     }
 
+    // TODO: this query seems useless
     async fn tag<'ctx>(
         &self,
         ctx: &Context<'ctx>,
@@ -479,6 +480,8 @@ impl MetadataMutation {
     ) -> anyhow::Result<TagInfo> {
         require_auth(ctx)?;
         let db = ctx.data::<DatabaseConnection>().unwrap();
+
+        // TODO: return if already exists
         let tag = tag_info::ActiveModel {
             name: ActiveValue::set(name),
             r#type: ActiveValue::set(r#type.to_string()),

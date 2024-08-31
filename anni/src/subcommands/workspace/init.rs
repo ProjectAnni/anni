@@ -1,5 +1,7 @@
 use crate::ll;
 use anni_common::fs;
+use anni_metadata::AnnimClient;
+use anni_workspace::AnniWorkspace;
 use clap::Args;
 use clap_handler::handler;
 use std::path::PathBuf;
@@ -8,49 +10,79 @@ use std::path::PathBuf;
 #[clap(about = ll!("workspace-init"))]
 pub struct WorkspaceInitAction {
     #[clap(long)]
-    repo: Option<String>,
+    remote: Option<String>,
     #[clap(long)]
-    repo_config: bool,
+    auth: Option<String>,
+
+    #[clap(long)]
+    repo: Option<String>,
 
     path: PathBuf,
 }
 
 #[handler(WorkspaceInitAction)]
 fn handle_workspace_init(me: WorkspaceInitAction) -> anyhow::Result<()> {
+    // TODO: move init logic to anni-workspace
     let dot_anni = me.path.join(".anni");
     if dot_anni.exists() {
         anyhow::bail!("Workspace already exists in {}", dot_anni.display());
     }
 
+    // SAFETY: Only path-related methods would be called;
+    let workspace = unsafe { AnniWorkspace::new_unchecked(dot_anni) };
+
     // objects
-    fs::create_dir_all(&dot_anni.join("objects"))?;
+    fs::create_dir_all(workspace.objects_root())?;
 
-    // repo
-    let repo_path = dot_anni.join("repo");
-    if let Some(repo) = me.repo {
-        // clone from remote
-        anni_repo::RepositoryManager::clone(&repo, &repo_path)?;
-    } else {
-        // TODO: create new metadata repository
-        fs::remove_dir(&dot_anni)?;
-        unimplemented!();
-    }
+    // metadata
+    let config_path = workspace.config_path();
+    match (me.remote, me.repo) {
+        (Some(endpoint), None) => {
+            let client = AnnimClient::new(endpoint.to_string(), me.auth.as_deref());
+            // TODO: print server info
 
-    // config.toml
-    let config_path = dot_anni.join("config.toml");
-    if me.repo_config {
-        // symlink .anni/config.toml to .anni/repo/repo.toml to reuse config file
-        let repo_config = repo_path.join("repo.toml");
-        if !repo_config.exists() {
-            anyhow::bail!("Repo config was not found at {}", repo_config.display());
+            let mut config_content = format!(
+                r#"
+[workspace.metadata]
+type = "remote"
+endpoint = "{endpoint}"
+"#
+            );
+            if let Some(auth) = me.auth {
+                config_content += &format!(r#"token = "{auth}""#);
+            }
+            // config
+            fs::write(config_path, config_content.trim())?;
         }
+        (None, Some(repo)) => {
+            let repo_path = workspace.repo_root();
+            anni_repo::RepositoryManager::clone(&repo, &repo_path)?;
 
-        fs::symlink_file(&repo_config, &config_path)?;
-    } else {
-        // create a new config file
-        fs::write(&config_path, "")?; // TODO: specification of config file
+            // config
+            fs::write(
+                config_path,
+                r#"
+[workspace.metadata]
+type = "repo"
+"#
+                .trim(),
+            )?;
+        }
+        (a, _) => {
+            // SAFETY: the workspace is just created and no actual content exists in it.
+            unsafe {
+                workspace.destroy()?;
+            }
+            if a.is_some() {
+                anyhow::bail!("Cannot specify both remote and repo");
+            }
+        }
     }
 
+    eprintln!(
+        "Initialized empty Anni workspace in {}",
+        workspace.workspace_root().display()
+    );
     Ok(())
 }
 
@@ -58,8 +90,6 @@ fn handle_workspace_init(me: WorkspaceInitAction) -> anyhow::Result<()> {
 mod test {
     use super::WorkspaceInitAction;
     use clap_handler::Handler;
-    use std::path::PathBuf;
-    use std::str::FromStr;
 
     #[tokio::test]
     async fn test_init_clone_workspace() -> anyhow::Result<()> {
@@ -68,8 +98,9 @@ mod test {
 
         WorkspaceInitAction {
             repo: Some(repo.to_string()),
-            repo_config: true,
             path: path.path().to_path_buf(),
+            remote: None,
+            auth: None,
         }
         .run()
         .await?;
@@ -79,10 +110,6 @@ mod test {
         assert!(dot_anni.join("objects").exists());
         assert!(dot_anni.join("config.toml").exists());
         assert!(dot_anni.join("repo/repo.toml").exists());
-        assert_eq!(
-            dot_anni.join("config.toml").read_link()?,
-            PathBuf::from_str("repo/repo.toml")?,
-        );
 
         Ok(())
     }
