@@ -1,8 +1,6 @@
 use crate::{args::ActionFile, ll};
-use anni_repo::{
-    prelude::{JsonAlbum, TagRef},
-    OwnedRepositoryManager, RepositoryManager,
-};
+use anni_metadata::model::TagRef;
+use anni_repo::{prelude::JsonAlbum, OwnedRepositoryManager, RepositoryManager};
 use clap::{crate_version, ArgAction, Args, ValueEnum};
 use clap_handler::handler;
 use ptree::TreeBuilder;

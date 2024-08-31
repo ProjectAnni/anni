@@ -1,6 +1,8 @@
 use crate::db::rows;
-use crate::models::{Album, AnniDate, Disc, DiscInfo, TagString, TagType, Track, TrackType};
-use crate::prelude::{AlbumInfo, RepoResult};
+use crate::prelude::RepoResult;
+use anni_metadata::model::{
+    Album, AlbumInfo, AnniDate, Disc, DiscInfo, TagString, TagType, Track, TrackType,
+};
 use rusqlite::{params, Connection, OpenFlags, Params};
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
@@ -43,7 +45,7 @@ impl RepoDatabaseRead {
     pub fn match_album(
         &self,
         catalog: &str,
-        release_date: &crate::models::AnniDate,
+        release_date: &AnniDate,
         disc_count: u8,
         album_title: &str,
         _edition: Option<&str>,

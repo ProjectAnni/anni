@@ -1,4 +1,4 @@
-use crate::annim::query::album::{Album, TrackType};
+use crate::annim::query::album::{AlbumFragment, TrackTypeInput};
 use crate::annim::{schema, Json, Uuid};
 
 #[derive(cynic::QueryVariables, Debug)]
@@ -10,7 +10,7 @@ pub struct AddAlbumVariables<'a> {
 #[cynic(graphql_type = "MetadataMutation", variables = "AddAlbumVariables")]
 pub struct AddAlbumMutation {
     #[arguments(input: $album)]
-    pub add_album: Option<Album>,
+    pub add_album: Option<AlbumFragment>,
 }
 
 #[derive(cynic::InputObject, Debug)]
@@ -40,5 +40,5 @@ pub struct CreateAlbumTrackInput<'a> {
     pub title: &'a str,
     pub artist: &'a str,
     #[cynic(rename = "type")]
-    pub type_: TrackType,
+    pub type_: TrackTypeInput,
 }

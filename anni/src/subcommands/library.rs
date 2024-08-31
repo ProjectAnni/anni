@@ -5,6 +5,7 @@ use anni_provider::providers::CommonConventionProvider;
 use anni_provider::strict_album_path;
 use anni_repo::db::RepoDatabaseRead;
 use anni_repo::library::{file_name, AlbumFolderInfo};
+use anni_repo::models::ApplyMetadata;
 use anni_repo::RepositoryManager;
 use clap::{Args, Subcommand};
 use clap_handler::{handler, Context, Handler};

@@ -1,5 +1,5 @@
 use crate::annim::{
-    query::{album::TagType, tag::Tag},
+    query::{album::TagTypeInput, tag::Tag},
     schema,
 };
 
@@ -7,7 +7,7 @@ use crate::annim::{
 pub struct AddTagVariables<'a> {
     pub name: &'a str,
     #[cynic(rename = "type")]
-    pub type_: TagType,
+    pub type_: TagTypeInput,
 }
 
 #[derive(cynic::QueryFragment, Debug)]

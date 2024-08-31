@@ -3,7 +3,6 @@ use crate::extractor::token::AnnilClaim;
 use crate::extractor::track::TrackIdentifier;
 use crate::provider::AnnilProvider;
 use crate::transcode::*;
-use crate::utils::Either;
 use anni_provider::{AnniProvider, Range};
 use axum::body::Body;
 use axum::extract::Query;
@@ -246,6 +245,8 @@ where
                 ),
             ];
 
+            #[cfg(feature = "transcode")]
+            use crate::utils::Either;
             #[cfg(feature = "transcode")]
             let body = if transcoder.quality().need_transcode() {
                 let mut transcode_headers = HeaderMap::new();

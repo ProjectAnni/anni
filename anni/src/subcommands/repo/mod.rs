@@ -8,21 +8,21 @@ mod watch;
 use crate::args::ActionFile;
 use crate::{ball, fl, ll};
 use add::*;
-use anni_workspace::AnniWorkspace;
-use lint::*;
-use migrate::RepoMigrateAction;
-use print::*;
-use watch::*;
-
+use anni_metadata::model::Album;
 use anni_repo::library::{file_name, AlbumFolderInfo};
-use anni_repo::prelude::*;
+use anni_repo::models::JsonAlbum;
 use anni_repo::RepositoryManager;
+use anni_workspace::AnniWorkspace;
 use clap::{Args, Subcommand, ValueEnum};
 use clap_handler::{handler, Context, Handler};
 use get::RepoGetAction;
+use lint::*;
+use migrate::RepoMigrateAction;
+use print::*;
 use std::io::Read;
 use std::path::PathBuf;
 use std::str::FromStr;
+use watch::*;
 
 #[derive(Args, Debug, Clone, Handler)]
 #[clap(about = ll!("repo"))]

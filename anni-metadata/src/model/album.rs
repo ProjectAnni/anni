@@ -7,6 +7,7 @@ use std::str::FromStr;
 use uuid::Uuid;
 
 use crate::error::Error;
+use crate::utils::is_artists_empty;
 
 use super::{AnniDate, TagRef, TagString};
 
@@ -24,8 +25,10 @@ pub struct TrackIdentifier {
 #[serde(deny_unknown_fields)]
 pub struct Album {
     #[serde(rename = "album")]
-    pub(crate) info: AlbumInfo,
-    pub(crate) discs: Vec<Disc>,
+    #[doc(hidden)]
+    pub info: AlbumInfo,
+    #[doc(hidden)]
+    pub discs: Vec<Disc>,
 }
 
 impl Album {
@@ -262,7 +265,8 @@ impl Default for AlbumInfo {
 pub struct Disc {
     #[serde(flatten)]
     info: DiscInfo,
-    tracks: Vec<Track>,
+    #[doc(hidden)]
+    pub tracks: Vec<Track>,
 }
 
 impl Disc {
@@ -285,8 +289,7 @@ impl DerefMut for Disc {
     }
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
-#[cfg_attr(test, derive(PartialEq, Eq))]
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
 #[serde(deny_unknown_fields)]
 pub struct DiscInfo {
     /// Disc title
@@ -728,12 +731,5 @@ impl TrackType {
         } else {
             None
         }
-    }
-}
-
-pub(crate) fn is_artists_empty(artists: &Option<HashMap<String, String>>) -> bool {
-    match artists {
-        Some(artists) => artists.is_empty(),
-        None => true,
     }
 }

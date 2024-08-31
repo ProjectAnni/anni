@@ -1,6 +1,12 @@
 use crate::{ball, ll};
 use anni_common::fs;
-use anni_repo::prelude::*;
+use anni_metadata::model::Album;
+use anni_metadata::model::AlbumInfo;
+use anni_metadata::model::AnniDate;
+use anni_metadata::model::Disc;
+use anni_metadata::model::DiscInfo;
+use anni_metadata::model::Track;
+use anni_metadata::model::TrackType;
 use anni_repo::RepositoryManager;
 use anni_vgmdb::VGMClient;
 use chrono::Datelike;

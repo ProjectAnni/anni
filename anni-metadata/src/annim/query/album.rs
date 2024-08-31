@@ -9,12 +9,12 @@ pub struct AlbumVariables {
 #[cynic(graphql_type = "MetadataQuery", variables = "AlbumVariables")]
 pub struct AlbumQuery {
     #[arguments(albumId: $album_id)]
-    pub album: Option<Album>,
+    pub album: Option<AlbumFragment>,
 }
 
 #[derive(cynic::QueryFragment, Debug)]
 #[cynic(graphql_type = "Album")]
-pub struct Album {
+pub struct AlbumFragment {
     pub id: cynic::Id,
     pub album_id: Uuid,
     pub level: MetadataOrganizeLevel,
@@ -29,11 +29,12 @@ pub struct Album {
     pub created_at: DateTime,
     pub updated_at: DateTime,
     pub extra: Option<Json>,
-    pub discs: Vec<Disc>,
+    pub discs: Vec<DiscFragment>,
 }
 
 #[derive(cynic::QueryFragment, Debug)]
-pub struct Disc {
+#[cynic(graphql_type = "Disc")]
+pub struct DiscFragment {
     pub id: cynic::Id,
     pub index: i32,
     pub title: Option<String>,
@@ -42,17 +43,18 @@ pub struct Disc {
     pub tags: Vec<TagBase>,
     pub created_at: DateTime,
     pub updated_at: DateTime,
-    pub tracks: Vec<Track>,
+    pub tracks: Vec<TrackFragment>,
 }
 
 #[derive(cynic::QueryFragment, Debug)]
-pub struct Track {
+#[cynic(graphql_type = "Track")]
+pub struct TrackFragment {
     pub id: cynic::Id,
     pub index: i32,
     pub title: String,
     pub artist: String,
     #[cynic(rename = "type")]
-    pub type_: TrackType,
+    pub type_: TrackTypeInput,
     pub artists: Option<Json>,
     pub tags: Vec<TagBase>,
     pub created_at: DateTime,
@@ -65,7 +67,7 @@ pub struct TagBase {
     pub id: cynic::Id,
     pub name: String,
     #[cynic(rename = "type")]
-    pub type_: TagType,
+    pub type_: TagTypeInput,
     pub created_at: DateTime,
     pub updated_at: DateTime,
 }
@@ -79,7 +81,8 @@ pub enum MetadataOrganizeLevel {
 }
 
 #[derive(cynic::Enum, Clone, Copy, Debug)]
-pub enum TrackType {
+#[cynic(graphql_type = "TrackType")]
+pub enum TrackTypeInput {
     Normal,
     Instrumental,
     Absolute,
@@ -90,7 +93,8 @@ pub enum TrackType {
 }
 
 #[derive(cynic::Enum, Clone, Copy, Debug)]
-pub enum TagType {
+#[cynic(graphql_type = "TagType")]
+pub enum TagTypeInput {
     Artist,
     Group,
     Animation,
@@ -101,4 +105,17 @@ pub enum TagType {
     Organization,
     Category,
     Others,
+}
+
+impl From<&crate::model::TrackType> for TrackTypeInput {
+    fn from(value: &crate::model::TrackType) -> Self {
+        match value {
+            crate::model::TrackType::Normal => TrackTypeInput::Normal,
+            crate::model::TrackType::Instrumental => TrackTypeInput::Instrumental,
+            crate::model::TrackType::Absolute => TrackTypeInput::Absolute,
+            crate::model::TrackType::Drama => TrackTypeInput::Drama,
+            crate::model::TrackType::Radio => TrackTypeInput::Radio,
+            crate::model::TrackType::Vocal => TrackTypeInput::Vocal,
+        }
+    }
 }

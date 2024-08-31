@@ -2,7 +2,7 @@ use crate::{ball, fl};
 use anni_common::diagnostic::*;
 use anni_common::lint::{AnniLinter, AnniLinterReviewDogJsonLineFormat, AnniLinterTextFormat};
 use anni_common::validator::{ValidateResult, ValidatorList};
-use anni_repo::prelude::*;
+use anni_metadata::model::{Album, DiscRef, UNKNOWN_ARTIST};
 use anni_repo::RepositoryManager;
 use clap::{Args, ValueEnum};
 use clap_handler::handler;

@@ -1,10 +1,11 @@
 use std::{collections::HashMap, str::FromStr};
 
 use crate::error::Error;
+use anni_metadata::model::{Album, AlbumInfo, AnniDate, Disc, TagString, TrackType};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use super::{is_artists_empty, Album, AlbumInfo, AnniDate, Disc, TagString, TrackType};
+use anni_metadata::utils::is_artists_empty;
 
 #[derive(Serialize, Deserialize, Debug)]
 #[serde(deny_unknown_fields)]
@@ -127,7 +128,7 @@ mod test {
     #[test]
     fn test_json_album_serialize_deserialize() {
         use super::JsonAlbum;
-        use crate::prelude::Album;
+        use anni_metadata::model::Album;
         use std::str::FromStr;
 
         let text = include_str!("../../tests/fixtures/test-album.toml");

@@ -4,7 +4,7 @@ use crate::ll;
 use anni_common::validator::*;
 use anni_flac::blocks::{BlockStreamInfo, BlockVorbisComment, PictureType};
 use anni_flac::{FlacHeader, MetadataBlockData};
-use anni_repo::prelude::{UNKNOWN_ARTIST, VARIOUS_ARTISTS};
+use anni_metadata::model::{UNKNOWN_ARTIST, VARIOUS_ARTISTS};
 use clap::{Args, Subcommand};
 use clap_handler::{handler, Context, Handler};
 use serde::de::Error;

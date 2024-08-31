@@ -1,5 +1,6 @@
-use anni_repo::prelude::*;
 use std::str::FromStr;
+
+use anni_metadata::model::{Album, TrackType};
 
 fn album_from_str() -> Album {
     Album::from_str(include_str!("fixtures/test-album.toml")).expect("Failed to parse album toml.")

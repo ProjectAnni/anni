@@ -1,7 +1,4 @@
-use anni_metadata::annim::mutation::add_album::{
-    AddAlbumInput, CreateAlbumDiscInput, CreateAlbumTrackInput,
-};
-use anni_metadata::annim::query::album::{TagType, TrackType};
+use anni_metadata::annim::query::album::TagTypeInput;
 use anni_metadata::annim::AnnimClient;
 use anni_repo::RepositoryManager;
 use clap::Args;
@@ -26,16 +23,16 @@ async fn repo_migrate(me: RepoMigrateAction, manager: RepositoryManager) -> anyh
             .add_tag(
                 tag.name().to_string(),
                 match tag.tag_type() {
-                    anni_repo::models::TagType::Artist => TagType::Artist,
-                    anni_repo::models::TagType::Group => TagType::Group,
-                    anni_repo::models::TagType::Animation => TagType::Animation,
-                    anni_repo::models::TagType::Series => TagType::Series,
-                    anni_repo::models::TagType::Project => TagType::Project,
-                    anni_repo::models::TagType::Radio => TagType::Radio,
-                    anni_repo::models::TagType::Game => TagType::Game,
-                    anni_repo::models::TagType::Organization => TagType::Organization,
-                    anni_repo::models::TagType::Category => TagType::Category,
-                    anni_repo::models::TagType::Unknown => TagType::Others,
+                    anni_metadata::model::TagType::Artist => TagTypeInput::Artist,
+                    anni_metadata::model::TagType::Group => TagTypeInput::Group,
+                    anni_metadata::model::TagType::Animation => TagTypeInput::Animation,
+                    anni_metadata::model::TagType::Series => TagTypeInput::Series,
+                    anni_metadata::model::TagType::Project => TagTypeInput::Project,
+                    anni_metadata::model::TagType::Radio => TagTypeInput::Radio,
+                    anni_metadata::model::TagType::Game => TagTypeInput::Game,
+                    anni_metadata::model::TagType::Organization => TagTypeInput::Organization,
+                    anni_metadata::model::TagType::Category => TagTypeInput::Category,
+                    anni_metadata::model::TagType::Unknown => TagTypeInput::Others,
                 },
             )
             .await?;
@@ -62,45 +59,7 @@ async fn repo_migrate(me: RepoMigrateAction, manager: RepositoryManager) -> anyh
     let mut albums = HashMap::new();
     log::info!("Start inserting albums...");
     for album in repo.albums_iter() {
-        let discs: Vec<_> = album.iter().collect();
-        let annim_album = client
-            .add_album(AddAlbumInput {
-                album_id: Some(album.album_id()),
-                title: album.title_raw(),
-                edition: album.edition(),
-                catalog: Some(album.catalog()),
-                artist: album.artist(),
-                year: album.release_date().year() as i32,
-                month: album.release_date().month().map(|r| r as i32),
-                day: album.release_date().day().map(|r| r as i32),
-                extra: None,
-                discs: discs
-                    .iter()
-                    .map(|disc| CreateAlbumDiscInput {
-                        title: disc.title_raw(),
-                        catalog: Some(disc.catalog()),
-                        artist: disc.artist_raw(),
-                        tracks: disc
-                            .iter()
-                            .map(|track| CreateAlbumTrackInput {
-                                title: track.title(),
-                                artist: track.artist(),
-                                type_: match track.track_type() {
-                                    anni_repo::models::TrackType::Normal => TrackType::Normal,
-                                    anni_repo::models::TrackType::Instrumental => {
-                                        TrackType::Instrumental
-                                    }
-                                    anni_repo::models::TrackType::Absolute => TrackType::Absolute,
-                                    anni_repo::models::TrackType::Drama => TrackType::Drama,
-                                    anni_repo::models::TrackType::Radio => TrackType::Radio,
-                                    anni_repo::models::TrackType::Vocal => TrackType::Vocal,
-                                },
-                            })
-                            .collect(),
-                    })
-                    .collect(),
-            })
-            .await?;
+        let annim_album = client.add_album(album).await?;
         if let Some(album) = annim_album {
             log::info!("Inserted album {}, id = {}", album.title, album.id.inner());
             albums.insert(album.album_id, album);

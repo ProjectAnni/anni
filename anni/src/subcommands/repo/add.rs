@@ -3,6 +3,7 @@ use crate::{ball, ll};
 use anni_common::fs;
 use anni_flac::error::FlacError;
 use anni_flac::FlacHeader;
+use anni_metadata::model::{Album, AlbumInfo, Disc, DiscInfo};
 use anni_repo::library::{file_name, AlbumFolderInfo, DiscFolderInfo};
 use anni_repo::prelude::*;
 use anni_repo::RepositoryManager;
@@ -67,7 +68,8 @@ fn repo_add(me: RepoAddAction, manager: &RepositoryManager) -> anyhow::Result<()
                     .iter()
                     .map(|path| {
                         let header = FlacHeader::from_file(path)?;
-                        Ok(header.into())
+                        let track: RepoTrack = header.into();
+                        Ok(track.0)
                     })
                     .collect::<Result<Vec<_>, FlacError>>()?;
 

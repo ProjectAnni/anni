@@ -1,4 +1,4 @@
-use crate::models::{AnniDate, DiscInfo};
+use anni_metadata::model::{AnniDate, DiscInfo};
 use once_cell::sync::Lazy;
 use regex::Regex;
 use std::path::Path;
@@ -71,8 +71,7 @@ impl FromStr for AlbumFolderInfo {
     }
 }
 
-#[derive(Debug)]
-#[cfg_attr(test, derive(PartialEq))]
+#[derive(Debug, PartialEq)]
 pub struct DiscFolderInfo {
     pub info: DiscInfo,
     pub disc_id: usize,
@@ -105,8 +104,9 @@ impl FromStr for DiscFolderInfo {
 
 #[cfg(test)]
 mod tests {
+    use anni_metadata::model::{AnniDate, DiscInfo};
+
     use crate::library::{AlbumFolderInfo, DiscFolderInfo};
-    use crate::models::{AnniDate, DiscInfo};
     use std::str::FromStr;
 
     fn album_info(title: &str) -> (AnniDate, String, String, Option<String>, usize) {

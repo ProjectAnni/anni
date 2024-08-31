@@ -3,7 +3,7 @@ use std::borrow::{Borrow, Cow};
 use std::collections::HashMap;
 use std::fmt::{Debug, Display, Formatter};
 use std::hash::{Hash, Hasher};
-use std::ops::Deref;
+use std::ops::{Deref, DerefMut};
 use std::str::FromStr;
 use toml::Value;
 
@@ -59,7 +59,11 @@ impl<'a> TagRef<'a> {
         &self.tag_type
     }
 
-    fn full_clone(&self) -> TagRef<'static> {
+    pub fn set_tag_type(&mut self, value: TagType) {
+        self.tag_type = value;
+    }
+
+    pub fn full_clone(&self) -> TagRef<'static> {
         TagRef {
             name: Cow::Owned(self.name.to_string()),
             tag_type: self.tag_type.clone(),
@@ -126,6 +130,12 @@ impl Deref for TagString {
 
     fn deref(&self) -> &Self::Target {
         &self.0
+    }
+}
+
+impl DerefMut for TagString {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.0
     }
 }
 

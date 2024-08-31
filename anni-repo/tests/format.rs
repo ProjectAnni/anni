@@ -1,4 +1,4 @@
-use anni_repo::prelude::{Album, TrackType};
+use anni_metadata::model::{Album, TrackType};
 use std::str::FromStr;
 
 macro_rules! format_test {

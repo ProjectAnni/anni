@@ -1,4 +1,7 @@
-use crate::annim::{mutation, query, ID};
+use crate::{
+    annim::{mutation, query, ID},
+    model,
+};
 use cynic::{http::ReqwestExt, MutationBuilder, QueryBuilder};
 
 pub struct AnnimClient {
@@ -30,7 +33,10 @@ impl AnnimClient {
         }
     }
 
-    pub async fn album(&self, album_id: uuid::Uuid) -> anyhow::Result<Option<query::album::Album>> {
+    pub async fn album(
+        &self,
+        album_id: uuid::Uuid,
+    ) -> anyhow::Result<Option<query::album::AlbumFragment>> {
         let query = query::album::AlbumQuery::build(query::album::AlbumVariables { album_id });
         let response = self.client.post(&self.endpoint).run_graphql(query).await?;
         if let Some(errors) = response.errors {
@@ -42,11 +48,40 @@ impl AnnimClient {
 
     pub async fn add_album(
         &self,
-        album: mutation::add_album::AddAlbumInput<'_>,
-    ) -> anyhow::Result<Option<query::album::Album>> {
+        album: &model::Album,
+    ) -> anyhow::Result<Option<query::album::AlbumFragment>> {
+        let discs: Vec<_> = album.iter().collect();
+        let input = mutation::add_album::AddAlbumInput {
+            album_id: Some(album.album_id()),
+            title: album.title_raw(),
+            edition: album.edition(),
+            catalog: Some(album.catalog()),
+            artist: album.artist(),
+            year: album.release_date().year() as i32,
+            month: album.release_date().month().map(|r| r as i32),
+            day: album.release_date().day().map(|r| r as i32),
+            extra: None,
+            discs: discs
+                .iter()
+                .map(|disc| mutation::add_album::CreateAlbumDiscInput {
+                    title: disc.title_raw(),
+                    catalog: Some(disc.catalog()),
+                    artist: disc.artist_raw(),
+                    tracks: disc
+                        .iter()
+                        .map(|track| mutation::add_album::CreateAlbumTrackInput {
+                            title: track.title(),
+                            artist: track.artist(),
+                            type_: track.track_type().into(),
+                        })
+                        .collect(),
+                })
+                .collect(),
+        };
+
         let query =
             mutation::add_album::AddAlbumMutation::build(mutation::add_album::AddAlbumVariables {
-                album,
+                album: input,
             });
         let response = self.client.post(&self.endpoint).run_graphql(query).await?;
         if let Some(errors) = response.errors {
@@ -59,7 +94,7 @@ impl AnnimClient {
     pub async fn tag(
         &self,
         name: String,
-        tag_type: Option<query::album::TagType>,
+        tag_type: Option<query::album::TagTypeInput>,
     ) -> anyhow::Result<Vec<query::tag::Tag>> {
         let query = query::tag::TagQuery::build(query::tag::TagVariables {
             name: &name,
@@ -81,7 +116,7 @@ impl AnnimClient {
     pub async fn add_tag(
         &self,
         name: String,
-        tag_type: query::album::TagType,
+        tag_type: query::album::TagTypeInput,
     ) -> anyhow::Result<Option<query::tag::Tag>> {
         let query = mutation::add_tag::AddTagMutation::build(mutation::add_tag::AddTagVariables {
             name: &name,
@@ -99,7 +134,7 @@ impl AnnimClient {
         &self,
         id: &ID,
         tags: Vec<&ID>,
-    ) -> anyhow::Result<query::album::Album> {
+    ) -> anyhow::Result<query::album::AlbumFragment> {
         self.set_tags(TagLocation::Album, id, tags).await
     }
 
@@ -107,7 +142,7 @@ impl AnnimClient {
         &self,
         id: &ID,
         tags: Vec<&ID>,
-    ) -> anyhow::Result<query::album::Album> {
+    ) -> anyhow::Result<query::album::AlbumFragment> {
         self.set_tags(TagLocation::Disc, id, tags).await
     }
 
@@ -115,7 +150,7 @@ impl AnnimClient {
         &self,
         id: &ID,
         tags: Vec<&ID>,
-    ) -> anyhow::Result<query::album::Album> {
+    ) -> anyhow::Result<query::album::AlbumFragment> {
         self.set_tags(TagLocation::Track, id, tags).await
     }
 
@@ -124,7 +159,7 @@ impl AnnimClient {
         location: TagLocation,
         id: &ID,
         tags: Vec<&ID>,
-    ) -> anyhow::Result<query::album::Album> {
+    ) -> anyhow::Result<query::album::AlbumFragment> {
         let query = mutation::set_metadata_tags::SetMetadataTags::build(
             mutation::set_metadata_tags::SetMetadataTagsVariables {
                 target: mutation::set_metadata_tags::MetadataIdinput {

@@ -1,5 +1,6 @@
 use crate::prelude::*;
 use anni_common::fs;
+use anni_metadata::model::{Album, Tag, TagRef, TagType, Tags};
 use indexmap::IndexSet;
 use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
@@ -137,7 +138,7 @@ impl RepositoryManager {
         P: AsRef<Path>,
     {
         let input = fs::read_to_string(path.as_ref())?;
-        Album::from_str(&input)
+        Ok(Album::from_str(&input)?)
     }
 
     /// Load album(s) with given catalog.

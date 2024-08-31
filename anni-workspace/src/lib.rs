@@ -5,8 +5,9 @@ mod utils;
 
 use crate::config::WorkspaceConfig;
 use anni_common::fs;
+use anni_metadata::model::{AnniDate, UNKNOWN_ARTIST};
 use anni_repo::library::file_name;
-use anni_repo::prelude::{AnniDate, UNKNOWN_ARTIST};
+use anni_repo::models::{ApplyMetadata, RepoTrack};
 use anni_repo::RepositoryManager;
 use config::LibraryConfig;
 use std::borrow::Cow;
@@ -508,7 +509,7 @@ impl AnniWorkspace {
         P: AsRef<Path>,
         E: FnOnce(&str) -> Option<ExtractedAlbumInfo>,
     {
-        use anni_repo::prelude::{Album, AlbumInfo, Disc, DiscInfo};
+        use anni_metadata::model::{Album, AlbumInfo, Disc, DiscInfo};
 
         let album_id = self.get_album_id(album_path.as_ref())?;
         let repo = self.to_repository_manager()?;
@@ -544,7 +545,8 @@ impl AnniWorkspace {
                         error,
                     }
                 })?;
-                tracks.push(flac.into())
+                let track: RepoTrack = flac.into();
+                tracks.push(track.0)
             }
             discs.push(Disc::new(
                 DiscInfo::new(

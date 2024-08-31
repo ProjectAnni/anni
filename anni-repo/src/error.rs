@@ -1,6 +1,6 @@
 use std::path::PathBuf;
 
-use crate::models::TagRef;
+use anni_metadata::model::TagRef;
 
 #[derive(thiserror::Error, Debug)]
 pub enum Error {
@@ -26,9 +26,6 @@ pub enum Error {
     #[error("undefined tags {0:?}")]
     RepoTagsUndefined(Vec<TagRef<'static>>),
 
-    #[error("unknown tag type: {0}")]
-    RepoTagUnknownType(String),
-
     #[error("duplicated tag: {0}")]
     RepoTagDuplicated(TagRef<'static>),
 
@@ -51,6 +48,9 @@ pub enum Error {
     #[cfg(feature = "db-read")]
     #[error(transparent)]
     SqliteDeserializeError(#[from] serde_rusqlite::Error),
+
+    #[error(transparent)]
+    MetadataError(#[from] anni_metadata::error::Error),
 
     #[cfg(feature = "git")]
     #[error(transparent)]

@@ -1,4 +1,4 @@
-use crate::annim::{query::album::Album, schema};
+use crate::annim::{query::album::AlbumFragment, schema};
 
 #[derive(cynic::QueryVariables, Debug)]
 pub struct SetMetadataTagsVariables<'a> {
@@ -13,7 +13,7 @@ pub struct SetMetadataTagsVariables<'a> {
 )]
 pub struct SetMetadataTags {
     #[arguments(input: $target, tags: $tags)]
-    pub update_metadata_tags: Album,
+    pub update_metadata_tags: AlbumFragment,
 }
 
 #[derive(cynic::InputObject, Debug)]
