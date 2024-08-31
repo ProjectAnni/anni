@@ -1,5 +1,5 @@
-use crate::query::album::{Album, TrackType};
-use crate::{schema, Json, Uuid};
+use crate::annim::query::album::{Album, TrackType};
+use crate::annim::{schema, Json, Uuid};
 
 #[derive(cynic::QueryVariables, Debug)]
 pub struct AddAlbumVariables<'a> {

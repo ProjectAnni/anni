@@ -8,14 +8,26 @@ license.workspace = true
 
 [dependencies]
 anyhow.workspace = true
+thiserror.workspace = true
 chrono = { version = "0.4.38", features = ["serde"] }
-cynic = { version = "3", features = ["http-reqwest"] }
-reqwest.workspace = true
+
+serde = { workspace = true, features = ["derive"] }
 serde_json.workspace = true
+
+toml.workspace = true
+toml_edit = "0.22.20"
+indexmap = "2.5.0"
 uuid = { workspace = true, features = ["serde"] }
+
+cynic = { version = "3", features = ["http-reqwest"], optional = true }
+reqwest = { workspace = true, optional = true }
 
 [build-dependencies]
 cynic-codegen = { version = "3" }
 
 [dev-dependencies]
 tokio = { version = "1", features = ["full"] }
+
+[features]
+default = ["annim"]
+annim = ["reqwest", "cynic"]

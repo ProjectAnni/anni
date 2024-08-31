@@ -1,8 +1,8 @@
-use anni_metadata::mutation::add_album::{
+use anni_metadata::annim::mutation::add_album::{
     AddAlbumInput, CreateAlbumDiscInput, CreateAlbumTrackInput,
 };
-use anni_metadata::query::album::{TagType, TrackType};
-use anni_metadata::AnnimClient;
+use anni_metadata::annim::query::album::{TagType, TrackType};
+use anni_metadata::annim::AnnimClient;
 use anni_repo::RepositoryManager;
 use clap::Args;
 use clap_handler::handler;

@@ -1,4 +1,4 @@
-use crate::{query::album::Album, schema};
+use crate::annim::{query::album::Album, schema};
 
 #[derive(cynic::QueryVariables, Debug)]
 pub struct SetMetadataTagsVariables<'a> {

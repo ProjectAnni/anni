@@ -1,6 +1,6 @@
 use crate::ll;
 use anni_common::fs;
-use anni_metadata::AnnimClient;
+use anni_metadata::annim::AnnimClient;
 use anni_workspace::AnniWorkspace;
 use clap::Args;
 use clap_handler::handler;

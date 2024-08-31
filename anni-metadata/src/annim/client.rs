@@ -1,4 +1,4 @@
-use crate::{mutation, query, schema::ID};
+use crate::annim::{mutation, query, ID};
 use cynic::{http::ReqwestExt, MutationBuilder, QueryBuilder};
 
 pub struct AnnimClient {

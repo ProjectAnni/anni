@@ -1,4 +1,4 @@
-use crate::{
+use crate::annim::{
     query::{album::TagType, tag::Tag},
     schema,
 };

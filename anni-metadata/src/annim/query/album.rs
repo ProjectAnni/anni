@@ -1,4 +1,4 @@
-use crate::{schema, DateTime, Json, Uuid};
+use crate::annim::{schema, DateTime, Json, Uuid};
 
 #[derive(cynic::QueryVariables, Debug)]
 pub struct AlbumVariables {
