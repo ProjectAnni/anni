@@ -49,7 +49,7 @@ impl AnnimClient {
     pub async fn add_album(
         &self,
         album: &model::Album,
-    ) -> anyhow::Result<Option<query::album::AlbumFragment>> {
+    ) -> anyhow::Result<query::album::AlbumFragment> {
         let discs: Vec<_> = album.iter().collect();
         let input = mutation::add_album::AddAlbumInput {
             album_id: Some(album.album_id()),
@@ -88,7 +88,7 @@ impl AnnimClient {
             anyhow::bail!("GraphQL error: {:?}", errors);
         }
 
-        Ok(response.data.and_then(|data| data.add_album))
+        Ok(response.data.unwrap().add_album)
     }
 
     pub async fn tag(

@@ -10,7 +10,7 @@ pub struct AddAlbumVariables<'a> {
 #[cynic(graphql_type = "MetadataMutation", variables = "AddAlbumVariables")]
 pub struct AddAlbumMutation {
     #[arguments(input: $album)]
-    pub add_album: Option<AlbumFragment>,
+    pub add_album: AlbumFragment,
 }
 
 #[derive(cynic::InputObject, Debug)]

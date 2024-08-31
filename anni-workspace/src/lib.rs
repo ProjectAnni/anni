@@ -503,8 +503,7 @@ impl AnniWorkspace {
         &self,
         album_path: P,
         extractor: E,
-        allow_duplicate: bool,
-    ) -> Result<Uuid, WorkspaceError>
+    ) -> Result<anni_metadata::model::Album, WorkspaceError>
     where
         P: AsRef<Path>,
         E: FnOnce(&str) -> Option<ExtractedAlbumInfo>,
@@ -512,7 +511,6 @@ impl AnniWorkspace {
         use anni_metadata::model::{Album, AlbumInfo, Disc, DiscInfo};
 
         let album_id = self.get_album_id(album_path.as_ref())?;
-        let repo = self.to_repository_manager()?;
         let folder_name = file_name(&album_path)?;
         let ExtractedAlbumInfo {
             release_date,
@@ -573,9 +571,8 @@ impl AnniWorkspace {
             },
             discs,
         );
-        repo.add_album(album, allow_duplicate)?;
 
-        Ok(album_id)
+        Ok(album)
     }
 
     pub fn revert<P>(&self, path: P) -> Result<(), WorkspaceError>

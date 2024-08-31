@@ -60,12 +60,12 @@ async fn repo_migrate(me: RepoMigrateAction, manager: RepositoryManager) -> anyh
     log::info!("Start inserting albums...");
     for album in repo.albums_iter() {
         let annim_album = client.add_album(album).await?;
-        if let Some(album) = annim_album {
-            log::info!("Inserted album {}, id = {}", album.title, album.id.inner());
-            albums.insert(album.album_id, album);
-        } else {
-            log::warn!("Failed to insert album: {}", album.full_title());
-        }
+        log::info!(
+            "Inserted album {}, id = {}",
+            annim_album.title,
+            annim_album.id.inner()
+        );
+        albums.insert(album.album_id, annim_album);
     }
     log::info!("Finished album insertion.");
 

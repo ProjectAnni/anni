@@ -1,4 +1,5 @@
 use crate::ll;
+use anni_metadata::annim::AnnimClient;
 use anni_repo::library::AlbumFolderInfo;
 use anni_workspace::{AnniWorkspace, ExtractedAlbumInfo, UntrackedWorkspaceAlbum};
 use clap::Args;
@@ -80,29 +81,36 @@ fn handle_workspace_add(me: WorkspaceAddAction) -> anyhow::Result<()> {
 
     // import tags if necessary
     if me.import_tags {
-        workspace.import_tags(
-            &album_path,
-            |folder_name| {
-                let AlbumFolderInfo {
-                    release_date,
-                    catalog,
-                    title,
-                    edition,
-                    ..
-                } = AlbumFolderInfo::from_str(&folder_name).ok()?;
-                Some(ExtractedAlbumInfo {
-                    title: Cow::Owned(title),
-                    edition: edition.map(|e| Cow::Owned(e)),
-                    catalog: Cow::Owned(catalog),
-                    release_date,
-                })
-            },
-            false,
-        )?;
-    }
+        let album = workspace.import_tags(&album_path, |folder_name| {
+            let AlbumFolderInfo {
+                release_date,
+                catalog,
+                title,
+                edition,
+                ..
+            } = AlbumFolderInfo::from_str(&folder_name).ok()?;
+            Some(ExtractedAlbumInfo {
+                title: Cow::Owned(title),
+                edition: edition.map(|e| Cow::Owned(e)),
+                catalog: Cow::Owned(catalog),
+                release_date,
+            })
+        })?;
+        let config = workspace.get_config()?;
+        match config.metadata() {
+            anni_workspace::config::WorkspaceMetadata::Repo => {
+                let repo = workspace.to_repository_manager()?;
+                repo.add_album(album, false)?;
 
-    if me.open_editor {
-        edit::edit_file(&album_path)?;
+                if me.open_editor {
+                    edit::edit_file(&album_path)?;
+                }
+            }
+            anni_workspace::config::WorkspaceMetadata::Remote { endpoint, token } => {
+                let client = AnnimClient::new(endpoint, token.as_deref());
+                client.add_album(&album).await?;
+            }
+        }
     }
 
     Ok(())
