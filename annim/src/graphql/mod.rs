@@ -10,9 +10,10 @@ use async_graphql::{
 };
 use input::{AlbumsBy, MetadataIDInput};
 use sea_orm::{
-    prelude::Uuid, sea_query::ValueTuple, ActiveModelTrait, ActiveValue, ColumnTrait,
-    DatabaseConnection, EntityTrait, ModelTrait, QueryFilter, QueryOrder, QuerySelect,
-    TransactionTrait,
+    prelude::Uuid,
+    sea_query::{IntoIden, ValueTuple},
+    ActiveModelTrait, ActiveValue, ColumnTrait, DatabaseConnection, EntityTrait, Identity,
+    ModelTrait, QueryFilter, QueryOrder, QuerySelect, Related, TransactionTrait,
 };
 use seaography::{decode_cursor, encode_cursor};
 use types::{AlbumInfo, DiscInfo, MetadataOrganizeLevel, TagInfo, TagRelation, TagType, TrackInfo};
@@ -58,63 +59,59 @@ impl MetadataQuery {
     ) -> anyhow::Result<Connection<String, AlbumInfo>> {
         let db = ctx.data::<DatabaseConnection>().unwrap();
 
-        let (mut query, columns) = match by {
+        let (query, columns, desc) = match by {
             AlbumsBy::AlbumIds(album_ids) => (
-                album::Entity::find()
-                    .filter(album::Column::AlbumId.is_in(album_ids))
-                    .cursor_by(album::Column::Id),
+                album::Entity::find().filter(album::Column::AlbumId.is_in(album_ids)),
                 vec![album::Column::Id],
+                false,
             ),
             AlbumsBy::RecentlyCreated(limit) => (
                 album::Entity::find()
                     .order_by_desc(album::Column::CreatedAt)
-                    .limit(limit)
-                    .cursor_by((album::Column::CreatedAt, album::Column::Id)),
+                    .limit(limit),
                 vec![album::Column::CreatedAt, album::Column::Id],
+                false,
             ),
             AlbumsBy::RecentlyUpdated(limit) => (
                 album::Entity::find()
                     .order_by_desc(album::Column::UpdatedAt)
-                    .limit(limit)
-                    .cursor_by((album::Column::UpdatedAt, album::Column::Id)),
+                    .limit(limit),
                 vec![album::Column::UpdatedAt, album::Column::Id],
+                false,
             ),
-            AlbumsBy::RecentlyReleased(limit) => {
-                let mut cursor = album::Entity::find().limit(limit).cursor_by((
+            AlbumsBy::RecentlyReleased(limit) => (
+                album::Entity::find().limit(limit),
+                vec![
                     album::Column::ReleaseYear,
                     album::Column::ReleaseMonth,
                     album::Column::ReleaseDay,
                     album::Column::Id,
-                ));
-                cursor.desc();
-                (
-                    cursor,
-                    vec![
-                        album::Column::ReleaseYear,
-                        album::Column::ReleaseMonth,
-                        album::Column::ReleaseDay,
-                        album::Column::Id,
-                    ],
-                )
-            }
+                ],
+                true,
+            ),
             AlbumsBy::Keyword(_) => unimplemented!(),
             AlbumsBy::OrganizeLevel(level) => (
-                album::Entity::find()
-                    .filter(album::Column::Level.eq(level.to_string()))
-                    .cursor_by(album::Column::Id),
+                album::Entity::find().filter(album::Column::Level.eq(level.to_string())),
                 vec![album::Column::Id],
+                false,
             ),
-            AlbumsBy::Tag(_) => unimplemented!(),
-            // TODO: test this
-            // AlbumsBy::Tag(tag_id) => (
-            //     album_tag_relation::Entity::find_related()
-            //         .filter(album_tag_relation::Column::TagDbId.eq(tag_id))
-            //         .cursor_by(album::Column::Id),
-            //     None,
-            // ),
+            AlbumsBy::Tag(tag_id) => (
+                album_tag_relation::Entity::find_related()
+                    .filter(album_tag_relation::Column::TagDbId.eq(tag_id.parse::<i32>()?))
+                    // dedup
+                    .group_by(album_tag_relation::Column::AlbumDbId),
+                vec![album::Column::Id],
+                false,
+            ),
         };
 
         let limit = first.unwrap_or(20);
+        let mut query = query.cursor_by(Identity::Many(
+            columns.iter().map(|r| r.into_iden()).collect(),
+        ));
+        if desc {
+            query.desc();
+        }
 
         if let Some(cursor) = after {
             let values = decode_cursor(&cursor)?;

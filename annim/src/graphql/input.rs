@@ -222,7 +222,7 @@ pub enum AlbumsBy {
     /// Get albums of certain organize level.
     OrganizeLevel(MetadataOrganizeLevel),
     /// Get albums of certain tag
-    Tag(i32),
+    Tag(ID),
 }
 
 pub type UpdateString = UpdateValue<String>;
