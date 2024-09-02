@@ -1,3 +1,4 @@
+use extension::postgres::Type;
 use sea_orm::{EnumIter, Iterable};
 use sea_orm_migration::{prelude::*, schema::*};
 
@@ -17,6 +18,21 @@ impl MigrationName for Migration {
 #[async_trait::async_trait]
 impl MigrationTrait for Migration {
     async fn up(&self, manager: &SchemaManager) -> Result<(), DbErr> {
+        // create enum type for postgres
+        match manager.get_database_backend() {
+            sea_orm::DatabaseBackend::Postgres => {
+                manager
+                    .create_type(
+                        Type::create()
+                            .as_enum(Alias::new("tag_type"))
+                            .values(TagType::iter())
+                            .to_owned(),
+                    )
+                    .await?;
+            }
+            _ => {}
+        }
+
         // TagInfo
         manager
             .create_table(
@@ -26,7 +42,7 @@ impl MigrationTrait for Migration {
                     .col(string(TagInfo::Name))
                     .col(enumeration(
                         TagInfo::Type,
-                        Alias::new("type"),
+                        Alias::new("tag_type"),
                         TagType::iter(),
                     ))
                     .col(timestamp(TagInfo::CreatedAt).default(Expr::current_timestamp()))
@@ -174,6 +190,16 @@ impl MigrationTrait for Migration {
         manager
             .drop_index(Index::drop().name("idx-tag-relation-track").to_owned())
             .await?;
+
+        // drop enum type for postgres
+        if matches!(
+            manager.get_database_backend(),
+            sea_orm::DatabaseBackend::Postgres
+        ) {
+            manager
+                .drop_type(Type::drop().name(Alias::new("tag_type")).to_owned())
+                .await?;
+        }
         Ok(())
     }
 }

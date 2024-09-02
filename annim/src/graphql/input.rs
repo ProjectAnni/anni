@@ -4,7 +4,7 @@ use sea_orm::{
 };
 
 use super::types::{MetadataOrganizeLevel, TrackType};
-use crate::entities::{album, disc, track};
+use crate::entities::{album, disc, helper::now, track};
 
 macro_rules! may_update_required {
     ($self: ident, $model: ident, $field: ident) => {
@@ -93,7 +93,7 @@ impl CreateAlbumTrackInput {
             index: ActiveValue::set(index),
             title: ActiveValue::set(self.title),
             artist: ActiveValue::set(self.artist),
-            r#type: ActiveValue::set(self.r#type.to_string()),
+            r#type: ActiveValue::set(self.r#type.into()),
             ..Default::default()
         };
         let track = track.insert(txn).await?;
@@ -133,7 +133,7 @@ impl UpdateAlbumInfoInput {
         may_update_optional!(self, model, release_day);
         may_update_optional!(self, model, extra);
 
-        model.updated_at = ActiveValue::set(chrono::Utc::now());
+        model.updated_at = ActiveValue::set(now());
         model.update(db).await
     }
 }
@@ -157,7 +157,7 @@ impl UpdateDiscInfoInput {
         may_update_optional!(self, model, catalog);
         may_update_optional!(self, model, artist);
 
-        model.updated_at = ActiveValue::set(chrono::Utc::now());
+        model.updated_at = ActiveValue::set(now());
         model.update(db).await
     }
 }
@@ -180,10 +180,10 @@ impl UpdateTrackInfoInput {
         may_update_required!(self, model, title);
         may_update_required!(self, model, artist);
         if let Some(r#type) = self.r#type {
-            model.r#type = sea_orm::ActiveValue::set(r#type.to_string());
+            model.r#type = sea_orm::ActiveValue::set(r#type.into());
         }
 
-        model.updated_at = ActiveValue::set(chrono::Utc::now());
+        model.updated_at = ActiveValue::set(now());
         model.update(db).await
     }
 }

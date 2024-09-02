@@ -2,12 +2,13 @@ use std::str::FromStr;
 
 use async_graphql::{Context, Enum, Object, ID};
 use sea_orm::{
-    prelude::{DateTimeUtc, Uuid},
-    ColumnTrait, DatabaseConnection, EntityTrait, JoinType, QueryFilter, QueryOrder, QuerySelect,
-    RelationTrait,
+    prelude::Uuid, ColumnTrait, DatabaseConnection, EntityTrait, JoinType, QueryFilter, QueryOrder,
+    QuerySelect, RelationTrait,
 };
 
-use crate::entities::{album, album_tag_relation, disc, tag_info, tag_relation, track};
+use crate::entities::{
+    album, album_tag_relation, disc, helper::timestamp, tag_info, tag_relation, track,
+};
 
 pub struct AlbumInfo(pub(crate) album::Model);
 
@@ -80,18 +81,18 @@ impl AlbumInfo {
     }
 
     /// Creation time of this album in the database. (UTC)
-    async fn created_at(&self) -> &DateTimeUtc {
-        &self.0.created_at
+    async fn created_at(&self) -> i64 {
+        timestamp(self.0.created_at)
     }
 
     /// Last update time of this album in the database. (UTC)
-    async fn updated_at(&self) -> &DateTimeUtc {
-        &self.0.updated_at
+    async fn updated_at(&self) -> i64 {
+        timestamp(self.0.updated_at)
     }
 
     /// Organize level of the album.
     async fn level(&self) -> MetadataOrganizeLevel {
-        MetadataOrganizeLevel::from_str(&self.0.level).unwrap()
+        (&self.0.level).into()
     }
 
     /// Extra metadata of the album.
@@ -153,12 +154,12 @@ impl DiscInfo {
             .collect())
     }
 
-    async fn created_at(&self) -> &DateTimeUtc {
-        &self.0.created_at
+    async fn created_at(&self) -> i64 {
+        timestamp(self.0.created_at)
     }
 
-    async fn updated_at(&self) -> &DateTimeUtc {
-        &self.0.updated_at
+    async fn updated_at(&self) -> i64 {
+        timestamp(self.0.updated_at)
     }
 
     async fn tracks<'ctx>(&self, ctx: &Context<'ctx>) -> anyhow::Result<Vec<TrackInfo>> {
@@ -197,7 +198,7 @@ impl TrackInfo {
     }
 
     async fn r#type(&self) -> TrackType {
-        TrackType::from_str(self.0.r#type.as_str()).unwrap()
+        (&self.0.r#type).into()
     }
 
     async fn artists(&self) -> Option<&serde_json::Value> {
@@ -218,12 +219,12 @@ impl TrackInfo {
             .collect())
     }
 
-    async fn created_at(&self) -> &DateTimeUtc {
-        &self.0.created_at
+    async fn created_at(&self) -> i64 {
+        timestamp(self.0.created_at)
     }
 
-    async fn updated_at(&self) -> &DateTimeUtc {
-        &self.0.updated_at
+    async fn updated_at(&self) -> i64 {
+        timestamp(self.0.updated_at)
     }
 }
 
@@ -330,15 +331,15 @@ impl TagInfo {
     }
 
     async fn r#type(&self) -> TagType {
-        TagType::from_str(self.0.r#type.as_str()).unwrap()
+        (&self.0.r#type).into()
     }
 
-    async fn created_at(&self) -> &DateTimeUtc {
-        &self.0.created_at
+    async fn created_at(&self) -> i64 {
+        timestamp(self.0.created_at)
     }
 
-    async fn updated_at(&self) -> &DateTimeUtc {
-        &self.0.updated_at
+    async fn updated_at(&self) -> i64 {
+        timestamp(self.0.updated_at)
     }
 
     async fn includes<'ctx>(&self, ctx: &Context<'ctx>) -> anyhow::Result<Vec<TagInfo>> {

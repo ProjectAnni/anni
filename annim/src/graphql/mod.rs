@@ -1,5 +1,5 @@
 mod input;
-mod types;
+pub mod types;
 
 use std::str::FromStr;
 
@@ -20,7 +20,7 @@ use types::{AlbumInfo, DiscInfo, MetadataOrganizeLevel, TagInfo, TagRelation, Ta
 
 use crate::{
     auth::require_auth,
-    entities::{album, album_tag_relation, disc, tag_info, tag_relation, track},
+    entities::{album, album_tag_relation, disc, helper::now, tag_info, tag_relation, track},
 };
 
 pub type MetadataSchema = Schema<MetadataQuery, MetadataMutation, EmptySubscription>;
@@ -303,7 +303,7 @@ impl MetadataMutation {
             return Ok(None);
         };
 
-        let level = MetadataOrganizeLevel::from_str(&album.level)?;
+        let level = MetadataOrganizeLevel::from_str(&album.level.to_string())?;
         if level != MetadataOrganizeLevel::Initial {
             anyhow::bail!("Cannot replace discs of an album with organize level {level:?}",);
         }
@@ -401,7 +401,7 @@ impl MetadataMutation {
             return Ok(None);
         };
 
-        let original_level = MetadataOrganizeLevel::from_str(&album.level)?;
+        let original_level = MetadataOrganizeLevel::from_str(&album.level.to_string())?;
         // Level change rules:
         match (original_level, input.level) {
             // 1 -> 2
@@ -464,8 +464,8 @@ impl MetadataMutation {
         }
 
         let mut album: album::ActiveModel = album.into();
-        album.level = ActiveValue::set(input.level.to_string());
-        album.updated_at = ActiveValue::set(chrono::Utc::now());
+        album.level = ActiveValue::set(input.level.into());
+        album.updated_at = ActiveValue::set(now());
 
         let album = album.update(db).await?;
         Ok(Some(AlbumInfo(album)))
@@ -484,7 +484,7 @@ impl MetadataMutation {
         // TODO: return if already exists
         let tag = tag_info::ActiveModel {
             name: ActiveValue::set(name),
-            r#type: ActiveValue::set(r#type.to_string()),
+            r#type: ActiveValue::set(r#type.into()),
             ..Default::default()
         };
         let tag = tag.insert(db).await?;

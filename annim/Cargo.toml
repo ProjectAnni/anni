@@ -23,11 +23,11 @@ async-graphql = { version = "7.0.0", features = [
 async-graphql-axum = "7.0.0"
 sea-orm = { version = "1.0.0", features = [
     "sqlx-sqlite",
+    "sqlx-postgres",
     "runtime-tokio-rustls",
     "with-uuid",
 ] }
 sea-orm-migration = { version = "1.0.0", features = [
-    "sqlx-sqlite",
     "runtime-tokio-rustls",
     "with-uuid",
 ] }
@@ -44,8 +44,12 @@ chrono = "0.4.38"
 serde = { workspace = true, features = ["derive"] }
 
 [dependencies.seaography]
-version = "~1.0.0"                         # seaography version
-features = ["with-decimal", "with-chrono"]
+version = "~1.0.0" # seaography version
 
 [dev-dependencies]
 serde_json = { version = "1.0.103" }
+
+[features]
+default = ["postgres"]
+sqlite = ["sea-orm/sqlx-sqlite"]
+postgres = ["sea-orm/sqlx-postgres"]

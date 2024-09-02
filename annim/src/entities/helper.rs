@@ -7,5 +7,3 @@ pub use postgres::*;
 mod sqlite;
 #[cfg(feature = "sqlite")]
 pub use sqlite::*;
-
-pub(crate) mod helper;

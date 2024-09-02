@@ -14,7 +14,7 @@ use axum::{
     routing::get,
     Router,
 };
-use sea_orm::Database;
+use sea_orm::{ConnectionTrait, Database, Statement};
 use sea_orm_migration::MigratorTrait;
 use tokio::net::TcpListener;
 use tower_http::cors;
@@ -57,19 +57,42 @@ async fn graphql_ws_handler(
 }
 
 #[tokio::main]
-async fn main() {
+async fn main() -> anyhow::Result<()> {
     tracing_subscriber::fmt()
         .with_max_level(tracing::Level::INFO)
         .with_test_writer()
         .init();
 
-    let database = Database::connect("sqlite:///tmp/annim.sqlite?mode=rwc")
+    // postgres://postgres:password@localhost/
+    // sqlite:///tmp/annim.sqlite?mode=rwc
+    let database = Database::connect("postgres://postgres:password@localhost/")
         .await
         .expect("Fail to initialize database connection");
 
-    annim::migrator::Migrator::up(&database, None)
-        .await
-        .unwrap();
+    const DB_NAME: &str = "annim";
+    let database = match database.get_database_backend() {
+        sea_orm::DatabaseBackend::MySql => todo!(),
+        sea_orm::DatabaseBackend::Postgres => {
+            database
+                .execute(Statement::from_string(
+                    database.get_database_backend(),
+                    format!("DROP DATABASE IF EXISTS \"{}\";", DB_NAME),
+                ))
+                .await?;
+            database
+                .execute(Statement::from_string(
+                    database.get_database_backend(),
+                    format!("CREATE DATABASE \"{}\";", DB_NAME),
+                ))
+                .await?;
+
+            let url = format!("{}/{}", "postgres://postgres:password@localhost/", DB_NAME);
+            Database::connect(&url).await?
+        }
+        sea_orm::DatabaseBackend::Sqlite => database,
+    };
+
+    annim::migrator::Migrator::up(&database, None).await?;
 
     let schema = MetadataSchema::build(MetadataQuery, MetadataMutation, EmptySubscription)
         .data(database)
@@ -88,7 +111,7 @@ async fn main() {
 
     println!("Playground: http://localhost:8000");
 
-    axum::serve(TcpListener::bind("localhost:8000").await.unwrap(), app)
-        .await
-        .unwrap();
+    axum::serve(TcpListener::bind("localhost:8000").await?, app).await?;
+
+    Ok(())
 }

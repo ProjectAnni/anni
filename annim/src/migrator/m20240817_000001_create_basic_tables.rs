@@ -1,3 +1,4 @@
+use extension::postgres::Type;
 use sea_orm::{EnumIter, Iterable};
 use sea_orm_migration::{prelude::*, schema::*};
 
@@ -14,6 +15,30 @@ impl MigrationName for Migration {
 #[async_trait::async_trait]
 impl MigrationTrait for Migration {
     async fn up(&self, manager: &SchemaManager) -> Result<(), DbErr> {
+        // create enum type for postgres
+        match manager.get_database_backend() {
+            sea_orm::DatabaseBackend::Postgres => {
+                manager
+                    .create_type(
+                        Type::create()
+                            .as_enum(Alias::new("metadata_organize_level"))
+                            .values(MetadataOrganizeLevel::iter())
+                            .to_owned(),
+                    )
+                    .await?;
+
+                manager
+                    .create_type(
+                        Type::create()
+                            .as_enum(Alias::new("track_type"))
+                            .values(TrackType::iter())
+                            .to_owned(),
+                    )
+                    .await?;
+            }
+            _ => {}
+        }
+
         // Create the `Album` table.
         manager
             .create_table(
@@ -34,7 +59,7 @@ impl MigrationTrait for Migration {
                     .col(
                         enumeration(
                             Album::Level,
-                            Alias::new("level"),
+                            Alias::new("metadata_organize_level"),
                             MetadataOrganizeLevel::iter(),
                         )
                         .default("initial"),
@@ -86,7 +111,7 @@ impl MigrationTrait for Migration {
                     .col(timestamp(Track::UpdatedAt).default(Expr::current_timestamp()))
                     .col(enumeration(
                         Track::Type,
-                        Alias::new("type"),
+                        Alias::new("track_type"),
                         TrackType::iter(),
                     ))
                     .foreign_key(
@@ -151,6 +176,23 @@ impl MigrationTrait for Migration {
             )
             .await?;
 
+        // drop enum type for postgres
+        match manager.get_database_backend() {
+            sea_orm::DatabaseBackend::Postgres => {
+                manager
+                    .drop_type(
+                        Type::drop()
+                            .name(Alias::new("metadata_organize_level"))
+                            .to_owned(),
+                    )
+                    .await?;
+
+                manager
+                    .drop_type(Type::drop().name(Alias::new("track_type")).to_owned())
+                    .await?;
+            }
+            _ => {}
+        }
         Ok(())
     }
 }
