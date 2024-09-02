@@ -1,6 +1,11 @@
+use std::sync::LazyLock;
+
 /// https://github.com/async-graphql/examples/blob/0c4e5e29e97a41c8877c126cbcefb82721ae81af/models/token/src/lib.rs
 use async_graphql::{Context, Data, Result};
 use serde::Deserialize;
+
+static TOKEN: LazyLock<String> =
+    LazyLock::new(|| std::env::var("ANNIM_AUTH_TOKEN").unwrap_or_else(|_| "114514".to_string()));
 
 pub struct AuthToken(pub String);
 
@@ -25,7 +30,7 @@ pub fn require_auth<'ctx>(ctx: &Context<'ctx>) -> anyhow::Result<()> {
     let token = ctx
         .data::<AuthToken>()
         .map_err(|_| anyhow::anyhow!("Token is required"))?;
-    if token.0 != "114514" {
+    if token.0 != TOKEN.as_str() {
         anyhow::bail!("Invalid token");
     }
 
