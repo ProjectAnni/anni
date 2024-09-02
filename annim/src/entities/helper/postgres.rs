@@ -1,3 +1,4 @@
+use sea_orm::prelude::DateTimeUtc;
 use sea_orm::ActiveEnum;
 
 use crate::entities::sea_orm_active_enums::{MetadataOrganizeLevel, TagType, TrackType};
@@ -10,8 +11,8 @@ pub fn now() -> chrono::NaiveDateTime {
     chrono::Utc::now().naive_utc()
 }
 
-pub fn timestamp(input: chrono::NaiveDateTime) -> i64 {
-    input.and_utc().timestamp()
+pub fn timestamp(input: chrono::NaiveDateTime) -> DateTimeUtc {
+    input.and_utc()
 }
 
 impl ToString for TagType {

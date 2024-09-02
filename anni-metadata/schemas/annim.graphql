@@ -132,7 +132,7 @@ input AlbumsBy {
   """
   List albums by conditions.
   """
-  tag: Int
+  tag: ID
 }
 
 input CreateAlbumDiscInput {

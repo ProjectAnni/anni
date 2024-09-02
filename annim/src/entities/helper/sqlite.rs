@@ -1,16 +1,18 @@
 use std::str::FromStr;
 
+use sea_orm::prelude::DateTimeUtc;
+
 use crate::graphql::types::{
     MetadataOrganizeLevel as MetadataOrganizeLevelEnum, TagType as TagTypeEnum,
     TrackType as TrackTypeEnum,
 };
 
-pub fn now() -> chrono::DateTime<chrono::Utc> {
+pub fn now() -> DateTimeUtc {
     chrono::Utc::now()
 }
 
-pub fn timestamp(input: chrono::DateTime<chrono::Utc>) -> i64 {
-    input.timestamp()
+pub fn timestamp(input: DateTimeUtc) -> DateTimeUtc {
+    input
 }
 
 impl From<&String> for TagTypeEnum {

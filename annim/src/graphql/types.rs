@@ -2,8 +2,9 @@ use std::str::FromStr;
 
 use async_graphql::{Context, Enum, Object, ID};
 use sea_orm::{
-    prelude::Uuid, ColumnTrait, DatabaseConnection, EntityTrait, JoinType, QueryFilter, QueryOrder,
-    QuerySelect, RelationTrait,
+    prelude::{DateTimeUtc, Uuid},
+    ColumnTrait, DatabaseConnection, EntityTrait, JoinType, QueryFilter, QueryOrder, QuerySelect,
+    RelationTrait,
 };
 
 use crate::entities::{
@@ -81,12 +82,12 @@ impl AlbumInfo {
     }
 
     /// Creation time of this album in the database. (UTC)
-    async fn created_at(&self) -> i64 {
+    async fn created_at(&self) -> DateTimeUtc {
         timestamp(self.0.created_at)
     }
 
     /// Last update time of this album in the database. (UTC)
-    async fn updated_at(&self) -> i64 {
+    async fn updated_at(&self) -> DateTimeUtc {
         timestamp(self.0.updated_at)
     }
 
@@ -154,11 +155,11 @@ impl DiscInfo {
             .collect())
     }
 
-    async fn created_at(&self) -> i64 {
+    async fn created_at(&self) -> DateTimeUtc {
         timestamp(self.0.created_at)
     }
 
-    async fn updated_at(&self) -> i64 {
+    async fn updated_at(&self) -> DateTimeUtc {
         timestamp(self.0.updated_at)
     }
 
@@ -219,11 +220,11 @@ impl TrackInfo {
             .collect())
     }
 
-    async fn created_at(&self) -> i64 {
+    async fn created_at(&self) -> DateTimeUtc {
         timestamp(self.0.created_at)
     }
 
-    async fn updated_at(&self) -> i64 {
+    async fn updated_at(&self) -> DateTimeUtc {
         timestamp(self.0.updated_at)
     }
 }
@@ -334,11 +335,11 @@ impl TagInfo {
         (&self.0.r#type).into()
     }
 
-    async fn created_at(&self) -> i64 {
+    async fn created_at(&self) -> DateTimeUtc {
         timestamp(self.0.created_at)
     }
 
-    async fn updated_at(&self) -> i64 {
+    async fn updated_at(&self) -> DateTimeUtc {
         timestamp(self.0.updated_at)
     }
 
