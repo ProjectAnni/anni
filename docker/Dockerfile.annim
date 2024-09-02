@@ -1,0 +1,5 @@
+FROM alpine
+
+COPY annim /app/
+
+ENTRYPOINT ["/app/annim"]

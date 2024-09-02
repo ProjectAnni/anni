@@ -76,12 +76,23 @@ jobs:
           cp target/${{ matrix.target }}/release/annil ./docker/
           cp target/${{ matrix.target }}/release/anni ./docker/
 
-      - name: Docker | Build and Publish
+      - name: Docker | Build and Publish Annil
         if: matrix.target == 'x86_64-unknown-linux-musl' && github.ref == 'refs/heads/master'
         uses: macbre/push-to-ghcr@master
         with:
           image_name: projectanni/annil
           dockerfile: ./docker/Dockerfile
+          context: ./docker
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+        env:
+          DOCKER_BUILDKIT: 1
+
+      - name: Docker | Build and Publish Annim
+        if: matrix.target == 'x86_64-unknown-linux-musl' && github.ref == 'refs/heads/master'
+        uses: macbre/push-to-ghcr@master
+        with:
+          image_name: projectanni/annim
+          dockerfile: ./docker/Dockerfile.annim
           context: ./docker
           github_token: ${{ secrets.GITHUB_TOKEN }}
         env:

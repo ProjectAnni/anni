@@ -63,34 +63,10 @@ async fn main() -> anyhow::Result<()> {
         .with_test_writer()
         .init();
 
-    // postgres://postgres:password@localhost/
-    // sqlite:///tmp/annim.sqlite?mode=rwc
-    let database = Database::connect("postgres://postgres:password@localhost/")
+    let database_url = std::env::var("ANNIM_DATABASE_URL")?;
+    let database = Database::connect(database_url)
         .await
         .expect("Fail to initialize database connection");
-
-    const DB_NAME: &str = "annim";
-    let database = match database.get_database_backend() {
-        sea_orm::DatabaseBackend::MySql => todo!(),
-        sea_orm::DatabaseBackend::Postgres => {
-            database
-                .execute(Statement::from_string(
-                    database.get_database_backend(),
-                    format!("DROP DATABASE IF EXISTS \"{}\";", DB_NAME),
-                ))
-                .await?;
-            database
-                .execute(Statement::from_string(
-                    database.get_database_backend(),
-                    format!("CREATE DATABASE \"{}\";", DB_NAME),
-                ))
-                .await?;
-
-            let url = format!("{}/{}", "postgres://postgres:password@localhost/", DB_NAME);
-            Database::connect(&url).await?
-        }
-        sea_orm::DatabaseBackend::Sqlite => database,
-    };
 
     annim::migrator::Migrator::up(&database, None).await?;
 
@@ -110,8 +86,7 @@ async fn main() -> anyhow::Result<()> {
         .with_state(schema);
 
     println!("Playground: http://localhost:8000");
-
-    axum::serve(TcpListener::bind("localhost:8000").await?, app).await?;
+    axum::serve(TcpListener::bind("0.0.0.0:8000").await?, app).await?;
 
     Ok(())
 }
