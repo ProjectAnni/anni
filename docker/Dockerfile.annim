@@ -3,3 +3,4 @@ FROM alpine
 COPY annim /app/
 
 ENTRYPOINT ["/app/annim"]
+EXPOSE 8000/tcp
