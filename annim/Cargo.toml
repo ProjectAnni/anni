@@ -43,6 +43,15 @@ serde_json = "1.0"
 chrono = "0.4.38"
 serde = { workspace = true, features = ["derive"] }
 
+# Search
+tantivy = "0.22.0"
+lindera-core = "0.32.2"
+lindera-dictionary = "0.32.2"
+lindera-tantivy = { git = "https://github.com/ProjectAnni/lindera-tantivy", features = [
+    "ipadic",
+    "compress",
+] }
+
 [dependencies.seaography]
 version = "~1.0.0"
 

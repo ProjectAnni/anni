@@ -2,9 +2,13 @@ use async_graphql::{InputObject, InputType, OneofObject, ID};
 use sea_orm::{
     prelude::Uuid, ActiveModelTrait, ActiveValue, ConnectionTrait, DatabaseConnection, DbErr,
 };
+use tantivy::IndexWriter;
 
 use super::types::{MetadataOrganizeLevel, TrackType};
-use crate::entities::{album, disc, helper::now, track};
+use crate::{
+    entities::{album, disc, helper::now, track},
+    search::RepositorySearchManager,
+};
 
 macro_rules! may_update_required {
     ($self: ident, $model: ident, $field: ident) => {
@@ -51,6 +55,8 @@ impl CreateAlbumDiscInput {
     pub(crate) async fn insert<C: ConnectionTrait>(
         self,
         txn: &C,
+        searcher: &RepositorySearchManager,
+        index_writer: &IndexWriter,
         album_db_id: i32,
         index: i32,
     ) -> anyhow::Result<disc::Model> {
@@ -64,9 +70,26 @@ impl CreateAlbumDiscInput {
         };
         let disc = disc.insert(txn).await?;
 
+        index_writer.add_document(searcher.build_track_document(
+            disc.title.as_deref().unwrap_or_default(),
+            disc.artist.as_deref().unwrap_or_default(),
+            disc.album_db_id as i64,
+            Some(disc.id as i64),
+            None,
+        ))?;
+
         let disc_db_id = disc.id;
         for (i, track) in self.tracks.into_iter().enumerate() {
-            track.insert(txn, album_db_id, disc_db_id, i as i32).await?;
+            track
+                .insert(
+                    txn,
+                    searcher,
+                    index_writer,
+                    album_db_id,
+                    disc_db_id,
+                    i as i32,
+                )
+                .await?;
         }
         Ok(disc)
     }
@@ -83,6 +106,8 @@ impl CreateAlbumTrackInput {
     pub(crate) async fn insert<C: ConnectionTrait>(
         self,
         txn: &C,
+        searcher: &RepositorySearchManager,
+        index_writer: &IndexWriter,
         album_db_id: i32,
         disc_db_id: i32,
         index: i32,
@@ -97,6 +122,14 @@ impl CreateAlbumTrackInput {
             ..Default::default()
         };
         let track = track.insert(txn).await?;
+
+        index_writer.add_document(searcher.build_track_document(
+            &track.title,
+            &track.artist,
+            track.album_db_id as i64,
+            Some(track.disc_db_id as i64),
+            Some(track.id as i64),
+        ))?;
         Ok(track)
     }
 }

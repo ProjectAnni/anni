@@ -1,6 +1,7 @@
 use annim::{
     auth::{on_connection_init, AuthToken},
     graphql::{MetadataMutation, MetadataQuery, MetadataSchema},
+    search::RepositorySearchManager,
 };
 use async_graphql::{
     http::{graphiql_source, ALL_WEBSOCKET_PROTOCOLS},
@@ -14,7 +15,7 @@ use axum::{
     routing::get,
     Router,
 };
-use sea_orm::{ConnectionTrait, Database, Statement};
+use sea_orm::Database;
 use sea_orm_migration::MigratorTrait;
 use tokio::net::TcpListener;
 use tower_http::cors;
@@ -59,7 +60,7 @@ async fn graphql_ws_handler(
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     tracing_subscriber::fmt()
-        .with_max_level(tracing::Level::INFO)
+        .with_max_level(tracing::Level::WARN)
         .with_test_writer()
         .init();
 
@@ -70,8 +71,12 @@ async fn main() -> anyhow::Result<()> {
 
     annim::migrator::Migrator::up(&database, None).await?;
 
+    let searcher_directory = std::env::var("ANNIM_SEARCH_DIRECTORY")?;
+    let searcher = RepositorySearchManager::open_or_create(searcher_directory)?;
+
     let schema = MetadataSchema::build(MetadataQuery, MetadataMutation, EmptySubscription)
         .data(database)
+        .data(searcher)
         .finish();
 
     let app = Router::new()

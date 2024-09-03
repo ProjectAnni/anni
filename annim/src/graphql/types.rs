@@ -3,8 +3,8 @@ use std::str::FromStr;
 use async_graphql::{Context, Enum, Object, ID};
 use sea_orm::{
     prelude::{DateTimeUtc, Uuid},
-    ColumnTrait, DatabaseConnection, EntityTrait, JoinType, QueryFilter, QueryOrder, QuerySelect,
-    RelationTrait,
+    ColumnTrait, DatabaseConnection, EntityTrait, FromQueryResult, JoinType, ModelTrait,
+    QueryFilter, QueryOrder, QuerySelect, RelationTrait,
 };
 
 use crate::entities::{
@@ -445,5 +445,75 @@ impl TagRelation {
             .await?
             .unwrap();
         Ok(TagInfo(model))
+    }
+}
+
+pub struct TrackSearchResult {
+    pub score: f32,
+    pub album_db_id: i64,
+    pub disc_db_id: i64,
+    pub track_db_id: i64,
+}
+
+#[Object]
+impl TrackSearchResult {
+    /// Return the search score of the track.
+    pub async fn score(&self) -> f32 {
+        self.score
+    }
+
+    /// Return a `TrackIdentifier` string which represents the track.
+    async fn identifier(&self, ctx: &Context<'_>) -> anyhow::Result<String> {
+        let db = ctx.data::<DatabaseConnection>().unwrap();
+
+        #[derive(FromQueryResult)]
+        struct TrackIndexIdentifierFromDb {
+            album_id: Uuid,
+            disc_index: i32,
+            track_index: i32,
+        }
+
+        let result = track::Entity::find_by_id(self.track_db_id as i32)
+            .select_only()
+            .column_as(track::Column::Index, "track_index")
+            .join(JoinType::InnerJoin, track::Relation::Disc.def())
+            .column_as(disc::Column::Index, "disc_index")
+            .join(JoinType::InnerJoin, track::Relation::Album.def())
+            .column_as(album::Column::AlbumId, "album_id")
+            .into_model::<TrackIndexIdentifierFromDb>()
+            .one(db)
+            .await?
+            .ok_or_else(|| anyhow::anyhow!("invalid track"))?;
+
+        Ok(format!(
+            "{}/{}/{}",
+            result.album_id,
+            result.disc_index + 1,
+            result.track_index + 1
+        ))
+    }
+
+    pub async fn album(&self, ctx: &Context<'_>) -> anyhow::Result<Option<AlbumInfo>> {
+        let db = ctx.data::<DatabaseConnection>().unwrap();
+        let model = album::Entity::find_by_id(self.album_db_id as i32)
+            .one(db)
+            .await?;
+        Ok(model.map(AlbumInfo))
+    }
+
+    pub async fn disc(&self, ctx: &Context<'_>) -> anyhow::Result<Option<DiscInfo>> {
+        let db = ctx.data::<DatabaseConnection>().unwrap();
+        let model = disc::Entity::find_by_id(self.disc_db_id as i32)
+            .one(db)
+            .await?;
+        Ok(model.map(DiscInfo))
+    }
+
+    pub async fn track(&self, ctx: &Context<'_>) -> anyhow::Result<Option<TrackInfo>> {
+        let db = ctx.data::<DatabaseConnection>().unwrap();
+        let model = track::Entity::find_by_id(self.track_db_id as i32)
+            .one(db)
+            .await?;
+        Ok(model.map(TrackInfo))
     }
 }
