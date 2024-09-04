@@ -2,5 +2,6 @@ FROM alpine
 
 COPY annim /app/
 
+VOLUME /app/data
 ENTRYPOINT ["/app/annim"]
 EXPOSE 8000/tcp

@@ -1,3 +1,4 @@
+mod cursor;
 mod input;
 pub mod types;
 
@@ -8,6 +9,7 @@ use async_graphql::{
     connection::{Connection, Edge},
     Context, EmptySubscription, Object, Schema, ID,
 };
+use cursor::Cursor;
 use input::{AlbumsBy, MetadataIDInput};
 use sea_orm::{
     prelude::Uuid,
@@ -15,7 +17,6 @@ use sea_orm::{
     ActiveModelTrait, ActiveValue, ColumnTrait, DatabaseConnection, EntityTrait, Identity,
     ModelTrait, QueryFilter, QueryOrder, QuerySelect, Related, TransactionTrait,
 };
-use seaography::{decode_cursor, encode_cursor};
 use tantivy::{
     collector::TopDocs,
     indexer::NoMergePolicy,
@@ -124,9 +125,8 @@ impl MetadataQuery {
         }
 
         if let Some(cursor) = after {
-            let values = decode_cursor(&cursor)?;
-            let cursor_values = ValueTuple::Many(values);
-            query.after(cursor_values);
+            let cursor = Cursor::from_str(&cursor)?;
+            query.after(cursor.into_value_tuple());
         }
 
         let mut data = query.first(limit + 1).all(db).await.unwrap();
@@ -145,9 +145,8 @@ impl MetadataQuery {
                     .map(|variant| model.get(variant.clone()))
                     .collect();
 
-                let cursor: String = encode_cursor(values);
-
-                Edge::new(cursor, AlbumInfo(model))
+                let cursor = Cursor::new(values);
+                Edge::new(cursor.to_string(), AlbumInfo(model))
             })
             .collect();
 

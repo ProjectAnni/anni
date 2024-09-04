@@ -385,15 +385,14 @@ dependencies = [
  "async-graphql",
  "async-graphql-axum",
  "axum",
+ "base64 0.22.1",
  "chrono",
- "dotenv",
- "lazy_static 1.5.0",
  "lindera-core 0.32.2",
  "lindera-dictionary 0.32.2",
  "lindera-tantivy 0.27.1 (git+https://github.com/ProjectAnni/lindera-tantivy)",
+ "rmp-serde",
  "sea-orm",
  "sea-orm-migration",
- "seaography",
  "serde",
  "serde_json",
  "tantivy 0.22.0",
@@ -1693,12 +1692,6 @@ dependencies = [
  "quote",
  "syn 2.0.72",
 ]
-
-[[package]]
-name = "dotenv"
-version = "0.15.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "77c90badedccf4105eca100756a0b1289e191f6fcbdadd3cee1d2f614f97da8f"
 
 [[package]]
 name = "dotenvy"
@@ -5247,6 +5240,28 @@ dependencies = [
 ]
 
 [[package]]
+name = "rmp"
+version = "0.8.14"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "228ed7c16fa39782c3b3468e974aec2795e9089153cd08ee2e9aefb3613334c4"
+dependencies = [
+ "byteorder",
+ "num-traits",
+ "paste",
+]
+
+[[package]]
+name = "rmp-serde"
+version = "1.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "52e599a477cf9840e92f2cde9a7189e67b42c57532749bf90aea6ec10facd4db"
+dependencies = [
+ "byteorder",
+ "rmp",
+ "serde",
+]
+
+[[package]]
 name = "rsa"
 version = "0.7.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -5737,20 +5752,6 @@ name = "seahash"
 version = "4.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1c107b6f4780854c8b126e228ea8869f4d7b71260f962fefb57b996b8959ba6b"
-
-[[package]]
-name = "seaography"
-version = "1.0.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "892f0b05ebcb4a36a71a80b34cc43adb38b4650c1974ab2f53a4a006b427bc9d"
-dependencies = [
- "async-graphql",
- "fnv",
- "heck 0.4.1",
- "itertools 0.12.1",
- "sea-orm",
- "thiserror",
-]
 
 [[package]]
 name = "sec1"
