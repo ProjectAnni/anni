@@ -1,25 +1,24 @@
-use std::{
-    path::Path,
-    sync::{Arc, LazyLock},
-};
+use std::{path::Path, sync::Arc};
 
 use lindera_core::mode::Mode;
 use lindera_dictionary::{DictionaryConfig, DictionaryKind, DictionaryLoader};
 use lindera_tantivy::tokenizer::LinderaTokenizer;
 use tantivy::{
-    directory::{MmapDirectory, RamDirectory},
+    directory::MmapDirectory,
     doc,
-    query::QueryParser,
+    query::{Query, QueryParser},
     schema::{
         Field, IndexRecordOption, Schema, TextFieldIndexing, TextOptions, Value, INDEXED, STORED,
     },
-    Index, IndexWriter, TantivyDocument, TantivyError,
+    Index, IndexReader, IndexWriter, Opstamp, Searcher, TantivyDocument, TantivyError,
 };
 use tokio::sync::{RwLock, RwLockReadGuard};
 
 pub struct RepositorySearchManager {
-    pub index: Index,
+    index: Index,
+    index_reader: IndexReader,
     index_writer: Arc<RwLock<IndexWriter>>,
+    query_parser: QueryParser,
 
     pub fields: SearchFields,
 }
@@ -31,24 +30,34 @@ impl RepositorySearchManager {
     {
         let (schema, fields) = SearchFields::new();
         let directory = MmapDirectory::open(directory_path)?;
-        let mut index = Index::open_or_create(directory, schema)?;
+        let index = Index::open_or_create(directory, schema)?;
+
+        let reader = index.reader()?;
         let writer = index.writer(50_000_000)?;
+        let query_parser = QueryParser::for_index(&index, vec![fields.title, fields.artist]);
 
         let me = Self {
             index,
+            index_reader: reader,
             index_writer: Arc::new(RwLock::new(writer)),
+            query_parser,
             fields,
         };
         me.register_tokenizers();
         Ok(me)
     }
 
-    pub async fn writer_read(&self) -> RwLockReadGuard<'_, IndexWriter> {
-        self.index_writer.read().await
+    pub async fn writer(&self) -> SearchWriter<'_> {
+        SearchWriter {
+            lock: self.index_writer.read().await,
+            manager: self,
+        }
     }
 
-    pub async fn commit(&self) -> Result<(), TantivyError> {
-        self.index_writer.write().await.commit()?;
+    async fn commit(&self) -> Result<(), TantivyError> {
+        let mut writer = self.index_writer.write().await;
+        writer.commit()?;
+        writer.garbage_collect_files().await?;
 
         Ok(())
     }
@@ -83,8 +92,12 @@ impl RepositorySearchManager {
         )
     }
 
-    pub fn build_query_parser(&self) -> QueryParser {
-        QueryParser::for_index(&self.index, vec![self.fields.title, self.fields.artist])
+    pub fn searcher(&self) -> Searcher {
+        self.index_reader.searcher()
+    }
+
+    pub fn query_parser(&self) -> &QueryParser {
+        &self.query_parser
     }
 
     pub fn deserialize_document(&self, doc: TantivyDocument) -> (i64, Option<i64>, Option<i64>) {
@@ -101,6 +114,27 @@ impl RepositorySearchManager {
                 .as_i64()
                 .and_then(|i| if i == i64::MAX { None } else { Some(i) }),
         )
+    }
+}
+
+pub struct SearchWriter<'a> {
+    lock: RwLockReadGuard<'a, IndexWriter>,
+    manager: &'a RepositorySearchManager,
+}
+
+impl SearchWriter<'_> {
+    pub fn add_document(&self, document: TantivyDocument) -> tantivy::Result<Opstamp> {
+        self.lock.add_document(document)
+    }
+
+    pub fn delete_query(&self, query: Box<dyn Query>) -> tantivy::Result<Opstamp> {
+        self.lock.delete_query(query)
+    }
+
+    pub async fn commit(self) -> tantivy::Result<()> {
+        let manager = self.manager;
+        drop(self);
+        manager.commit().await
     }
 }
 
@@ -147,22 +181,5 @@ impl SearchFields {
                 artist,
             },
         )
-    }
-
-    fn from_index(index: &Index) -> Self {
-        let schema = index.schema();
-        let album_db_id = schema.get_field("album_db_id").unwrap();
-        let disc_db_id = schema.get_field("disc_db_id").unwrap();
-        let track_db_id = schema.get_field("track_db_id").unwrap();
-        let title = schema.get_field("title").unwrap();
-        let artist = schema.get_field("artist").unwrap();
-
-        Self {
-            album_db_id,
-            disc_db_id,
-            track_db_id,
-            title,
-            artist,
-        }
     }
 }

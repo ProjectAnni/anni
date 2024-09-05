@@ -12,16 +12,14 @@ use async_graphql::{
 use cursor::Cursor;
 use input::{AlbumsBy, MetadataIDInput};
 use sea_orm::{
-    prelude::Uuid,
-    sea_query::{IntoIden, ValueTuple},
-    ActiveModelTrait, ActiveValue, ColumnTrait, DatabaseConnection, EntityTrait, Identity,
-    ModelTrait, QueryFilter, QueryOrder, QuerySelect, Related, TransactionTrait,
+    prelude::Uuid, sea_query::IntoIden, ActiveModelTrait, ActiveValue, ColumnTrait,
+    DatabaseConnection, EntityTrait, Identity, ModelTrait, QueryFilter, QueryOrder, QuerySelect,
+    Related, TransactionTrait,
 };
 use tantivy::{
     collector::TopDocs,
-    indexer::NoMergePolicy,
-    query::{BooleanQuery, Occur, PhraseQuery, QueryClone, QueryParser, TermQuery},
-    TantivyDocument, Term,
+    query::{BooleanQuery, Occur, PhraseQuery, QueryClone, TermQuery},
+    Term,
 };
 use types::{
     AlbumInfo, DiscInfo, MetadataOrganizeLevel, TagInfo, TagRelation, TagType, TrackInfo,
@@ -125,8 +123,9 @@ impl MetadataQuery {
         }
 
         if let Some(cursor) = after {
-            let cursor = Cursor::from_str(&cursor)?;
-            query.after(cursor.into_value_tuple());
+            let values = Cursor::from_str(&cursor)?;
+            let cursor_values = values.into_value_tuple();
+            query.after(cursor_values);
         }
 
         let mut data = query.first(limit + 1).all(db).await.unwrap();
@@ -145,8 +144,8 @@ impl MetadataQuery {
                     .map(|variant| model.get(variant.clone()))
                     .collect();
 
-                let cursor = Cursor::new(values);
-                Edge::new(cursor.to_string(), AlbumInfo(model))
+                let cursor = Cursor::new(values).to_string();
+                Edge::new(cursor, AlbumInfo(model))
             })
             .collect();
 
@@ -160,13 +159,11 @@ impl MetadataQuery {
         ctx: &Context<'ctx>,
         keyword: String,
     ) -> anyhow::Result<Vec<TrackSearchResult>> {
-        let db = ctx.data::<DatabaseConnection>().unwrap();
         let search_manager = ctx.data::<RepositorySearchManager>().unwrap();
 
-        let reader = search_manager.index.reader()?;
-        let parser = search_manager.build_query_parser();
-        let searcher = reader.searcher();
-        let query = parser.parse_query(&keyword)?;
+        let query = search_manager.query_parser().parse_query(&keyword)?;
+        let searcher = search_manager.searcher();
+
         let top_docs = searcher.search(&*query, &TopDocs::with_limit(10))?;
 
         let result: Vec<_> = top_docs
@@ -240,7 +237,7 @@ impl MetadataMutation {
         require_auth(ctx)?;
         let db = ctx.data::<DatabaseConnection>().unwrap();
         let searcher = ctx.data::<RepositorySearchManager>().unwrap();
-        let index_writer = searcher.writer_read().await;
+        let index_writer = searcher.writer().await;
 
         let txn = db.begin().await?;
         let album = album::ActiveModel {
@@ -275,8 +272,7 @@ impl MetadataMutation {
 
         txn.commit().await?;
         if commit.unwrap_or(true) {
-            drop(index_writer);
-            searcher.commit().await?;
+            index_writer.commit().await?;
         }
 
         Ok(AlbumInfo(album))
@@ -307,7 +303,7 @@ impl MetadataMutation {
 
         if need_update_search_index {
             let searcher = ctx.data::<RepositorySearchManager>().unwrap();
-            let mut index_writer = searcher.index.writer(100_000_000)?;
+            let index_writer = searcher.writer().await;
             let query = PhraseQuery::new(vec![
                 Term::from_field_i64(searcher.fields.album_db_id, album.id as i64),
                 Term::from_field_i64(searcher.fields.disc_db_id, i64::MAX),
@@ -321,7 +317,7 @@ impl MetadataMutation {
                 None,
                 None,
             ))?;
-            index_writer.commit()?;
+            index_writer.commit().await?;
         }
 
         Ok(Some(AlbumInfo(album)))
@@ -348,7 +344,7 @@ impl MetadataMutation {
 
         if need_update_search_index {
             let searcher = ctx.data::<RepositorySearchManager>().unwrap();
-            let mut index_writer = searcher.index.writer(100_000_000)?;
+            let index_writer = searcher.writer().await;
             let query = PhraseQuery::new(vec![
                 Term::from_field_i64(searcher.fields.album_db_id, disc.album_db_id as i64),
                 Term::from_field_i64(searcher.fields.disc_db_id, disc.id as i64),
@@ -362,7 +358,7 @@ impl MetadataMutation {
                 Some(disc.id as i64),
                 None,
             ))?;
-            index_writer.commit()?;
+            index_writer.commit().await?;
         }
         Ok(Some(DiscInfo(disc)))
     }
@@ -388,7 +384,7 @@ impl MetadataMutation {
 
         if need_update_search_index {
             let searcher = ctx.data::<RepositorySearchManager>().unwrap();
-            let mut index_writer = searcher.index.writer(100_000_000)?;
+            let index_writer = searcher.writer().await;
             let query = PhraseQuery::new(vec![
                 Term::from_field_i64(searcher.fields.album_db_id, track.album_db_id as i64),
                 Term::from_field_i64(searcher.fields.disc_db_id, track.disc_db_id as i64),
@@ -402,7 +398,7 @@ impl MetadataMutation {
                 Some(track.disc_db_id as i64),
                 Some(track.id as i64),
             ))?;
-            index_writer.commit()?;
+            index_writer.commit().await?;
         }
         Ok(Some(TrackInfo(track)))
     }
@@ -418,7 +414,7 @@ impl MetadataMutation {
         require_auth(ctx)?;
         let db = ctx.data::<DatabaseConnection>().unwrap();
         let searcher = ctx.data::<RepositorySearchManager>().unwrap();
-        let mut index_writer = searcher.index.writer(100_000_000)?;
+        let index_writer = searcher.writer().await;
 
         let Some(album) = album::Entity::find_by_id(input.id.parse::<i32>()?)
             .one(db)
@@ -469,7 +465,7 @@ impl MetadataMutation {
         }
 
         txn.commit().await?;
-        index_writer.commit()?;
+        index_writer.commit().await?;
 
         Ok(Some(AlbumInfo(album)))
     }
@@ -493,7 +489,7 @@ impl MetadataMutation {
         };
 
         let searcher = ctx.data::<RepositorySearchManager>().unwrap();
-        let mut index_writer = searcher.index.writer(100_000_000)?;
+        let index_writer = searcher.writer().await;
 
         let album_db_id = disc.album_db_id;
         let level: String = album::Entity::find_by_id(album_db_id)
@@ -547,7 +543,7 @@ impl MetadataMutation {
         }
 
         txn.commit().await?;
-        index_writer.commit()?;
+        index_writer.commit().await?;
 
         Ok(Some(DiscInfo(disc)))
     }

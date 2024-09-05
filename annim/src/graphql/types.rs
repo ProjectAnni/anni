@@ -3,8 +3,8 @@ use std::str::FromStr;
 use async_graphql::{Context, Enum, Object, ID};
 use sea_orm::{
     prelude::{DateTimeUtc, Uuid},
-    ColumnTrait, DatabaseConnection, EntityTrait, FromQueryResult, JoinType, ModelTrait,
-    QueryFilter, QueryOrder, QuerySelect, RelationTrait,
+    ColumnTrait, DatabaseConnection, EntityTrait, FromQueryResult, JoinType, QueryFilter,
+    QueryOrder, QuerySelect, RelationTrait,
 };
 
 use crate::entities::{

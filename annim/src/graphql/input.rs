@@ -2,12 +2,11 @@ use async_graphql::{InputObject, InputType, OneofObject, ID};
 use sea_orm::{
     prelude::Uuid, ActiveModelTrait, ActiveValue, ConnectionTrait, DatabaseConnection, DbErr,
 };
-use tantivy::IndexWriter;
 
 use super::types::{MetadataOrganizeLevel, TrackType};
 use crate::{
     entities::{album, disc, helper::now, track},
-    search::RepositorySearchManager,
+    search::{RepositorySearchManager, SearchWriter},
 };
 
 macro_rules! may_update_required {
@@ -56,7 +55,7 @@ impl CreateAlbumDiscInput {
         self,
         txn: &C,
         searcher: &RepositorySearchManager,
-        index_writer: &IndexWriter,
+        index_writer: &SearchWriter<'_>,
         album_db_id: i32,
         index: i32,
     ) -> anyhow::Result<disc::Model> {
@@ -107,7 +106,7 @@ impl CreateAlbumTrackInput {
         self,
         txn: &C,
         searcher: &RepositorySearchManager,
-        index_writer: &IndexWriter,
+        index_writer: &SearchWriter<'_>,
         album_db_id: i32,
         disc_db_id: i32,
         index: i32,
