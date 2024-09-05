@@ -20,6 +20,7 @@ pub struct Model {
     pub level: MetadataOrganizeLevel,
     pub created_at: DateTime,
     pub updated_at: DateTime,
+    #[sea_orm(column_type = "JsonBinary", nullable)]
     pub extra: Option<Json>,
 }
 
