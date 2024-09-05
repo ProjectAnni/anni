@@ -182,7 +182,7 @@ type MetadataMutation {
   """
   Add the metatada of a full album to annim.
   """
-  addAlbum(input: AddAlbumInput!): Album!
+  addAlbum(input: AddAlbumInput!, commit: Boolean): Album!
   """
   Update basic album information.
   Use this method to update basic album information such as title, artist and others.
@@ -262,6 +262,7 @@ enum MetadataOrganizeLevel {
 type MetadataQuery {
   album(albumId: UUID!): Album
   albums(by: AlbumsBy!, after: String, first: Int): AlbumConnection!
+  tracks(keyword: String!): [TrackSearchResult!]!
   tag(tagName: String!, tagType: TagType): [Tag!]!
 }
 
@@ -336,6 +337,20 @@ type Track {
   tags: [Tag!]!
   createdAt: DateTime!
   updatedAt: DateTime!
+}
+
+type TrackSearchResult {
+  """
+  Return the search score of the track.
+  """
+  score: Float!
+  """
+  Return a `TrackIdentifier` string which represents the track.
+  """
+  identifier: String!
+  album: Album
+  disc: Disc
+  track: Track
 }
 
 enum TrackType {

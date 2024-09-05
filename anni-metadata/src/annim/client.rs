@@ -49,6 +49,7 @@ impl AnnimClient {
     pub async fn add_album(
         &self,
         album: &model::Album,
+        commit: bool,
     ) -> anyhow::Result<query::album::AlbumFragment> {
         let discs: Vec<_> = album.iter().collect();
         let input = mutation::add_album::AddAlbumInput {
@@ -82,6 +83,7 @@ impl AnnimClient {
         let query =
             mutation::add_album::AddAlbumMutation::build(mutation::add_album::AddAlbumVariables {
                 album: input,
+                commit: Some(commit),
             });
         let response = self.client.post(&self.endpoint).run_graphql(query).await?;
         if let Some(errors) = response.errors {

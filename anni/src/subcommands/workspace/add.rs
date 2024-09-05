@@ -108,7 +108,7 @@ fn handle_workspace_add(me: WorkspaceAddAction) -> anyhow::Result<()> {
             }
             anni_workspace::config::WorkspaceMetadata::Remote { endpoint, token } => {
                 let client = AnnimClient::new(endpoint, token.as_deref());
-                client.add_album(&album).await?;
+                client.add_album(&album, true).await?;
             }
         }
     }

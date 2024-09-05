@@ -52,8 +52,16 @@ fragment AlbumDetail on Album {
     }
 }
 
-mutation addAlbum($album: AddAlbumInput!) {
-    addAlbum(input: $album) {
+fragment TagBase on Tag {
+    id
+    name
+    type
+    createdAt
+    updatedAt
+}
+
+mutation addAlbum($album: AddAlbumInput!, $commit: Boolean) {
+    addAlbum(input: $album, commit: $commit) {
         ...AlbumDetail
     }
 }

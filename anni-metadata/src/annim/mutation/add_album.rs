@@ -4,12 +4,13 @@ use crate::annim::{schema, Json, Uuid};
 #[derive(cynic::QueryVariables, Debug)]
 pub struct AddAlbumVariables<'a> {
     pub album: AddAlbumInput<'a>,
+    pub commit: Option<bool>,
 }
 
 #[derive(cynic::QueryFragment, Debug)]
 #[cynic(graphql_type = "MetadataMutation", variables = "AddAlbumVariables")]
 pub struct AddAlbumMutation {
-    #[arguments(input: $album)]
+    #[arguments(input: $album, commit: $commit)]
     pub add_album: AlbumFragment,
 }
 

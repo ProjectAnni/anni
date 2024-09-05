@@ -58,8 +58,20 @@ async fn repo_migrate(me: RepoMigrateAction, manager: RepositoryManager) -> anyh
 
     let mut albums = HashMap::new();
     log::info!("Start inserting albums...");
-    for album in repo.albums_iter() {
-        let annim_album = client.add_album(album).await?;
+    let mut albums_iter = repo.albums_iter();
+    let last = albums_iter.next(); // read the first album for further commit
+
+    for album in albums_iter {
+        let annim_album = client.add_album(album, false).await?;
+        log::info!(
+            "Inserted album {}, id = {}",
+            annim_album.title,
+            annim_album.id.inner()
+        );
+        albums.insert(album.album_id, annim_album);
+    }
+    if let Some(album) = last {
+        let annim_album = client.add_album(album, true).await?;
         log::info!(
             "Inserted album {}, id = {}",
             annim_album.title,
