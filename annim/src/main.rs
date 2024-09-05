@@ -72,6 +72,7 @@ async fn main() -> anyhow::Result<()> {
     annim::migrator::Migrator::up(&database, None).await?;
 
     let searcher_directory = std::env::var("ANNIM_SEARCH_DIRECTORY")?;
+    std::fs::create_dir_all(&searcher_directory)?;
     let searcher = RepositorySearchManager::open_or_create(searcher_directory)?;
 
     let schema = MetadataSchema::build(MetadataQuery, MetadataMutation, EmptySubscription)
