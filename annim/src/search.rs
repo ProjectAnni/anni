@@ -14,6 +14,8 @@ use tantivy::{
 };
 use tokio::sync::{RwLock, RwLockReadGuard};
 
+use crate::entities::{album, disc, track};
+
 pub struct RepositorySearchManager {
     index: Index,
     index_reader: IndexReader,
@@ -127,8 +129,42 @@ impl SearchWriter<'_> {
         self.lock.add_document(document)
     }
 
+    pub fn add_album_info(&self, album: &album::Model) -> tantivy::Result<Opstamp> {
+        self.add_document(self.manager.build_track_document(
+            &album.title,
+            &album.artist,
+            album.id as i64,
+            None,
+            None,
+        ))
+    }
+
+    pub fn add_disc_info(&self, disc: &disc::Model) -> tantivy::Result<Opstamp> {
+        self.lock.add_document(self.manager.build_track_document(
+            disc.title.as_deref().unwrap_or_default(),
+            disc.artist.as_deref().unwrap_or_default(),
+            disc.album_db_id as i64,
+            Some(disc.id as i64),
+            None,
+        ))
+    }
+
+    pub fn add_track_info(&self, track: &track::Model) -> tantivy::Result<Opstamp> {
+        self.lock.add_document(self.manager.build_track_document(
+            &track.title,
+            &track.artist,
+            track.album_db_id as i64,
+            Some(track.disc_db_id as i64),
+            Some(track.id as i64),
+        ))
+    }
+
     pub fn delete_query(&self, query: Box<dyn Query>) -> tantivy::Result<Opstamp> {
         self.lock.delete_query(query)
+    }
+
+    pub fn delete_all(&self) -> tantivy::Result<Opstamp> {
+        self.lock.delete_all_documents()
     }
 
     pub async fn commit(self) -> tantivy::Result<()> {

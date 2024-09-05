@@ -6,7 +6,7 @@ use sea_orm::{
 use super::types::{MetadataOrganizeLevel, TrackType};
 use crate::{
     entities::{album, disc, helper::now, track},
-    search::{RepositorySearchManager, SearchWriter},
+    search::SearchWriter,
 };
 
 macro_rules! may_update_required {
@@ -54,7 +54,6 @@ impl CreateAlbumDiscInput {
     pub(crate) async fn insert<C: ConnectionTrait>(
         self,
         txn: &C,
-        searcher: &RepositorySearchManager,
         index_writer: &SearchWriter<'_>,
         album_db_id: i32,
         index: i32,
@@ -69,25 +68,12 @@ impl CreateAlbumDiscInput {
         };
         let disc = disc.insert(txn).await?;
 
-        index_writer.add_document(searcher.build_track_document(
-            disc.title.as_deref().unwrap_or_default(),
-            disc.artist.as_deref().unwrap_or_default(),
-            disc.album_db_id as i64,
-            Some(disc.id as i64),
-            None,
-        ))?;
+        index_writer.add_disc_info(&disc)?;
 
         let disc_db_id = disc.id;
         for (i, track) in self.tracks.into_iter().enumerate() {
             track
-                .insert(
-                    txn,
-                    searcher,
-                    index_writer,
-                    album_db_id,
-                    disc_db_id,
-                    i as i32,
-                )
+                .insert(txn, index_writer, album_db_id, disc_db_id, i as i32)
                 .await?;
         }
         Ok(disc)
@@ -105,7 +91,6 @@ impl CreateAlbumTrackInput {
     pub(crate) async fn insert<C: ConnectionTrait>(
         self,
         txn: &C,
-        searcher: &RepositorySearchManager,
         index_writer: &SearchWriter<'_>,
         album_db_id: i32,
         disc_db_id: i32,
@@ -122,13 +107,7 @@ impl CreateAlbumTrackInput {
         };
         let track = track.insert(txn).await?;
 
-        index_writer.add_document(searcher.build_track_document(
-            &track.title,
-            &track.artist,
-            track.album_db_id as i64,
-            Some(track.disc_db_id as i64),
-            Some(track.id as i64),
-        ))?;
+        index_writer.add_track_info(&track)?;
         Ok(track)
     }
 }

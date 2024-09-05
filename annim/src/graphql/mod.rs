@@ -240,19 +240,13 @@ impl MetadataMutation {
         };
         let album = album.insert(&txn).await?;
 
-        index_writer.add_document(searcher.build_track_document(
-            &album.title,
-            &album.artist,
-            album.id as i64,
-            None,
-            None,
-        ))?;
+        index_writer.add_album_info(&album)?;
 
         // insert discs
         let album_db_id = album.id;
         for (index, input) in input.discs.into_iter().enumerate() {
             input
-                .insert(&txn, &searcher, &index_writer, album_db_id, index as i32)
+                .insert(&txn, &index_writer, album_db_id, index as i32)
                 .await?;
         }
 
@@ -446,7 +440,7 @@ impl MetadataMutation {
 
         // 3. insert new discs and tracks
         for (index, disc) in input.discs.into_iter().enumerate() {
-            disc.insert(&txn, &searcher, &index_writer, album_db_id, index as i32)
+            disc.insert(&txn, &index_writer, album_db_id, index as i32)
                 .await?;
         }
 
@@ -517,14 +511,7 @@ impl MetadataMutation {
         // 3. insert new tracks
         for (index, track) in input.tracks.into_iter().enumerate() {
             track
-                .insert(
-                    &txn,
-                    &searcher,
-                    &index_writer,
-                    album_db_id,
-                    disc_db_id,
-                    index as i32,
-                )
+                .insert(&txn, &index_writer, album_db_id, disc_db_id, index as i32)
                 .await?;
         }
 
@@ -770,5 +757,81 @@ impl MetadataMutation {
             .await?
             .unwrap();
         Ok(AlbumInfo(album))
+    }
+
+    async fn rebuild_search_index(&self, ctx: &Context<'_>) -> anyhow::Result<bool> {
+        require_auth(ctx)?;
+
+        let db = ctx.data::<DatabaseConnection>().unwrap();
+        let searcher = ctx.data::<RepositorySearchManager>().unwrap();
+
+        // 1. clear search index
+        let writer = searcher.writer().await;
+        writer.delete_all()?;
+
+        // 2. insert albums
+        let albums: Vec<(i32, String, String)> = album::Entity::find()
+            .select_only()
+            .column(album::Column::Id)
+            .column(album::Column::Title)
+            .column(album::Column::Artist)
+            .into_tuple()
+            .all(db)
+            .await?;
+        for (album_db_id, title, artist) in albums {
+            writer.add_document(searcher.build_track_document(
+                &title,
+                &artist,
+                album_db_id as i64,
+                None,
+                None,
+            ))?;
+        }
+
+        // 3. insert discs
+        let discs: Vec<(i32, i32, Option<String>, Option<String>)> = disc::Entity::find()
+            .select_only()
+            .column(disc::Column::AlbumDbId)
+            .column(disc::Column::Id)
+            .column(disc::Column::Title)
+            .column(disc::Column::Artist)
+            .into_tuple()
+            .all(db)
+            .await?;
+        for (album_db_id, disc_db_id, title, artist) in discs {
+            writer.add_document(searcher.build_track_document(
+                &title.unwrap_or_default(),
+                &artist.unwrap_or_default(),
+                album_db_id as i64,
+                Some(disc_db_id as i64),
+                None,
+            ))?;
+        }
+
+        // 4. insert tracks
+        let tracks: Vec<(i32, i32, i32, String, String)> = track::Entity::find()
+            .select_only()
+            .column(track::Column::AlbumDbId)
+            .column(track::Column::DiscDbId)
+            .column(track::Column::Id)
+            .column(track::Column::Title)
+            .column(track::Column::Artist)
+            .into_tuple()
+            .all(db)
+            .await?;
+        for (album_db_id, disc_db_id, track_db_id, title, artist) in tracks {
+            writer.add_document(searcher.build_track_document(
+                &title,
+                &artist,
+                album_db_id as i64,
+                Some(disc_db_id as i64),
+                Some(track_db_id as i64),
+            ))?;
+        }
+
+        // 5. commit
+        writer.commit().await?;
+
+        Ok(true)
     }
 }
