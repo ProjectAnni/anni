@@ -44,9 +44,7 @@ impl From<TagTypeEnum> for TagType {
             TagTypeEnum::Project => TagType::Project,
             TagTypeEnum::Game => TagType::Game,
             TagTypeEnum::Organization => TagType::Organization,
-            // TODO: category
-            // TagTypeEnum::Category => TagType::Category,
-            TagTypeEnum::Category => TagType::Others,
+            TagTypeEnum::Category => TagType::Category,
             TagTypeEnum::Others => TagType::Others,
         }
     }
@@ -63,6 +61,7 @@ impl From<&TagType> for TagTypeEnum {
             TagType::Project => TagTypeEnum::Project,
             TagType::Game => TagTypeEnum::Game,
             TagType::Organization => TagTypeEnum::Organization,
+            TagType::Category => TagTypeEnum::Category,
             TagType::Others => TagTypeEnum::Others,
         }
     }

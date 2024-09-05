@@ -25,6 +25,8 @@ pub enum TagType {
     Animation,
     #[sea_orm(string_value = "artist")]
     Artist,
+    #[sea_orm(string_value = "category")]
+    Category,
     #[sea_orm(string_value = "game")]
     Game,
     #[sea_orm(string_value = "group")]

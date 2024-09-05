@@ -221,7 +221,7 @@ pub enum TagInfo {
 }
 
 #[derive(Iden, EnumIter)]
-enum TagType {
+pub enum TagType {
     Artist,
     Group,
     Animation,
