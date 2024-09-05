@@ -157,13 +157,14 @@ impl MetadataQuery {
         &self,
         ctx: &Context<'ctx>,
         keyword: String,
+        count: usize,
     ) -> anyhow::Result<Vec<TrackSearchResult>> {
         let search_manager = ctx.data::<RepositorySearchManager>().unwrap();
 
         let query = search_manager.query_parser().parse_query(&keyword)?;
         let searcher = search_manager.searcher();
 
-        let top_docs = searcher.search(&*query, &TopDocs::with_limit(10))?;
+        let top_docs = searcher.search(&*query, &TopDocs::with_limit(count))?;
 
         let result: Vec<_> = top_docs
             .into_iter()

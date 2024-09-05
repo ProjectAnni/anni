@@ -8,13 +8,16 @@ use std::collections::HashMap;
 
 #[derive(Args, Debug, Clone)]
 pub struct RepoMigrateAction {
+    #[clap(long)]
+    auth: String,
+
     endpoint: String,
 }
 
 #[handler(RepoMigrateAction)]
 async fn repo_migrate(me: RepoMigrateAction, manager: RepositoryManager) -> anyhow::Result<()> {
     let repo = manager.into_owned_manager()?;
-    let client = AnnimClient::new(me.endpoint, Some("114514"));
+    let client = AnnimClient::new(me.endpoint, Some(&me.auth));
 
     // insert tags
     let mut ids = HashMap::new();
