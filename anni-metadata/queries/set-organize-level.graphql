@@ -1,0 +1,5 @@
+mutation setMetadataTags($id: ID!, $level: MetadataOrganizeLevel!) {
+    updateOrganizeLevel(input: { id: $id, level: $level }) {
+        id
+    }
+}

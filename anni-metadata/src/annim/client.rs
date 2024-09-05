@@ -4,6 +4,8 @@ use crate::{
 };
 use cynic::{http::ReqwestExt, MutationBuilder, QueryBuilder};
 
+use super::query::album::MetadataOrganizeLevel;
+
 pub struct AnnimClient {
     client: reqwest::Client,
     endpoint: String,
@@ -207,6 +209,22 @@ impl AnnimClient {
                 parent,
                 remove: true,
             },
+        );
+        let response = self.client.post(&self.endpoint).run_graphql(query).await?;
+        if let Some(errors) = response.errors {
+            anyhow::bail!("GraphQL error: {:?}", errors);
+        }
+
+        Ok(())
+    }
+
+    pub async fn set_album_organize_level(
+        &self,
+        album: &ID,
+        level: MetadataOrganizeLevel,
+    ) -> anyhow::Result<()> {
+        let query = mutation::set_organize_level::SetMetadataTags::build(
+            mutation::set_organize_level::SetMetadataTagsVariables { id: album, level },
         );
         let response = self.client.post(&self.endpoint).run_graphql(query).await?;
         if let Some(errors) = response.errors {

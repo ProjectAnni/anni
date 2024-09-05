@@ -1,5 +1,6 @@
-use anni_metadata::annim::query::album::TagTypeInput;
+use anni_metadata::annim::query::album::{AlbumFragment, TagTypeInput};
 use anni_metadata::annim::AnnimClient;
+use anni_metadata::model::Album;
 use anni_repo::RepositoryManager;
 use clap::Args;
 use clap_handler::handler;
@@ -61,22 +62,38 @@ async fn repo_migrate(me: RepoMigrateAction, manager: RepositoryManager) -> anyh
     let mut albums_iter = repo.albums_iter();
     let last = albums_iter.next(); // read the first album for further commit
 
-    for album in albums_iter {
-        let annim_album = client.add_album(album, false).await?;
+    async fn insert_albums(
+        client: &AnnimClient,
+        album: &Album,
+        commit: bool,
+    ) -> anyhow::Result<AlbumFragment> {
+        let annim_album = client.add_album(album, commit).await?;
         log::info!(
             "Inserted album {}, id = {}",
             annim_album.title,
             annim_album.id.inner()
         );
+        // 1 -> 2 -> 3
+        client
+            .set_album_organize_level(
+                &annim_album.id,
+                anni_metadata::annim::query::album::MetadataOrganizeLevel::Partial,
+            )
+            .await?;
+        client
+            .set_album_organize_level(
+                &annim_album.id,
+                anni_metadata::annim::query::album::MetadataOrganizeLevel::Reviewed,
+            )
+            .await?;
+        Ok(annim_album)
+    }
+    for album in albums_iter {
+        let annim_album = insert_albums(&client, &album, false).await?;
         albums.insert(album.album_id, annim_album);
     }
     if let Some(album) = last {
-        let annim_album = client.add_album(album, true).await?;
-        log::info!(
-            "Inserted album {}, id = {}",
-            annim_album.title,
-            annim_album.id.inner()
-        );
+        let annim_album = insert_albums(&client, &album, true).await?;
         albums.insert(album.album_id, annim_album);
     }
     log::info!("Finished album insertion.");

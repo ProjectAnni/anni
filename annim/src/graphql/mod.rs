@@ -123,9 +123,8 @@ impl MetadataQuery {
         }
 
         if let Some(cursor) = after {
-            let values = Cursor::from_str(&cursor)?;
-            let cursor_values = values.into_value_tuple();
-            query.after(cursor_values);
+            let cursor = Cursor::from_str(&cursor)?;
+            query.after(cursor.into_value_tuple());
         }
 
         let mut data = query.first(limit + 1).all(db).await.unwrap();
@@ -144,8 +143,8 @@ impl MetadataQuery {
                     .map(|variant| model.get(variant.clone()))
                     .collect();
 
-                let cursor = Cursor::new(values).to_string();
-                Edge::new(cursor, AlbumInfo(model))
+                let cursor = Cursor::new(values);
+                Edge::new(cursor.to_string(), AlbumInfo(model))
             })
             .collect();
 
@@ -207,20 +206,6 @@ impl MetadataQuery {
             .await?;
         Ok(model.into_iter().map(|model| TagInfo(model)).collect())
     }
-
-    // async fn albums_by_tag<'ctx>(&self, ctx: &Context<'ctx>, tag: String) -> Vec<AlbumInfo<'ctx>> {
-    //     let tag = TagRef::from_cow_str(tag);
-    //     let manager = ctx.data_unchecked::<OwnedRepositoryManager>();
-    //     manager
-    //         .albums_tagged_by(&tag)
-    //         .map(|ids| {
-    //             ids.iter()
-    //                 .map(|album_id| manager.album(album_id).unwrap())
-    //                 .map(AlbumInfo)
-    //                 .collect()
-    //         })
-    //         .unwrap_or_else(|| Vec::new())
-    // }
 }
 
 pub struct MetadataMutation;
@@ -585,7 +570,7 @@ impl MetadataMutation {
             (MetadataOrganizeLevel::Partial, MetadataOrganizeLevel::Initial) => {}
             // others are invalid
             _ => anyhow::bail!(
-                "Cannot decrease organize level from {:?} to {:?}",
+                "Cannot increase/decrease organize level from {:?} to {:?}",
                 original_level,
                 input.level
             ),
