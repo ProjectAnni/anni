@@ -10,6 +10,7 @@ use clap_handler::handler;
 use colored::Colorize;
 use inquire::Confirm;
 use ptree::TreeBuilder;
+use serde::Deserialize;
 use std::path::PathBuf;
 use std::str::FromStr;
 
@@ -122,7 +123,6 @@ fn handle_workspace_add(me: WorkspaceAddAction) -> anyhow::Result<()> {
 
         match config.metadata() {
             anni_workspace::config::WorkspaceMetadata::Repo => {
-                // TODO: do not enforce this folder name
                 let AlbumFolderInfo {
                     release_date,
                     catalog,
@@ -155,25 +155,48 @@ fn handle_workspace_add(me: WorkspaceAddAction) -> anyhow::Result<()> {
                 }
             }
             anni_workspace::config::WorkspaceMetadata::Remote { endpoint, token } => {
-                let AlbumFolderInfo {
-                    release_date,
-                    catalog,
+                #[derive(Deserialize)]
+                struct StarryDirnameResponse {
+                    #[serde(rename = "t")]
+                    title: String,
+                    #[serde(rename = "a")]
+                    artist: Option<String>,
+                    #[serde(rename = "c")]
+                    catalog: Option<String>,
+                    #[serde(rename = "y")]
+                    year: Option<i32>,
+                    #[serde(rename = "m")]
+                    month: Option<i32>,
+                    #[serde(rename = "d")]
+                    day: Option<i32>,
+                }
+
+                let StarryDirnameResponse {
                     title,
-                    edition,
-                    ..
-                } = AlbumFolderInfo::from_str(&folder_name)?;
+                    artist,
+                    catalog,
+                    year,
+                    month,
+                    day,
+                } = reqwest::Client::new()
+                    .post("https://starry.anni.rs/api/v1/dirname")
+                    .body(folder_name.clone())
+                    .send()
+                    .await?
+                    .json()
+                    .await?;
 
                 let client = AnnimClient::new(endpoint, token.as_deref());
                 let input = AddAlbumInput {
                     album_id: Some(album_id),
                     title: &title,
-                    edition: edition.as_deref(),
-                    catalog: Some(catalog.as_ref()),
-                    artist: UNKNOWN_ARTIST,
-                    year: release_date.year() as i32,
-                    month: release_date.month().map(i32::from),
-                    day: release_date.day().map(i32::from),
-                    extra: None,
+                    edition: None,
+                    catalog: catalog.as_deref(),
+                    artist: artist.as_deref().unwrap_or(UNKNOWN_ARTIST),
+                    year: year.unwrap_or(0),
+                    month: month,
+                    day: day,
+                    extra: Some(serde_json::json!({ "rawdir": folder_name })),
                     discs: discs.iter().map(Into::into).collect(),
                 };
                 client.add_album_input(input, true).await?;

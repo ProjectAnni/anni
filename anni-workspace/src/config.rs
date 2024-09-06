@@ -10,6 +10,7 @@ pub struct WorkspaceConfig {
     #[serde(rename = "workspace")]
     inner: WorkspaceConfigInner,
     #[serde(rename = "library")]
+    #[serde(default)]
     libraries: HashMap<String, LibraryConfig>,
 }
 
