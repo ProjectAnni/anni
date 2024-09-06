@@ -77,7 +77,7 @@ pub async fn handle_workspace_status(me: WorkspaceStatusAction) -> anyhow::Resul
 
         if !untracked.is_empty() {
             println!("Untracked albums:");
-            for (path, album_id) in untracked {
+            for (path, album_id) in untracked.iter() {
                 let album_id = format!("[{album_id}]").bold();
                 let output = format!("{album_id}: {}", path.display()).bright_red();
                 println!("\t{output}");
@@ -87,7 +87,7 @@ pub async fn handle_workspace_status(me: WorkspaceStatusAction) -> anyhow::Resul
 
         if !committed.is_empty() {
             println!("Committed albums:");
-            for (path, album_id) in committed {
+            for (path, album_id) in committed.iter() {
                 let album_id = format!("[{album_id}]").bold();
                 let output = format!("{album_id}: {}", path.display()).green();
                 println!("\t{output}");
@@ -97,7 +97,7 @@ pub async fn handle_workspace_status(me: WorkspaceStatusAction) -> anyhow::Resul
 
         if !dangling.is_empty() {
             println!("Dangling albums:");
-            for (path, album_id) in dangling {
+            for (path, album_id) in dangling.iter() {
                 let album_id = format!("[{album_id}]").bold();
                 let output = format!("{album_id}: {}", path.display()).red();
                 println!("\t{output}");
@@ -107,7 +107,7 @@ pub async fn handle_workspace_status(me: WorkspaceStatusAction) -> anyhow::Resul
 
         if !published.is_empty() {
             println!("Published albums:");
-            for album_id in published {
+            for album_id in published.iter() {
                 let output = format!("{}", album_id).white();
                 println!("\t{output}");
             }
@@ -116,11 +116,21 @@ pub async fn handle_workspace_status(me: WorkspaceStatusAction) -> anyhow::Resul
 
         if !garbage.is_empty() {
             println!("Garbage albums:");
-            for album_id in garbage {
+            for album_id in garbage.iter() {
                 let output = format!("{}", album_id).white();
                 println!("\t{output}");
             }
             println!();
+        }
+
+        // print some help text if no changes are detected
+        if untracked.is_empty()
+            && committed.is_empty()
+            && dangling.is_empty()
+            && published.is_empty()
+            && garbage.is_empty()
+        {
+            println!("nothing to operate, working tree clean");
         }
     }
 
