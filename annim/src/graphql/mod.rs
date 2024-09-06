@@ -157,14 +157,24 @@ impl MetadataQuery {
         &self,
         ctx: &Context<'ctx>,
         keyword: String,
-        count: usize,
+        #[graphql(default = 20)] count: usize,
+        #[graphql(default = 0)] offset: usize,
     ) -> anyhow::Result<Vec<TrackSearchResult>> {
         let search_manager = ctx.data::<RepositorySearchManager>().unwrap();
 
         let query = search_manager.query_parser().parse_query(&keyword)?;
-        let searcher = search_manager.searcher();
+        let query_not = TermQuery::new(
+            Term::from_field_i64(search_manager.fields.track_db_id, i64::MAX),
+            Default::default(),
+        );
+        let query = BooleanQuery::new(vec![
+            (Occur::Must, query),
+            // AND -track_db_id:9223372036854775807
+            (Occur::MustNot, Box::new(query_not)),
+        ]);
 
-        let top_docs = searcher.search(&*query, &TopDocs::with_limit(count))?;
+        let searcher = search_manager.searcher();
+        let top_docs = searcher.search(&query, &TopDocs::with_limit(count).and_offset(offset))?;
 
         let result: Vec<_> = top_docs
             .into_iter()
@@ -218,7 +228,7 @@ impl MetadataMutation {
         &self,
         ctx: &Context<'ctx>,
         input: input::AddAlbumInput,
-        commit: Option<bool>,
+        #[graphql(default = true)] commit: bool,
     ) -> anyhow::Result<AlbumInfo> {
         require_auth(ctx)?;
         let db = ctx.data::<DatabaseConnection>().unwrap();
@@ -251,7 +261,7 @@ impl MetadataMutation {
         }
 
         txn.commit().await?;
-        if commit.unwrap_or(true) {
+        if commit {
             index_writer.commit().await?;
         }
 
