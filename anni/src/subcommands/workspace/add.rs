@@ -1,13 +1,15 @@
 use crate::ll;
+use anni_metadata::annim::mutation::add_album::AddAlbumInput;
 use anni_metadata::annim::AnnimClient;
-use anni_repo::library::AlbumFolderInfo;
-use anni_workspace::{AnniWorkspace, ExtractedAlbumInfo, UntrackedWorkspaceAlbum};
+use anni_metadata::model::{Album, AlbumInfo, Disc, DiscInfo, UNKNOWN_ARTIST};
+use anni_repo::library::{file_name, AlbumFolderInfo};
+use anni_repo::models::RepoTrack;
+use anni_workspace::{AnniWorkspace, UntrackedWorkspaceAlbum, WorkspaceError};
 use clap::Args;
 use clap_handler::handler;
 use colored::Colorize;
 use inquire::Confirm;
 use ptree::TreeBuilder;
-use std::borrow::Cow;
 use std::path::PathBuf;
 use std::str::FromStr;
 
@@ -81,25 +83,71 @@ fn handle_workspace_add(me: WorkspaceAddAction) -> anyhow::Result<()> {
 
     // import tags if necessary
     if me.import_tags {
-        let album = workspace.import_tags(&album_path, |folder_name| {
-            let AlbumFolderInfo {
-                release_date,
-                catalog,
-                title,
-                edition,
-                ..
-            } = AlbumFolderInfo::from_str(&folder_name).ok()?;
-            Some(ExtractedAlbumInfo {
-                title: Cow::Owned(title),
-                edition: edition.map(|e| Cow::Owned(e)),
-                catalog: Cow::Owned(catalog),
-                release_date,
-            })
-        })?;
         let config = workspace.get_config()?;
+
+        let album_id = workspace.get_album_id(&album_path)?;
+        let folder_name = file_name(&album_path)?;
+
+        let album_path = workspace.get_album_controlled_path(&album_id)?;
+        let mut discs = Vec::new();
+        loop {
+            let disc_id = discs.len() + 1;
+            let disc_path = album_path.join(disc_id.to_string());
+            if !disc_path.exists() {
+                break;
+            }
+
+            let mut tracks = Vec::new();
+            loop {
+                let track_id = tracks.len() + 1;
+                let track_path = disc_path.join(format!("{track_id}.flac"));
+                if !track_path.exists() {
+                    break;
+                }
+
+                let flac = anni_flac::FlacHeader::from_file(&track_path).map_err(|error| {
+                    WorkspaceError::FlacError {
+                        path: track_path,
+                        error,
+                    }
+                })?;
+                let track: RepoTrack = flac.into();
+                tracks.push(track.0)
+            }
+            discs.push(Disc::new(
+                DiscInfo::new(String::new(), None, None, None, None, Default::default()),
+                tracks,
+            ));
+        }
+
         match config.metadata() {
             anni_workspace::config::WorkspaceMetadata::Repo => {
+                // TODO: do not enforce this folder name
+                let AlbumFolderInfo {
+                    release_date,
+                    catalog,
+                    title,
+                    edition,
+                    ..
+                } = AlbumFolderInfo::from_str(&folder_name)?;
+
+                for disc in discs.iter_mut() {
+                    disc.catalog += &catalog;
+                }
+
                 let repo = workspace.to_repository_manager()?;
+                let album = Album::new(
+                    AlbumInfo {
+                        album_id,
+                        title: title.to_string(),
+                        edition: edition.map(|c| c.to_string()),
+                        artist: UNKNOWN_ARTIST.to_string(),
+                        release_date,
+                        catalog: catalog.to_string(),
+                        ..Default::default()
+                    },
+                    discs,
+                );
                 repo.add_album(album, false)?;
 
                 if me.open_editor {
@@ -107,8 +155,28 @@ fn handle_workspace_add(me: WorkspaceAddAction) -> anyhow::Result<()> {
                 }
             }
             anni_workspace::config::WorkspaceMetadata::Remote { endpoint, token } => {
+                let AlbumFolderInfo {
+                    release_date,
+                    catalog,
+                    title,
+                    edition,
+                    ..
+                } = AlbumFolderInfo::from_str(&folder_name)?;
+
                 let client = AnnimClient::new(endpoint, token.as_deref());
-                client.add_album(&album, true).await?;
+                let input = AddAlbumInput {
+                    album_id: Some(album_id),
+                    title: &title,
+                    edition: edition.as_deref(),
+                    catalog: Some(catalog.as_ref()),
+                    artist: UNKNOWN_ARTIST,
+                    year: release_date.year() as i32,
+                    month: release_date.month().map(i32::from),
+                    day: release_date.day().map(i32::from),
+                    extra: None,
+                    discs: discs.iter().map(Into::into).collect(),
+                };
+                client.add_album_input(input, true).await?;
             }
         }
     }

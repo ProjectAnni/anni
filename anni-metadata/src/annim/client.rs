@@ -82,6 +82,14 @@ impl AnnimClient {
                 .collect(),
         };
 
+        self.add_album_input(input, commit).await
+    }
+
+    pub async fn add_album_input(
+        &self,
+        input: mutation::add_album::AddAlbumInput<'_>,
+        commit: bool,
+    ) -> anyhow::Result<query::album::AlbumFragment> {
         let query =
             mutation::add_album::AddAlbumMutation::build(mutation::add_album::AddAlbumVariables {
                 album: input,

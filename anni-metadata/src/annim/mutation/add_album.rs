@@ -43,3 +43,44 @@ pub struct CreateAlbumTrackInput<'a> {
     #[cynic(rename = "type")]
     pub type_: TrackTypeInput,
 }
+
+impl<'album, 'disc> From<crate::model::TrackRef<'album, 'disc>> for CreateAlbumTrackInput<'album>
+where
+    'disc: 'album,
+{
+    fn from(track: crate::model::TrackRef<'album, 'disc>) -> Self {
+        Self {
+            title: track.title(),
+            artist: track.artist(),
+            type_: track.track_type().into(),
+        }
+    }
+}
+
+impl<'a> From<&'a crate::model::Track> for CreateAlbumTrackInput<'a> {
+    fn from(track: &'a crate::model::Track) -> Self {
+        Self {
+            title: &track.title,
+            artist: track
+                .artist
+                .as_deref()
+                .unwrap_or(crate::model::UNKNOWN_ARTIST),
+            type_: track
+                .track_type
+                .as_ref()
+                .unwrap_or_else(|| &crate::model::TrackType::Normal)
+                .into(),
+        }
+    }
+}
+
+impl<'a> From<&'a crate::model::Disc> for CreateAlbumDiscInput<'a> {
+    fn from(value: &'a crate::model::Disc) -> Self {
+        Self {
+            title: value.title.as_deref(),
+            catalog: Some(value.catalog.as_str()),
+            artist: value.artist.as_deref(),
+            tracks: value.tracks.iter().map(Into::into).collect(),
+        }
+    }
+}

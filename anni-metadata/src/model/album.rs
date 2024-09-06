@@ -294,7 +294,7 @@ impl DerefMut for Disc {
 pub struct DiscInfo {
     /// Disc title
     #[serde(skip_serializing_if = "Option::is_none")]
-    title: Option<String>,
+    pub title: Option<String>,
     /// Disc catalog
     pub catalog: String,
     /// Disc artist
