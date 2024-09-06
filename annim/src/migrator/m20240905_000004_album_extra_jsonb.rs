@@ -30,6 +30,7 @@ impl MigrationTrait for Migration {
         manager
             .alter_table(
                 Table::alter()
+                    .table(Album::Table)
                     .modify_column(json_null(Album::Extra))
                     .to_owned(),
             )
