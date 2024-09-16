@@ -161,8 +161,13 @@ impl Decoder {
             None => (),
             Some(message) => match message {
                 InternalPlayerEvent::Open(source, buffer_signal) => {
+                    let playback = Self::open(source, buffer_signal)?;
+                    self.controls.set_progress(ProgressState {
+                        position: 0,
+                        duration: playback.duration,
+                    });
                     self.cpal_output = None;
-                    self.playback = Some(Self::open(source, buffer_signal)?);
+                    self.playback = Some(playback);
                 }
                 InternalPlayerEvent::Play => {
                     self.state = DecoderState::Playing;
