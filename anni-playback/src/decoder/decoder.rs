@@ -17,6 +17,7 @@
 use std::{
     sync::{atomic::AtomicBool, Arc},
     thread::{self, JoinHandle},
+    time::Duration,
 };
 
 use anyhow::{anyhow, Context};
@@ -291,8 +292,8 @@ impl Decoder {
             .context("Could not decode audio packet.")?;
 
         let position = if let Some(timebase) = playback.timebase {
-            let time = timebase.calc_time(packet.ts());
-            time.seconds * 1000 + (time.frac * 1000.0) as u64
+            let duration: Duration = timebase.calc_time(packet.ts()).into();
+            duration.as_millis() as u64
         } else {
             0
         };
@@ -391,8 +392,8 @@ impl Decoder {
 
         let duration = match (timebase, ts) {
             (Some(timebase), Some(ts)) => {
-                let time = timebase.calc_time(ts);
-                time.seconds * 1000 + (time.frac * 1000.0) as u64
+                let duration: Duration = timebase.calc_time(ts).into();
+                duration.as_millis() as u64
             }
             _ => duration_hint.map(|dur| dur * 1000).unwrap_or(0),
         };
