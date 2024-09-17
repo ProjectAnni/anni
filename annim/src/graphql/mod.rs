@@ -27,7 +27,7 @@ use types::{
 };
 
 use crate::{
-    auth::require_auth,
+    auth::AdminGuard,
     entities::{album, album_tag_relation, disc, helper::now, tag_info, tag_relation, track},
     search::RepositorySearchManager,
 };
@@ -221,7 +221,7 @@ impl MetadataQuery {
 
 pub struct MetadataMutation;
 
-#[Object]
+#[Object(guard = "AdminGuard")]
 impl MetadataMutation {
     /// Add the metatada of a full album to annim.
     async fn add_album<'ctx>(
@@ -230,7 +230,6 @@ impl MetadataMutation {
         input: input::AddAlbumInput,
         #[graphql(default = true)] commit: bool,
     ) -> anyhow::Result<AlbumInfo> {
-        require_auth(ctx)?;
         let db = ctx.data::<DatabaseConnection>().unwrap();
         let searcher = ctx.data::<RepositorySearchManager>().unwrap();
         let index_writer = searcher.writer().await;
@@ -278,7 +277,6 @@ impl MetadataMutation {
         ctx: &Context<'ctx>,
         input: input::UpdateAlbumInfoInput,
     ) -> anyhow::Result<Option<AlbumInfo>> {
-        require_auth(ctx)?;
         let db = ctx.data::<DatabaseConnection>().unwrap();
         let Some(model) = album::Entity::find_by_id(input.id.parse::<i32>()?)
             .one(db)
@@ -319,7 +317,6 @@ impl MetadataMutation {
         ctx: &Context<'ctx>,
         input: input::UpdateDiscInfoInput,
     ) -> anyhow::Result<Option<DiscInfo>> {
-        require_auth(ctx)?;
         let db = ctx.data::<DatabaseConnection>().unwrap();
         let Some(model) = disc::Entity::find_by_id(input.id.parse::<i32>()?)
             .one(db)
@@ -359,7 +356,6 @@ impl MetadataMutation {
         ctx: &Context<'ctx>,
         input: input::UpdateTrackInfoInput,
     ) -> anyhow::Result<Option<TrackInfo>> {
-        require_auth(ctx)?;
         let db = ctx.data::<DatabaseConnection>().unwrap();
         let Some(model) = track::Entity::find_by_id(input.id.parse::<i32>()?)
             .one(db)
@@ -401,7 +397,6 @@ impl MetadataMutation {
         ctx: &Context<'ctx>,
         input: input::ReplaceAlbumDiscsInput,
     ) -> anyhow::Result<Option<AlbumInfo>> {
-        require_auth(ctx)?;
         let db = ctx.data::<DatabaseConnection>().unwrap();
         let searcher = ctx.data::<RepositorySearchManager>().unwrap();
         let index_writer = searcher.writer().await;
@@ -468,7 +463,6 @@ impl MetadataMutation {
         ctx: &Context<'ctx>,
         input: input::ReplaceDiscTracksInput,
     ) -> anyhow::Result<Option<DiscInfo>> {
-        require_auth(ctx)?;
         let db = ctx.data::<DatabaseConnection>().unwrap();
 
         let Some(disc) = disc::Entity::find_by_id(input.id.parse::<i32>()?)
@@ -539,7 +533,6 @@ impl MetadataMutation {
         ctx: &Context<'ctx>,
         input: input::UpdateAlbumOrganizeLevelInput,
     ) -> anyhow::Result<Option<AlbumInfo>> {
-        require_auth(ctx)?;
         let db = ctx.data::<DatabaseConnection>().unwrap();
         let Some(album) = album::Entity::find_by_id(input.id.parse::<i32>()?)
             .one(db)
@@ -625,7 +618,6 @@ impl MetadataMutation {
         name: String,
         r#type: TagType,
     ) -> anyhow::Result<TagInfo> {
-        require_auth(ctx)?;
         let db = ctx.data::<DatabaseConnection>().unwrap();
 
         // TODO: return if already exists
@@ -645,7 +637,6 @@ impl MetadataMutation {
         parent_id: ID,
         remove: Option<bool>,
     ) -> anyhow::Result<Option<TagRelation>> {
-        require_auth(ctx)?;
         let db = ctx.data::<DatabaseConnection>().unwrap();
 
         let remove = remove.unwrap_or(false);
@@ -679,7 +670,6 @@ impl MetadataMutation {
         input: MetadataIDInput,
         tags: Vec<ID>,
     ) -> anyhow::Result<AlbumInfo> {
-        require_auth(ctx)?;
         let db = ctx.data::<DatabaseConnection>().unwrap();
         let tags_id = tags
             .iter()
@@ -770,8 +760,6 @@ impl MetadataMutation {
     }
 
     async fn rebuild_search_index(&self, ctx: &Context<'_>) -> anyhow::Result<bool> {
-        require_auth(ctx)?;
-
         let db = ctx.data::<DatabaseConnection>().unwrap();
         let searcher = ctx.data::<RepositorySearchManager>().unwrap();
 
