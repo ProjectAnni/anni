@@ -127,7 +127,7 @@ impl Decoder for OpusDecoder {
         &[symphonia_core::support_codec!(
             CODEC_TYPE_OPUS,
             "opus",
-            "libopus (1.3+, audiopus)"
+            "libopus (1.5+, audiopus)"
         )]
     }
 
