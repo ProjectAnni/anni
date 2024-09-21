@@ -647,7 +647,7 @@ dependencies = [
 [[package]]
 name = "audiopus_sys"
 version = "0.2.2"
-source = "git+https://github.com/ProjectAnni/audiopus_sys#d1fec0f326941e3d1eaa5c4055e5682918cadb65"
+source = "git+https://github.com/ProjectAnni/audiopus_sys#2416fbf29434d8e59e89effb3f25022b2ad8fe43"
 dependencies = [
  "cmake",
  "log",
@@ -1143,9 +1143,9 @@ checksum = "1462739cb27611015575c0c11df5df7601141071f07518d56fcc1be504cbec97"
 
 [[package]]
 name = "cmake"
-version = "0.1.50"
+version = "0.1.51"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a31c789563b815f77f4250caee12365734369f942439b7defd71e18a48197130"
+checksum = "fb1e43aa7fd152b1f968787f7dbcdeb306d1867ff373c69955211876c053f91a"
 dependencies = [
  "cc",
 ]
