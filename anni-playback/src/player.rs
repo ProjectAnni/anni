@@ -33,11 +33,21 @@ pub struct AnniPlayer {
     cache_store: CacheStore, // root of cache
 }
 
+pub struct AnniPlayerOptions {
+    pub sample_rate: u32,
+    pub cache_path: PathBuf,
+}
+
 impl AnniPlayer {
     pub fn new(
         provider: TypedPriorityProvider<ProviderProxy>,
-        cache_path: PathBuf,
+        options: AnniPlayerOptions,
     ) -> (Self, Receiver<PlayerEvent>) {
+        let AnniPlayerOptions {
+            sample_rate,
+            cache_path,
+        } = options;
+
         let (controls, receiver, killer) = {
             let (sender, receiver) = mpsc::channel();
             let controls = Controls::new(sender);
@@ -48,7 +58,7 @@ impl AnniPlayer {
                 .spawn({
                     let controls = controls.clone();
                     move || {
-                        let decoder = Decoder::new(controls, thread_killer.1);
+                        let decoder = Decoder::new(controls, sample_rate, thread_killer.1);
 
                         decoder.start();
                     }

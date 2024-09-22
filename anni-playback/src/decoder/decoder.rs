@@ -75,9 +75,8 @@ pub struct Decoder {
 
 impl Decoder {
     /// Creates a new decoder.
-    pub fn new(controls: Controls, thread_killer: Receiver<bool>) -> Self {
-        // TODO: allow specifying sample rate by user
-        let spec = SignalSpec::new_with_layout(44100, Layout::Stereo);
+    pub fn new(controls: Controls, sample_rate: u32, thread_killer: Receiver<bool>) -> Self {
+        let spec = SignalSpec::new_with_layout(sample_rate, Layout::Stereo);
 
         Decoder {
             thread_killer,

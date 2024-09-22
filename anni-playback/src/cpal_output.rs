@@ -256,13 +256,18 @@ impl CpalOutput {
             return;
         }
 
-        let mut samples = if let Some(resampler) = &mut self.resampler {
-            // If there is a resampler, then write resampled values
-            // instead of the normal `samples`.
-            resampler.resample(decoded).unwrap_or(&[])
-        } else {
-            self.sample_buffer.copy_interleaved_ref(decoded);
-            self.sample_buffer.samples()
+        let need_resample = decoded.spec().rate != self.spec.rate;
+        let mut samples = match (need_resample, &mut self.resampler) {
+            (true, Some(resampler)) => {
+                // If there is a resampler, then write resampled values
+                // instead of the normal `samples`.
+                resampler.resample(decoded).unwrap_or(&[])
+            }
+            _ => {
+                // no resampler, or the target sampe rate is the same as the input
+                self.sample_buffer.copy_interleaved_ref(decoded);
+                self.sample_buffer.samples()
+            }
         };
 
         if self.controls.is_normalizing() {

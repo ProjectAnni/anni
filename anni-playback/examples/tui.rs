@@ -27,7 +27,7 @@ impl Player {
         thread::spawn({
             let controls = controls.clone();
             move || {
-                let decoder = Decoder::new(controls, thread_killer.1.clone());
+                let decoder = Decoder::new(controls, 48000, thread_killer.1.clone());
                 decoder.start();
             }
         });
