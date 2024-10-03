@@ -206,6 +206,7 @@ pub struct CpalOutput {
     pub spec: SignalSpec,
     pub duration: u64,
     pub buffer_signal: Arc<AtomicBool>,
+    sample_rate: u32,
     ring_buffer_writer: BlockingRb<f32, Producer>,
     sample_buffer: SampleBuffer<f32>,
     resampler: Option<Resampler<f32>>,
@@ -242,6 +243,7 @@ impl CpalOutput {
             spec,
             duration,
             buffer_signal,
+            sample_rate: config.sample_rate.0,
             ring_buffer_writer,
             sample_buffer,
             resampler,
@@ -256,7 +258,7 @@ impl CpalOutput {
             return;
         }
 
-        let need_resample = decoded.spec().rate != self.spec.rate;
+        let need_resample = decoded.spec().rate != self.sample_rate;
         let mut samples = match (need_resample, &mut self.resampler) {
             (true, Some(resampler)) => {
                 // If there is a resampler, then write resampled values
