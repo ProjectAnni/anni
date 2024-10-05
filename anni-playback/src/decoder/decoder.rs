@@ -362,7 +362,7 @@ impl Decoder {
         buffer_signal: Arc<AtomicBool>,
     ) -> anyhow::Result<Playback> {
         let duration_hint = source.duration_hint();
-        let mss = MediaSourceStream::new(Box::new(source), Default::default());
+        let mss = MediaSourceStream::new(source.into(), Default::default());
         let format_options = FormatOptions {
             enable_gapless: true,
             ..Default::default()
