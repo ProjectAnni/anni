@@ -27,7 +27,7 @@ struct Receiver {
     receiver: std::sync::mpsc::Receiver<(usize, Vec<u8>)>,
 }
 
-pub trait AnniSource: MediaSource {
+pub trait AnniSource: MediaSource + IntoBoxedMediaSource {
     /// The duration of underlying source in seconds.
     fn duration_hint(&self) -> Option<u64> {
         None
@@ -45,6 +45,23 @@ impl MediaSource for Box<dyn AnniSource> {
 }
 
 impl AnniSource for std::fs::File {}
+
+// helper trait to do upcasting
+pub trait IntoBoxedMediaSource {
+    fn into_media_source(self: Box<Self>) -> Box<dyn MediaSource>;
+}
+
+impl<T: MediaSource + 'static> IntoBoxedMediaSource for T {
+    fn into_media_source(self: Box<Self>) -> Box<dyn MediaSource> {
+        self
+    }
+}
+
+impl From<Box<dyn AnniSource>> for Box<dyn MediaSource> {
+    fn from(value: Box<dyn AnniSource>) -> Self {
+        value.into_media_source()
+    }
+}
 
 // Specialization is not well-supported so far (even the unstable feature is unstable ww).
 // Therefore, we do not provide the default implementation below.
