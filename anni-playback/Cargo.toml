@@ -8,7 +8,7 @@ repository.workspace = true
 license = "LGPL-3.0"
 
 [dependencies]
-cpal = "0.15.2"
+cpal = "0.15.3"
 reqwest = { workspace = true, features = [
     "blocking",
     "rustls-tls",
@@ -22,7 +22,7 @@ symphonia = { version = "0.5.4", default-features = false, features = [
 ] }
 symphonia-core = "0.5.4"
 crossbeam = { version = "0.8.2", features = ["crossbeam-channel"] }
-rubato = "0.14.1"
+rubato = "0.14.0"
 rangemap = "1.3.0"
 arrayvec = "0.7.2"
 ebur128 = "0.1.7"

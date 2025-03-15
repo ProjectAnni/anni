@@ -248,7 +248,7 @@ impl CpalOutput {
             sample_buffer,
             resampler,
             normalizer: Normalizer::new(spec.channels.count(), sample_rate),
-            controls: controls,
+            controls,
         }
     }
 
@@ -266,7 +266,7 @@ impl CpalOutput {
                 resampler.resample(decoded).unwrap_or(&[])
             }
             _ => {
-                // no resampler, or the target sampe rate is the same as the input
+                // no resampler, or the target sample rate is the same as the input
                 self.sample_buffer.copy_interleaved_ref(decoded);
                 self.sample_buffer.samples()
             }

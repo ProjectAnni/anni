@@ -22,7 +22,7 @@ where
     T: Sample + FromSample<f32> + IntoSample<f32>,
 {
     fn resample_inner(&mut self) -> &[T] {
-        {
+        let output_size = {
             let mut input: arrayvec::ArrayVec<&[f32], 32> = Default::default();
 
             for channel in self.input.iter() {
@@ -30,14 +30,16 @@ where
             }
 
             // Resample.
-            rubato::Resampler::process_into_buffer(
+            let (_, output_size) = rubato::Resampler::process_into_buffer(
                 &mut self.resampler,
                 &input,
                 &mut self.output,
                 None,
             )
             .unwrap();
-        }
+
+            output_size
+        };
 
         // Remove consumed samples from the input buffer.
         for channel in self.input.iter_mut() {
@@ -47,8 +49,7 @@ where
         // Interleave the planar samples from Rubato.
         let num_channels = self.output.len();
 
-        self.interleaved
-            .resize(num_channels * self.output[0].len(), T::MID);
+        self.interleaved.resize(num_channels * output_size, T::MID);
 
         for (i, frame) in self.interleaved.chunks_exact_mut(num_channels).enumerate() {
             for (ch, s) in frame.iter_mut().enumerate() {
