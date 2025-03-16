@@ -1,7 +1,10 @@
 use std::{collections::HashMap, str::FromStr};
 
 use crate::error::Error;
-use anni_metadata::model::{Album, AlbumInfo, AnniDate, Disc, TagString, TrackType};
+use anni_metadata::{
+    annim::query::album::AlbumFragment,
+    model::{Album, AlbumInfo, AnniDate, Disc, TagString, TrackType},
+};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
@@ -59,6 +62,12 @@ impl FromStr for JsonAlbum {
 impl ToString for JsonAlbum {
     fn to_string(&self) -> String {
         serde_json::to_string(self).unwrap()
+    }
+}
+
+impl From<AlbumFragment> for JsonAlbum {
+    fn from(album: AlbumFragment) -> JsonAlbum {
+        album.into()
     }
 }
 
