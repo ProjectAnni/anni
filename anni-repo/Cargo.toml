@@ -24,7 +24,7 @@ uuid = { workspace = true, features = ["serde"] }
 log.workspace = true
 once_cell.workspace = true
 pathdiff = "0.2.1"
-indexmap = "2.1.0"
+indexmap = "2.5.0"
 anni-artist = "0.1.1"
 
 # flac
