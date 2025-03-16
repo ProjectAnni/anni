@@ -203,6 +203,14 @@ impl From<&crate::model::TrackType> for TrackTypeInput {
 
 impl From<TrackTypeInput> for crate::model::TrackType {
     fn from(value: TrackTypeInput) -> Self {
-        value.into()
+        match value {
+            TrackTypeInput::Normal => crate::model::TrackType::Normal,
+            TrackTypeInput::Instrumental => crate::model::TrackType::Instrumental,
+            TrackTypeInput::Absolute => crate::model::TrackType::Absolute,
+            TrackTypeInput::Drama => crate::model::TrackType::Drama,
+            TrackTypeInput::Radio => crate::model::TrackType::Radio,
+            TrackTypeInput::Vocal => crate::model::TrackType::Vocal,
+            TrackTypeInput::Unknown => crate::model::TrackType::Normal,
+        }
     }
 }
