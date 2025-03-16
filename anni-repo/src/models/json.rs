@@ -67,6 +67,7 @@ impl ToString for JsonAlbum {
 
 impl From<AlbumFragment> for JsonAlbum {
     fn from(album: AlbumFragment) -> JsonAlbum {
+        let album: Album = album.into();
         album.into()
     }
 }
