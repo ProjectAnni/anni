@@ -1,0 +1,67 @@
+fragment AlbumDetail on Album {
+    id
+    albumId
+    level
+
+    title
+    edition
+    catalog
+    artist
+
+    year
+    month
+    day
+
+    tags {
+        ...TagBase
+    }
+
+    createdAt
+    updatedAt
+    extra
+
+    discs {
+        id
+        index
+        title
+        catalog
+        artist
+
+        tags {
+            ...TagBase
+        }
+
+        createdAt
+        updatedAt
+
+        tracks {
+            id
+            index
+            title
+            artist
+            type
+            artists
+
+            tags {
+                ...TagBase
+            }
+
+            createdAt
+            updatedAt
+        }
+    }
+}
+
+query albums($albumIds: [UUID!]!) {
+    albums(by: { albumIds: $albumIds }) {
+        pageInfo {
+            hasPreviousPage
+            hasNextPage
+            startCursor
+            endCursor
+        }
+        nodes {
+            ...AlbumDetail
+        }
+    }
+}

@@ -48,6 +48,27 @@ impl AnnimClient {
         Ok(response.data.and_then(|data| data.album))
     }
 
+    pub async fn albums(
+        &self,
+        album_ids: Vec<uuid::Uuid>,
+    ) -> anyhow::Result<Vec<query::album::AlbumFragment>> {
+        let query = query::albums::AlbumsQuery::build(query::albums::AlbumsVariables {
+            after: None,
+            first: Some(album_ids.len() as i32),
+            album_ids: Some(album_ids),
+        });
+        let response = self.client.post(&self.endpoint).run_graphql(query).await?;
+        if let Some(errors) = response.errors {
+            anyhow::bail!("GraphQL error: {:?}", errors);
+        }
+
+        Ok(response
+            .data
+            .and_then(|data| data.albums)
+            .map(|d| d.nodes)
+            .unwrap())
+    }
+
     pub async fn add_album(
         &self,
         album: &model::Album,
