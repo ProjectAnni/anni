@@ -2,6 +2,7 @@
 name = "anni"
 version = "0.1.1"
 publish = false
+default-run = "anni"
 
 edition.workspace = true
 repository.workspace = true
@@ -33,7 +34,7 @@ anni-repo = { path = "../anni-repo", features = [
 anni-provider = { path = "../anni-provider" }
 annil = { path = "../annil", default-features = false }
 anni-workspace = { path = "../anni-workspace" }
-anni-metadata.workspace = true
+anni-metadata = { workspace = true, features = ["annim"] }
 clap-handler = { version = "0.1.1", features = ["async"] }
 
 i18n-embed = { version = "0.14.1", features = [

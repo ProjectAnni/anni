@@ -110,7 +110,7 @@ impl AnniProvider for ProxyBackend {
     ) -> Result<ResourceReader, ProviderError> {
         let path = match disc_id {
             Some(disc_id) => format!("/{album_id}/{disc_id}/cover"),
-            None => format!("/{album_id}/cover"),
+            _ => format!("/{album_id}/cover"),
         };
         let resp = self
             .get(&path, &Range::FULL)
@@ -133,12 +133,12 @@ impl AnniProvider for ProxyBackend {
 fn audio_info_from_response(response: &Response) -> Result<AudioInfo, ProviderError> {
     let original_size = match response.headers().get("x-origin-size") {
         Some(s) => s.to_str().unwrap_or("0"),
-        None => "0",
+        _ => "0",
     }
     .to_string();
     let duration = match response.headers().get("x-duration-seconds") {
         Some(s) => s.to_str().unwrap_or("0"),
-        None => "0",
+        _ => "0",
     }
     .to_string();
     let extension = match response.headers().get("Content-Type") {

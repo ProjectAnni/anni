@@ -13,3 +13,5 @@ repo.json
 
 .cargo
 /fleet.toml
+
+.direnv

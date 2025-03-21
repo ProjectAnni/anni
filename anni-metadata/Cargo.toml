@@ -29,5 +29,5 @@ cynic-codegen = { version = "3" }
 tokio = { version = "1", features = ["full"] }
 
 [features]
-default = ["annim"]
+default = []
 annim = ["reqwest", "cynic"]
