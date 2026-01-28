@@ -19,7 +19,7 @@ fn handle_workspace_fsck(me: WorkspaceFsckAction) -> anyhow::Result<()> {
         let albums = workspace.scan()?;
         for album in albums {
             if let WorkspaceAlbumState::Dangling(album_path) = album.state {
-                let result: anyhow::Result<()> = try {
+                let result = || -> anyhow::Result<()> {
                     let dot_album = album_path.join(".album");
                     let real_path = workspace.controlled_album_path(&album.album_id, 2);
                     if !real_path.exists() {
@@ -27,7 +27,8 @@ fn handle_workspace_fsck(me: WorkspaceFsckAction) -> anyhow::Result<()> {
                     }
                     fs::remove_file(&dot_album, false)?;
                     fs::symlink_dir(&real_path, &dot_album)?;
-                };
+                    Ok(())
+                }();
 
                 if let Err(e) = result {
                     log::error!(
@@ -44,7 +45,7 @@ fn handle_workspace_fsck(me: WorkspaceFsckAction) -> anyhow::Result<()> {
         let albums = workspace.scan()?;
         for album in albums {
             if let WorkspaceAlbumState::Garbage = album.state {
-                let result: anyhow::Result<()> = try {
+                let result = || -> anyhow::Result<()> {
                     if let Ok(real_path) = workspace.get_album_controlled_path(&album.album_id) {
                         // 1. remove garbage album directory
                         fs::remove_dir_all(&real_path, true)?;
@@ -63,7 +64,8 @@ fn handle_workspace_fsck(me: WorkspaceFsckAction) -> anyhow::Result<()> {
                             }
                         }
                     }
-                };
+                    Ok(())
+                }();
 
                 if let Err(e) = result {
                     log::error!("Error while collecting garbage: {}", e);

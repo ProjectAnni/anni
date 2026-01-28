@@ -1,4 +1,3 @@
-#![feature(try_blocks)]
 #![allow(incomplete_features)]
 #![feature(impl_trait_in_assoc_type)]
 
