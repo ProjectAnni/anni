@@ -1,106 +1,192 @@
-name: Build
+name: CI
+
 on:
   push:
     branches:
       - master
   pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CARGO_INCREMENTAL: 0
+  CARGO_TERM_COLOR: always
 
 jobs:
+  validate:
+    name: Validate
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - name: Checkout
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+
+      - name: Install Rust toolchain
+        run: rustup toolchain install --no-self-update
+
+      - name: Cache Cargo data
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            target/
+          key: ${{ runner.os }}-validate-cargo-${{ hashFiles('rust-toolchain.toml', 'Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-validate-cargo-
+
+      - name: Check formatting
+        run: cargo fmt --all -- --check
+
+      - name: Run tests
+        run: cargo test --locked --workspace --all-targets --exclude anni-playback
+
   build:
+    name: Build ${{ matrix.target }}
+    needs: validate
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 60
     strategy:
       fail-fast: false
       matrix:
         include:
           - target: x86_64-unknown-linux-gnu
-            os: ubuntu-latest
-            name: anni-x86_64-unknown-linux-gnu.tar.gz
+            os: ubuntu-24.04
+            artifact: anni-x86_64-unknown-linux-gnu.tar.gz
           - target: x86_64-unknown-linux-musl
-            os: ubuntu-latest
-            name: anni-x86_64-unknown-linux-musl.tar.gz
+            os: ubuntu-24.04
+            artifact: anni-x86_64-unknown-linux-musl.tar.gz
           - target: x86_64-pc-windows-msvc
-            os: windows-latest
-            name: anni-x86_64-pc-windows-msvc.zip
+            os: windows-2025
+            artifact: anni-x86_64-pc-windows-msvc.zip
           - target: x86_64-apple-darwin
-            os: macos-13
-            name: anni-x86_64-apple-darwin.tar.gz
+            os: macos-26-intel
+            artifact: anni-x86_64-apple-darwin.tar.gz
           - target: aarch64-apple-darwin
-            os: macos-latest
-            name: anni-aarch64-apple-darwin.tar.gz
+            os: macos-26
+            artifact: anni-aarch64-apple-darwin.tar.gz
 
-    runs-on: ${{ matrix.os }}
     steps:
-      - name: Setup | Checkout
-        uses: actions/checkout@v3
+      - name: Checkout
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
 
-      - name: Setup | MUSL Dependencies
+      - name: Install Rust toolchain
+        run: rustup toolchain install --no-self-update
+
+      - name: Install Rust target
+        run: rustup target add ${{ matrix.target }}
+
+      - name: Install musl tools
         if: matrix.target == 'x86_64-unknown-linux-musl'
         run: |
-          sudo apt install musl-tools
-          rustup target add x86_64-unknown-linux-musl
+          sudo apt-get update
+          sudo apt-get install --yes musl-tools
 
-      - name: Setup | Linux Dependencies
-        if: matrix.os == 'ubuntu-latest'
-        run: |
-          sudo apt install libasound2-dev
-
-      - name: Setup | Cache
-        uses: Swatinem/rust-cache@v2
+      - name: Cache Cargo data
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
-          key: ${{ matrix.target }}-anni-cache
+          path: |
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            target/
+          key: ${{ runner.os }}-${{ matrix.target }}-release-cargo-${{ hashFiles('rust-toolchain.toml', 'Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-${{ matrix.target }}-release-cargo-
 
-      - name: Build | Build
-        uses: actions-rs/cargo@v1
+      - name: Build release binaries
+        run: cargo build --release --locked --target ${{ matrix.target }} --workspace --exclude anni-playback
+
+      - name: Package binaries
+        if: runner.os != 'Windows'
+        shell: bash
+        run: |
+          release_dir="target/${{ matrix.target }}/release"
+          strip "$release_dir/anni" || true
+          strip "$release_dir/annil" || true
+          strip "$release_dir/annim" || true
+          tar -C "$release_dir" -czf "${{ matrix.artifact }}" anni annil annim
+
+      - name: Package binaries
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $releaseDir = "target/${{ matrix.target }}/release"
+          Compress-Archive `
+            -Path "$releaseDir/anni.exe", "$releaseDir/annil.exe", "$releaseDir/annim.exe" `
+            -DestinationPath "${{ matrix.artifact }}"
+
+      - name: Upload binaries
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          command: build
-          args: --release --locked --target ${{ matrix.target }}" --workspace --exclude anni-playback
+          name: ${{ matrix.artifact }}
+          path: ${{ matrix.artifact }}
+          archive: false
+          if-no-files-found: error
+          retention-days: 14
 
-      - name: PostBuild | Prepare artifacts [Windows]
-        if: matrix.os == 'windows-latest'
-        run: |
-          cd target/${{ matrix.target }}/release
-          strip anni.exe
-          7z a ../../../${{ matrix.name }} anni.exe annil.exe annim.exe
-          cd -
-
-      - name: PostBuild | Prepare artifacts [-nix]
-        if: matrix.os != 'windows-latest'
-        run: |
-          cd target/${{ matrix.target }}/release
-          strip anni || true
-          tar czvf ../../../${{ matrix.name }} anni annil annim
-          cd -
-
-      - name: Docker | Prepare Context
-        if: matrix.target == 'x86_64-unknown-linux-musl' && github.ref == 'refs/heads/master'
-        run: |
-          cp target/${{ matrix.target }}/release/anni ./docker/
-          cp target/${{ matrix.target }}/release/annil ./docker/
-          cp target/${{ matrix.target }}/release/annim ./docker/
-
-      - name: Docker | Build and Publish Annil
-        if: matrix.target == 'x86_64-unknown-linux-musl' && github.ref == 'refs/heads/master'
-        uses: macbre/push-to-ghcr@master
+  publish-containers:
+    name: Publish containers
+    if: github.event_name == 'push' && github.ref == 'refs/heads/master'
+    needs: build
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
-          image_name: projectanni/annil
-          dockerfile: ./docker/Dockerfile
+          persist-credentials: false
+
+      - name: Download Linux binaries
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: anni-x86_64-unknown-linux-musl.tar.gz
+          path: .
+          skip-decompress: true
+
+      - name: Prepare container context
+        run: tar -xzf anni-x86_64-unknown-linux-musl.tar.gz -C docker
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@af1e73f918a031802d376d3c8bbc3fe56130a9b0 # v4.4.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@bb05f3f5519dd87d3ba754cc423b652a5edd6d2c # v4.2.0
+
+      - name: Build and push annil
+        uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7.3.0
+        with:
           context: ./docker
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-        env:
-          DOCKER_BUILDKIT: 1
+          file: ./docker/Dockerfile
+          push: true
+          tags: |
+            ghcr.io/projectanni/annil:latest
+            ghcr.io/projectanni/annil:sha-${{ github.sha }}
 
-      - name: Docker | Build and Publish Annim
-        if: matrix.target == 'x86_64-unknown-linux-musl' && github.ref == 'refs/heads/master'
-        uses: macbre/push-to-ghcr@master
+      - name: Build and push annim
+        uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7.3.0
         with:
-          image_name: projectanni/annim
-          dockerfile: ./docker/Dockerfile.annim
           context: ./docker
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-        env:
-          DOCKER_BUILDKIT: 1
-
-      - name: Deploy | Upload artifacts
-        uses: actions/upload-artifact@v3
-        with:
-          name: ${{ matrix.name }}
-          path: ${{ matrix.name }}
+          file: ./docker/Dockerfile.annim
+          push: true
+          tags: |
+            ghcr.io/projectanni/annim:latest
+            ghcr.io/projectanni/annim:sha-${{ github.sha }}

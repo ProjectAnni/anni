@@ -60,18 +60,24 @@
         { pkgs }:
         {
           default = pkgs.mkShell {
-            packages = with pkgs; [
-              rustToolchain
-              openssl
-              pkg-config
-              cargo-deny
-              cargo-edit
-              cargo-watch
-              rust-analyzer
-              cmake
-              alsa-lib
-              alsa-lib.dev
-            ];
+            packages =
+              (with pkgs; [
+                rustToolchain
+                openssl
+                pkg-config
+                cargo-deny
+                cargo-edit
+                rust-analyzer
+                cmake
+              ])
+              ++ pkgs.lib.optionals pkgs.stdenv.isLinux (
+                with pkgs;
+                [
+                  alsa-lib
+                  alsa-lib.dev
+                  cargo-watch
+                ]
+              );
 
             env = {
               # Required by rust-analyzer

@@ -90,14 +90,42 @@ type = "repo"
 mod test {
     use super::WorkspaceInitAction;
     use clap_handler::Handler;
+    use std::path::Path;
+
+    fn create_test_repository(path: &Path) -> anyhow::Result<()> {
+        std::fs::write(
+            path.join("repo.toml"),
+            "[repo]\nname = \"Workspace init test\"\nedition = \"1.0\"\n",
+        )?;
+
+        let repository = git2::Repository::init(path)?;
+        let mut index = repository.index()?;
+        index.add_path(Path::new("repo.toml"))?;
+        index.write()?;
+
+        let tree_id = index.write_tree()?;
+        let tree = repository.find_tree(tree_id)?;
+        let signature = git2::Signature::now("Anni Test", "test@anni.rs")?;
+        repository.commit(
+            Some("HEAD"),
+            &signature,
+            &signature,
+            "Initialize test repository",
+            &tree,
+            &[],
+        )?;
+
+        Ok(())
+    }
 
     #[tokio::test]
     async fn test_init_clone_workspace() -> anyhow::Result<()> {
         let path = tempfile::tempdir()?;
-        let repo = "https://github.com/ProjectAnni/repo";
+        let source = tempfile::tempdir()?;
+        create_test_repository(source.path())?;
 
         WorkspaceInitAction {
-            repo: Some(repo.to_string()),
+            repo: Some(source.path().to_string_lossy().into_owned()),
             path: path.path().to_path_buf(),
             remote: None,
             auth: None,

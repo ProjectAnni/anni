@@ -105,7 +105,7 @@ impl WaveHeader {
 pub struct WavDecoder<P: AsRef<Path>>(pub P);
 
 impl<P: AsRef<Path>> Decoder for WavDecoder<P> {
-    type Output = impl Read;
+    type Output = File;
 
     fn decode(self) -> Result<Self::Output, crate::error::SplitError> {
         Ok(File::open(self.0)?)

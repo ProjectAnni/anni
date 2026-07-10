@@ -13,7 +13,7 @@ members = [
     "anni-metadata",
     "third_party/google-drive3",
 ]
-resolver = "2"
+resolver = "3"
 
 [workspace.package]
 edition = "2024"

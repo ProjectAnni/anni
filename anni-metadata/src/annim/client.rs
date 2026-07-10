@@ -271,6 +271,7 @@ mod tests {
     use uuid::Uuid;
 
     #[tokio::test]
+    #[ignore = "requires a running annim service with the fixture album"]
     async fn test_album() -> anyhow::Result<()> {
         let client = AnnimClient::new("http://localhost:8000/".to_string(), Some("114514"));
         let result = client

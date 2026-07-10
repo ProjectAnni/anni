@@ -1,5 +1,3 @@
-#![feature(int_roundings)]
-
 pub mod extractor;
 pub mod provider;
 pub mod route;

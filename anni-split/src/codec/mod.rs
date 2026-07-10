@@ -38,6 +38,7 @@ mod tests {
     use crate::error::SplitError;
 
     #[test]
+    #[ignore = "requires the flac executable and /tmp/test.flac"]
     fn test_decode_flac() -> Result<(), SplitError> {
         let decoded = FlacCommandDecoder("/tmp/test.flac").decode()?;
         WavEncoder("/tmp/result.wav").encode(decoded)?;

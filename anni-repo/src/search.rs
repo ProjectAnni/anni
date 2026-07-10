@@ -1,13 +1,12 @@
 use std::path::Path;
 
-use lindera_core::mode::Mode;
-use lindera_dictionary::{load_dictionary_from_config, DictionaryConfig, DictionaryKind};
+use lindera::{dictionary::load_dictionary, mode::Mode, segmenter::Segmenter};
 use lindera_tantivy::tokenizer::LinderaTokenizer;
 use tantivy::{
     doc,
     query::QueryParser,
-    schema::{Field, IndexRecordOption, Schema, TextFieldIndexing, TextOptions, STORED},
-    Document, Index, TantivyError,
+    schema::{Field, IndexRecordOption, Schema, TextFieldIndexing, TextOptions, Value, STORED},
+    Index, TantivyDocument, TantivyError,
 };
 
 pub use tantivy;
@@ -44,16 +43,9 @@ impl RepositorySearchManager {
     }
 
     fn register_tokenizers(&self) {
-        let dictionary_config = DictionaryConfig {
-            kind: Some(DictionaryKind::IPADIC),
-            path: None,
-        };
-        let dictionary = load_dictionary_from_config(dictionary_config).unwrap();
-
-        self.index.tokenizers().register(
-            "lang_ja",
-            LinderaTokenizer::new(dictionary, None, Mode::Normal),
-        );
+        self.index
+            .tokenizers()
+            .register("lang_ja", ipadic_tokenizer());
     }
 
     pub fn build_document(
@@ -63,7 +55,7 @@ impl RepositorySearchManager {
         album_id: &Uuid,
         disc_id: i64,
         track_id: i64,
-    ) -> Document {
+    ) -> TantivyDocument {
         doc!(
             self.fields.title => title,
             self.fields.artist => artist,
@@ -77,7 +69,7 @@ impl RepositorySearchManager {
         QueryParser::for_index(&self.index, vec![self.fields.title, self.fields.artist])
     }
 
-    pub fn deserialize_document(&self, doc: Document) -> TrackIdentifier {
+    pub fn deserialize_document(&self, doc: TantivyDocument) -> TrackIdentifier {
         let album_id = doc.get_first(self.fields.album_id).unwrap();
         let disc_id = doc.get_first(self.fields.disc_id).unwrap();
         let track_id = doc.get_first(self.fields.track_id).unwrap();
@@ -88,6 +80,12 @@ impl RepositorySearchManager {
             track_id: track_id.as_i64().unwrap() as u32,
         }
     }
+}
+
+fn ipadic_tokenizer() -> LinderaTokenizer {
+    let dictionary = load_dictionary("embedded://ipadic").unwrap();
+    let segmenter = Segmenter::new(Mode::Normal, dictionary, None);
+    LinderaTokenizer::from_segmenter(segmenter)
 }
 
 struct SearchFields {
@@ -148,5 +146,34 @@ impl SearchFields {
             disc_id,
             track_id,
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use tantivy::collector::Count;
+
+    use super::*;
+
+    #[test]
+    fn ipadic_tokenizer_integrates_with_tantivy() -> tantivy::Result<()> {
+        let (schema, fields) = SearchFields::new();
+        let index = Index::create_in_ram(schema);
+        index.tokenizers().register("lang_ja", ipadic_tokenizer());
+
+        let mut writer = index.writer(15_000_000)?;
+        writer.add_document(doc!(
+            fields.title => "羽田空港限定トートバッグ",
+            fields.artist => "テスト",
+        ))?;
+        writer.commit()?;
+
+        let reader = index.reader()?;
+        let searcher = reader.searcher();
+        let query_parser = QueryParser::for_index(&index, vec![fields.title, fields.artist]);
+        let query = query_parser.parse_query("羽田空港")?;
+
+        assert_eq!(searcher.search(&query, &Count)?, 1);
+        Ok(())
     }
 }

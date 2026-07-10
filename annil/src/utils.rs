@@ -41,19 +41,33 @@ pub fn opus_file_size(milliseconds: u64, bit_rate: u16, frame_size: u8) -> u64 {
     const OGG_PREFIX_PAGES_SIZE: u64 = 0x2f + 0x31a;
     const FIXED_OGG_PAGE_HEADER_SIZE: u64 = 26 + 1;
     const MAX_DELAY: u64 = 1000;
+    const MIN_PACKET_DURATION: u64 = 20;
+    // Opus uses a 312-sample pre-skip at 48 kHz (6.5 ms). Round up because
+    // this function receives whole milliseconds.
+    const PRE_SKIP_DURATION: u64 = 7;
 
-    // 110ms, frame_size = 20, produces 6 packets
-    // 120ms, frame_size = 20, produces 7 packets
-    let total_opus_packets = (milliseconds / frame_size as u64) + 1;
-    let total_ogg_pages = total_opus_packets.div_ceil(MAX_DELAY / frame_size as u64);
+    let frame_size = frame_size as u64;
+    let full_packets = milliseconds / frame_size;
+    let trailing_duration = (milliseconds % frame_size + PRE_SKIP_DURATION)
+        .div_ceil(MIN_PACKET_DURATION)
+        * MIN_PACKET_DURATION;
+    let trailing_full_packets = trailing_duration / frame_size;
+    let final_packet_duration = trailing_duration % frame_size;
+    let total_opus_packets =
+        full_packets + trailing_full_packets + u64::from(final_packet_duration != 0);
+    let total_ogg_pages = total_opus_packets.div_ceil(MAX_DELAY / frame_size);
 
-    let opus_packet_size = bit_rate as u64 * frame_size as u64 / 8;
-    let opus_packages_per_ogg_page = opus_packet_size.div_ceil(0xff);
+    let full_packet_count = full_packets + trailing_full_packets;
+    let full_packet_size = bit_rate as u64 * frame_size / 8;
+    let full_packet_segments = full_packet_size.div_ceil(0xff);
+    let final_packet_size = bit_rate as u64 * final_packet_duration / 8;
+    let final_packet_segments = final_packet_size.div_ceil(0xff);
 
     OGG_PREFIX_PAGES_SIZE
         + total_ogg_pages * FIXED_OGG_PAGE_HEADER_SIZE
-        + opus_packages_per_ogg_page * total_opus_packets
-        + total_opus_packets * opus_packet_size
+        + full_packet_count * (full_packet_segments + full_packet_size)
+        + final_packet_segments
+        + final_packet_size
 }
 
 #[cfg(test)]

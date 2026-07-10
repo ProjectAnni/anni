@@ -90,6 +90,7 @@ mod tests {
     use crate::split;
 
     #[test]
+    #[ignore = "manual test requires private local audio fixtures"]
     fn test_split_a_cd() {
         let input_wav =
             "/home/yesterday17/音乐/ostella/終のステラ豪華限定版同梱OriginalSoundTrack.wav";
