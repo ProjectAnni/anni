@@ -213,6 +213,14 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ec66320836265a59098af8343573a2160b12b8db033b6b879fa01fbcf95a50ed"
 
 [[package]]
+name = "anni-catalog"
+version = "0.1.0"
+dependencies = [
+ "thiserror 2.0.18",
+ "url",
+]
+
+[[package]]
 name = "anni-common"
 version = "0.2.0"
 dependencies = [

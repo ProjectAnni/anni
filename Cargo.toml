@@ -11,6 +11,7 @@ members = [
     "anni-workspace",
     "anni-playback",
     "anni-metadata",
+    "anni-catalog",
     "anni-ingest",
     "anni-ingest-worker",
     "third_party/google-drive3",
@@ -25,6 +26,7 @@ license = "Apache-2.0"
 
 [workspace.dependencies]
 anni-common = { version = "0.2.0", path = "./anni-common" }
+anni-catalog = { path = "./anni-catalog" }
 anni-ingest = { path = "./anni-ingest" }
 anni-metadata = { path = "./anni-metadata" }
 anni-split = { path = "./anni-split" }

@@ -1,0 +1,13 @@
+[package]
+name = "anni-catalog"
+version = "0.1.0"
+publish = false
+
+edition.workspace = true
+authors.workspace = true
+repository.workspace = true
+license.workspace = true
+
+[dependencies]
+thiserror.workspace = true
+url = "2.5.8"
