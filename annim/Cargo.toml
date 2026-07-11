@@ -8,6 +8,7 @@ authors.workspace = true
 repository.workspace = true
 
 [dependencies]
+anni-catalog.workspace = true
 anni-ingest.workspace = true
 anni-metadata.workspace = true
 tokio = { version = "1", features = ["macros", "net", "rt-multi-thread", "sync"] }

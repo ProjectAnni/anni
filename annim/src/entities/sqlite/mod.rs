@@ -4,6 +4,9 @@ pub mod prelude;
 
 pub mod album;
 pub mod album_tag_relation;
+pub mod catalog_artist;
+pub mod catalog_release;
+pub mod collection_copy;
 pub mod disc;
 pub mod ingest_job;
 pub mod ingest_metadata_revision;

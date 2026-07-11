@@ -7,6 +7,7 @@ mod m20240905_000003_add_tag_type_category;
 mod m20240905_000004_album_extra_jsonb;
 mod m20260712_000005_create_ingest_job;
 mod m20260712_000006_create_ingest_metadata_revision;
+mod m20260712_000007_create_catalog_collection;
 
 pub struct Migrator;
 
@@ -20,6 +21,7 @@ impl MigratorTrait for Migrator {
             Box::new(m20240905_000004_album_extra_jsonb::Migration),
             Box::new(m20260712_000005_create_ingest_job::Migration),
             Box::new(m20260712_000006_create_ingest_metadata_revision::Migration),
+            Box::new(m20260712_000007_create_catalog_collection::Migration),
         ]
     }
 }

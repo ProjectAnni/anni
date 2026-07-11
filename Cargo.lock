@@ -457,6 +457,7 @@ dependencies = [
 name = "annim"
 version = "0.1.0"
 dependencies = [
+ "anni-catalog",
  "anni-ingest",
  "anni-metadata",
  "anyhow",

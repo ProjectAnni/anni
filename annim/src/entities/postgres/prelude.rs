@@ -2,6 +2,9 @@
 
 pub use super::album::Entity as Album;
 pub use super::album_tag_relation::Entity as AlbumTagRelation;
+pub use super::catalog_artist::Entity as CatalogArtist;
+pub use super::catalog_release::Entity as CatalogRelease;
+pub use super::collection_copy::Entity as CollectionCopy;
 pub use super::disc::Entity as Disc;
 pub use super::ingest_job::Entity as IngestJob;
 pub use super::ingest_metadata_revision::Entity as IngestMetadataRevision;
