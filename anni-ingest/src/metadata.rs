@@ -261,6 +261,25 @@ impl Evidence {
     pub const fn method(&self) -> EvidenceMethod {
         self.method
     }
+
+    fn method_matches_source(&self) -> bool {
+        match self.source_kind {
+            EvidenceSourceKind::CdBooklet | EvidenceSourceKind::CdPackaging => matches!(
+                self.method,
+                EvidenceMethod::ManualTranscription | EvidenceMethod::AutomatedExtraction
+            ),
+            EvidenceSourceKind::OfficialLabel
+            | EvidenceSourceKind::OfficialArtist
+            | EvidenceSourceKind::OfficialStore
+            | EvidenceSourceKind::StreamingService
+            | EvidenceSourceKind::Vgmdb
+            | EvidenceSourceKind::CommunitySource => {
+                !matches!(self.method, EvidenceMethod::Inference)
+            }
+            EvidenceSourceKind::Filename => !matches!(self.method, EvidenceMethod::WebImport),
+            EvidenceSourceKind::DerivedInference => self.method == EvidenceMethod::Inference,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -306,6 +325,12 @@ impl MetadataCandidate {
         evidence: Evidence,
         confidence: Confidence,
     ) -> Result<Self, MetadataError> {
+        if !evidence.method_matches_source() {
+            return Err(MetadataError::EvidenceMethodMismatch {
+                source_kind: evidence.source_kind,
+                method: evidence.method,
+            });
+        }
         let actual = value.kind();
         let expected = field.value_kind();
         if actual != expected && !(actual == MetadataValueKind::Absent && field.allows_absent()) {
@@ -849,6 +874,11 @@ pub enum MetadataError {
     DuplicateCandidate { id: Uuid },
     #[error("metadata candidate {id} does not exist")]
     UnknownCandidate { id: Uuid },
+    #[error("evidence source {source_kind:?} cannot use collection method {method:?}")]
+    EvidenceMethodMismatch {
+        source_kind: EvidenceSourceKind,
+        method: EvidenceMethod,
+    },
     #[error("track type suggestion cannot target {field:?}")]
     InvalidTrackTypeSuggestionTarget { field: FieldPath },
     #[error("metadata revision must advance beyond {current}, got {requested}")]
@@ -901,10 +931,10 @@ mod tests {
             kind,
             locator,
             None,
-            if kind == EvidenceSourceKind::CdBooklet {
-                EvidenceMethod::ManualTranscription
-            } else {
-                EvidenceMethod::WebImport
+            match kind {
+                EvidenceSourceKind::CdBooklet => EvidenceMethod::ManualTranscription,
+                EvidenceSourceKind::DerivedInference => EvidenceMethod::Inference,
+                _ => EvidenceMethod::WebImport,
             },
         )
     }
@@ -939,6 +969,21 @@ mod tests {
     #[test]
     fn booklet_candidate_is_recommended_over_web_and_inference() {
         let field = FieldPath::Album(AlbumField::Title);
+        assert!(matches!(
+            MetadataCandidate::new(
+                Uuid::new_v4(),
+                field,
+                MetadataValue::Text("AI title".to_owned()),
+                Evidence::new(
+                    EvidenceSourceKind::DerivedInference,
+                    "agent:run-1",
+                    None,
+                    EvidenceMethod::WebImport,
+                ),
+                confidence(10_000),
+            ),
+            Err(MetadataError::EvidenceMethodMismatch { .. })
+        ));
         let mut draft = MetadataDraft::new(MetadataRevision::INITIAL);
         for (kind, value, confidence_value) in [
             (
