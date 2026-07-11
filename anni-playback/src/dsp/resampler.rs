@@ -74,7 +74,8 @@ impl Resampler {
             buffer.extend_from_slice(scratch);
         }
 
-        let mut output = Vec::new();
+        let mut output = std::mem::take(&mut self.interleaved);
+        output.clear();
         let target_received = self.target_frames();
         while self
             .input
@@ -101,7 +102,8 @@ impl Resampler {
         self.finished = true;
 
         let target_frames = self.target_frames();
-        let mut output = Vec::new();
+        let mut output = std::mem::take(&mut self.interleaved);
+        output.clear();
         let remaining = self.input.first().map_or(0, Vec::len);
 
         if remaining > 0 {
@@ -120,6 +122,8 @@ impl Resampler {
         }
 
         while self.emitted_frames < target_frames {
+            let emitted_before = self.emitted_frames;
+            let delay_before = self.delay_remaining;
             for channel in &mut self.input {
                 channel.resize(self.chunk_size, 0.0);
             }
@@ -131,6 +135,10 @@ impl Resampler {
             self.append_valid_output(chunk, Some(target_frames), &mut output);
             for channel in &mut self.input {
                 channel.clear();
+            }
+            if self.emitted_frames == emitted_before && self.delay_remaining == delay_before {
+                log::error!("resampler flush made no progress before reaching its target");
+                break;
             }
         }
 
@@ -202,6 +210,21 @@ mod tests {
         assert!(scratch.iter().all(|channel| channel.len() == 2));
         copy_to_planar_scratch(second.as_generic_audio_buffer_ref(), &mut scratch);
         assert!(scratch.iter().all(|channel| channel.len() == 1));
+    }
+
+    #[test]
+    fn reuses_the_interleaved_output_allocation() {
+        let spec = stereo_spec(44_100);
+        let mut input = AudioBuffer::<f32>::new(spec.clone(), 1);
+        input.resize_with_silence(1);
+        let mut resampler = Resampler::new(spec, 48_000, 441).unwrap();
+        resampler.interleaved.reserve(4_096);
+        let capacity = resampler.interleaved.capacity();
+
+        assert!(resampler
+            .resample(input.as_generic_audio_buffer_ref())
+            .is_none());
+        assert_eq!(resampler.interleaved.capacity(), capacity);
     }
 
     #[test]

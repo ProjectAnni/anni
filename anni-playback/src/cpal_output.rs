@@ -538,7 +538,8 @@ fn stereo_downmix(frame: &[f32], channels: &Channels) -> (f32, f32) {
         let mut left = frame[0];
         let mut right = frame.get(1).copied().unwrap_or(left);
         if frame.len() > 2 {
-            let extra = frame[2..].iter().copied().sum::<f32>() / frame.len() as f32;
+            let extra_channels = &frame[2..];
+            let extra = extra_channels.iter().copied().sum::<f32>() / extra_channels.len() as f32;
             left += extra * 0.5;
             right += extra * 0.5;
         }
@@ -648,5 +649,18 @@ mod tests {
         let mut output = Vec::new();
         remix_interleaved(&[0.0, 0.0, 1.0, 1.0, 0.0, 0.0], &channels, 2, &mut output);
         assert_eq!(output, [0.957, 0.957]);
+    }
+
+    #[test]
+    fn averages_only_extra_discrete_channels_when_downmixing() {
+        let mut output = Vec::new();
+        remix_interleaved(
+            &[0.0, 0.0, 1.0, 1.0],
+            &Channels::Discrete(4),
+            2,
+            &mut output,
+        );
+
+        assert_eq!(output, [0.5, 0.5]);
     }
 }
