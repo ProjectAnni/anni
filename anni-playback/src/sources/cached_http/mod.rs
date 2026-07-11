@@ -76,6 +76,13 @@ pub struct CachedHttpSource {
 }
 
 impl CachedHttpSource {
+    fn logical_len(&self) -> Option<u64> {
+        self.content_length.or_else(|| {
+            (!self.state.downloading.load(Ordering::Acquire))
+                .then(|| self.state.len.load(Ordering::Acquire) as u64)
+        })
+    }
+
     fn from_cache(
         cache: File,
         buffer_signal: Arc<AtomicBool>,
@@ -260,18 +267,12 @@ impl Read for CachedHttpSource {
 
 impl Seek for CachedHttpSource {
     fn seek(&mut self, pos: std::io::SeekFrom) -> std::io::Result<u64> {
-        let logical_length = self
-            .content_length
-            .or_else(|| {
-                (!self.state.downloading.load(Ordering::Acquire))
-                    .then(|| self.state.len.load(Ordering::Acquire) as u64)
-            })
-            .ok_or_else(|| {
-                std::io::Error::new(
-                    ErrorKind::Unsupported,
-                    "cannot seek a downloading source with unknown length",
-                )
-            })?;
+        let logical_length = self.logical_len().ok_or_else(|| {
+            std::io::Error::new(
+                ErrorKind::Unsupported,
+                "cannot seek a downloading source with unknown length",
+            )
+        })?;
         let position = match pos {
             std::io::SeekFrom::Start(position) => i128::from(position),
             std::io::SeekFrom::Current(offset) => self.pos as i128 + i128::from(offset),
@@ -297,12 +298,11 @@ impl Seek for CachedHttpSource {
 
 impl MediaSource for CachedHttpSource {
     fn is_seekable(&self) -> bool {
-        !self.state.downloading.load(Ordering::Acquire)
-            && self.state.error.lock().unwrap().is_none()
+        self.state.error.lock().unwrap().is_none() && self.logical_len().is_some()
     }
 
     fn byte_len(&self) -> Option<u64> {
-        self.content_length
+        self.logical_len()
     }
 }
 
@@ -498,10 +498,14 @@ impl AnniSource for CachedAnnilSource {
 #[cfg(test)]
 mod tests {
     use std::{
-        fs,
+        fs::{self, File},
         io::{Read, Write},
         net::TcpListener,
-        sync::{atomic::AtomicBool, Arc},
+        path::PathBuf,
+        sync::{
+            atomic::{AtomicBool, Ordering},
+            Arc,
+        },
         thread,
         time::{SystemTime, UNIX_EPOCH},
     };
@@ -510,10 +514,38 @@ mod tests {
     use anni_provider::providers::TypedPriorityProvider;
     use reqwest::blocking::Client;
 
+    use crate::types::MediaSource;
+
     use super::{
         cache::CacheStore, provider::ProviderProxy, resolve_variant, AudioCodec, AudioQuality,
-        AudioVariant, CachedAnnilSource,
+        AudioVariant, CachedAnnilSource, CachedHttpSource, DownloadState,
     };
+
+    fn test_source(
+        label: &str,
+        content_length: Option<u64>,
+        state: Arc<DownloadState>,
+    ) -> (CachedHttpSource, PathBuf) {
+        let unique = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
+        let path =
+            std::env::temp_dir().join(format!("anni-playback-cached-source-{label}-{unique}"));
+        let cache = File::create(&path).unwrap();
+        (
+            CachedHttpSource {
+                cache,
+                state,
+                pos: 0,
+                buffer_signal: Arc::new(AtomicBool::new(false)),
+                duration: None,
+                content_length,
+                cancel_download: Arc::new(AtomicBool::new(false)),
+            },
+            path,
+        )
+    }
 
     #[test]
     fn server_quality_and_codec_determine_the_cache_variant() {
@@ -525,6 +557,35 @@ mod tests {
         let original = resolve_variant(requested, Some("low"), Some("audio/flac"));
         assert_eq!(original.quality(), AudioQuality::Lossless);
         assert_eq!(original.codec(), AudioCodec::Original);
+    }
+
+    #[test]
+    fn media_source_capabilities_follow_the_available_length() {
+        let known_state = Arc::new(DownloadState::downloading());
+        let (known, known_path) = test_source("known", Some(12), known_state);
+        assert!(known.is_seekable());
+        assert_eq!(known.byte_len(), Some(12));
+        drop(known);
+        fs::remove_file(known_path).unwrap();
+
+        let unknown_state = Arc::new(DownloadState::downloading());
+        unknown_state.len.store(12, Ordering::Release);
+        let (unknown, unknown_path) = test_source("unknown", None, Arc::clone(&unknown_state));
+        assert!(!unknown.is_seekable());
+        assert_eq!(unknown.byte_len(), None);
+
+        unknown_state.finish(None);
+        assert!(unknown.is_seekable());
+        assert_eq!(unknown.byte_len(), Some(12));
+        drop(unknown);
+        fs::remove_file(unknown_path).unwrap();
+
+        let failed_state = Arc::new(DownloadState::downloading());
+        failed_state.finish(Some("download failed".into()));
+        let (failed, failed_path) = test_source("failed", Some(12), failed_state);
+        assert!(!failed.is_seekable());
+        drop(failed);
+        fs::remove_file(failed_path).unwrap();
     }
 
     #[test]
