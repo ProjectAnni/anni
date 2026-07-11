@@ -19,8 +19,9 @@ pub use job::{
 pub use manifest::{AudioFormat, InputFileKind, InputManifest, ManifestEntry, ManifestError};
 pub use metadata::{
     AlbumField, AlbumLayout, CompletenessReport, Confidence, DiscField, Evidence, EvidenceMethod,
-    EvidenceSourceKind, FieldPath, MetadataCandidate, MetadataDraft, MetadataDraftSnapshot,
-    MetadataError, MetadataRequirements, MetadataValue, MetadataValueKind, TrackField,
+    EvidenceSourceKind, FieldPath, MetadataCandidate, MetadataDecision, MetadataDraft,
+    MetadataDraftSnapshot, MetadataError, MetadataProfile, MetadataRequirements,
+    MetadataReviewContext, MetadataValue, MetadataValueKind, TrackField,
 };
 pub use path::{PathError, SafeRelativePath};
 pub use plan::{ExecutionPlan, PlanError, PlanOperation, SplitOutputFormat};

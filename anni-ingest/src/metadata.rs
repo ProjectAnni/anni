@@ -290,6 +290,13 @@ pub struct MetadataCandidate {
     confidence: Confidence,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum MetadataDecision {
+    Pending,
+    Accepted,
+    Rejected,
+}
+
 impl MetadataCandidate {
     pub fn new(
         id: Uuid,
@@ -373,6 +380,7 @@ impl MetadataCandidate {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct MetadataDraft {
     revision: MetadataRevision,
+    review_context: Option<MetadataReviewContext>,
     candidates: Vec<MetadataCandidate>,
     accepted: BTreeMap<FieldPath, Uuid>,
     rejected: HashSet<Uuid>,
@@ -388,6 +396,8 @@ const METADATA_SNAPSHOT_SCHEMA_VERSION: u16 = 1;
 pub struct MetadataDraftSnapshot {
     schema_version: u16,
     revision: u64,
+    #[serde(default)]
+    review_context: Option<MetadataReviewContext>,
     candidates: Vec<MetadataCandidateSnapshot>,
     accepted: Vec<AcceptedCandidateSnapshot>,
     rejected: Vec<Uuid>,
@@ -412,6 +422,7 @@ impl MetadataDraft {
     pub fn new(revision: MetadataRevision) -> Self {
         Self {
             revision,
+            review_context: None,
             candidates: Vec::new(),
             accepted: BTreeMap::new(),
             rejected: HashSet::new(),
@@ -422,6 +433,29 @@ impl MetadataDraft {
         self.revision
     }
 
+    pub const fn review_context(&self) -> Option<&MetadataReviewContext> {
+        self.review_context.as_ref()
+    }
+
+    pub fn set_review_context(
+        &mut self,
+        context: MetadataReviewContext,
+    ) -> Result<(), MetadataError> {
+        if self
+            .review_context
+            .as_ref()
+            .is_some_and(|current| current != &context)
+            && !self.candidates.is_empty()
+        {
+            return Err(MetadataError::ReviewContextChangeRequiresRevision);
+        }
+        for candidate in &self.candidates {
+            context.validate_field(candidate.field)?;
+        }
+        self.review_context = Some(context);
+        Ok(())
+    }
+
     pub fn candidates(&self) -> &[MetadataCandidate] {
         &self.candidates
     }
@@ -429,6 +463,9 @@ impl MetadataDraft {
     pub fn add_candidate(&mut self, candidate: MetadataCandidate) -> Result<(), MetadataError> {
         if self.candidate(candidate.id).is_some() {
             return Err(MetadataError::DuplicateCandidate { id: candidate.id });
+        }
+        if let Some(context) = &self.review_context {
+            context.validate_field(candidate.field)?;
         }
         self.candidates.push(candidate);
         Ok(())
@@ -477,6 +514,19 @@ impl MetadataDraft {
         self.accepted_candidate(field).map(MetadataCandidate::value)
     }
 
+    pub fn decision(&self, candidate_id: Uuid) -> Result<MetadataDecision, MetadataError> {
+        let candidate = self
+            .candidate(candidate_id)
+            .ok_or(MetadataError::UnknownCandidate { id: candidate_id })?;
+        if self.accepted.get(&candidate.field) == Some(&candidate_id) {
+            Ok(MetadataDecision::Accepted)
+        } else if self.rejected.contains(&candidate_id) {
+            Ok(MetadataDecision::Rejected)
+        } else {
+            Ok(MetadataDecision::Pending)
+        }
+    }
+
     pub fn fork(&self, revision: MetadataRevision) -> Result<Self, MetadataError> {
         if revision <= self.revision {
             return Err(MetadataError::RevisionNotAdvanced {
@@ -506,6 +556,14 @@ impl MetadataDraft {
         }
     }
 
+    pub fn review_completeness(&self) -> Result<CompletenessReport, MetadataError> {
+        let context = self
+            .review_context
+            .as_ref()
+            .ok_or(MetadataError::ReviewContextMissing)?;
+        Ok(self.completeness(&context.requirements()))
+    }
+
     pub fn snapshot(&self) -> MetadataDraftSnapshot {
         let accepted = self
             .accepted
@@ -521,6 +579,7 @@ impl MetadataDraft {
         MetadataDraftSnapshot {
             schema_version: METADATA_SNAPSHOT_SCHEMA_VERSION,
             revision: self.revision.get(),
+            review_context: self.review_context.clone(),
             candidates: self
                 .candidates
                 .iter()
@@ -549,6 +608,9 @@ impl MetadataDraft {
             },
         )?;
         let mut draft = Self::new(revision);
+        if let Some(context) = snapshot.review_context {
+            draft.set_review_context(context)?;
+        }
 
         for candidate in snapshot.candidates {
             let confidence = Confidence::new(candidate.confidence_basis_points).ok_or(
@@ -624,7 +686,7 @@ fn compare_candidates(left: &&MetadataCandidate, right: &&MetadataCandidate) -> 
         .then_with(|| left.id.as_bytes().cmp(right.id.as_bytes()))
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct AlbumLayout {
     track_counts: Vec<NonZeroU16>,
 }
@@ -645,6 +707,58 @@ impl AlbumLayout {
     pub fn track_counts(&self) -> &[NonZeroU16] {
         &self.track_counts
     }
+
+    fn contains(&self, field: FieldPath) -> bool {
+        match field {
+            FieldPath::Album(_) => true,
+            FieldPath::Disc { disc, .. } => {
+                self.track_counts.get(usize::from(disc.get() - 1)).is_some()
+            }
+            FieldPath::Track { disc, track, .. } => self
+                .track_counts
+                .get(usize::from(disc.get() - 1))
+                .is_some_and(|track_count| track.get() <= track_count.get()),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum MetadataProfile {
+    Cd,
+    Streaming,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct MetadataReviewContext {
+    profile: MetadataProfile,
+    layout: AlbumLayout,
+}
+
+impl MetadataReviewContext {
+    pub const fn new(profile: MetadataProfile, layout: AlbumLayout) -> Self {
+        Self { profile, layout }
+    }
+
+    pub const fn profile(&self) -> MetadataProfile {
+        self.profile
+    }
+
+    pub const fn layout(&self) -> &AlbumLayout {
+        &self.layout
+    }
+
+    pub fn requirements(&self) -> MetadataRequirements {
+        MetadataRequirements::for_review(self.profile, &self.layout)
+    }
+
+    fn validate_field(&self, field: FieldPath) -> Result<(), MetadataError> {
+        if self.layout.contains(field) {
+            Ok(())
+        } else {
+            Err(MetadataError::FieldOutsideAlbumLayout { field })
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -654,20 +768,28 @@ pub struct MetadataRequirements {
 
 impl MetadataRequirements {
     pub fn for_album(layout: &AlbumLayout) -> Self {
+        Self::for_review(MetadataProfile::Cd, layout)
+    }
+
+    pub fn for_review(profile: MetadataProfile, layout: &AlbumLayout) -> Self {
         let mut required = BTreeSet::from([
             FieldPath::Album(AlbumField::Title),
             FieldPath::Album(AlbumField::Artist),
             FieldPath::Album(AlbumField::ReleaseDate),
             FieldPath::Album(AlbumField::TrackType),
-            FieldPath::Album(AlbumField::Catalog),
         ]);
+        if profile == MetadataProfile::Cd {
+            required.insert(FieldPath::Album(AlbumField::Catalog));
+        }
         for (disc_index, track_count) in layout.track_counts.iter().enumerate() {
             let disc = NonZeroU16::new((disc_index + 1) as u16)
                 .expect("album layout cannot contain more than u16::MAX discs");
-            required.insert(FieldPath::Disc {
-                disc,
-                field: DiscField::Catalog,
-            });
+            if profile == MetadataProfile::Cd {
+                required.insert(FieldPath::Disc {
+                    disc,
+                    field: DiscField::Catalog,
+                });
+            }
             for track in 1..=track_count.get() {
                 let track = NonZeroU16::new(track).expect("track number starts at one");
                 required.insert(FieldPath::Track {
@@ -737,6 +859,12 @@ pub enum MetadataError {
     EmptyAlbumLayout,
     #[error("album layout contains {actual} discs, exceeding the u16 limit")]
     TooManyDiscs { actual: usize },
+    #[error("metadata review context has not been configured")]
+    ReviewContextMissing,
+    #[error("metadata review context cannot change after candidates exist; start a new revision")]
+    ReviewContextChangeRequiresRevision,
+    #[error("metadata field {field:?} falls outside the configured album layout")]
+    FieldOutsideAlbumLayout { field: FieldPath },
     #[error("metadata snapshot schema version {actual} is unsupported")]
     UnsupportedSnapshotVersion { actual: u16 },
     #[error("metadata snapshot revision {actual} is invalid")]
@@ -867,6 +995,41 @@ mod tests {
                 candidate_id: actual_id,
                 actual: 10_001,
             }) if actual_id == candidate_id
+        ));
+    }
+
+    #[test]
+    fn review_context_distinguishes_cd_requirements_and_rejects_unknown_tracks() {
+        let layout = AlbumLayout::new(vec![NonZeroU16::new(2).unwrap()]).unwrap();
+        let cd = MetadataReviewContext::new(MetadataProfile::Cd, layout.clone());
+        let streaming = MetadataReviewContext::new(MetadataProfile::Streaming, layout);
+        assert!(cd
+            .requirements()
+            .required()
+            .contains(&FieldPath::Album(AlbumField::Catalog)));
+        assert!(!streaming
+            .requirements()
+            .required()
+            .contains(&FieldPath::Album(AlbumField::Catalog)));
+
+        let mut draft = MetadataDraft::new(MetadataRevision::INITIAL);
+        draft.set_review_context(cd).unwrap();
+        let outside_layout = MetadataCandidate::new(
+            Uuid::new_v4(),
+            FieldPath::Track {
+                disc: NonZeroU16::new(1).unwrap(),
+                track: NonZeroU16::new(3).unwrap(),
+                field: TrackField::Title,
+            },
+            MetadataValue::Text("Unknown track".to_owned()),
+            evidence(EvidenceSourceKind::CdBooklet, "booklet.pdf#page=3"),
+            confidence(10_000),
+        )
+        .unwrap();
+
+        assert!(matches!(
+            draft.add_candidate(outside_layout),
+            Err(MetadataError::FieldOutsideAlbumLayout { .. })
         ));
     }
 
