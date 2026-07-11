@@ -1,4 +1,4 @@
-use anni_ingest::{Digest, IngestJob, JobError, JobState, MetadataRevision};
+use anni_ingest::{Digest, IngestJob, JobError, JobState, MetadataError, MetadataRevision};
 use sea_orm::prelude::Uuid;
 use thiserror::Error;
 use tokio::sync::broadcast;
@@ -123,6 +123,8 @@ pub enum IngestServiceError {
     Repository(#[from] IngestRepositoryError),
     #[error(transparent)]
     Domain(#[from] JobError),
+    #[error(transparent)]
+    Metadata(#[from] MetadataError),
 }
 
 #[derive(Clone)]
@@ -186,8 +188,28 @@ impl IngestService {
             .into());
         }
 
+        let draft_to_fork = if matches!(command, IngestCommand::ReviseMetadata { .. }) {
+            let revision = versioned.job().metadata_revision();
+            Some(
+                self.repository
+                    .get_metadata_draft(job_id, revision)
+                    .await?
+                    .ok_or(IngestRepositoryError::MetadataNotFound { job_id, revision })?
+                    .into_draft(),
+            )
+        } else {
+            None
+        };
+
         command.apply(versioned.job_mut())?;
-        self.repository.save(&mut versioned).await?;
+        if let Some(draft) = draft_to_fork {
+            let fork = draft.fork(versioned.job().metadata_revision())?;
+            self.repository
+                .save_with_metadata(&mut versioned, &fork)
+                .await?;
+        } else {
+            self.repository.save(&mut versioned).await?;
+        }
         self.events.publish(&versioned);
         Ok(versioned)
     }

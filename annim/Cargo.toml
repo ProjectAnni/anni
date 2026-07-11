@@ -36,6 +36,7 @@ anyhow.workspace = true
 tracing = { version = "0.1.44" }
 tracing-subscriber = { version = "0.3.23" }
 serde_json.workspace = true
+sha2 = "0.10.9"
 chrono = "0.4.45"
 serde.workspace = true
 thiserror.workspace = true

@@ -10,7 +10,7 @@ pub struct Model {
     pub job_id: Uuid,
     pub revision: i64,
     pub document: String,
-    pub document_digest: Vec<u8>,
+    pub document_sha256: Vec<u8>,
     pub created_at: DateTimeUtc,
     pub updated_at: DateTimeUtc,
 }

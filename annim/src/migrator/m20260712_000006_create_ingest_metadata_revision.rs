@@ -25,7 +25,7 @@ impl MigrationTrait for Migration {
                     // same representation and preserve every Unicode scalar.
                     .col(text(IngestMetadataRevision::Document))
                     .col(binary_len(
-                        IngestMetadataRevision::DocumentDigest,
+                        IngestMetadataRevision::DocumentSha256,
                         Digest::LENGTH as u32,
                     ))
                     .col(
@@ -78,7 +78,7 @@ enum IngestMetadataRevision {
     JobId,
     Revision,
     Document,
-    DocumentDigest,
+    DocumentSha256,
     CreatedAt,
     UpdatedAt,
 }

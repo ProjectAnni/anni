@@ -4,19 +4,24 @@
 //! write receives the same optimistic-concurrency protection.
 
 use anni_ingest::{
-    Digest, IngestJob, IngestJobSnapshot, JobState, MetadataRevision, SnapshotError,
+    Digest, IngestJob, IngestJobSnapshot, JobState, MetadataDraft, MetadataDraftSnapshot,
+    MetadataError, MetadataRevision, SnapshotError,
 };
 use sea_orm::prelude::{DateTimeUtc, Uuid};
 use sea_orm::{
     sea_query::{Expr, OnConflict},
     ActiveValue::NotSet,
     ActiveValue::Set,
-    ColumnTrait, DatabaseConnection, DbErr, EntityTrait, QueryFilter, QueryOrder, QuerySelect,
-    TryInsertResult,
+    ColumnTrait, ConnectionTrait, DatabaseConnection, DbErr, EntityTrait, QueryFilter, QueryOrder,
+    QuerySelect, TransactionTrait, TryInsertResult,
 };
+use sha2::{Digest as ShaDigest, Sha256};
 use thiserror::Error;
 
-use crate::entities::{helper::timestamp, ingest_job};
+use crate::entities::{
+    helper::{now, timestamp},
+    ingest_job, ingest_metadata_revision,
+};
 
 mod service;
 
@@ -71,6 +76,31 @@ pub struct VersionedIngestJob {
     row_version: RowVersion,
     created_at: DateTimeUtc,
     updated_at: DateTimeUtc,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PersistedMetadataDraft {
+    draft: MetadataDraft,
+    created_at: DateTimeUtc,
+    updated_at: DateTimeUtc,
+}
+
+impl PersistedMetadataDraft {
+    pub const fn draft(&self) -> &MetadataDraft {
+        &self.draft
+    }
+
+    pub fn into_draft(self) -> MetadataDraft {
+        self.draft
+    }
+
+    pub const fn created_at(&self) -> DateTimeUtc {
+        self.created_at
+    }
+
+    pub const fn updated_at(&self) -> DateTimeUtc {
+        self.updated_at
+    }
 }
 
 impl VersionedIngestJob {
@@ -129,6 +159,78 @@ pub enum IngestRepositoryError {
     },
     #[error("persisted ingest job {job_id} has an out-of-range {field}")]
     NumericOutOfRange { job_id: Uuid, field: &'static str },
+    #[error(
+        "ingest job {job_id} is at metadata revision {job_revision}, but the draft is revision {draft_revision}"
+    )]
+    MetadataRevisionMismatch {
+        job_id: Uuid,
+        job_revision: MetadataRevision,
+        draft_revision: MetadataRevision,
+    },
+    #[error(
+        "ingest job {job_id} cannot change metadata revision from {stored_revision} to {requested_revision} without a metadata document"
+    )]
+    MetadataRevisionRequiresDocument {
+        job_id: Uuid,
+        stored_revision: MetadataRevision,
+        requested_revision: MetadataRevision,
+    },
+    #[error("metadata revision {revision} for ingest job {job_id} is frozen")]
+    MetadataFrozen {
+        job_id: Uuid,
+        revision: MetadataRevision,
+    },
+    #[error("metadata revision {revision} for ingest job {job_id} does not exist")]
+    MetadataNotFound {
+        job_id: Uuid,
+        revision: MetadataRevision,
+    },
+    #[error("could not serialize metadata revision {revision} for ingest job {job_id}: {source}")]
+    SerializeMetadata {
+        job_id: Uuid,
+        revision: MetadataRevision,
+        #[source]
+        source: serde_json::Error,
+    },
+    #[error(
+        "persisted metadata revision {revision} for ingest job {job_id} has an invalid SHA-256 length: {actual}"
+    )]
+    InvalidMetadataDigestLength {
+        job_id: Uuid,
+        revision: MetadataRevision,
+        actual: usize,
+    },
+    #[error(
+        "persisted metadata revision {revision} for ingest job {job_id} does not match its SHA-256"
+    )]
+    MetadataDigestMismatch {
+        job_id: Uuid,
+        revision: MetadataRevision,
+    },
+    #[error("persisted metadata revision {revision} for ingest job {job_id} is not valid JSON: {source}")]
+    InvalidMetadataDocument {
+        job_id: Uuid,
+        revision: MetadataRevision,
+        #[source]
+        source: serde_json::Error,
+    },
+    #[error(
+        "persisted metadata revision {revision} for ingest job {job_id} violates domain invariants: {source}"
+    )]
+    InvalidPersistedMetadata {
+        job_id: Uuid,
+        revision: MetadataRevision,
+        #[source]
+        source: MetadataError,
+    },
+    #[error(
+        "persisted metadata row {row_revision} for ingest job {job_id} contains revision {document_revision}"
+    )]
+    MetadataDocumentRevisionMismatch {
+        job_id: Uuid,
+        row_revision: MetadataRevision,
+        document_revision: MetadataRevision,
+    },
     #[error(transparent)]
     Database(#[from] DbErr),
 }
@@ -148,6 +250,7 @@ impl IngestJobRepository {
         job: &IngestJob,
     ) -> Result<VersionedIngestJob, IngestRepositoryError> {
         let snapshot = job.snapshot();
+        let transaction = self.database.begin().await?;
         let active_model = ingest_job::ActiveModel {
             id: NotSet,
             job_id: Set(snapshot.id()),
@@ -177,15 +280,24 @@ impl IngestJobRepository {
                     .to_owned(),
             )
             .do_nothing()
-            .exec_without_returning(&self.database)
+            .exec_without_returning(&transaction)
             .await?;
 
         match result {
-            TryInsertResult::Inserted(1) => self.get(job.id()).await?.ok_or_else(|| {
-                IngestRepositoryError::Database(DbErr::Custom(
-                    "created ingest job could not be read back".to_owned(),
-                ))
-            }),
+            TryInsertResult::Inserted(1) => {
+                insert_metadata_document(
+                    &transaction,
+                    snapshot.id(),
+                    &MetadataDraft::new(snapshot.metadata_revision()),
+                )
+                .await?;
+                transaction.commit().await?;
+                self.get(job.id()).await?.ok_or_else(|| {
+                    IngestRepositoryError::Database(DbErr::Custom(
+                        "created ingest job could not be read back".to_owned(),
+                    ))
+                })
+            }
             TryInsertResult::Conflicted | TryInsertResult::Inserted(0) => {
                 Err(IngestRepositoryError::AlreadyExists { job_id: job.id() })
             }
@@ -201,12 +313,29 @@ impl IngestJobRepository {
         &self,
         job_id: Uuid,
     ) -> Result<Option<VersionedIngestJob>, IngestRepositoryError> {
-        ingest_job::Entity::find()
-            .filter(ingest_job::Column::JobId.eq(job_id))
-            .one(&self.database)
+        get_job(&self.database, job_id).await
+    }
+
+    pub async fn get_metadata_draft(
+        &self,
+        job_id: Uuid,
+        revision: MetadataRevision,
+    ) -> Result<Option<PersistedMetadataDraft>, IngestRepositoryError> {
+        get_metadata_draft(&self.database, job_id, revision).await
+    }
+
+    pub async fn list_metadata_revisions(
+        &self,
+        job_id: Uuid,
+    ) -> Result<Vec<PersistedMetadataDraft>, IngestRepositoryError> {
+        ingest_metadata_revision::Entity::find()
+            .filter(ingest_metadata_revision::Column::JobId.eq(job_id))
+            .order_by_desc(ingest_metadata_revision::Column::Revision)
+            .all(&self.database)
             .await?
-            .map(model_to_versioned)
-            .transpose()
+            .into_iter()
+            .map(model_to_metadata_draft)
+            .collect()
     }
 
     pub async fn list(
@@ -238,68 +367,7 @@ impl IngestJobRepository {
         job: &IngestJob,
         expected: RowVersion,
     ) -> Result<RowVersion, IngestRepositoryError> {
-        let snapshot = job.snapshot();
-        let expected_i64 = expected.as_i64(job.id())?;
-        let next = expected.next(job.id())?;
-
-        let result = ingest_job::Entity::update_many()
-            .col_expr(
-                ingest_job::Column::State,
-                Expr::value(snapshot.state().as_str()),
-            )
-            .col_expr(
-                ingest_job::Column::MetadataRevision,
-                Expr::value(revision_to_i64(
-                    snapshot.id(),
-                    snapshot.metadata_revision(),
-                    "metadata_revision",
-                )?),
-            )
-            .col_expr(
-                ingest_job::Column::ApprovedRevision,
-                Expr::value(optional_revision_to_i64(
-                    snapshot.id(),
-                    snapshot.approved_revision(),
-                    "approved_revision",
-                )?),
-            )
-            .col_expr(
-                ingest_job::Column::ManifestDigest,
-                Expr::value(digest_bytes(snapshot.manifest_digest())),
-            )
-            .col_expr(
-                ingest_job::Column::PlanDigest,
-                Expr::value(digest_bytes(snapshot.plan_digest())),
-            )
-            .col_expr(
-                ingest_job::Column::VerificationDigest,
-                Expr::value(digest_bytes(snapshot.verification_digest())),
-            )
-            .col_expr(
-                ingest_job::Column::RowVersion,
-                Expr::value(next.as_i64(job.id())?),
-            )
-            .col_expr(
-                ingest_job::Column::UpdatedAt,
-                Expr::current_timestamp().into(),
-            )
-            .filter(ingest_job::Column::JobId.eq(job.id()))
-            .filter(ingest_job::Column::RowVersion.eq(expected_i64))
-            .exec(&self.database)
-            .await?;
-
-        if result.rows_affected == 1 {
-            return Ok(next);
-        }
-
-        match self.get(job.id()).await? {
-            Some(current) => Err(IngestRepositoryError::ConcurrentModification {
-                job_id: job.id(),
-                expected,
-                actual: current.row_version,
-            }),
-            None => Err(IngestRepositoryError::NotFound { job_id: job.id() }),
-        }
+        compare_and_swap(&self.database, job, expected, false).await
     }
 
     pub async fn save(
@@ -316,6 +384,284 @@ impl IngestJobRepository {
                 })?;
         Ok(())
     }
+
+    /// Atomically persist a job change and its current metadata document.
+    /// Historical revision rows are never selected by this method because the
+    /// draft revision must match the job aggregate's current revision.
+    pub async fn save_with_metadata(
+        &self,
+        versioned: &mut VersionedIngestJob,
+        draft: &MetadataDraft,
+    ) -> Result<PersistedMetadataDraft, IngestRepositoryError> {
+        let job_id = versioned.job().id();
+        let job_revision = versioned.job().metadata_revision();
+        if draft.revision() != job_revision {
+            return Err(IngestRepositoryError::MetadataRevisionMismatch {
+                job_id,
+                job_revision,
+                draft_revision: draft.revision(),
+            });
+        }
+        if versioned.job().state() != JobState::Reviewing
+            || versioned.job().approved_revision() == Some(job_revision)
+        {
+            return Err(IngestRepositoryError::MetadataFrozen {
+                job_id,
+                revision: job_revision,
+            });
+        }
+
+        let transaction = self.database.begin().await?;
+        compare_and_swap(&transaction, versioned.job(), versioned.row_version(), true).await?;
+        upsert_metadata_document(&transaction, job_id, draft).await?;
+        transaction.commit().await?;
+
+        *versioned = self
+            .get(job_id)
+            .await?
+            .ok_or(IngestRepositoryError::NotFound { job_id })?;
+        self.get_metadata_draft(job_id, draft.revision())
+            .await?
+            .ok_or_else(|| {
+                IngestRepositoryError::Database(DbErr::Custom(
+                    "saved metadata document could not be read back".to_owned(),
+                ))
+            })
+    }
+}
+
+async fn get_job<C: ConnectionTrait>(
+    connection: &C,
+    job_id: Uuid,
+) -> Result<Option<VersionedIngestJob>, IngestRepositoryError> {
+    ingest_job::Entity::find()
+        .filter(ingest_job::Column::JobId.eq(job_id))
+        .one(connection)
+        .await?
+        .map(model_to_versioned)
+        .transpose()
+}
+
+async fn compare_and_swap<C: ConnectionTrait>(
+    connection: &C,
+    job: &IngestJob,
+    expected: RowVersion,
+    allow_metadata_revision_change: bool,
+) -> Result<RowVersion, IngestRepositoryError> {
+    if !allow_metadata_revision_change {
+        let current = get_job(connection, job.id())
+            .await?
+            .ok_or(IngestRepositoryError::NotFound { job_id: job.id() })?;
+        if current.row_version() != expected {
+            return Err(IngestRepositoryError::ConcurrentModification {
+                job_id: job.id(),
+                expected,
+                actual: current.row_version(),
+            });
+        }
+        if current.job().metadata_revision() != job.metadata_revision() {
+            return Err(IngestRepositoryError::MetadataRevisionRequiresDocument {
+                job_id: job.id(),
+                stored_revision: current.job().metadata_revision(),
+                requested_revision: job.metadata_revision(),
+            });
+        }
+    }
+
+    let snapshot = job.snapshot();
+    let expected_i64 = expected.as_i64(job.id())?;
+    let next = expected.next(job.id())?;
+
+    let result = ingest_job::Entity::update_many()
+        .col_expr(
+            ingest_job::Column::State,
+            Expr::value(snapshot.state().as_str()),
+        )
+        .col_expr(
+            ingest_job::Column::MetadataRevision,
+            Expr::value(revision_to_i64(
+                snapshot.id(),
+                snapshot.metadata_revision(),
+                "metadata_revision",
+            )?),
+        )
+        .col_expr(
+            ingest_job::Column::ApprovedRevision,
+            Expr::value(optional_revision_to_i64(
+                snapshot.id(),
+                snapshot.approved_revision(),
+                "approved_revision",
+            )?),
+        )
+        .col_expr(
+            ingest_job::Column::ManifestDigest,
+            Expr::value(digest_bytes(snapshot.manifest_digest())),
+        )
+        .col_expr(
+            ingest_job::Column::PlanDigest,
+            Expr::value(digest_bytes(snapshot.plan_digest())),
+        )
+        .col_expr(
+            ingest_job::Column::VerificationDigest,
+            Expr::value(digest_bytes(snapshot.verification_digest())),
+        )
+        .col_expr(
+            ingest_job::Column::RowVersion,
+            Expr::value(next.as_i64(job.id())?),
+        )
+        .col_expr(
+            ingest_job::Column::UpdatedAt,
+            Expr::current_timestamp().into(),
+        )
+        .filter(ingest_job::Column::JobId.eq(job.id()))
+        .filter(ingest_job::Column::RowVersion.eq(expected_i64))
+        .exec(connection)
+        .await?;
+
+    if result.rows_affected == 1 {
+        return Ok(next);
+    }
+
+    match get_job(connection, job.id()).await? {
+        Some(current) => Err(IngestRepositoryError::ConcurrentModification {
+            job_id: job.id(),
+            expected,
+            actual: current.row_version,
+        }),
+        None => Err(IngestRepositoryError::NotFound { job_id: job.id() }),
+    }
+}
+
+async fn get_metadata_draft<C: ConnectionTrait>(
+    connection: &C,
+    job_id: Uuid,
+    revision: MetadataRevision,
+) -> Result<Option<PersistedMetadataDraft>, IngestRepositoryError> {
+    ingest_metadata_revision::Entity::find()
+        .filter(ingest_metadata_revision::Column::JobId.eq(job_id))
+        .filter(
+            ingest_metadata_revision::Column::Revision.eq(revision_to_i64(
+                job_id,
+                revision,
+                "metadata_revision",
+            )?),
+        )
+        .one(connection)
+        .await?
+        .map(model_to_metadata_draft)
+        .transpose()
+}
+
+async fn insert_metadata_document<C: ConnectionTrait>(
+    connection: &C,
+    job_id: Uuid,
+    draft: &MetadataDraft,
+) -> Result<(), IngestRepositoryError> {
+    ingest_metadata_revision::Entity::insert(metadata_active_model(job_id, draft)?)
+        .exec_without_returning(connection)
+        .await?;
+    Ok(())
+}
+
+async fn upsert_metadata_document<C: ConnectionTrait>(
+    connection: &C,
+    job_id: Uuid,
+    draft: &MetadataDraft,
+) -> Result<(), IngestRepositoryError> {
+    ingest_metadata_revision::Entity::insert(metadata_active_model(job_id, draft)?)
+        .on_conflict(
+            OnConflict::columns([
+                ingest_metadata_revision::Column::JobId,
+                ingest_metadata_revision::Column::Revision,
+            ])
+            .update_columns([
+                ingest_metadata_revision::Column::Document,
+                ingest_metadata_revision::Column::DocumentSha256,
+                ingest_metadata_revision::Column::UpdatedAt,
+            ])
+            .to_owned(),
+        )
+        .exec_without_returning(connection)
+        .await?;
+    Ok(())
+}
+
+fn metadata_active_model(
+    job_id: Uuid,
+    draft: &MetadataDraft,
+) -> Result<ingest_metadata_revision::ActiveModel, IngestRepositoryError> {
+    let revision = draft.revision();
+    let document = serde_json::to_string(&draft.snapshot()).map_err(|source| {
+        IngestRepositoryError::SerializeMetadata {
+            job_id,
+            revision,
+            source,
+        }
+    })?;
+    let document_sha256 = sha256(document.as_bytes());
+
+    Ok(ingest_metadata_revision::ActiveModel {
+        id: NotSet,
+        job_id: Set(job_id),
+        revision: Set(revision_to_i64(job_id, revision, "metadata_revision")?),
+        document: Set(document),
+        document_sha256: Set(document_sha256.as_bytes().to_vec()),
+        created_at: NotSet,
+        updated_at: Set(now()),
+    })
+}
+
+fn model_to_metadata_draft(
+    model: ingest_metadata_revision::Model,
+) -> Result<PersistedMetadataDraft, IngestRepositoryError> {
+    let job_id = model.job_id;
+    let revision = revision_from_i64(job_id, model.revision, "metadata_revision")?;
+    let digest_length = model.document_sha256.len();
+    let stored_digest = <[u8; Digest::LENGTH]>::try_from(model.document_sha256)
+        .map(Digest::new)
+        .map_err(|_| IngestRepositoryError::InvalidMetadataDigestLength {
+            job_id,
+            revision,
+            actual: digest_length,
+        })?;
+    if sha256(model.document.as_bytes()) != stored_digest {
+        return Err(IngestRepositoryError::MetadataDigestMismatch { job_id, revision });
+    }
+
+    let snapshot: MetadataDraftSnapshot =
+        serde_json::from_str(&model.document).map_err(|source| {
+            IngestRepositoryError::InvalidMetadataDocument {
+                job_id,
+                revision,
+                source,
+            }
+        })?;
+    let draft = MetadataDraft::restore(snapshot).map_err(|source| {
+        IngestRepositoryError::InvalidPersistedMetadata {
+            job_id,
+            revision,
+            source,
+        }
+    })?;
+    if draft.revision() != revision {
+        return Err(IngestRepositoryError::MetadataDocumentRevisionMismatch {
+            job_id,
+            row_revision: revision,
+            document_revision: draft.revision(),
+        });
+    }
+
+    Ok(PersistedMetadataDraft {
+        draft,
+        created_at: timestamp(model.created_at),
+        updated_at: timestamp(model.updated_at),
+    })
+}
+
+fn sha256(value: &[u8]) -> Digest {
+    let mut hasher = Sha256::new();
+    hasher.update(value);
+    Digest::new(hasher.finalize().into())
 }
 
 fn model_to_versioned(

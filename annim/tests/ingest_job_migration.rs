@@ -79,7 +79,7 @@ async fn migration_enforces_one_metadata_document_per_job_revision() {
         database.execute(Statement::from_sql_and_values(
             DbBackend::Sqlite,
             "INSERT INTO ingest_metadata_revision \
-             (job_id, revision, document, document_digest) VALUES (?, ?, ?, ?)",
+             (job_id, revision, document, document_sha256) VALUES (?, ?, ?, ?)",
             [
                 job_id.into(),
                 1_i64.into(),
