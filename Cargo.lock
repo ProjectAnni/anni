@@ -264,6 +264,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "anni-ingest"
+version = "0.1.0"
+dependencies = [
+ "thiserror 2.0.18",
+ "uuid",
+]
+
+[[package]]
 name = "anni-metadata"
 version = "0.1.0"
 dependencies = [
@@ -422,6 +430,7 @@ dependencies = [
 name = "annim"
 version = "0.1.0"
 dependencies = [
+ "anni-ingest",
  "anyhow",
  "async-graphql",
  "async-graphql-axum",

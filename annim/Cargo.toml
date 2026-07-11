@@ -8,6 +8,7 @@ authors.workspace = true
 repository.workspace = true
 
 [dependencies]
+anni-ingest.workspace = true
 tokio = { version = "1", features = ["macros", "net", "rt-multi-thread", "sync"] }
 axum.workspace = true
 tower-http = { version = "0.7.0", features = ["cors"] }

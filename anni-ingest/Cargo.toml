@@ -1,0 +1,13 @@
+[package]
+name = "anni-ingest"
+version = "0.1.0"
+publish = false
+
+edition.workspace = true
+authors.workspace = true
+repository.workspace = true
+license.workspace = true
+
+[dependencies]
+thiserror.workspace = true
+uuid.workspace = true

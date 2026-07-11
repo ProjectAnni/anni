@@ -14,27 +14,33 @@ impl MigrationName for Migration {
 #[async_trait::async_trait]
 impl MigrationTrait for Migration {
     async fn up(&self, manager: &SchemaManager) -> Result<(), DbErr> {
-        manager
-            .alter_table(
-                Table::alter()
-                    .table(Album::Table)
-                    .modify_column(json_binary_null(Album::Extra))
-                    .to_owned(),
-            )
-            .await?;
+        // SQLite has a single JSON storage representation and does not support
+        // ALTER COLUMN. The JSON -> JSONB distinction only exists on Postgres.
+        if manager.get_database_backend() == sea_orm::DatabaseBackend::Postgres {
+            manager
+                .alter_table(
+                    Table::alter()
+                        .table(Album::Table)
+                        .modify_column(json_binary_null(Album::Extra))
+                        .to_owned(),
+                )
+                .await?;
+        }
 
         Ok(())
     }
 
     async fn down(&self, manager: &SchemaManager) -> Result<(), DbErr> {
-        manager
-            .alter_table(
-                Table::alter()
-                    .table(Album::Table)
-                    .modify_column(json_null(Album::Extra))
-                    .to_owned(),
-            )
-            .await?;
+        if manager.get_database_backend() == sea_orm::DatabaseBackend::Postgres {
+            manager
+                .alter_table(
+                    Table::alter()
+                        .table(Album::Table)
+                        .modify_column(json_null(Album::Extra))
+                        .to_owned(),
+                )
+                .await?;
+        }
 
         Ok(())
     }
