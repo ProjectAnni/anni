@@ -303,6 +303,13 @@ impl Decoder {
                 self.state = DecoderState::Paused;
                 self.controls.paused();
             }
+            InternalPlayerEvent::OutputFailed => {
+                self.stop_internal(true);
+                // The callback permanently cancels the old ring writer to
+                // unblock a decoder waiting on a full buffer. Drop that stream
+                // so the next play command gets a fresh writer and device.
+                self.cpal_output_stream = None;
+            }
             InternalPlayerEvent::Preload(source, buffer_signal) => {
                 self.preload_playback = None;
                 self.controls.set_is_file_preloaded(false);

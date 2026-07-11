@@ -120,7 +120,10 @@ impl CacheStore {
             .create(true)
             .truncate(false)
             .open(lock_path)?;
-        lock.lock()?;
+        // File locking is provided directly by std::fs::File on the pinned
+        // Rust toolchain. UFCS keeps that explicit and avoids implying that an
+        // extension trait or external locking crate is required.
+        File::lock(&lock)?;
 
         if self.is_complete_entry(&path)? {
             self.stats.hit();
@@ -308,7 +311,7 @@ impl CacheWriter {
         atomic_write_json(&self.metadata_path, &metadata)?;
         self.finished = true;
         self.stats.finish_download(true);
-        let _ = self.lock.unlock();
+        let _ = File::unlock(&self.lock);
         Ok(())
     }
 }
@@ -318,7 +321,7 @@ impl Drop for CacheWriter {
         if !self.finished {
             self.stats.finish_download(false);
         }
-        let _ = self.lock.unlock();
+        let _ = File::unlock(&self.lock);
     }
 }
 

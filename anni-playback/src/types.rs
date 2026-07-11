@@ -40,6 +40,8 @@ pub(crate) enum InternalPlayerEvent {
     /// Called by `cpal_output` in the event the device outputting
     /// audio was changed/disconnected.
     DeviceChanged,
+    /// The output stream failed permanently and must not be reused.
+    OutputFailed,
     Preload(Box<dyn AnniSource>, Arc<AtomicBool>),
     PreloadFinished(u64),
     PlayPreloaded,

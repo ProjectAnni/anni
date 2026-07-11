@@ -354,7 +354,7 @@ where
                 error_controls.send_internal_event(InternalPlayerEvent::DeviceChanged);
                 writer.cancel_write();
             } else if !recoverable {
-                error_controls.send_internal_event(InternalPlayerEvent::Stop);
+                error_controls.send_internal_event(InternalPlayerEvent::OutputFailed);
                 writer.cancel_write();
             }
         },
