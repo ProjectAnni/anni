@@ -23,6 +23,17 @@ pub enum PlanOperation {
         source: SafeRelativePath,
         target: SafeRelativePath,
     },
+    /// Copy a previously verified asset from the worker's trusted content
+    /// repository into staging.
+    ///
+    /// The repository path is deliberately relative: resolving remote URLs or
+    /// downloading data is outside the immutable plan and worker boundary.
+    MaterializeAsset {
+        repository_path: SafeRelativePath,
+        digest: Digest,
+        byte_length: u64,
+        target: SafeRelativePath,
+    },
     SplitCueWave {
         cue: SafeRelativePath,
         wave: SafeRelativePath,
@@ -56,6 +67,9 @@ impl ExecutionPlan {
             match operation {
                 PlanOperation::CopyFile { source, target } => {
                     require_source(manifest, source, None)?;
+                    insert_target(&mut targets, target)?;
+                }
+                PlanOperation::MaterializeAsset { target, .. } => {
                     insert_target(&mut targets, target)?;
                 }
                 PlanOperation::SplitCueWave {
@@ -181,6 +195,18 @@ fn digest_plan(
             PlanOperation::CopyFile { source, target } => {
                 hasher.update([0]);
                 hash_string(&mut hasher, source.as_str());
+                hash_string(&mut hasher, target.as_str());
+            }
+            PlanOperation::MaterializeAsset {
+                repository_path,
+                digest,
+                byte_length,
+                target,
+            } => {
+                hasher.update([2]);
+                hash_string(&mut hasher, repository_path.as_str());
+                hasher.update(digest.as_bytes());
+                hash_u64(&mut hasher, *byte_length);
                 hash_string(&mut hasher, target.as_str());
             }
             PlanOperation::SplitCueWave {
@@ -332,5 +358,65 @@ mod tests {
             ExecutionPlan::new(job_id, MetadataRevision::INITIAL, &manifest, vec![reserved]),
             Err(PlanError::ReservedTargetPath { .. })
         ));
+    }
+
+    #[test]
+    fn asset_operation_digest_binds_content_length_and_target() {
+        let job_id = Uuid::new_v4();
+        let manifest = manifest();
+        let operation = |digest, byte_length, target| PlanOperation::MaterializeAsset {
+            repository_path: path("sha256/verified-cover"),
+            digest,
+            byte_length,
+            target: path(target),
+        };
+        let plan = |operation| {
+            ExecutionPlan::new(
+                job_id,
+                MetadataRevision::INITIAL,
+                &manifest,
+                vec![operation],
+            )
+            .unwrap()
+            .digest()
+        };
+
+        let original = plan(operation(
+            Digest::new([4; Digest::LENGTH]),
+            1_024,
+            "cover.jpg",
+        ));
+        assert_eq!(
+            original,
+            plan(operation(
+                Digest::new([4; Digest::LENGTH]),
+                1_024,
+                "cover.jpg"
+            ))
+        );
+        assert_ne!(
+            original,
+            plan(operation(
+                Digest::new([5; Digest::LENGTH]),
+                1_024,
+                "cover.jpg"
+            ))
+        );
+        assert_ne!(
+            original,
+            plan(operation(
+                Digest::new([4; Digest::LENGTH]),
+                2_048,
+                "cover.jpg"
+            ))
+        );
+        assert_ne!(
+            original,
+            plan(operation(
+                Digest::new([4; Digest::LENGTH]),
+                1_024,
+                "booklet/cover.jpg"
+            ))
+        );
     }
 }

@@ -5,13 +5,18 @@ use anni_ingest::{
     AudioFormat, Digest, ExecutionPlan, InputFileKind, MetadataRevision, PlanOperation,
     SafeRelativePath, SplitOutputFormat,
 };
-use anni_ingest_worker::{SourceSpec, SourceTree, StagingExecutor, WorkerError};
+use anni_ingest_worker::{AssetRepository, SourceSpec, SourceTree, StagingExecutor, WorkerError};
 use anni_split::codec::wav::WaveHeader;
+use sha2::{Digest as ShaDigest, Sha256};
 use tempfile::tempdir;
 use uuid::Uuid;
 
 fn path(value: &str) -> SafeRelativePath {
     SafeRelativePath::new(value).unwrap()
+}
+
+fn digest(bytes: &[u8]) -> Digest {
+    Digest::new(Sha256::digest(bytes).into())
 }
 
 fn write_test_wave(path: &std::path::Path) -> Vec<u8> {
@@ -148,6 +153,133 @@ fn executor_refuses_changed_sources_and_leaves_them_in_place() {
         Err(WorkerError::SourceDigestChanged { .. }) | Err(WorkerError::SourceLengthChanged { .. })
     ));
     assert_eq!(fs::read(source_root.join("cover.jpg")).unwrap(), b"changed");
+    assert!(!staging_root.join("cover.jpg").exists());
+}
+
+#[test]
+fn executor_materializes_verified_asset_without_modifying_or_overwriting_it() {
+    let root = tempdir().unwrap();
+    let source_root = root.path().join("source");
+    let asset_root = root.path().join("assets");
+    let staging_parent = root.path().join("staging");
+    fs::create_dir(&source_root).unwrap();
+    fs::create_dir_all(asset_root.join("sha256")).unwrap();
+    fs::create_dir(&staging_parent).unwrap();
+    fs::write(source_root.join("album.cue"), b"immutable input").unwrap();
+
+    let cover = b"verified high resolution cover";
+    let repository_path = path("sha256/cover-asset");
+    fs::write(asset_root.join(repository_path.as_str()), cover).unwrap();
+
+    let source = SourceTree::open(&source_root).unwrap();
+    let manifest = source
+        .inspect(vec![SourceSpec::new(
+            path("album.cue"),
+            InputFileKind::CueSheet,
+        )])
+        .unwrap();
+    let cover_digest = digest(cover);
+    let plan = ExecutionPlan::new(
+        Uuid::new_v4(),
+        MetadataRevision::INITIAL,
+        &manifest,
+        vec![PlanOperation::MaterializeAsset {
+            repository_path: repository_path.clone(),
+            digest: cover_digest,
+            byte_length: cover.len() as u64,
+            target: path("artwork/cover.jpg"),
+        }],
+    )
+    .unwrap();
+
+    let staging_root = staging_parent.join("asset-job");
+    let executor = StagingExecutor::create_with_asset_repository(
+        source,
+        AssetRepository::open(&asset_root).unwrap(),
+        &staging_root,
+    )
+    .unwrap();
+    let receipt = executor.execute(&plan, &manifest).unwrap();
+
+    assert_eq!(
+        fs::read(asset_root.join(repository_path.as_str())).unwrap(),
+        cover
+    );
+    assert_eq!(
+        fs::read(staging_root.join("artwork/cover.jpg")).unwrap(),
+        cover
+    );
+    assert_eq!(receipt.outputs().len(), 1);
+    assert_eq!(receipt.outputs()[0].digest(), cover_digest);
+    assert_eq!(receipt.outputs()[0].byte_length(), cover.len() as u64);
+
+    assert!(matches!(
+        executor.execute(&plan, &manifest),
+        Err(WorkerError::TargetAlreadyExists { .. })
+    ));
+    assert_eq!(
+        fs::read(staging_root.join("artwork/cover.jpg")).unwrap(),
+        cover
+    );
+    assert_eq!(
+        fs::read(asset_root.join(repository_path.as_str())).unwrap(),
+        cover
+    );
+}
+
+#[test]
+fn executor_rejects_asset_whose_sha256_no_longer_matches_the_plan() {
+    let root = tempdir().unwrap();
+    let source_root = root.path().join("source");
+    let asset_root = root.path().join("assets");
+    let staging_parent = root.path().join("staging");
+    fs::create_dir(&source_root).unwrap();
+    fs::create_dir(&asset_root).unwrap();
+    fs::create_dir(&staging_parent).unwrap();
+    fs::write(source_root.join("album.cue"), b"immutable input").unwrap();
+
+    let repository_path = path("cover-asset");
+    let original = b"original";
+    let tampered = b"modified";
+    assert_eq!(original.len(), tampered.len());
+    fs::write(asset_root.join(repository_path.as_str()), original).unwrap();
+
+    let source = SourceTree::open(&source_root).unwrap();
+    let manifest = source
+        .inspect(vec![SourceSpec::new(
+            path("album.cue"),
+            InputFileKind::CueSheet,
+        )])
+        .unwrap();
+    let plan = ExecutionPlan::new(
+        Uuid::new_v4(),
+        MetadataRevision::INITIAL,
+        &manifest,
+        vec![PlanOperation::MaterializeAsset {
+            repository_path: repository_path.clone(),
+            digest: digest(original),
+            byte_length: original.len() as u64,
+            target: path("cover.jpg"),
+        }],
+    )
+    .unwrap();
+    fs::write(asset_root.join(repository_path.as_str()), tampered).unwrap();
+
+    let staging_root = staging_parent.join("asset-job");
+    let executor = StagingExecutor::create_with_asset_repository(
+        source,
+        AssetRepository::open(&asset_root).unwrap(),
+        &staging_root,
+    )
+    .unwrap();
+    assert!(matches!(
+        executor.execute(&plan, &manifest),
+        Err(WorkerError::AssetDigestMismatch { .. })
+    ));
+    assert_eq!(
+        fs::read(asset_root.join(repository_path.as_str())).unwrap(),
+        tampered
+    );
     assert!(!staging_root.join("cover.jpg").exists());
 }
 

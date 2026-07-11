@@ -18,21 +18,40 @@ use anni_split::{
 };
 
 use crate::{
-    join_protocol_path, source::digest_reader, ExecutionReceipt, OutputReceipt, SourceTree,
-    WorkerError,
+    join_protocol_path, source::digest_reader, AssetRepository, ExecutionReceipt, OutputReceipt,
+    SourceTree, WorkerError,
 };
 
 const PARTIAL_DIRECTORY: &str = ".anni-partials";
 
 pub struct StagingExecutor {
     source: SourceTree,
+    asset_repository: Option<AssetRepository>,
     staging_root: PathBuf,
     partial_root: PathBuf,
 }
 
 impl StagingExecutor {
     pub fn create(source: SourceTree, staging_root: impl AsRef<Path>) -> Result<Self, WorkerError> {
-        let requested = staging_root.as_ref();
+        Self::create_inner(source, None, staging_root.as_ref())
+    }
+
+    /// Create an executor that can materialize already-verified assets from a
+    /// local repository. The repository is read-only from the worker's point
+    /// of view and may not contain the staging directory.
+    pub fn create_with_asset_repository(
+        source: SourceTree,
+        asset_repository: AssetRepository,
+        staging_root: impl AsRef<Path>,
+    ) -> Result<Self, WorkerError> {
+        Self::create_inner(source, Some(asset_repository), staging_root.as_ref())
+    }
+
+    fn create_inner(
+        source: SourceTree,
+        asset_repository: Option<AssetRepository>,
+        requested: &Path,
+    ) -> Result<Self, WorkerError> {
         if requested.exists() {
             return Err(WorkerError::StagingAlreadyExists {
                 path: requested.to_owned(),
@@ -54,6 +73,12 @@ impl StagingExecutor {
         if staging_root.starts_with(source.root()) {
             return Err(WorkerError::StagingInsideSource { path: staging_root });
         }
+        if asset_repository
+            .as_ref()
+            .is_some_and(|repository| staging_root.starts_with(repository.root()))
+        {
+            return Err(WorkerError::StagingInsideAssetRepository { path: staging_root });
+        }
 
         fs::create_dir(&staging_root)?;
         let staging_root = fs::canonicalize(staging_root)?;
@@ -62,6 +87,7 @@ impl StagingExecutor {
 
         Ok(Self {
             source,
+            asset_repository,
             staging_root,
             partial_root,
         })
@@ -90,6 +116,21 @@ impl StagingExecutor {
             match operation {
                 PlanOperation::CopyFile { source, target } => {
                     receipts.push(self.copy_file(manifest, source, target, partial_index)?);
+                    partial_index += 1;
+                }
+                PlanOperation::MaterializeAsset {
+                    repository_path,
+                    digest,
+                    byte_length,
+                    target,
+                } => {
+                    receipts.push(self.materialize_asset(
+                        repository_path,
+                        *digest,
+                        *byte_length,
+                        target,
+                        partial_index,
+                    )?);
                     partial_index += 1;
                 }
                 PlanOperation::SplitCueWave {
@@ -153,6 +194,57 @@ impl StagingExecutor {
 
         self.promote_partial(&partial_path, &target_path, target)?;
         Ok(OutputReceipt::new(target.clone(), byte_length, digest))
+    }
+
+    fn materialize_asset(
+        &self,
+        repository_path: &SafeRelativePath,
+        expected_digest: anni_ingest::Digest,
+        expected_length: u64,
+        target: &SafeRelativePath,
+        partial_index: usize,
+    ) -> Result<OutputReceipt, WorkerError> {
+        let repository = self
+            .asset_repository
+            .as_ref()
+            .ok_or(WorkerError::AssetRepositoryNotConfigured)?;
+        let mut input =
+            repository.open_verified(repository_path, expected_digest, expected_length)?;
+        let target_path = self.prepare_target(target)?;
+        let partial_path = self.partial_path(partial_index);
+        let mut output = OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .open(&partial_path)?;
+        std::io::copy(&mut input, &mut output)?;
+        output.flush()?;
+        output.sync_all()?;
+
+        // Verify the bytes in staging as well as the repository source. This
+        // catches repository changes that race with the copy and makes the
+        // receipt attest to the exact immutable plan input.
+        let (actual_digest, actual_length) = digest_file(&partial_path)?;
+        if actual_length != expected_length {
+            return Err(WorkerError::AssetLengthMismatch {
+                path: repository_path.clone(),
+                expected: expected_length,
+                actual: actual_length,
+            });
+        }
+        if actual_digest != expected_digest {
+            return Err(WorkerError::AssetDigestMismatch {
+                path: repository_path.clone(),
+                expected: expected_digest,
+                actual: actual_digest,
+            });
+        }
+
+        self.promote_partial(&partial_path, &target_path, target)?;
+        Ok(OutputReceipt::new(
+            target.clone(),
+            actual_length,
+            actual_digest,
+        ))
     }
 
     #[allow(clippy::too_many_arguments)]

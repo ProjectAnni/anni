@@ -4,10 +4,12 @@
 //! pure domain rules, while this crate is the only layer allowed to read source
 //! files and write a job-specific staging directory.
 
+mod asset;
 mod executor;
 mod receipt;
 mod source;
 
+pub use asset::AssetRepository;
 pub use executor::StagingExecutor;
 pub use receipt::{ExecutionReceipt, OutputReceipt};
 pub use source::{SourceSpec, SourceTree};
@@ -50,12 +52,37 @@ pub enum WorkerError {
         expected: Digest,
         actual: Digest,
     },
+    #[error("no trusted asset repository was configured for this worker")]
+    AssetRepositoryNotConfigured,
+    #[error("asset repository root is not a directory: {path}")]
+    AssetRepositoryRootNotDirectory { path: PathBuf },
+    #[error("asset path {path} resolves outside configured repository {root}")]
+    AssetEscapesRepository {
+        path: SafeRelativePath,
+        root: PathBuf,
+    },
+    #[error("asset path is not a regular file: {path}")]
+    AssetNotFile { path: SafeRelativePath },
+    #[error("asset {path} has wrong length: expected {expected}, actual {actual}")]
+    AssetLengthMismatch {
+        path: SafeRelativePath,
+        expected: u64,
+        actual: u64,
+    },
+    #[error("asset {path} has wrong content: expected {expected}, actual {actual}")]
+    AssetDigestMismatch {
+        path: SafeRelativePath,
+        expected: Digest,
+        actual: Digest,
+    },
     #[error("execution plan manifest {plan} does not match supplied manifest {actual}")]
     ManifestMismatch { plan: Digest, actual: Digest },
     #[error("staging path already exists: {path}")]
     StagingAlreadyExists { path: PathBuf },
     #[error("staging directory cannot be created inside immutable source root: {path}")]
     StagingInsideSource { path: PathBuf },
+    #[error("staging directory cannot be created inside trusted asset repository: {path}")]
+    StagingInsideAssetRepository { path: PathBuf },
     #[error("staging target resolves outside the job directory: {path}")]
     TargetEscapesStaging { path: SafeRelativePath },
     #[error("staging target already exists: {path}")]
