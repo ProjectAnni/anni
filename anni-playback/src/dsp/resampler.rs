@@ -55,7 +55,8 @@ impl Resampler {
             return None;
         }
 
-        Some(self.resample_inner())
+        self.interleaved = self.resample_chunk();
+        Some(&self.interleaved)
     }
 
     /// Resample any remaining samples in the resample buffer.
@@ -66,27 +67,42 @@ impl Resampler {
             return None;
         }
 
-        // Rubato's synchronous FFT resampler consumes a fixed number of frames. Preserve the
-        // previous implementation's flushing semantics by padding the final chunk with silence.
-        for channel in &mut self.input {
-            channel.resize(self.chunk_size, 0.0);
+        // Rubato's synchronous FFT resampler consumes a fixed number of frames. Pad only the
+        // final partial chunk, then drain every buffered chunk so no end-of-stream samples are
+        // discarded.
+        let remainder = len % self.chunk_size;
+        let padded_len = if remainder == 0 {
+            len
+        } else {
+            len + self.chunk_size - remainder
+        };
+        if padded_len != len {
+            for channel in &mut self.input {
+                channel.resize(padded_len, 0.0);
+            }
         }
 
-        Some(self.resample_inner())
+        let mut interleaved = std::mem::take(&mut self.interleaved);
+        interleaved.clear();
+        for _ in 0..padded_len / self.chunk_size {
+            interleaved.extend(self.resample_chunk());
+        }
+
+        self.interleaved = interleaved;
+        Some(&self.interleaved)
     }
 
-    fn resample_inner(&mut self) -> &[f32] {
+    fn resample_chunk(&mut self) -> Vec<f32> {
         let num_channels = self.input.len();
         let input = SequentialSliceOfVecs::new(&self.input, num_channels, self.chunk_size).unwrap();
         let output = self.resampler.process(&input, None).unwrap();
-
-        self.interleaved = output.take_data();
+        let interleaved = output.take_data();
 
         for channel in &mut self.input {
             channel.drain(..self.chunk_size);
         }
 
-        &self.interleaved
+        interleaved
     }
 }
 
@@ -114,5 +130,31 @@ mod tests {
 
         assert!(!output.is_empty());
         assert_eq!(output.len() % 2, 0);
+    }
+
+    #[test]
+    fn flushes_every_buffered_chunk() {
+        let spec = AudioSpec::new(
+            44_100,
+            Channels::from(Position::FRONT_LEFT | Position::FRONT_RIGHT),
+        );
+        let mut resampler = Resampler::new(spec.clone(), 48_000, 441);
+        let chunk_size = resampler.chunk_size;
+        let mut input = AudioBuffer::<f32>::new(spec, chunk_size * 2 + chunk_size / 2);
+        input.resize_with_silence(chunk_size * 2 + chunk_size / 2);
+
+        let first_chunk_len = resampler
+            .resample(input.as_generic_audio_buffer_ref())
+            .expect("the first complete chunk should be resampled")
+            .len();
+        assert!(resampler.input[0].len() > chunk_size);
+
+        let flushed_len = resampler
+            .flush()
+            .expect("the remaining chunks should be resampled")
+            .len();
+
+        assert!(flushed_len > first_chunk_len);
+        assert!(resampler.input.iter().all(Vec::is_empty));
     }
 }
