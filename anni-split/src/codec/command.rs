@@ -80,21 +80,31 @@ where
     P: AsRef<Path>,
 {
     fn encode(self, mut input: impl Read) -> Result<(), SplitError> {
+        let command = self.command.as_ref().to_string_lossy().into_owned();
         let args = self
             .arguments
             .into_iter()
             .map(|arg| Replacer(arg, self.path.as_ref().as_os_str()));
 
-        let mut process = Command::new(self.command)
+        let mut process = Command::new(&command)
             .args(args)
             .stdin(Stdio::piped())
             .stdout(Stdio::null())
-            .stderr(Stdio::null())
+            .stderr(Stdio::piped())
             .spawn()?;
 
         let mut stdin = process.stdin.take().unwrap();
         std::io::copy(&mut input, &mut stdin)?;
-        process.wait()?;
+        drop(stdin);
+
+        let output = process.wait_with_output()?;
+        if !output.status.success() {
+            return Err(SplitError::CommandFailed {
+                command,
+                status: output.status.code(),
+                stderr: String::from_utf8_lossy(&output.stderr).trim().to_owned(),
+            });
+        }
 
         Ok(())
     }
@@ -150,7 +160,13 @@ where
 
 #[cfg(test)]
 mod tests {
-    use crate::codec::command::{Replacer, FILE_PLACEHOLDER};
+    use crate::{
+        codec::{
+            command::{CommandCodec, Replacer, FILE_PLACEHOLDER},
+            Encoder,
+        },
+        error::SplitError,
+    };
 
     #[test]
     fn test_replacer() {
@@ -163,5 +179,25 @@ mod tests {
         assert_eq!(result.next().unwrap().as_ref(), "c");
         assert_eq!(result.next().unwrap().as_ref(), "d");
         assert!(result.next().is_none());
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn encoder_reports_non_zero_command_status() {
+        let encoder = CommandCodec::new(
+            "sh",
+            ["-c", "cat >/dev/null; echo encoder-failed >&2; exit 7"],
+            "unused",
+        )
+        .unwrap();
+
+        assert!(matches!(
+            encoder.encode(&b"pcm"[..]),
+            Err(SplitError::CommandFailed {
+                status: Some(7),
+                ref stderr,
+                ..
+            }) if stderr == "encoder-failed"
+        ));
     }
 }
