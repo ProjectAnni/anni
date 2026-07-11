@@ -79,7 +79,13 @@ impl Encode for WaveHeader {
 
     fn write_to<W: Write>(&self, writer: &mut W) -> Result<(), Self::Err> {
         btoken_w(writer, b"RIFF")?;
-        u32_le_w(writer, self.data_size + 16)?; // chunk size
+        let chunk_size = self.data_size.checked_add(36).ok_or_else(|| {
+            std::io::Error::new(
+                std::io::ErrorKind::InvalidInput,
+                "WAV data is too large for a RIFF chunk",
+            )
+        })?;
+        u32_le_w(writer, chunk_size)?;
         btoken_w(writer, b"WAVE")?;
         btoken_w(writer, b"fmt ")?;
         u32_le_w(writer, 16)?; // PCM chunk size
@@ -123,5 +129,28 @@ impl<P: AsRef<Path>> Encoder for WavEncoder<P> {
         let mut output = File::create(self.0)?;
         std::io::copy(&mut input, &mut output)?;
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn encoded_header_uses_the_standard_riff_chunk_size() {
+        let header = WaveHeader {
+            channels: 2,
+            sample_rate: 44_100,
+            byte_rate: 176_400,
+            block_align: 4,
+            bit_per_sample: 16,
+            data_size: 600,
+        };
+        let mut encoded = Vec::new();
+
+        header.write_to(&mut encoded).unwrap();
+
+        assert_eq!(encoded.len(), 44);
+        assert_eq!(u32::from_le_bytes(encoded[4..8].try_into().unwrap()), 636);
     }
 }
