@@ -10,6 +10,10 @@ license.workspace = true
 
 [dependencies]
 anni-metadata.workspace = true
+serde.workspace = true
 sha2 = "0.10.9"
 thiserror.workspace = true
-uuid.workspace = true
+uuid = { workspace = true, features = ["serde"] }
+
+[dev-dependencies]
+serde_json.workspace = true

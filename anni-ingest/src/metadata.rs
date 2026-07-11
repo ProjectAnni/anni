@@ -5,12 +5,14 @@ use std::{
 };
 
 use anni_metadata::model::{AnniDate, TrackType};
+use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use uuid::Uuid;
 
 use crate::MetadataRevision;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
 pub enum AlbumField {
     Title,
     Edition,
@@ -22,7 +24,8 @@ pub enum AlbumField {
     Tags,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
 pub enum DiscField {
     Title,
     Catalog,
@@ -32,7 +35,8 @@ pub enum DiscField {
     Tags,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
 pub enum TrackField {
     Title,
     Artist,
@@ -41,7 +45,8 @@ pub enum TrackField {
     Tags,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case", tag = "scope", content = "location")]
 pub enum FieldPath {
     Album(AlbumField),
     Disc {
@@ -131,7 +136,8 @@ pub enum MetadataValueKind {
 }
 
 /// Exact metadata value as observed. Text is never normalized or rewritten.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case", tag = "type", content = "value")]
 pub enum MetadataValue {
     Text(String),
     Date(AnniDate),
@@ -165,7 +171,8 @@ impl MetadataValue {
 }
 
 /// Authority of the underlying source, independent from who collected it.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
 pub enum EvidenceSourceKind {
     CdBooklet,
     CdPackaging,
@@ -195,7 +202,8 @@ impl EvidenceSourceKind {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
 pub enum EvidenceMethod {
     ManualTranscription,
     AutomatedExtraction,
@@ -214,7 +222,7 @@ impl EvidenceMethod {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Evidence {
     source_kind: EvidenceSourceKind,
     locator: String,
@@ -370,6 +378,36 @@ pub struct MetadataDraft {
     rejected: HashSet<Uuid>,
 }
 
+const METADATA_SNAPSHOT_SCHEMA_VERSION: u16 = 1;
+
+/// Persistence-shaped metadata document.
+///
+/// Deserializing this type does not make it trusted. Call
+/// [`MetadataDraft::restore`] to re-run all domain invariants before use.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct MetadataDraftSnapshot {
+    schema_version: u16,
+    revision: u64,
+    candidates: Vec<MetadataCandidateSnapshot>,
+    accepted: Vec<AcceptedCandidateSnapshot>,
+    rejected: Vec<Uuid>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+struct MetadataCandidateSnapshot {
+    id: Uuid,
+    field: FieldPath,
+    value: MetadataValue,
+    evidence: Evidence,
+    confidence_basis_points: u16,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+struct AcceptedCandidateSnapshot {
+    field: FieldPath,
+    candidate_id: Uuid,
+}
+
 impl MetadataDraft {
     pub fn new(revision: MetadataRevision) -> Self {
         Self {
@@ -466,6 +504,108 @@ impl MetadataDraft {
             total_required: requirements.required.len(),
             missing,
         }
+    }
+
+    pub fn snapshot(&self) -> MetadataDraftSnapshot {
+        let accepted = self
+            .accepted
+            .iter()
+            .map(|(field, candidate_id)| AcceptedCandidateSnapshot {
+                field: *field,
+                candidate_id: *candidate_id,
+            })
+            .collect();
+        let mut rejected: Vec<_> = self.rejected.iter().copied().collect();
+        rejected.sort_by(|left, right| left.as_bytes().cmp(right.as_bytes()));
+
+        MetadataDraftSnapshot {
+            schema_version: METADATA_SNAPSHOT_SCHEMA_VERSION,
+            revision: self.revision.get(),
+            candidates: self
+                .candidates
+                .iter()
+                .map(|candidate| MetadataCandidateSnapshot {
+                    id: candidate.id,
+                    field: candidate.field,
+                    value: candidate.value.clone(),
+                    evidence: candidate.evidence.clone(),
+                    confidence_basis_points: candidate.confidence.basis_points(),
+                })
+                .collect(),
+            accepted,
+            rejected,
+        }
+    }
+
+    pub fn restore(snapshot: MetadataDraftSnapshot) -> Result<Self, MetadataError> {
+        if snapshot.schema_version != METADATA_SNAPSHOT_SCHEMA_VERSION {
+            return Err(MetadataError::UnsupportedSnapshotVersion {
+                actual: snapshot.schema_version,
+            });
+        }
+        let revision = MetadataRevision::new(snapshot.revision).ok_or(
+            MetadataError::InvalidSnapshotRevision {
+                actual: snapshot.revision,
+            },
+        )?;
+        let mut draft = Self::new(revision);
+
+        for candidate in snapshot.candidates {
+            let confidence = Confidence::new(candidate.confidence_basis_points).ok_or(
+                MetadataError::InvalidSnapshotConfidence {
+                    candidate_id: candidate.id,
+                    actual: candidate.confidence_basis_points,
+                },
+            )?;
+            draft.add_candidate(MetadataCandidate::new(
+                candidate.id,
+                candidate.field,
+                candidate.value,
+                candidate.evidence,
+                confidence,
+            )?)?;
+        }
+
+        for candidate_id in snapshot.rejected {
+            if !draft.rejected.insert(candidate_id) {
+                return Err(MetadataError::DuplicateRejectedCandidate { candidate_id });
+            }
+            if draft.candidate(candidate_id).is_none() {
+                return Err(MetadataError::UnknownCandidate { id: candidate_id });
+            }
+        }
+
+        for accepted in snapshot.accepted {
+            let candidate =
+                draft
+                    .candidate(accepted.candidate_id)
+                    .ok_or(MetadataError::UnknownCandidate {
+                        id: accepted.candidate_id,
+                    })?;
+            if candidate.field != accepted.field {
+                return Err(MetadataError::AcceptedFieldMismatch {
+                    candidate_id: accepted.candidate_id,
+                    declared: accepted.field,
+                    actual: candidate.field,
+                });
+            }
+            if draft.rejected.contains(&accepted.candidate_id) {
+                return Err(MetadataError::CandidateAcceptedAndRejected {
+                    candidate_id: accepted.candidate_id,
+                });
+            }
+            if draft
+                .accepted
+                .insert(accepted.field, accepted.candidate_id)
+                .is_some()
+            {
+                return Err(MetadataError::DuplicateAcceptedField {
+                    field: accepted.field,
+                });
+            }
+        }
+
+        Ok(draft)
     }
 }
 
@@ -597,6 +737,26 @@ pub enum MetadataError {
     EmptyAlbumLayout,
     #[error("album layout contains {actual} discs, exceeding the u16 limit")]
     TooManyDiscs { actual: usize },
+    #[error("metadata snapshot schema version {actual} is unsupported")]
+    UnsupportedSnapshotVersion { actual: u16 },
+    #[error("metadata snapshot revision {actual} is invalid")]
+    InvalidSnapshotRevision { actual: u64 },
+    #[error("metadata candidate {candidate_id} has invalid confidence {actual}; maximum is 10000")]
+    InvalidSnapshotConfidence { candidate_id: Uuid, actual: u16 },
+    #[error("metadata snapshot rejects candidate {candidate_id} more than once")]
+    DuplicateRejectedCandidate { candidate_id: Uuid },
+    #[error(
+        "metadata snapshot accepts candidate {candidate_id} for {declared:?}, but it belongs to {actual:?}"
+    )]
+    AcceptedFieldMismatch {
+        candidate_id: Uuid,
+        declared: FieldPath,
+        actual: FieldPath,
+    },
+    #[error("metadata snapshot both accepts and rejects candidate {candidate_id}")]
+    CandidateAcceptedAndRejected { candidate_id: Uuid },
+    #[error("metadata snapshot accepts more than one candidate for {field:?}")]
+    DuplicateAcceptedField { field: FieldPath },
 }
 
 #[cfg(test)]
@@ -636,10 +796,15 @@ mod tests {
         draft.add_candidate(candidate).unwrap();
         draft.accept(id).unwrap();
 
+        let document = serde_json::to_string(&draft.snapshot()).unwrap();
+        let snapshot = serde_json::from_str(&document).unwrap();
+        let restored = MetadataDraft::restore(snapshot).unwrap();
+
         assert_eq!(
-            draft.accepted_value(FieldPath::Album(AlbumField::Title)),
+            restored.accepted_value(FieldPath::Album(AlbumField::Title)),
             Some(&MetadataValue::Text(value.to_owned()))
         );
+        assert_eq!(restored, draft);
     }
 
     #[test]
@@ -674,6 +839,35 @@ mod tests {
             &MetadataValue::Text("Booklet Title".to_owned())
         );
         assert_eq!(draft.accepted_value(field), None);
+    }
+
+    #[test]
+    fn restore_rejects_corrupt_snapshot_confidence() {
+        let candidate_id = Uuid::new_v4();
+        let mut draft = MetadataDraft::new(MetadataRevision::INITIAL);
+        draft
+            .add_candidate(
+                MetadataCandidate::new(
+                    candidate_id,
+                    FieldPath::Album(AlbumField::Title),
+                    MetadataValue::Text("Title".to_owned()),
+                    evidence(EvidenceSourceKind::CdBooklet, "booklet.pdf#page=2"),
+                    confidence(10_000),
+                )
+                .unwrap(),
+            )
+            .unwrap();
+
+        let mut snapshot = draft.snapshot();
+        snapshot.candidates[0].confidence_basis_points = 10_001;
+
+        assert!(matches!(
+            MetadataDraft::restore(snapshot),
+            Err(MetadataError::InvalidSnapshotConfidence {
+                candidate_id: actual_id,
+                actual: 10_001,
+            }) if actual_id == candidate_id
+        ));
     }
 
     #[test]
