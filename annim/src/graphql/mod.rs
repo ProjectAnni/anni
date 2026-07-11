@@ -1,3 +1,4 @@
+mod catalog;
 mod cursor;
 mod ingest;
 mod ingest_metadata;
@@ -30,6 +31,7 @@ use types::{
 
 use crate::{
     auth::AdminGuard,
+    catalog::{CatalogRepository, CatalogService},
     entities::{album, album_tag_relation, disc, helper::now, tag_info, tag_relation, track},
     ingest::{IngestJobRepository, IngestService},
     search::RepositorySearchManager,
@@ -41,9 +43,11 @@ pub fn schema_builder(
     db: DatabaseConnection,
 ) -> SchemaBuilder<MetadataQuery, MetadataMutation, MetadataSubscription> {
     let ingest_service = IngestService::new(IngestJobRepository::new(db.clone()));
+    let catalog_service = CatalogService::new(CatalogRepository::new(db.clone()));
     Schema::build(MetadataQuery, MetadataMutation, MetadataSubscription)
         .data(db)
         .data(ingest_service)
+        .data(catalog_service)
 }
 
 pub fn build_schema(db: DatabaseConnection) -> MetadataSchema {
@@ -54,6 +58,29 @@ pub struct MetadataQuery;
 
 #[Object]
 impl MetadataQuery {
+    #[graphql(guard = "AdminGuard")]
+    async fn catalog_artists(
+        &self,
+        ctx: &Context<'_>,
+        search: Option<String>,
+        #[graphql(default = 50)] limit: i32,
+        #[graphql(default = 0)] offset: i32,
+    ) -> async_graphql::Result<Vec<catalog::CatalogArtistInfo>> {
+        catalog::query_artists(ctx, search, limit, offset).await
+    }
+
+    #[graphql(guard = "AdminGuard")]
+    async fn catalog_artist_collection(
+        &self,
+        ctx: &Context<'_>,
+        artist_id: Uuid,
+        state: Option<catalog::CatalogCollectionState>,
+        #[graphql(default = 500)] limit: i32,
+        #[graphql(default = 0)] offset: i32,
+    ) -> async_graphql::Result<Option<catalog::CatalogArtistCollectionInfo>> {
+        catalog::query_artist_collection(ctx, artist_id, state, limit, offset).await
+    }
+
     async fn album<'ctx>(
         &self,
         ctx: &Context<'ctx>,
@@ -289,6 +316,46 @@ impl MetadataSubscription {
 
 #[Object(guard = "AdminGuard")]
 impl MetadataMutation {
+    async fn create_catalog_artist(
+        &self,
+        ctx: &Context<'_>,
+        input: catalog::CreateCatalogArtistInput,
+    ) -> async_graphql::Result<catalog::CatalogArtistInfo> {
+        catalog::create_artist(ctx, input).await
+    }
+
+    async fn update_catalog_artist(
+        &self,
+        ctx: &Context<'_>,
+        input: catalog::UpdateCatalogArtistInput,
+    ) -> async_graphql::Result<catalog::CatalogArtistInfo> {
+        catalog::update_artist(ctx, input).await
+    }
+
+    async fn create_catalog_release(
+        &self,
+        ctx: &Context<'_>,
+        input: catalog::CreateCatalogReleaseInput,
+    ) -> async_graphql::Result<catalog::CatalogReleaseInfo> {
+        catalog::create_release(ctx, input).await
+    }
+
+    async fn update_catalog_release(
+        &self,
+        ctx: &Context<'_>,
+        input: catalog::UpdateCatalogReleaseInput,
+    ) -> async_graphql::Result<catalog::CatalogReleaseInfo> {
+        catalog::update_release(ctx, input).await
+    }
+
+    async fn execute_catalog_release_command(
+        &self,
+        ctx: &Context<'_>,
+        input: catalog::ExecuteCatalogReleaseCommandInput,
+    ) -> async_graphql::Result<catalog::CatalogReleaseInfo> {
+        catalog::execute_release_command(ctx, input).await
+    }
+
     async fn create_ingest_job(
         &self,
         ctx: &Context<'_>,
