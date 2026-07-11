@@ -1,5 +1,6 @@
 mod cursor;
 mod ingest;
+mod ingest_metadata;
 mod input;
 pub mod types;
 
@@ -246,6 +247,25 @@ impl MetadataQuery {
     ) -> async_graphql::Result<Vec<ingest::IngestJobInfo>> {
         ingest::query_jobs(ctx, state, limit, offset).await
     }
+
+    #[graphql(guard = "AdminGuard")]
+    async fn ingest_metadata_draft(
+        &self,
+        ctx: &Context<'_>,
+        job_id: Uuid,
+        revision: Option<String>,
+    ) -> async_graphql::Result<Option<ingest_metadata::IngestMetadataReviewPayload>> {
+        ingest_metadata::query_draft(ctx, job_id, revision).await
+    }
+
+    #[graphql(guard = "AdminGuard")]
+    async fn ingest_metadata_revisions(
+        &self,
+        ctx: &Context<'_>,
+        job_id: Uuid,
+    ) -> async_graphql::Result<Vec<ingest_metadata::IngestMetadataDraftInfo>> {
+        ingest_metadata::query_revisions(ctx, job_id).await
+    }
 }
 
 pub struct MetadataMutation;
@@ -283,6 +303,30 @@ impl MetadataMutation {
         input: ingest::ExecuteIngestJobCommandInput,
     ) -> async_graphql::Result<ingest::IngestJobInfo> {
         ingest::execute_command(ctx, input).await
+    }
+
+    async fn edit_ingest_metadata(
+        &self,
+        ctx: &Context<'_>,
+        input: ingest_metadata::EditIngestMetadataInput,
+    ) -> async_graphql::Result<ingest_metadata::IngestMetadataReviewPayload> {
+        ingest_metadata::edit_metadata(ctx, input).await
+    }
+
+    async fn approve_ingest_metadata(
+        &self,
+        ctx: &Context<'_>,
+        input: ingest_metadata::IngestMetadataRevisionActionInput,
+    ) -> async_graphql::Result<ingest_metadata::IngestMetadataReviewPayload> {
+        ingest_metadata::approve_metadata(ctx, input).await
+    }
+
+    async fn revise_ingest_metadata(
+        &self,
+        ctx: &Context<'_>,
+        input: ingest_metadata::IngestMetadataRevisionActionInput,
+    ) -> async_graphql::Result<ingest_metadata::IngestMetadataReviewPayload> {
+        ingest_metadata::revise_metadata(ctx, input).await
     }
 
     /// Add the metatada of a full album to annim.

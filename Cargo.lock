@@ -450,6 +450,7 @@ name = "annim"
 version = "0.1.0"
 dependencies = [
  "anni-ingest",
+ "anni-metadata",
  "anyhow",
  "async-graphql",
  "async-graphql-axum",

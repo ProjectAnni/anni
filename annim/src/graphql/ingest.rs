@@ -1,4 +1,4 @@
-use anni_ingest::{Digest, JobError, JobState, MetadataRevision};
+use anni_ingest::{Digest, JobError, JobState, MetadataError, MetadataRevision};
 use async_graphql::{
     Context, Enum, Error, ErrorExtensions, InputObject, OneofObject, Result, SimpleObject,
 };
@@ -278,7 +278,7 @@ pub fn subscribe_jobs(
     )
 }
 
-fn parse_revision(value: &str) -> Result<MetadataRevision> {
+pub(super) fn parse_revision(value: &str) -> Result<MetadataRevision> {
     let revision = value.parse::<u64>().map_err(|_| {
         input_error(
             "INGEST_INVALID_REVISION",
@@ -293,7 +293,7 @@ fn parse_revision(value: &str) -> Result<MetadataRevision> {
     })
 }
 
-fn parse_row_version(value: &str) -> Result<RowVersion> {
+pub(super) fn parse_row_version(value: &str) -> Result<RowVersion> {
     let version = value.parse::<u64>().map_err(|_| {
         input_error(
             "INGEST_INVALID_ROW_VERSION",
@@ -317,11 +317,11 @@ fn parse_digest(value: &str) -> Result<Digest> {
     })
 }
 
-fn input_error(code: &'static str, message: impl Into<String>) -> Error {
+pub(super) fn input_error(code: &'static str, message: impl Into<String>) -> Error {
     Error::new(message).extend_with(|_, extensions| extensions.set("code", code))
 }
 
-fn service_error(error: IngestServiceError) -> Error {
+pub(super) fn service_error(error: IngestServiceError) -> Error {
     match error {
         IngestServiceError::Repository(IngestRepositoryError::AlreadyExists { job_id }) => {
             Error::new(format!("ingest job {job_id} already exists")).extend_with(
@@ -349,6 +349,39 @@ fn service_error(error: IngestServiceError) -> Error {
                 extensions.set("actualRowVersion", actual.to_string());
             },
         ),
+        IngestServiceError::Repository(IngestRepositoryError::MetadataFrozen {
+            job_id,
+            revision,
+        }) => Error::new(format!(
+            "metadata revision {revision} for ingest job {job_id} is frozen"
+        ))
+        .extend_with(|_, extensions| {
+            extensions.set("code", "INGEST_METADATA_FROZEN");
+            extensions.set("jobId", job_id.to_string());
+            extensions.set("revision", revision.to_string());
+        }),
+        IngestServiceError::Repository(IngestRepositoryError::MetadataNotFound {
+            job_id,
+            revision,
+        }) => Error::new(format!(
+            "metadata revision {revision} for ingest job {job_id} was not found"
+        ))
+        .extend_with(|_, extensions| {
+            extensions.set("code", "INGEST_METADATA_NOT_FOUND");
+            extensions.set("jobId", job_id.to_string());
+            extensions.set("revision", revision.to_string());
+        }),
+        IngestServiceError::Repository(
+            error @ (IngestRepositoryError::InvalidMetadataDigestLength { .. }
+            | IngestRepositoryError::MetadataDigestMismatch { .. }
+            | IngestRepositoryError::InvalidMetadataDocument { .. }
+            | IngestRepositoryError::InvalidPersistedMetadata { .. }
+            | IngestRepositoryError::MetadataDocumentRevisionMismatch { .. }),
+        ) => {
+            tracing::error!(error = ?error, "persisted ingest metadata is corrupt");
+            Error::new("persisted ingest metadata is corrupt")
+                .extend_with(|_, extensions| extensions.set("code", "INGEST_METADATA_CORRUPT"))
+        }
         IngestServiceError::Domain(JobError::InvalidTransition { state, operation }) => Error::new(
             format!("cannot {operation} while ingest job is {state}"),
         )
@@ -357,6 +390,62 @@ fn service_error(error: IngestServiceError) -> Error {
             extensions.set("state", state.as_str());
             extensions.set("operation", operation.to_string());
         }),
+        IngestServiceError::Domain(JobError::RevisionConflict { expected, actual }) => Error::new(
+            format!("metadata revision conflict: expected {expected}, actual {actual}"),
+        )
+        .extend_with(|_, extensions| {
+            extensions.set("code", "INGEST_METADATA_REVISION_CONFLICT");
+            extensions.set("expectedRevision", expected.to_string());
+            extensions.set("actualRevision", actual.to_string());
+        }),
+        IngestServiceError::Metadata(MetadataError::UnknownCandidate { id }) => Error::new(
+            format!("metadata candidate {id} was not found"),
+        )
+        .extend_with(|_, extensions| {
+            extensions.set("code", "INGEST_METADATA_CANDIDATE_NOT_FOUND");
+            extensions.set("candidateId", id.to_string());
+        }),
+        IngestServiceError::Metadata(MetadataError::FieldOutsideAlbumLayout { field }) => {
+            Error::new(format!(
+                "metadata field {field:?} falls outside the configured album layout"
+            ))
+            .extend_with(|_, extensions| {
+                extensions.set("code", "INGEST_METADATA_INVALID_FIELD");
+                extensions.set("field", format!("{field:?}"));
+            })
+        }
+        IngestServiceError::Metadata(error @ MetadataError::ValueKindMismatch { .. }) => {
+            Error::new(error.to_string()).extend_with(|_, extensions| {
+                extensions.set("code", "INGEST_METADATA_INVALID_VALUE")
+            })
+        }
+        IngestServiceError::Metadata(error @ MetadataError::EvidenceMethodMismatch { .. }) => {
+            Error::new(error.to_string()).extend_with(|_, extensions| {
+                extensions.set("code", "INGEST_METADATA_INVALID_EVIDENCE")
+            })
+        }
+        IngestServiceError::Metadata(MetadataError::ReviewContextMissing) => Error::new(
+            "metadata review context has not been configured",
+        )
+        .extend_with(|_, extensions| extensions.set("code", "INGEST_METADATA_CONTEXT_REQUIRED")),
+        IngestServiceError::Metadata(error) => Error::new(error.to_string())
+            .extend_with(|_, extensions| extensions.set("code", "INGEST_METADATA_INVALID")),
+        IngestServiceError::MetadataIncomplete { missing } => {
+            let missing_fields = missing
+                .iter()
+                .map(|field| format!("{field:?}"))
+                .collect::<Vec<_>>()
+                .join(",");
+            Error::new(format!(
+                "metadata revision is incomplete: {} required fields are missing",
+                missing.len()
+            ))
+            .extend_with(|_, extensions| {
+                extensions.set("code", "INGEST_METADATA_INCOMPLETE");
+                extensions.set("missingCount", missing.len().to_string());
+                extensions.set("missingFields", missing_fields);
+            })
+        }
         IngestServiceError::Domain(error) => Error::new(error.to_string())
             .extend_with(|_, extensions| extensions.set("code", "INGEST_INVALID_COMMAND")),
         internal => {

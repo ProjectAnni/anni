@@ -59,10 +59,11 @@ impl MetadataEdit {
                 Ok(true)
             }
             Self::AddCandidate(candidate) => {
-                if let Some(existing) = draft.candidate(candidate.id()) {
-                    if existing == &candidate {
-                        return Ok(false);
-                    }
+                if draft
+                    .candidate(candidate.id())
+                    .is_some_and(|existing| existing == &candidate)
+                {
+                    return Ok(false);
                 }
                 draft.add_candidate(candidate)?;
                 Ok(true)
@@ -249,6 +250,16 @@ impl IngestService {
             return Ok(None);
         };
         Ok(Some(IngestMetadataReview { job, metadata }))
+    }
+
+    pub async fn metadata_revisions(
+        &self,
+        job_id: Uuid,
+    ) -> Result<Vec<PersistedMetadataDraft>, IngestServiceError> {
+        if self.repository.get(job_id).await?.is_none() {
+            return Err(IngestRepositoryError::NotFound { job_id }.into());
+        }
+        Ok(self.repository.list_metadata_revisions(job_id).await?)
     }
 
     pub async fn edit_metadata(
