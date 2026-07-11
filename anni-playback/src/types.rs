@@ -15,6 +15,7 @@
 // If not, see <https://www.gnu.org/licenses/>.
 
 use std::sync::{atomic::AtomicBool, Arc};
+use thiserror::Error;
 
 pub use crossbeam::channel::{Receiver, Sender};
 pub use symphonia_core::io::MediaSource;
@@ -40,11 +41,52 @@ pub(crate) enum InternalPlayerEvent {
     /// audio was changed/disconnected.
     DeviceChanged,
     Preload(Box<dyn AnniSource>, Arc<AtomicBool>),
+    PreloadFinished(u64),
     PlayPreloaded,
+    Seek(u64),
+    Shutdown,
 }
 
-#[derive(Debug)]
+#[non_exhaustive]
+#[derive(Debug, Clone, Copy, Error, PartialEq, Eq)]
+pub enum PlaybackErrorKind {
+    #[error("output")]
+    Output,
+    #[error("source")]
+    Source,
+    #[error("decode")]
+    Decode,
+    #[error("seek")]
+    Seek,
+    #[error("preload")]
+    Preload,
+    #[error("internal")]
+    Internal,
+}
+
+#[derive(Debug, Clone, Error, PartialEq, Eq)]
+#[error("{kind} playback error: {message}")]
+pub struct PlaybackError {
+    pub kind: PlaybackErrorKind,
+    pub message: String,
+    pub fatal: bool,
+}
+
+impl PlaybackError {
+    pub fn new(kind: PlaybackErrorKind, message: impl Into<String>, fatal: bool) -> Self {
+        Self {
+            kind,
+            message: message.into(),
+            fatal,
+        }
+    }
+}
+
+#[non_exhaustive]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum PlayerEvent {
+    /// The current source was opened and is ready to play.
+    Ready(ProgressState),
     /// Started playing
     Play,
     /// Paused
@@ -53,6 +95,14 @@ pub enum PlayerEvent {
     Stop,
     /// Preload track is played. Should set next track to play
     PreloadPlayed,
+    /// Enough of the next track has been decoded to switch safely.
+    PreloadReady,
+    /// The current source reached its natural end.
+    EndOfTrack,
+    /// Network or source buffering state changed.
+    Buffering(bool),
+    /// A recoverable or fatal playback error occurred.
+    Error(PlaybackError),
     /// Playback progress updated
     Progress(ProgressState),
 }

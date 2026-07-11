@@ -1,48 +1,16 @@
 use std::{
     error::Error,
     io,
-    ops::Deref,
     sync::mpsc::{Receiver, Sender},
     thread,
     time::{Duration, Instant},
 };
 
 use anni_playback::{
-    create_unbound_channel,
     types::{PlayerEvent, ProgressState},
-    Controls, Decoder,
+    Player,
 };
 use ratatui::{prelude::*, widgets::*, TerminalOptions, Viewport};
-
-pub struct Player {
-    controls: Controls,
-}
-
-impl Player {
-    pub fn new() -> (Player, Receiver<PlayerEvent>) {
-        let (sender, receiver) = std::sync::mpsc::channel();
-        let controls = Controls::new(sender);
-        let thread_killer = create_unbound_channel();
-
-        thread::spawn({
-            let controls = controls.clone();
-            move || {
-                let decoder = Decoder::new(controls, 48000, thread_killer.1.clone());
-                decoder.start();
-            }
-        });
-
-        (Player { controls }, receiver)
-    }
-}
-
-impl Deref for Player {
-    type Target = Controls;
-
-    fn deref(&self) -> &Self::Target {
-        &self.controls
-    }
-}
 
 enum Event {
     Input(crossterm::event::KeyEvent),
@@ -63,7 +31,6 @@ impl Playlist {
         if self.current + 1 < self.playlist.len() {
             // preload the next(next) track
             player
-                .controls
                 .open_file(&self.playlist[self.current + 1], true)
                 .unwrap();
         }
@@ -75,7 +42,7 @@ impl Playlist {
         }
 
         player.play_preloaded();
-        return true;
+        true
     }
 
     fn previous(&mut self, player: &Player) {
@@ -114,7 +81,9 @@ fn main() -> Result<(), Box<dyn Error>> {
         },
     )?;
 
-    let (player, receiver) = Player::new();
+    let (player, receiver) = Player::builder()
+        .preferred_sample_rate(Some(48_000))
+        .build()?;
 
     let (tx, rx) = std::sync::mpsc::channel();
     input_handling(receiver, tx.clone());
@@ -195,10 +164,8 @@ where
                     }
                 } else if event.code == crossterm::event::KeyCode::Up {
                     playlist.previous(&player);
-                } else if event.code == crossterm::event::KeyCode::Down {
-                    if !playlist.next(&player) {
-                        break;
-                    }
+                } else if event.code == crossterm::event::KeyCode::Down && !playlist.next(&player) {
+                    break;
                 }
             }
             Event::Resize => {
@@ -206,6 +173,9 @@ where
             }
             Event::Tick => {}
             Event::PlayerEvent(event) => match event {
+                PlayerEvent::Ready(progress) => {
+                    playlist.progress = progress;
+                }
                 PlayerEvent::Play => {
                     // TODO: show playing in ui
                 }
@@ -224,7 +194,13 @@ where
                 PlayerEvent::Progress(progress) => {
                     playlist.progress = progress;
                 }
+                PlayerEvent::PreloadReady | PlayerEvent::EndOfTrack | PlayerEvent::Buffering(_) => {
+                }
+                PlayerEvent::Error(error) => {
+                    eprintln!("Playback error: {error:?}");
+                }
                 PlayerEvent::Stop => break,
+                _ => {}
             },
         };
     }

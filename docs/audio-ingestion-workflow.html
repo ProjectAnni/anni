@@ -1,0 +1,1889 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="referrer" content="no-referrer">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline' 'unsafe-eval' 'wasm-unsafe-eval' blob: data: https://cdnjs.cloudflare.com https://cdn.jsdelivr.net https://esm.sh https://fonts.bunny.net https://fonts.googleapis.com https://fonts.gstatic.com https://unpkg.com; style-src 'unsafe-inline' blob: data: https://cdnjs.cloudflare.com https://cdn.jsdelivr.net https://esm.sh https://fonts.bunny.net https://fonts.googleapis.com https://fonts.gstatic.com https://unpkg.com; img-src blob: data: https://cdnjs.cloudflare.com https://cdn.jsdelivr.net https://esm.sh https://fonts.bunny.net https://fonts.googleapis.com https://fonts.gstatic.com https://unpkg.com; font-src blob: data: https://cdnjs.cloudflare.com https://cdn.jsdelivr.net https://esm.sh https://fonts.bunny.net https://fonts.googleapis.com https://fonts.gstatic.com https://unpkg.com; media-src blob: data: https://cdnjs.cloudflare.com https://cdn.jsdelivr.net https://esm.sh https://fonts.bunny.net https://fonts.googleapis.com https://fonts.gstatic.com https://unpkg.com; worker-src blob:; connect-src blob: data:; frame-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'">
+<title>Anni 音频整理与安全入库 Workflow</title>
+<style>:root{color-scheme:light dark;background:light-dark(rgb(255 255 255), rgb(24 24 24))}html,body{margin:0}body{box-sizing:border-box;padding:1rem;background:inherit}iframe{display:block;width:100%;max-width:736px;height:calc(100vh - 2rem);margin:0 auto;border:0}</style>
+</head>
+<body>
+<iframe sandbox="allow-scripts" referrerpolicy="no-referrer" title="Anni 音频整理与安全入库 Workflow" srcdoc="&lt;!doctype html&gt;
+&lt;html lang=&quot;zh-CN&quot;&gt;
+&lt;head&gt;
+&lt;meta charset=&quot;utf-8&quot;&gt;
+&lt;meta name=&quot;viewport&quot; content=&quot;width=device-width, initial-scale=1&quot;&gt;
+&lt;meta name=&quot;referrer&quot; content=&quot;no-referrer&quot;&gt;
+&lt;meta http-equiv=&quot;Content-Security-Policy&quot; content=&quot;default-src &#x27;none&#x27;; script-src &#x27;unsafe-inline&#x27; &#x27;unsafe-eval&#x27; &#x27;wasm-unsafe-eval&#x27; blob: data: https://cdnjs.cloudflare.com https://cdn.jsdelivr.net https://esm.sh https://fonts.bunny.net https://fonts.googleapis.com https://fonts.gstatic.com https://unpkg.com; style-src &#x27;unsafe-inline&#x27; blob: data: https://cdnjs.cloudflare.com https://cdn.jsdelivr.net https://esm.sh https://fonts.bunny.net https://fonts.googleapis.com https://fonts.gstatic.com https://unpkg.com; img-src blob: data: https://cdnjs.cloudflare.com https://cdn.jsdelivr.net https://esm.sh https://fonts.bunny.net https://fonts.googleapis.com https://fonts.gstatic.com https://unpkg.com; font-src blob: data: https://cdnjs.cloudflare.com https://cdn.jsdelivr.net https://esm.sh https://fonts.bunny.net https://fonts.googleapis.com https://fonts.gstatic.com https://unpkg.com; media-src blob: data: https://cdnjs.cloudflare.com https://cdn.jsdelivr.net https://esm.sh https://fonts.bunny.net https://fonts.googleapis.com https://fonts.gstatic.com https://unpkg.com; worker-src blob:; connect-src blob: data:; frame-src &#x27;none&#x27;; object-src &#x27;none&#x27;; base-uri &#x27;none&#x27;; form-action &#x27;none&#x27;&quot;&gt;
+&lt;title&gt;Anni 音频整理与安全入库 Workflow&lt;/title&gt;
+&lt;style&gt;:root {
+  color-scheme: light dark;
+  background-color: var(--background) !important;
+
+  /* Agent-facing contract; keep in sync with SKILL.md. */
+  --background: light-dark(rgb(255 255 255), rgb(24 24 24));
+  --foreground: light-dark(rgb(26 28 31), rgb(255 255 255));
+  --card: color-mix(in oklab, var(--foreground) 5%, transparent);
+  --card-foreground: var(--foreground);
+  --popover: light-dark(rgb(255 255 255), rgb(45 45 45));
+  --popover-foreground: var(--foreground);
+  --primary: light-dark(rgb(51 156 255), rgb(131 195 255));
+  --primary-foreground: light-dark(rgb(255 255 255), rgb(13 13 13));
+  --secondary: light-dark(rgb(255 255 255 / 96%), rgb(54 54 54 / 96%));
+  --secondary-foreground: var(--foreground);
+  --muted: color-mix(in srgb, var(--foreground) 10%, transparent);
+  --muted-foreground: light-dark(
+    rgb(26 28 31 / 49.4%),
+    rgb(255 255 255 / 49.8%)
+  );
+  --accent: light-dark(rgb(229 242 255), rgb(13 39 63));
+  --accent-foreground: var(--primary);
+  --destructive: light-dark(rgb(226 85 7), rgb(255 133 73));
+  --border: light-dark(rgb(26 28 31 / 8%), rgb(255 255 255 / 8.2%));
+  --input: light-dark(
+    rgb(26 28 31 / 11.8%),
+    color-mix(in oklab, rgb(0 0 0) 10%, transparent)
+  );
+  --ring: light-dark(rgb(51 156 255), rgb(131 195 255 / 76%));
+  --font-size-base: 14px;
+  --viz-series-1: var(--primary);
+  --viz-series-2: light-dark(rgb(243 136 59), rgb(245 154 86));
+  --viz-series-3: light-dark(rgb(93 201 119), rgb(116 213 139));
+  --viz-series-4: light-dark(rgb(235 119 177), rgb(240 143 192));
+  --viz-series-5: light-dark(rgb(155 121 236), rgb(170 145 239));
+  --viz-series-6: light-dark(rgb(58 185 177), rgb(90 203 194));
+
+  /* Internal implementation variables; not part of the agent contract. */
+  --font-sans: -apple-system, system-ui, &quot;Segoe UI&quot;, sans-serif;
+  --font-mono:
+    ui-monospace, SFMono-Regular, &quot;SF Mono&quot;, Menlo, Consolas, &quot;Liberation Mono&quot;,
+    monospace;
+  --font-size-normal: max(11px, var(--font-size-base));
+  --font-size-tooltip: calc(var(--font-size-base) - 1px);
+  --font-size-small: max(11px, calc(var(--font-size-base) - 2px));
+  --font-size-h1: calc(var(--font-size-normal) * 1.7142857143);
+  --font-size-h2: calc(var(--font-size-normal) * 1.4285714286);
+  --font-size-h3: calc(var(--font-size-normal) * 1.2857142857);
+  --font-weight-normal: 430;
+  --font-weight-medium: 500;
+  --line-height-normal: calc(var(--font-size-normal) * 1.5);
+  --line-height-tooltip: calc(var(--font-size-tooltip) * 1.4285714286);
+  --line-height-small: calc(var(--font-size-small) + 4px);
+  --radius: 12.5px;
+  --radius-sm: calc(var(--radius) * 0.6);
+  --radius-md: calc(var(--radius) * 0.8);
+  --radius-lg: var(--radius);
+  --radius-2xl: calc(var(--radius) * 1.6);
+  --radius-full: 9999px;
+  --shadow-sm: 0 1px 2px -1px rgb(0 0 0 / 8%);
+  --checkmark-image: url(&quot;data:image/svg+xml,%3Csvg xmlns=&#x27;http://www.w3.org/2000/svg&#x27; viewBox=&#x27;0 0 17 17&#x27;%3E%3Cpath d=&#x27;M12.8961 3.64101C13.1297 3.41418 13.4984 3.37523 13.7779 3.56581C14.0571 3.75635 14.1554 4.11331 14.0299 4.41347L13.9615 4.53847L7.71151 13.7045C7.59411 13.8767 7.4063 13.9877 7.19881 14.0072C6.99136 14.0267 6.78564 13.9533 6.63826 13.806L2.88826 10.056L2.79842 9.9457C2.6192 9.67407 2.64927 9.30496 2.88826 9.06581C3.12738 8.82669 3.49647 8.79676 3.76815 8.97597L3.8785 9.06581L7.03084 12.2182L12.8053 3.74941L12.8961 3.64101Z&#x27;/%3E%3C/svg%3E&quot;);
+
+  /* Legacy aliases; not part of the current agent contract. */
+  --viz-bg: transparent;
+  --viz-panel: var(--card);
+  --viz-border: var(--border);
+  --viz-text: var(--foreground);
+  --viz-muted: var(--muted-foreground);
+  --viz-accent: var(--primary);
+  --viz-accent-text: var(--primary-foreground);
+  --viz-accent-bg: var(--accent);
+  --viz-font-size: var(--font-size-base);
+  --viz-warning: var(--destructive);
+  --color-background-primary: var(--background);
+  --color-text-primary: var(--foreground);
+  --color-border-secondary: var(--border);
+}
+
+:root[data-theme=&quot;light&quot;] {
+  color-scheme: light;
+}
+
+:root[data-theme=&quot;dark&quot;] {
+  color-scheme: dark;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html &gt; body {
+  margin: 0;
+  padding: 5px;
+  color: var(--foreground);
+  background: transparent !important;
+  font-family: var(--font-sans);
+  font-size: var(--font-size-normal);
+  font-weight: var(--font-weight-normal);
+  line-height: var(--line-height-normal);
+}
+
+a {
+  color: color-mix(in srgb, var(--viz-accent) 80%, var(--viz-text) 20%);
+  cursor: pointer;
+  font-weight: var(--viz-font-weight-medium);
+  text-decoration: none;
+  text-underline-offset: 2px;
+}
+
+a:is(:hover, :focus-visible) {
+  text-decoration-line: underline;
+  text-decoration-style: dashed;
+  text-decoration-thickness: 0.5px;
+}
+
+h1,
+h2,
+h3,
+h4,
+h5,
+h6,
+p {
+  margin-block: 0;
+}
+
+h1 {
+  font-size: var(--font-size-h1);
+  font-weight: var(--font-weight-medium);
+  line-height: 1.25;
+}
+
+h2 {
+  font-size: var(--font-size-h2);
+  font-weight: var(--font-weight-medium);
+  line-height: 1.25;
+}
+
+h3,
+h4,
+h5,
+h6 {
+  font-size: var(--font-size-h3);
+  font-weight: var(--font-weight-medium);
+  line-height: 1.3;
+}
+
+b,
+strong,
+th {
+  font-weight: var(--font-weight-medium);
+}
+
+code:not(pre code) {
+  display: inline;
+  padding: 1px 6px;
+  border-radius: var(--radius-sm);
+  corner-shape: superellipse(1.5);
+  background: var(--muted);
+  font-family: var(--font-mono);
+  font-size: 0.92em;
+  overflow-wrap: anywhere;
+  -webkit-box-decoration-break: clone;
+  box-decoration-break: clone;
+  word-break: break-word;
+}
+
+#widget {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  width: 100%;
+  padding: 0;
+  background: transparent !important;
+}
+
+.card {
+  min-width: 0;
+  padding: 12px;
+  overflow: hidden;
+  overflow-wrap: break-word;
+  border-radius: var(--radius-2xl);
+  corner-shape: superellipse(1.5);
+  color: var(--card-foreground);
+  background: var(--card);
+}
+
+#widget &gt; :not(.card) {
+  width: 100% !important;
+  max-width: none !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+.tooltip {
+  position: fixed;
+  z-index: 50;
+  top: 0;
+  left: 0;
+  width: max-content;
+  max-width: min(
+    20rem,
+    var(--tooltip-available-width, calc(100vw - 10px)),
+    calc(100vw - 10px)
+  );
+  max-height: min(
+    var(--tooltip-available-height, calc(100vh - 10px)),
+    calc(100vh - 10px)
+  );
+  padding: 4px 8px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  corner-shape: superellipse(1.5);
+  color: var(--popover-foreground);
+  background: var(--popover);
+  box-shadow: none;
+  font-size: var(--font-size-tooltip);
+  line-height: var(--line-height-tooltip);
+  overflow-wrap: break-word;
+  white-space: normal;
+  pointer-events: none;
+  user-select: none;
+}
+
+.viz-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(max(180px, 24%), 1fr));
+  gap: 10px;
+}
+
+.viz-stat {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.viz-stat-value {
+  font-size: var(--font-size-h2);
+  font-weight: var(--font-weight-medium);
+  line-height: 1.25;
+}
+
+.viz-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+
+.viz-badge {
+  padding: 3px 8px;
+  border-radius: var(--radius-full);
+  color: var(--accent-foreground);
+  background: var(--accent);
+  font-weight: var(--font-weight-medium);
+}
+
+small,
+.text-small,
+.viz-badge {
+  font-size: var(--font-size-small);
+  line-height: var(--line-height-small);
+}
+
+.text-muted {
+  color: var(--muted-foreground);
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.viz-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.viz-controls &gt; .form-label {
+  display: grid;
+  min-width: min(100%, 260px);
+  flex: 1 1 280px;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: baseline;
+  gap: 2px 12px;
+  margin-bottom: 0;
+}
+
+.viz-controls &gt; .form-label &gt; :is(.form-control, .form-range, .form-select) {
+  grid-column: 1 / -1;
+}
+
+.btn,
+.form-check-input,
+.form-control,
+.form-range,
+.form-select {
+  font: inherit;
+}
+
+.btn {
+  appearance: button;
+  display: inline-flex;
+  inline-size: fit-content;
+  max-inline-size: 100%;
+  min-height: 28px;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  margin: 0;
+  padding: 0 8px;
+  -webkit-app-region: no-drag;
+  border: 1px solid var(--input);
+  border-radius: var(--radius-lg);
+  corner-shape: superellipse(1.5);
+  color: var(--secondary-foreground);
+  background: var(--secondary);
+  cursor: var(--cursor-interaction, pointer);
+  text-align: center;
+  text-decoration: none;
+  white-space: nowrap;
+  user-select: none;
+  -webkit-font-smoothing: antialiased;
+}
+
+.btn:is(.btn-block, .viz-tile) {
+  inline-size: 100%;
+}
+
+.btn.viz-tile {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  white-space: normal;
+}
+
+a.btn {
+  cursor: pointer;
+  text-decoration: none;
+}
+
+.btn:not(:disabled):hover {
+  background: color-mix(in srgb, var(--foreground) 6%, var(--secondary));
+}
+
+.btn-primary {
+  border-color: transparent;
+  color: var(--primary-foreground);
+  background: var(--foreground);
+  background-clip: padding-box;
+}
+
+.btn-primary .text-muted {
+  color: color-mix(in srgb, var(--primary-foreground) 50%, transparent);
+}
+
+.btn-primary:not(:disabled):hover {
+  background: color-mix(in srgb, var(--foreground) 80%, transparent);
+  background-clip: padding-box;
+}
+
+.btn-ghost {
+  border-color: transparent;
+  color: var(--muted-foreground);
+  background: transparent;
+}
+
+.btn-ghost:not(:disabled):hover {
+  color: var(--foreground);
+  background: color-mix(in srgb, var(--foreground) 6%, var(--secondary));
+}
+
+.btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.4;
+}
+
+[data-lucide] {
+  stroke-width: 1.6;
+}
+
+.form-label {
+  display: block;
+  margin-bottom: 6px;
+  color: var(--foreground);
+}
+
+.form-control {
+  display: block;
+  width: 100%;
+  min-height: 28px;
+  padding: 0 8px;
+  outline: none;
+  border: 1px solid var(--input);
+  border-radius: var(--radius-lg);
+  corner-shape: superellipse(1.5);
+  color: var(--foreground);
+  background: var(--secondary);
+}
+
+.form-control::placeholder {
+  color: var(--muted-foreground);
+}
+
+.form-control[type=&quot;file&quot;] {
+  padding: 0;
+  overflow: hidden;
+  cursor: var(--cursor-interaction, pointer);
+}
+
+.form-control[type=&quot;file&quot;]::file-selector-button {
+  min-height: 26px;
+  margin-right: 8px;
+  padding: 0 8px;
+  border: 0;
+  border-right: 1px solid var(--input);
+  color: var(--secondary-foreground);
+  background: var(--secondary);
+  cursor: inherit;
+  font: inherit;
+}
+
+.form-control[type=&quot;file&quot;]:not(:disabled):hover::file-selector-button {
+  background: color-mix(in srgb, var(--foreground) 6%, var(--secondary));
+}
+
+.form-control-color[type=&quot;color&quot;] {
+  width: 40px;
+  height: 28px;
+  padding: 3px;
+  cursor: var(--cursor-interaction, pointer);
+}
+
+.form-control-color[type=&quot;color&quot;]::-webkit-color-swatch-wrapper {
+  padding: 0;
+}
+
+.form-control-color[type=&quot;color&quot;]::-webkit-color-swatch {
+  border: 0;
+  border-radius: calc(var(--radius-lg) - 4px);
+  corner-shape: superellipse(1.5);
+}
+
+textarea.form-control {
+  height: auto;
+  min-height: 72px;
+  padding: 8px 10px;
+  resize: vertical;
+}
+
+.form-control:focus-visible {
+  border-color: var(--ring);
+  box-shadow: inset 0 0 0 1px var(--ring);
+}
+
+.form-control:disabled,
+.form-select:disabled {
+  cursor: not-allowed;
+  opacity: 0.4;
+}
+
+.form-select {
+  appearance: none;
+  display: block;
+  width: 100%;
+  min-height: 28px;
+  margin: 0;
+  padding: 0 32px 0 8px;
+  outline: none;
+  border: 1px solid var(--input);
+  border-radius: var(--radius-lg);
+  corner-shape: superellipse(1.5);
+  color: var(--foreground);
+  background-color: var(--secondary);
+  background-image:
+    linear-gradient(45deg, transparent 50%, var(--muted-foreground) 50%),
+    linear-gradient(135deg, var(--muted-foreground) 50%, transparent 50%);
+  background-position:
+    calc(100% - 14px) 50%,
+    calc(100% - 10px) 50%;
+  background-repeat: no-repeat;
+  background-size: 4px 4px;
+  cursor: var(--cursor-interaction, default);
+}
+
+.form-select:not(:disabled):hover {
+  background-color: color-mix(in srgb, var(--foreground) 6%, var(--secondary));
+}
+
+.form-select:focus-visible {
+  border-color: var(--ring);
+  box-shadow: inset 0 0 0 1px var(--ring);
+}
+
+.form-check {
+  display: flex;
+  min-height: 20px;
+  align-items: center;
+  gap: 6px;
+}
+
+.form-check-input {
+  appearance: none;
+  width: 14px;
+  height: 14px;
+  flex: 0 0 auto;
+  margin: 0;
+  border: 1px solid var(--input);
+  color: var(--primary-foreground);
+  background-color: transparent;
+  cursor: var(--cursor-interaction, default);
+  transition:
+    background-color 150ms,
+    border-color 150ms,
+    box-shadow 150ms;
+}
+
+.form-check:not(.form-switch) .form-check-input[type=&quot;checkbox&quot;] {
+  border-color: var(--input);
+  border-radius: var(--radius-sm);
+  corner-shape: superellipse(1.5);
+  background-color: var(--secondary);
+  box-shadow: var(--shadow-sm);
+}
+
+.form-check:not(.form-switch)
+  .form-check-input:not(:disabled):not(:checked):hover {
+  background-color: var(--card);
+}
+
+.form-check:not(.form-switch) .form-check-input[type=&quot;checkbox&quot;]:checked {
+  border-color: var(--primary);
+  background-color: var(--primary);
+}
+
+.form-check:not(.form-switch)
+  .form-check-input[type=&quot;checkbox&quot;]:checked::before {
+  display: block;
+  width: 100%;
+  height: 100%;
+  background: var(--primary-foreground);
+  content: &quot;&quot;;
+  mask: var(--checkmark-image) center / 12px 12px no-repeat;
+}
+
+.form-check-input[type=&quot;radio&quot;] {
+  width: 14px;
+  height: 14px;
+  border-radius: var(--radius-full);
+}
+
+.form-check-input[type=&quot;radio&quot;]:checked {
+  border: 2px solid var(--primary);
+  background:
+    radial-gradient(circle, var(--primary-foreground) 0 2.5px, transparent 3px),
+    var(--primary);
+}
+
+.form-check:not(.form-switch) .form-check-input:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+
+.form-check:not(.form-switch) .form-check-input:disabled {
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
+.form-check:not(.form-switch) .form-check-input:disabled + .form-check-label {
+  cursor: not-allowed;
+}
+
+.form-switch .form-check-input:disabled,
+.form-switch .form-check-input:disabled + .form-check-label {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.form-check-label {
+  color: var(--foreground);
+  cursor: var(--cursor-interaction, default);
+}
+
+.form-switch .form-check-input {
+  position: relative;
+  width: 32px;
+  height: 20px;
+  border: 0;
+  border-radius: var(--radius-full);
+  background: var(--muted);
+  box-shadow: none;
+  transition: background-color 200ms cubic-bezier(0, 0, 0.2, 1);
+}
+
+.form-switch .form-check-input::before {
+  position: absolute;
+  top: 50%;
+  left: 0;
+  width: 16px;
+  height: 16px;
+  box-sizing: border-box;
+  border: 1px solid light-dark(var(--primary-foreground), var(--foreground));
+  border-radius: var(--radius-full);
+  background: light-dark(var(--primary-foreground), var(--foreground));
+  box-shadow: var(--shadow-sm);
+  content: &quot;&quot;;
+  transform: translate(2px, -50%);
+  transition: transform 200ms cubic-bezier(0, 0, 0.2, 1);
+}
+
+.form-switch .form-check-input:checked {
+  background: var(--primary);
+}
+
+.form-switch .form-check-input:checked::before {
+  transform: translate(14px, -50%);
+}
+
+.form-switch .form-check-input:focus-visible {
+  box-shadow: 0 0 0 2px var(--ring);
+}
+
+.form-range {
+  appearance: none;
+  display: block;
+  width: 100%;
+  height: 28px;
+  flex: 1;
+  margin: 0;
+  padding: 0;
+  outline: none;
+  border: 0;
+  accent-color: var(--primary);
+  background: linear-gradient(
+      color-mix(in srgb, var(--foreground) 7%, transparent),
+      color-mix(in srgb, var(--foreground) 7%, transparent)
+    )
+    center / 100% 2px no-repeat;
+}
+
+.form-range::-webkit-slider-runnable-track {
+  height: 28px;
+  background: transparent;
+}
+
+.form-range::-webkit-slider-thumb {
+  appearance: none;
+  width: 20px;
+  height: 20px;
+  margin-top: 4px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-full);
+  background: light-dark(var(--primary-foreground), var(--foreground));
+}
+
+.form-range:focus-visible::-webkit-slider-thumb {
+  border-color: var(--ring);
+  box-shadow: inset 0 0 0 1px var(--ring);
+}
+
+.form-range::-moz-range-track {
+  height: 28px;
+  background: transparent;
+}
+
+.form-range::-moz-range-thumb {
+  width: 20px;
+  height: 20px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-full);
+  background: light-dark(var(--primary-foreground), var(--foreground));
+}
+
+.form-range:focus-visible::-moz-range-thumb {
+  border-color: var(--ring);
+  box-shadow: inset 0 0 0 1px var(--ring);
+}
+
+.form-range:disabled {
+  cursor: not-allowed;
+  opacity: 0.4;
+}
+
+.btn:not(.btn-primary, .viz-tile):is(
+    [aria-pressed=&quot;true&quot;],
+    [aria-selected=&quot;true&quot;],
+    .is-selected
+  ) {
+  border-color: var(--primary);
+  color: var(--primary-foreground);
+  background: var(--primary);
+}
+
+.btn.viz-tile:is([aria-pressed=&quot;true&quot;], [aria-selected=&quot;true&quot;], .is-selected) {
+  border-color: var(--primary);
+  box-shadow: inset 0 0 0 1px var(--primary);
+}
+
+.btn:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+
+svg {
+  display: block;
+  max-width: 100%;
+  height: auto;
+}
+
+#widget &gt; svg {
+  width: 100%;
+}
+
+.text-warning,
+.text-destructive {
+  color: var(--destructive);
+}
+
+html&gt;body{padding:0}&lt;/style&gt;
+&lt;/head&gt;
+&lt;body&gt;
+&lt;style&gt;
+@import url(&quot;https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&amp;family=Noto+Sans+SC:wght@400;500&amp;display=swap&quot;);
+
+#anni-workflow-visual {
+  --workflow-font: &quot;Noto Sans SC&quot;, var(--font-sans);
+  --workflow-mono: &quot;IBM Plex Mono&quot;, var(--font-mono);
+  display: flex;
+  width: 100%;
+  flex-direction: column;
+  gap: 30px;
+  color: var(--foreground);
+  font-family: var(--workflow-font);
+}
+
+#anni-workflow-visual .section-heading {
+  display: grid;
+  gap: 6px;
+  max-width: 68ch;
+}
+
+#anni-workflow-visual .section-kicker,
+#anni-workflow-visual .goal-label,
+#anni-workflow-visual .detail-label,
+#anni-workflow-visual .signal-status,
+#anni-workflow-visual .phase-number {
+  font-family: var(--workflow-mono);
+  letter-spacing: 0.04em;
+}
+
+#anni-workflow-visual .section-kicker,
+#anni-workflow-visual .goal-label,
+#anni-workflow-visual .detail-label,
+#anni-workflow-visual .signal-status {
+  color: var(--muted-foreground);
+}
+
+#anni-workflow-visual .goal-grid {
+  margin-top: 14px;
+}
+
+#anni-workflow-visual .goal-grid .card {
+  min-height: 116px;
+}
+
+#anni-workflow-visual .goal-mark {
+  display: inline-block;
+  width: 28px;
+  height: 3px;
+  margin-bottom: 14px;
+  background: var(--viz-series-1);
+}
+
+#anni-workflow-visual .goal-grid .card:nth-child(2) .goal-mark {
+  background: var(--viz-series-3);
+}
+
+#anni-workflow-visual .goal-grid .card:nth-child(3) .goal-mark {
+  background: var(--viz-series-6);
+}
+
+#anni-workflow-visual .goal-context {
+  margin-top: 5px;
+}
+
+#anni-workflow-visual .signal-map {
+  position: relative;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 14px;
+  margin-top: 24px;
+  padding-top: 4px;
+}
+
+#anni-workflow-visual .signal-map::before {
+  position: absolute;
+  top: 14px;
+  right: 12.5%;
+  left: 12.5%;
+  height: 2px;
+  background: var(--border);
+  content: &quot;&quot;;
+}
+
+#anni-workflow-visual .signal-node {
+  position: relative;
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  color: var(--muted-foreground);
+  text-align: center;
+  transition:
+    color 180ms ease,
+    transform 180ms ease;
+}
+
+#anni-workflow-visual .signal-dot {
+  z-index: 1;
+  width: 22px;
+  height: 22px;
+  margin-bottom: 7px;
+  border: 2px solid var(--border);
+  border-radius: 50%;
+  background: var(--background);
+  transition:
+    border-color 180ms ease,
+    background-color 180ms ease,
+    box-shadow 180ms ease;
+}
+
+#anni-workflow-visual .signal-node.is-active {
+  color: var(--foreground);
+  transform: translateY(-2px);
+}
+
+#anni-workflow-visual .signal-node.is-active .signal-dot {
+  border-color: var(--primary);
+  background: var(--primary);
+  box-shadow: 0 0 0 5px color-mix(in srgb, var(--primary) 16%, transparent);
+}
+
+#anni-workflow-visual .signal-copy {
+  max-width: 20ch;
+}
+
+#anni-workflow-visual .signal-status {
+  margin-top: 4px;
+}
+
+#anni-workflow-visual .boundary-list {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px 18px;
+  margin: 18px 0 0;
+  padding: 14px 0 0;
+  border-top: 1px solid var(--border);
+  list-style: none;
+}
+
+#anni-workflow-visual .boundary-list li {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 8px;
+}
+
+#anni-workflow-visual .boundary-symbol {
+  color: var(--primary);
+  font-family: var(--workflow-mono);
+}
+
+#anni-workflow-visual .stage-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+#anni-workflow-visual .stage-position {
+  min-width: min(100%, 210px);
+  text-align: right;
+}
+
+#anni-workflow-visual .stage-position-label {
+  margin-bottom: 6px;
+  font-family: var(--workflow-mono);
+}
+
+#anni-workflow-visual .progress-track {
+  width: 100%;
+  height: 4px;
+  overflow: hidden;
+  border-radius: var(--radius-full);
+  background: var(--muted);
+}
+
+#anni-workflow-visual .progress-value {
+  width: 0;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--viz-series-1);
+  transition: width 220ms ease;
+}
+
+#anni-workflow-visual .group-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px 14px;
+  margin-top: 14px;
+}
+
+#anni-workflow-visual .group-key {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+#anni-workflow-visual .group-dot {
+  width: 8px;
+  height: 8px;
+  flex: 0 0 auto;
+  border-radius: 50%;
+  background: var(--group-color);
+}
+
+#anni-workflow-visual .group-catalog {
+  --group-color: var(--viz-series-6);
+}
+
+#anni-workflow-visual .group-intake {
+  --group-color: var(--viz-series-2);
+}
+
+#anni-workflow-visual .group-evidence {
+  --group-color: var(--viz-series-5);
+}
+
+#anni-workflow-visual .group-media {
+  --group-color: var(--viz-series-3);
+}
+
+#anni-workflow-visual .group-publish {
+  --group-color: var(--viz-series-1);
+}
+
+#anni-workflow-visual .stage-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(92px, 1fr));
+  gap: 8px;
+  margin-top: 12px;
+}
+
+#anni-workflow-visual .stage-button .group-dot {
+  width: 7px;
+  height: 7px;
+}
+
+#anni-workflow-visual .stage-detail {
+  display: grid;
+  gap: 18px;
+  margin-top: 14px;
+}
+
+#anni-workflow-visual .stage-detail-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+#anni-workflow-visual .stage-title-wrap {
+  display: grid;
+  max-width: 54ch;
+  gap: 6px;
+}
+
+#anni-workflow-visual .owner-list {
+  justify-content: flex-end;
+}
+
+#anni-workflow-visual .detail-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0 20px;
+}
+
+#anni-workflow-visual .detail-block {
+  min-width: 0;
+  padding: 13px 0;
+  border-top: 1px solid var(--border);
+}
+
+#anni-workflow-visual .detail-block p + p {
+  margin-top: 4px;
+}
+
+#anni-workflow-visual .outcome-line {
+  display: grid;
+  grid-template-columns: minmax(100px, 0.28fr) minmax(0, 1fr);
+  gap: 14px;
+  padding-left: 12px;
+  border-left: 3px solid var(--viz-series-3);
+}
+
+#anni-workflow-visual details {
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
+}
+
+#anni-workflow-visual summary {
+  cursor: pointer;
+  font-weight: 500;
+}
+
+#anni-workflow-visual .technical-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px 20px;
+  margin-top: 12px;
+}
+
+#anni-workflow-visual .roadmap {
+  position: relative;
+  display: grid;
+  gap: 0;
+  margin: 16px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+#anni-workflow-visual .roadmap::before {
+  position: absolute;
+  top: 12px;
+  bottom: 12px;
+  left: 17px;
+  width: 2px;
+  background: var(--border);
+  content: &quot;&quot;;
+}
+
+#anni-workflow-visual .roadmap-item {
+  position: relative;
+  display: grid;
+  grid-template-columns: 36px minmax(0, 1fr);
+  gap: 14px;
+  padding: 0 0 20px;
+}
+
+#anni-workflow-visual .roadmap-item:last-child {
+  padding-bottom: 0;
+}
+
+#anni-workflow-visual .phase-number {
+  z-index: 1;
+  display: grid;
+  width: 36px;
+  height: 36px;
+  place-items: center;
+  border: 2px solid var(--border);
+  border-radius: 50%;
+  color: var(--foreground);
+  background: var(--background);
+}
+
+#anni-workflow-visual .roadmap-item:first-child .phase-number {
+  border-color: var(--viz-series-2);
+}
+
+#anni-workflow-visual .roadmap-item:not(:first-child) .phase-number {
+  border-color: var(--primary);
+}
+
+#anni-workflow-visual .phase-copy {
+  display: grid;
+  gap: 5px;
+  padding-top: 5px;
+}
+
+#anni-workflow-visual .phase-result {
+  color: var(--foreground);
+}
+
+#anni-workflow-visual .safety-footer {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 10px;
+  align-items: start;
+  padding-top: 16px;
+  border-top: 1px solid var(--border);
+}
+
+#anni-workflow-visual .safety-mark {
+  color: var(--viz-series-3);
+  font-family: var(--workflow-mono);
+}
+
+@media (max-width: 620px) {
+  #anni-workflow-visual .signal-map {
+    grid-template-columns: 1fr;
+    gap: 0;
+    padding-top: 0;
+  }
+
+  #anni-workflow-visual .signal-map::before {
+    top: 11px;
+    right: auto;
+    bottom: 11px;
+    left: 10px;
+    width: 2px;
+    height: auto;
+  }
+
+  #anni-workflow-visual .signal-node {
+    display: grid;
+    grid-template-columns: 22px minmax(0, 1fr);
+    grid-template-rows: auto auto auto;
+    gap: 2px 12px;
+    align-items: start;
+    padding: 0 0 18px;
+    text-align: left;
+  }
+
+  #anni-workflow-visual .signal-node:last-child {
+    padding-bottom: 0;
+  }
+
+  #anni-workflow-visual .signal-node.is-active {
+    transform: translateX(2px);
+  }
+
+  #anni-workflow-visual .signal-dot {
+    grid-row: 1 / 4;
+    margin: 0;
+  }
+
+  #anni-workflow-visual .signal-copy {
+    max-width: none;
+  }
+
+  #anni-workflow-visual .boundary-list,
+  #anni-workflow-visual .detail-grid,
+  #anni-workflow-visual .technical-grid {
+    grid-template-columns: 1fr;
+  }
+
+  #anni-workflow-visual .stage-position {
+    width: 100%;
+    text-align: left;
+  }
+
+  #anni-workflow-visual .owner-list {
+    justify-content: flex-start;
+  }
+
+  #anni-workflow-visual .outcome-line {
+    grid-template-columns: 1fr;
+    gap: 4px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  #anni-workflow-visual .signal-node,
+  #anni-workflow-visual .signal-dot,
+  #anni-workflow-visual .progress-value {
+    transition: none;
+  }
+}
+&lt;/style&gt;
+
+&lt;div id=&quot;anni-workflow-visual&quot;&gt;
+  &lt;section aria-labelledby=&quot;workflow-target-heading&quot;&gt;
+    &lt;div class=&quot;section-heading&quot;&gt;
+      &lt;p class=&quot;section-kicker text-small&quot;&gt;目标效果&lt;/p&gt;
+      &lt;h2 id=&quot;workflow-target-heading&quot;&gt;人在 Web 做决定，系统把一张专辑安全地变成可发布资产&lt;/h2&gt;
+      &lt;p class=&quot;text-muted&quot;&gt;输入可以是 WAV + CUE、已分轨音频、Booklet、抓轨日志和网络资料；最终得到完整元数据、独立音轨、正确封面、收藏进度与可恢复的发布记录。&lt;/p&gt;
+    &lt;/div&gt;
+
+    &lt;div class=&quot;viz-grid goal-grid&quot; aria-label=&quot;目标效果摘要&quot;&gt;
+      &lt;article class=&quot;card viz-stat&quot;&gt;
+        &lt;span class=&quot;goal-mark&quot; aria-hidden=&quot;true&quot;&gt;&lt;/span&gt;
+        &lt;span class=&quot;goal-label text-small&quot;&gt;日常入口&lt;/span&gt;
+        &lt;strong class=&quot;viz-stat-value&quot;&gt;Web 闭环&lt;/strong&gt;
+        &lt;p class=&quot;goal-context text-muted&quot;&gt;收件、证据对照、字段审核、封面选择和发布批准都在浏览器完成。&lt;/p&gt;
+      &lt;/article&gt;
+      &lt;article class=&quot;card viz-stat&quot;&gt;
+        &lt;span class=&quot;goal-mark&quot; aria-hidden=&quot;true&quot;&gt;&lt;/span&gt;
+        &lt;span class=&quot;goal-label text-small&quot;&gt;数据质量&lt;/span&gt;
+        &lt;strong class=&quot;viz-stat-value&quot;&gt;每个字段有出处&lt;/strong&gt;
+        &lt;p class=&quot;goal-context text-muted&quot;&gt;Booklet 优先，网络只生成候选；正式值、原始值和审核决定都可追溯。&lt;/p&gt;
+      &lt;/article&gt;
+      &lt;article class=&quot;card viz-stat&quot;&gt;
+        &lt;span class=&quot;goal-mark&quot; aria-hidden=&quot;true&quot;&gt;&lt;/span&gt;
+        &lt;span class=&quot;goal-label text-small&quot;&gt;文件安全&lt;/span&gt;
+        &lt;strong class=&quot;viz-stat-value&quot;&gt;原件始终不变&lt;/strong&gt;
+        &lt;p class=&quot;goal-context text-muted&quot;&gt;所有处理发生在快照与 staging；失败可恢复，不自动修改或删除原始交付物。&lt;/p&gt;
+      &lt;/article&gt;
+    &lt;/div&gt;
+
+    &lt;div class=&quot;signal-map&quot; role=&quot;img&quot; aria-label=&quot;目标系统由 Web、Backend、Worker 和发布结果四个部分组成&quot;&gt;
+      &lt;div class=&quot;signal-node is-active&quot; data-role=&quot;web&quot;&gt;
+        &lt;span class=&quot;signal-dot&quot; aria-hidden=&quot;true&quot;&gt;&lt;/span&gt;
+        &lt;h3&gt;anni-web&lt;/h3&gt;
+        &lt;p class=&quot;signal-copy&quot;&gt;人在这里核对证据并作决定&lt;/p&gt;
+        &lt;span class=&quot;signal-status text-small&quot;&gt;需要新建&lt;/span&gt;
+      &lt;/div&gt;
+      &lt;div class=&quot;signal-node is-active&quot; data-role=&quot;backend&quot;&gt;
+        &lt;span class=&quot;signal-dot&quot; aria-hidden=&quot;true&quot;&gt;&lt;/span&gt;
+        &lt;h3&gt;annim Backend&lt;/h3&gt;
+        &lt;p class=&quot;signal-copy&quot;&gt;保存真值、Evidence、Agent 与 Job&lt;/p&gt;
+        &lt;span class=&quot;signal-status text-small&quot;&gt;已有基础，需要扩展&lt;/span&gt;
+      &lt;/div&gt;
+      &lt;div class=&quot;signal-node&quot; data-role=&quot;worker&quot;&gt;
+        &lt;span class=&quot;signal-dot&quot; aria-hidden=&quot;true&quot;&gt;&lt;/span&gt;
+        &lt;h3&gt;anni-worker&lt;/h3&gt;
+        &lt;p class=&quot;signal-copy&quot;&gt;只按批准计划处理真实文件&lt;/p&gt;
+        &lt;span class=&quot;signal-status text-small&quot;&gt;需要新建&lt;/span&gt;
+      &lt;/div&gt;
+      &lt;div class=&quot;signal-node&quot; data-role=&quot;publish&quot;&gt;
+        &lt;span class=&quot;signal-dot&quot; aria-hidden=&quot;true&quot;&gt;&lt;/span&gt;
+        &lt;h3&gt;发布结果&lt;/h3&gt;
+        &lt;p class=&quot;signal-copy&quot;&gt;Metadata Repo、音频库与 annil&lt;/p&gt;
+        &lt;span class=&quot;signal-status text-small&quot;&gt;已有组件，需要安全接入&lt;/span&gt;
+      &lt;/div&gt;
+    &lt;/div&gt;
+
+    &lt;ul class=&quot;boundary-list&quot; aria-label=&quot;系统边界&quot;&gt;
+      &lt;li&gt;&lt;span class=&quot;boundary-symbol&quot; aria-hidden=&quot;true&quot;&gt;01&lt;/span&gt;&lt;span&gt;Web 不能提交任意服务器路径。&lt;/span&gt;&lt;/li&gt;
+      &lt;li&gt;&lt;span class=&quot;boundary-symbol&quot; aria-hidden=&quot;true&quot;&gt;02&lt;/span&gt;&lt;span&gt;Backend 不直接修改真实音频。&lt;/span&gt;&lt;/li&gt;
+      &lt;li&gt;&lt;span class=&quot;boundary-symbol&quot; aria-hidden=&quot;true&quot;&gt;03&lt;/span&gt;&lt;span&gt;Worker 不决定元数据，也没有默认删源能力。&lt;/span&gt;&lt;/li&gt;
+    &lt;/ul&gt;
+  &lt;/section&gt;
+
+  &lt;section aria-labelledby=&quot;workflow-stage-heading&quot;&gt;
+    &lt;div class=&quot;stage-header&quot;&gt;
+      &lt;div class=&quot;section-heading&quot;&gt;
+        &lt;p class=&quot;section-kicker text-small&quot;&gt;一张专辑如何入库&lt;/p&gt;
+        &lt;h2 id=&quot;workflow-stage-heading&quot;&gt;选择一个阶段，查看人和系统分别要做什么&lt;/h2&gt;
+        &lt;p class=&quot;text-muted&quot;&gt;阶段 0 是持续运行的发行目录同步；单张专辑的主要入库流程从阶段 1 开始。&lt;/p&gt;
+      &lt;/div&gt;
+      &lt;div class=&quot;stage-position&quot; aria-live=&quot;polite&quot;&gt;
+        &lt;p id=&quot;stage-position-label&quot; class=&quot;stage-position-label text-small&quot;&gt;阶段 0 · 持续目录&lt;/p&gt;
+        &lt;div class=&quot;progress-track&quot; role=&quot;progressbar&quot; aria-label=&quot;当前入库阶段&quot; aria-valuemin=&quot;0&quot; aria-valuemax=&quot;10&quot; aria-valuenow=&quot;0&quot;&gt;
+          &lt;div id=&quot;stage-progress-value&quot; class=&quot;progress-value&quot;&gt;&lt;/div&gt;
+        &lt;/div&gt;
+      &lt;/div&gt;
+    &lt;/div&gt;
+
+    &lt;div class=&quot;group-legend text-small&quot; aria-label=&quot;阶段分组&quot;&gt;
+      &lt;span class=&quot;group-key group-catalog&quot;&gt;&lt;span class=&quot;group-dot&quot; aria-hidden=&quot;true&quot;&gt;&lt;/span&gt;持续目录 0&lt;/span&gt;
+      &lt;span class=&quot;group-key group-intake&quot;&gt;&lt;span class=&quot;group-dot&quot; aria-hidden=&quot;true&quot;&gt;&lt;/span&gt;安全收件 1–2&lt;/span&gt;
+      &lt;span class=&quot;group-key group-evidence&quot;&gt;&lt;span class=&quot;group-dot&quot; aria-hidden=&quot;true&quot;&gt;&lt;/span&gt;证据整理 3–6&lt;/span&gt;
+      &lt;span class=&quot;group-key group-media&quot;&gt;&lt;span class=&quot;group-dot&quot; aria-hidden=&quot;true&quot;&gt;&lt;/span&gt;文件处理 7–9&lt;/span&gt;
+      &lt;span class=&quot;group-key group-publish&quot;&gt;&lt;span class=&quot;group-dot&quot; aria-hidden=&quot;true&quot;&gt;&lt;/span&gt;正式发布 10&lt;/span&gt;
+    &lt;/div&gt;
+
+    &lt;div class=&quot;stage-grid&quot; role=&quot;group&quot; aria-label=&quot;入库阶段选择&quot;&gt;
+      &lt;button class=&quot;btn viz-tile stage-button group-catalog&quot; type=&quot;button&quot; data-stage=&quot;0&quot; aria-pressed=&quot;true&quot;&gt;&lt;span class=&quot;group-dot&quot; aria-hidden=&quot;true&quot;&gt;&lt;/span&gt;0 · 目录&lt;/button&gt;
+      &lt;button class=&quot;btn viz-tile stage-button group-intake&quot; type=&quot;button&quot; data-stage=&quot;1&quot; aria-pressed=&quot;false&quot;&gt;&lt;span class=&quot;group-dot&quot; aria-hidden=&quot;true&quot;&gt;&lt;/span&gt;1 · 收件&lt;/button&gt;
+      &lt;button class=&quot;btn viz-tile stage-button group-intake&quot; type=&quot;button&quot; data-stage=&quot;2&quot; aria-pressed=&quot;false&quot;&gt;&lt;span class=&quot;group-dot&quot; aria-hidden=&quot;true&quot;&gt;&lt;/span&gt;2 · 版本&lt;/button&gt;
+      &lt;button class=&quot;btn viz-tile stage-button group-evidence&quot; type=&quot;button&quot; data-stage=&quot;3&quot; aria-pressed=&quot;false&quot;&gt;&lt;span class=&quot;group-dot&quot; aria-hidden=&quot;true&quot;&gt;&lt;/span&gt;3 · Booklet&lt;/button&gt;
+      &lt;button class=&quot;btn viz-tile stage-button group-evidence&quot; type=&quot;button&quot; data-stage=&quot;4&quot; aria-pressed=&quot;false&quot;&gt;&lt;span class=&quot;group-dot&quot; aria-hidden=&quot;true&quot;&gt;&lt;/span&gt;4 · 补全&lt;/button&gt;
+      &lt;button class=&quot;btn viz-tile stage-button group-evidence&quot; type=&quot;button&quot; data-stage=&quot;5&quot; aria-pressed=&quot;false&quot;&gt;&lt;span class=&quot;group-dot&quot; aria-hidden=&quot;true&quot;&gt;&lt;/span&gt;5 · 定稿&lt;/button&gt;
+      &lt;button class=&quot;btn viz-tile stage-button group-evidence&quot; type=&quot;button&quot; data-stage=&quot;6&quot; aria-pressed=&quot;false&quot;&gt;&lt;span class=&quot;group-dot&quot; aria-hidden=&quot;true&quot;&gt;&lt;/span&gt;6 · 封面&lt;/button&gt;
+      &lt;button class=&quot;btn viz-tile stage-button group-media&quot; type=&quot;button&quot; data-stage=&quot;7&quot; aria-pressed=&quot;false&quot;&gt;&lt;span class=&quot;group-dot&quot; aria-hidden=&quot;true&quot;&gt;&lt;/span&gt;7 · 拆轨&lt;/button&gt;
+      &lt;button class=&quot;btn viz-tile stage-button group-media&quot; type=&quot;button&quot; data-stage=&quot;8&quot; aria-pressed=&quot;false&quot;&gt;&lt;span class=&quot;group-dot&quot; aria-hidden=&quot;true&quot;&gt;&lt;/span&gt;8 · 标签&lt;/button&gt;
+      &lt;button class=&quot;btn viz-tile stage-button group-media&quot; type=&quot;button&quot; data-stage=&quot;9&quot; aria-pressed=&quot;false&quot;&gt;&lt;span class=&quot;group-dot&quot; aria-hidden=&quot;true&quot;&gt;&lt;/span&gt;9 · 验证&lt;/button&gt;
+      &lt;button class=&quot;btn viz-tile stage-button group-publish&quot; type=&quot;button&quot; data-stage=&quot;10&quot; aria-pressed=&quot;false&quot;&gt;&lt;span class=&quot;group-dot&quot; aria-hidden=&quot;true&quot;&gt;&lt;/span&gt;10 · 发布&lt;/button&gt;
+    &lt;/div&gt;
+
+    &lt;article class=&quot;card stage-detail&quot; aria-live=&quot;polite&quot;&gt;
+      &lt;header class=&quot;stage-detail-head&quot;&gt;
+        &lt;div class=&quot;stage-title-wrap&quot;&gt;
+          &lt;span id=&quot;stage-badge&quot; class=&quot;viz-badge&quot;&gt;阶段 0 · 持续目录&lt;/span&gt;
+          &lt;h2 id=&quot;stage-title&quot;&gt;建立 Artist 发行全集&lt;/h2&gt;
+          &lt;p id=&quot;stage-purpose&quot; class=&quot;text-muted&quot;&gt;先知道应该收集什么，避免只整理手边已有的文件。&lt;/p&gt;
+        &lt;/div&gt;
+        &lt;div id=&quot;stage-owners&quot; class=&quot;viz-row owner-list&quot; aria-label=&quot;本阶段参与组件&quot;&gt;
+          &lt;span class=&quot;viz-badge&quot;&gt;Web&lt;/span&gt;
+          &lt;span class=&quot;viz-badge&quot;&gt;Backend&lt;/span&gt;
+        &lt;/div&gt;
+      &lt;/header&gt;
+
+      &lt;div class=&quot;detail-grid&quot;&gt;
+        &lt;section class=&quot;detail-block&quot;&gt;
+          &lt;p class=&quot;detail-label text-small&quot;&gt;你在 Web 做什么&lt;/p&gt;
+          &lt;p id=&quot;stage-user-action&quot;&gt;创建 Artist，填写官网、平台 ID 和收集范围；审核重复、新增或下架发行。&lt;/p&gt;
+        &lt;/section&gt;
+        &lt;section class=&quot;detail-block&quot;&gt;
+          &lt;p class=&quot;detail-label text-small&quot;&gt;Backend 做什么&lt;/p&gt;
+          &lt;p id=&quot;stage-backend-action&quot;&gt;同步官网、Apple Music、VGMDB、MusicBrainz，完成身份匹配并更新 ledger。&lt;/p&gt;
+        &lt;/section&gt;
+        &lt;section class=&quot;detail-block&quot;&gt;
+          &lt;p class=&quot;detail-label text-small&quot;&gt;Worker 做什么&lt;/p&gt;
+          &lt;p id=&quot;stage-worker-action&quot;&gt;本阶段通常不接触音频文件。&lt;/p&gt;
+        &lt;/section&gt;
+        &lt;section class=&quot;detail-block&quot;&gt;
+          &lt;p class=&quot;detail-label text-small&quot;&gt;会留下什么&lt;/p&gt;
+          &lt;p id=&quot;stage-artifact&quot;&gt;Release observations、缺失列表、重复候选和同步记录。&lt;/p&gt;
+        &lt;/section&gt;
+      &lt;/div&gt;
+
+      &lt;div class=&quot;outcome-line&quot;&gt;
+        &lt;p class=&quot;detail-label text-small&quot;&gt;完成标志&lt;/p&gt;
+        &lt;p id=&quot;stage-done&quot;&gt;已查询来源、发现发行和缺失项都可追溯；目录会持续增量同步。&lt;/p&gt;
+      &lt;/div&gt;
+
+      &lt;details&gt;
+        &lt;summary&gt;技术落点与阻断条件&lt;/summary&gt;
+        &lt;div class=&quot;technical-grid&quot;&gt;
+          &lt;div&gt;
+            &lt;p class=&quot;detail-label text-small&quot;&gt;主要组件&lt;/p&gt;
+            &lt;p id=&quot;stage-modules&quot;&gt;&lt;code&gt;anni-web&lt;/code&gt; Artist 页、Catalog Sync、Source Adapters、Identity Matcher、LedgerStore。&lt;/p&gt;
+          &lt;/div&gt;
+          &lt;div&gt;
+            &lt;p class=&quot;detail-label text-small&quot;&gt;何时不能继续&lt;/p&gt;
+            &lt;p id=&quot;stage-blocked&quot;&gt;Artist 身份不明确、来源配置缺失、多个发行无法安全合并，或同步器异常。&lt;/p&gt;
+          &lt;/div&gt;
+        &lt;/div&gt;
+      &lt;/details&gt;
+    &lt;/article&gt;
+  &lt;/section&gt;
+
+  &lt;section aria-labelledby=&quot;workflow-roadmap-heading&quot;&gt;
+    &lt;div class=&quot;section-heading&quot;&gt;
+      &lt;p class=&quot;section-kicker text-small&quot;&gt;系统如何逐步建成&lt;/p&gt;
+      &lt;h2 id=&quot;workflow-roadmap-heading&quot;&gt;这条建设路线不是单张专辑的入库流程&lt;/h2&gt;
+      &lt;p class=&quot;text-muted&quot;&gt;Phase 0 先消除现有文件风险；Phase 1 就交付 Web + Backend + Worker 的最小闭环，后续再增加智能化、收藏全景和协作能力。&lt;/p&gt;
+    &lt;/div&gt;
+
+    &lt;ol class=&quot;roadmap&quot;&gt;
+      &lt;li class=&quot;roadmap-item&quot;&gt;
+        &lt;span class=&quot;phase-number&quot;&gt;0&lt;/span&gt;
+        &lt;div class=&quot;phase-copy&quot;&gt;
+          &lt;h3&gt;安全基础&lt;/h3&gt;
+          &lt;p&gt;修复默认删源、伪 dry-run、原地覆盖、错误吞噬和非事务提交；建立 plan、capability 与 receipt。&lt;/p&gt;
+          &lt;p class=&quot;phase-result&quot;&gt;&lt;strong&gt;完成标志：&lt;/strong&gt;故障注入下 originals 仍完整，危险 legacy 路径被修复或代码级禁用。&lt;/p&gt;
+        &lt;/div&gt;
+      &lt;/li&gt;
+      &lt;li class=&quot;roadmap-item&quot;&gt;
+        &lt;span class=&quot;phase-number&quot;&gt;1&lt;/span&gt;
+        &lt;div class=&quot;phase-copy&quot;&gt;
+          &lt;h3&gt;最小 server-client 闭环&lt;/h3&gt;
+          &lt;p&gt;交付最小 &lt;code&gt;anni-web&lt;/code&gt;、扩展 &lt;code&gt;annim&lt;/code&gt;，并建立单 Worker、Object Store、审核和发布流程。&lt;/p&gt;
+          &lt;p class=&quot;phase-result&quot;&gt;&lt;strong&gt;完成标志：&lt;/strong&gt;一张 WAV + CUE + Booklet 专辑无需手工串 CLI 即可安全发布。&lt;/p&gt;
+        &lt;/div&gt;
+      &lt;/li&gt;
+      &lt;li class=&quot;roadmap-item&quot;&gt;
+        &lt;span class=&quot;phase-number&quot;&gt;2&lt;/span&gt;
+        &lt;div class=&quot;phase-copy&quot;&gt;
+          &lt;h3&gt;智能整理与封面&lt;/h3&gt;
+          &lt;p&gt;加入 Booklet OCR、网络 Agent、字段冲突审核、TrackType 编辑、封面候选与实时事件。&lt;/p&gt;
+          &lt;p class=&quot;phase-result&quot;&gt;&lt;strong&gt;完成标志：&lt;/strong&gt;AI 减少抄录，但正式决定仍由人批准并可完整追溯。&lt;/p&gt;
+        &lt;/div&gt;
+      &lt;/li&gt;
+      &lt;li class=&quot;roadmap-item&quot;&gt;
+        &lt;span class=&quot;phase-number&quot;&gt;3&lt;/span&gt;
+        &lt;div class=&quot;phase-copy&quot;&gt;
+          &lt;h3&gt;Artist 收藏全景&lt;/h3&gt;
+          &lt;p&gt;完成多信源目录同步、缺失/升级提醒、音质来源记录和 CSV/XLSX 异步导出。&lt;/p&gt;
+          &lt;p class=&quot;phase-result&quot;&gt;&lt;strong&gt;完成标志：&lt;/strong&gt;拉表由 Backend ledger 自动生成，不再维护第二份手工真值。&lt;/p&gt;
+        &lt;/div&gt;
+      &lt;/li&gt;
+      &lt;li class=&quot;roadmap-item&quot;&gt;
+        &lt;span class=&quot;phase-number&quot;&gt;4&lt;/span&gt;
+        &lt;div class=&quot;phase-copy&quot;&gt;
+          &lt;h3&gt;协作与规模化&lt;/h3&gt;
+          &lt;p&gt;增加完整 RBAC、多人审核、多 Worker、PostgreSQL、S3-compatible Object Store、集中审计和灾备。&lt;/p&gt;
+          &lt;p class=&quot;phase-result&quot;&gt;&lt;strong&gt;完成标志：&lt;/strong&gt;短时故障可恢复，不重复发布，也不损坏原件。&lt;/p&gt;
+        &lt;/div&gt;
+      &lt;/li&gt;
+    &lt;/ol&gt;
+  &lt;/section&gt;
+
+  &lt;div class=&quot;safety-footer&quot;&gt;
+    &lt;span class=&quot;safety-mark&quot; aria-hidden=&quot;true&quot;&gt;SAFE&lt;/span&gt;
+    &lt;p&gt;&lt;strong&gt;贯穿所有阶段的底线：&lt;/strong&gt;中点统一为 &lt;code&gt;・&lt;/code&gt;、波浪线统一为 &lt;code&gt;～&lt;/code&gt; 是既定规范，不是冲突；原始文字保留在 evidence，原始音频始终只读保留。&lt;/p&gt;
+  &lt;/div&gt;
+&lt;/div&gt;
+
+&lt;script&gt;
+(() =&gt; {
+  const root = document.getElementById(&quot;anni-workflow-visual&quot;);
+  if (root == null) return;
+
+  const stages = [
+    {
+      group: &quot;持续目录&quot;,
+      title: &quot;建立 Artist 发行全集&quot;,
+      purpose: &quot;先知道应该收集什么，避免只整理手边已有的文件。&quot;,
+      user: &quot;创建 Artist，填写官网、平台 ID 和收集范围；审核重复、新增或下架发行。&quot;,
+      backend: &quot;同步官网、Apple Music、VGMDB、MusicBrainz，完成身份匹配并更新 ledger。&quot;,
+      worker: &quot;本阶段通常不接触音频文件。&quot;,
+      artifact: &quot;Release observations、缺失列表、重复候选和同步记录。&quot;,
+      done: &quot;已查询来源、发现发行和缺失项都可追溯；目录会持续增量同步。&quot;,
+      blocked: &quot;Artist 身份不明确、来源配置缺失、多个发行无法安全合并，或同步器异常。&quot;,
+      modules: &quot;anni-web Artist 页、Catalog Sync、Source Adapters、Identity Matcher、LedgerStore。&quot;,
+      owners: [&quot;web&quot;, &quot;backend&quot;]
+    },
+    {
+      group: &quot;安全收件&quot;,
+      title: &quot;安全接收原始资料&quot;,
+      purpose: &quot;在任何处理开始前，先建立与源文件隔离、可校验的不可变快照。&quot;,
+      user: &quot;在 Inbox 选择分片上传或 Worker 已发现的资料，并检查预检文件清单。&quot;,
+      backend: &quot;建立 Job、上传会话或 opaque source reference，并签发只读 snapshot task。&quot;,
+      worker: &quot;只读扫描、计算哈希、复制或 CoW reflink 到 originals vault，再回传 manifest receipt。&quot;,
+      artifact: &quot;Source manifest、originals 对象、内容哈希与接收 receipt。&quot;,
+      done: &quot;Vault 副本与来源哈希一致，输入清单完整，后续只处理隔离副本。&quot;,
+      blocked: &quot;非法 symlink、来源在扫描中变化、复制或哈希不一致、权限错误或磁盘不足。&quot;,
+      modules: &quot;Web Inbox、Ingest Job Service、Upload Session、Snapshot Worker、Originals Vault。&quot;,
+      owners: [&quot;web&quot;, &quot;backend&quot;, &quot;worker&quot;]
+    },
+    {
+      group: &quot;安全收件&quot;,
+      title: &quot;确认具体发行版本&quot;,
+      purpose: &quot;明确这批文件属于哪个 edition，避免把初回版、通常版或数字版错误合并。&quot;,
+      user: &quot;比较候选版本，确认 exact/probable，或明确创建一个新的发行版本。&quot;,
+      backend: &quot;比较 catalog、barcode、Disc ID、日期、轨数、时长和外部 ID，并显示冲突。&quot;,
+      worker: &quot;不处理音频；仅提供阶段 1 已验证的文件结构与时长事实。&quot;,
+      artifact: &quot;唯一 Release identity、确认 revision 与 observation link。&quot;,
+      done: &quot;Job 已绑定到唯一 edition，强标识符和 Disc/Track 结构没有未决冲突。&quot;,
+      blocked: &quot;多个 edition 仍有歧义、强标识符冲突，或提交时 metadata revision 已过期。&quot;,
+      modules: &quot;Identity Review UI、Release Identity Matcher、Release Store、Metadata Revision。&quot;,
+      owners: [&quot;web&quot;, &quot;backend&quot;]
+    },
+    {
+      group: &quot;证据整理&quot;,
+      title: &quot;以 Booklet 建立一手证据&quot;,
+      purpose: &quot;用 CD 实物材料建立最高优先级的标题、署名和 credits 证据。&quot;,
+      user: &quot;在扫描原图、OCR、canonical 值和现有值之间逐字段核对并确认。&quot;,
+      backend: &quot;保存原始扫描与预览，运行 OCR/Vision Agent，生成带页码、区域和置信度的 claims。&quot;,
+      worker: &quot;仅在需要时生成 PDF/JPEG 预览派生物，不修改扫描原件。&quot;,
+      artifact: &quot;Booklet 原图、页面定位、OCR claims 与 Booklet-confirmed decisions。&quot;,
+      done: &quot;关键字段已有人工确认的一手 claims；缺页或无法辨认处被明确记录。&quot;,
+      blocked: &quot;页面缺失、关键字符无法确认、扫描件绑定错误 edition，或 evidence 存储失败。&quot;,
+      modules: &quot;Booklet Viewer、Evidence Store、OCR/Vision Agent、Claim Store、Object Store。&quot;,
+      owners: [&quot;web&quot;, &quot;backend&quot;, &quot;worker&quot;]
+    },
+    {
+      group: &quot;证据整理&quot;,
+      title: &quot;用网络来源补全缺口&quot;,
+      purpose: &quot;只补充 Booklet 未提供的信息，并用独立来源交叉验证。&quot;,
+      user: &quot;查看新增候选、来源运行状态和 source error；必要时决定是否继续调查。&quot;,
+      backend: &quot;按优先级查询官网、Apple Music、VGMDB、MusicBrainz，保存原始响应、出处和解析版本。&quot;,
+      worker: &quot;通常不参与；网络 Agent 不能获得音频库写权限。&quot;,
+      artifact: &quot;带 provenance 的 observations/claims，以及明确的 source error。&quot;,
+      done: &quot;所有配置来源都得到 claim 或清楚的失败记录，不留下无状态空缺。&quot;,
+      blocked: &quot;接口限流、页面结构失效、locale/storefront 错误，或结果无法绑定当前 edition。&quot;,
+      modules: &quot;Research Agent、Source Adapters、Scheduler、Claim Store、Source Health UI。&quot;,
+      owners: [&quot;web&quot;, &quot;backend&quot;]
+    },
+    {
+      group: &quot;证据整理&quot;,
+      title: &quot;汇总冲突并定稿元数据&quot;,
+      purpose: &quot;把多来源候选变成一份经过人工批准、可执行且不可变的正式快照。&quot;,
+      user: &quot;逐字段接受、拒绝或手工填写，确认 TrackType、署名、关系和非标准字符差异。&quot;,
+      backend: &quot;按字段权威排序，执行 canonicalization、完整性检查和乐观锁，生成 metadata revision 与 ImportPlan。&quot;,
+      worker: &quot;不参与元数据决策，也不能自行改写 ImportPlan。&quot;,
+      artifact: &quot;CanonicalMetadataSnapshot、metadata_hash、ImportPlan 与 plan_hash。&quot;,
+      done: &quot;必填项与冲突均已审核，当前 revision 获批，plan hash 被冻结。&quot;,
+      blocked: &quot;低置信 OCR、edition/TrackType 未确认、同级来源冲突或 revision 冲突。&quot;,
+      modules: &quot;Metadata Review UI、Resolver、CanonicalTextPolicy、Revision Store、ImportPlan Builder。&quot;,
+      owners: [&quot;web&quot;, &quot;backend&quot;]
+    },
+    {
+      group: &quot;证据整理&quot;,
+      title: &quot;选择最高质量且正确的封面&quot;,
+      purpose: &quot;先确认 edition 正确，再从可信候选中选取最高质量原图。&quot;,
+      user: &quot;在候选画廊比较来源、版本、尺寸、裁切和水印，批准最终封面。&quot;,
+      backend: &quot;组织 Apple、官网、Amazon、CAA/VGMDB 候选，保存推导关系和 artwork revision。&quot;,
+      worker: &quot;下载、解码和校验候选；保存原图并确定性生成 cover.jpg。&quot;,
+      artifact: &quot;获批原始 artwork、尺寸/MIME/hash 记录和派生 cover.jpg。&quot;,
+      done: &quot;原图与派生图均可解码、匹配当前 edition，并通过质量 Gate。&quot;,
+      blocked: &quot;版本不匹配、图片损坏/有水印、MIME 不一致、尺寸不足或 URL 不可安全访问。&quot;,
+      modules: &quot;Artwork Gallery、Artwork Resolver、Apple/Amazon Adapters、Cover Worker、Image Validator。&quot;,
+      owners: [&quot;web&quot;, &quot;backend&quot;, &quot;worker&quot;]
+    },
+    {
+      group: &quot;文件处理&quot;,
+      title: &quot;拆轨并生成标准音频&quot;,
+      purpose: &quot;只在 staging 中，从已验证副本生成轨序和边界正确的独立音轨。&quot;,
+      user: &quot;查看 SplitPlan 与处理进度；遇到 CUE 或轨道结构异常时返回审核修正。&quot;,
+      backend: &quot;校验当前 revision/plan，签发只允许 staging 操作的 task capability。&quot;,
+      worker: &quot;校验 CUE、拆分或复制音频、检查编码器、轨数、边界与连续 PCM hash。&quot;,
+      artifact: &quot;Staging tracks、split receipt、技术参数与完整解码结果。&quot;,
+      done: &quot;全部计划轨道均生成并可完整解码；轨数、边界、顺序和 PCM 与输入一致。&quot;,
+      blocked: &quot;CUE 非法、多 FILE 策略不支持、短读、编码器失败、PCM 不一致或磁盘不足。&quot;,
+      modules: &quot;Job Progress UI、SplitPlanValidator、anni-split、Codec Executor、Staging Store。&quot;,
+      owners: [&quot;web&quot;, &quot;backend&quot;, &quot;worker&quot;]
+    },
+    {
+      group: &quot;文件处理&quot;,
+      title: &quot;投影并安全写入标签&quot;,
+      purpose: &quot;把已审核元数据确定性投影到 FLAC，同时保证音频帧不变。&quot;,
+      user: &quot;预览最终标签、多人署名顺序和封面绑定结果。&quot;,
+      backend: &quot;根据正式 revision 生成 ManagedTags 清单，并把预期 hash 固定进 plan。&quot;,
+      worker: &quot;在临时文件中 merge 托管标签、保留非托管标签、嵌入封面并验证 PCM 未变化。&quot;,
+      artifact: &quot;Tagged staging files、tag receipt 与预期/实际标签差异。&quot;,
+      done: &quot;每轨标签与正式元数据一致，封面正确，写入前后 decoded PCM 完全相同。&quot;,
+      blocked: &quot;字段映射缺失、署名顺序丢失、标签/封面写入失败、解码失败或 PCM 改变。&quot;,
+      modules: &quot;Tag Preview、ManagedTags Projector、FlacTransactionWriter、anni-flac、Staging Store。&quot;,
+      owners: [&quot;web&quot;, &quot;backend&quot;, &quot;worker&quot;]
+    },
+    {
+      group: &quot;文件处理&quot;,
+      title: &quot;通过发布前总体验证&quot;,
+      purpose: &quot;把所有质量与恢复要求变成不可绕过的发布 Gate。&quot;,
+      user: &quot;查看 Gate matrix、风险和差异；可选抽听，但不能跳过机器验证。&quot;,
+      backend: &quot;汇总 Identity、Metadata、Text、Audio、Integrity、Structure、Cover、Repo、Recovery Gate。&quot;,
+      worker: &quot;完整解码、计算哈希、验证目录/Repo 候选和 crash recovery receipt。&quot;,
+      artifact: &quot;Gate report、verify receipt 与 verify_hash。&quot;,
+      done: &quot;所有强制 Gate 通过，receipt 绑定当前 input、plan 和 metadata revision，Job 进入 ready_to_commit。&quot;,
+      blocked: &quot;任一 Gate 失败、plan/revision 过期、哈希不一致，或恢复结果无法确定。&quot;,
+      modules: &quot;Verification Dashboard、Gate Engine、Audio/Cover/Repo Verifiers、Receipt Store、RBAC Approval。&quot;,
+      owners: [&quot;web&quot;, &quot;backend&quot;, &quot;worker&quot;]
+    },
+    {
+      group: &quot;正式发布&quot;,
+      title: &quot;可恢复地提交并发布&quot;,
+      purpose: &quot;让 Repo、音频库和 ledger 最终一致，同时保留完整恢复证据。&quot;,
+      user: &quot;具备权限的 reviewer/operator 查看最终摘要并执行明确的二次确认。&quot;,
+      backend: &quot;核对 plan_hash + verify_hash，签发一次性 commit capability，更新 ledger/outbox 并发布事件。&quot;,
+      worker: &quot;以 no-replace Saga 提交 Repo 与音频库，上报每一步 receipt；失败时向前恢复而不是删除回滚。&quot;,
+      artifact: &quot;Repo/audio/ledger receipts、published revision、audit events 与 annil reload receipt。&quot;,
+      done: &quot;三方 receipt 已对账，Job 为 published，成品可见，originals 继续保留。&quot;,
+      blocked: &quot;批准失效、capability 过期、目标存在不同内容、锁冲突或 commit/ledger 失败。&quot;,
+      modules: &quot;Publish UI、Saga Coordinator、Queue/Outbox、Commit Worker/Journal、anni-repo、Audio Library、Ledger、annil。&quot;,
+      owners: [&quot;web&quot;, &quot;backend&quot;, &quot;worker&quot;, &quot;publish&quot;]
+    }
+  ];
+
+  const ownerNames = {
+    web: &quot;Web&quot;,
+    backend: &quot;Backend&quot;,
+    worker: &quot;Worker&quot;,
+    publish: &quot;发布结果&quot;
+  };
+
+  const fields = {
+    badge: root.querySelector(&quot;#stage-badge&quot;),
+    title: root.querySelector(&quot;#stage-title&quot;),
+    purpose: root.querySelector(&quot;#stage-purpose&quot;),
+    user: root.querySelector(&quot;#stage-user-action&quot;),
+    backend: root.querySelector(&quot;#stage-backend-action&quot;),
+    worker: root.querySelector(&quot;#stage-worker-action&quot;),
+    artifact: root.querySelector(&quot;#stage-artifact&quot;),
+    done: root.querySelector(&quot;#stage-done&quot;),
+    modules: root.querySelector(&quot;#stage-modules&quot;),
+    blocked: root.querySelector(&quot;#stage-blocked&quot;),
+    owners: root.querySelector(&quot;#stage-owners&quot;),
+    position: root.querySelector(&quot;#stage-position-label&quot;),
+    progress: root.querySelector(&quot;#stage-progress-value&quot;),
+    progressTrack: root.querySelector(&quot;.progress-track&quot;)
+  };
+
+  const buttons = Array.from(root.querySelectorAll(&quot;[data-stage]&quot;));
+  const signalNodes = Array.from(root.querySelectorAll(&quot;[data-role]&quot;));
+
+  const setText = (element, value) =&gt; {
+    if (element != null) element.textContent = value;
+  };
+
+  const renderStage = (index) =&gt; {
+    const stage = stages[index];
+    if (stage == null) return;
+
+    buttons.forEach((button) =&gt; {
+      button.setAttribute(
+        &quot;aria-pressed&quot;,
+        Number(button.getAttribute(&quot;data-stage&quot;)) === index ? &quot;true&quot; : &quot;false&quot;
+      );
+    });
+
+    signalNodes.forEach((node) =&gt; {
+      node.classList.toggle(&quot;is-active&quot;, stage.owners.includes(node.getAttribute(&quot;data-role&quot;)));
+    });
+
+    setText(fields.badge, &quot;阶段 &quot; + index + &quot; · &quot; + stage.group);
+    setText(fields.title, stage.title);
+    setText(fields.purpose, stage.purpose);
+    setText(fields.user, stage.user);
+    setText(fields.backend, stage.backend);
+    setText(fields.worker, stage.worker);
+    setText(fields.artifact, stage.artifact);
+    setText(fields.done, stage.done);
+    setText(fields.modules, stage.modules);
+    setText(fields.blocked, stage.blocked);
+    setText(fields.position, index === 0 ? &quot;阶段 0 · 持续目录&quot; : &quot;单张专辑流程 · &quot; + index + &quot; / 10&quot;);
+
+    if (fields.progress != null) fields.progress.style.width = String(index * 10) + &quot;%&quot;;
+    if (fields.progressTrack != null) fields.progressTrack.setAttribute(&quot;aria-valuenow&quot;, String(index));
+
+    if (fields.owners != null) {
+      fields.owners.replaceChildren();
+      stage.owners.forEach((owner) =&gt; {
+        const chip = document.createElement(&quot;span&quot;);
+        chip.className = &quot;viz-badge&quot;;
+        chip.textContent = ownerNames[owner];
+        fields.owners.appendChild(chip);
+      });
+    }
+
+  };
+
+  buttons.forEach((button) =&gt; {
+    button.addEventListener(&quot;click&quot;, () =&gt; {
+      renderStage(Number(button.getAttribute(&quot;data-stage&quot;)));
+    });
+  });
+
+  renderStage(0);
+})();
+&lt;/script&gt;
+
+&lt;script src=&quot;https://unpkg.com/@floating-ui/core@1.7.3/dist/floating-ui.core.umd.min.js&quot;&gt;&lt;/script&gt;
+&lt;script src=&quot;https://unpkg.com/@floating-ui/dom@1.7.4/dist/floating-ui.dom.umd.min.js&quot;&gt;&lt;/script&gt;
+&lt;script&gt;
+(() =&gt; {
+  if (window.FloatingUIDOM == null) {
+    return;
+  }
+  const { autoUpdate, computePosition, flip, offset, shift, size } =
+    window.FloatingUIDOM;
+  const tooltipPlacements = new Set([&quot;top&quot;, &quot;right&quot;, &quot;bottom&quot;, &quot;left&quot;]);
+  const tooltipId = `codex-visualization-tooltip-${
+    window.crypto?.randomUUID?.() ?? Date.now().toString(36)
+  }`;
+  const tooltipGap = 5;
+  const hoverDelay = 700;
+  const skipDelay = 300;
+  let activeTrigger = null;
+  let pendingTrigger = null;
+  let tooltip = null;
+  let openTimeout = null;
+  let autoUpdateCleanup = null;
+  let positionRequest = 0;
+  let skipDelayUntil = 0;
+
+  const getTrigger = (target) =&gt;
+    target?.nodeType === Node.ELEMENT_NODE
+      ? target.closest(&quot;[data-tooltip]&quot;)
+      : null;
+  const containsTarget = (trigger, target) =&gt;
+    target?.nodeType != null &amp;&amp; trigger.contains(target);
+  const getContent = (trigger) =&gt;
+    trigger.getAttribute(&quot;data-tooltip&quot;)?.trim() ?? &quot;&quot;;
+  const getPlacement = (trigger) =&gt; {
+    const placement = trigger.getAttribute(&quot;data-tooltip-placement&quot;);
+    return tooltipPlacements.has(placement) ? placement : &quot;top&quot;;
+  };
+  const getTooltip = () =&gt; {
+    if (tooltip == null) {
+      tooltip = document.createElement(&quot;div&quot;);
+      tooltip.id = tooltipId;
+      tooltip.className = &quot;tooltip&quot;;
+      tooltip.setAttribute(&quot;role&quot;, &quot;tooltip&quot;);
+    }
+    return tooltip;
+  };
+  const setDescribedBy = (trigger, described) =&gt; {
+    const ids = new Set(
+      (trigger.getAttribute(&quot;aria-describedby&quot;) ?? &quot;&quot;)
+        .split(/\s+/)
+        .filter(Boolean),
+    );
+    if (described) {
+      ids.add(tooltipId);
+    } else {
+      ids.delete(tooltipId);
+    }
+    if (ids.size === 0) {
+      trigger.removeAttribute(&quot;aria-describedby&quot;);
+    } else {
+      trigger.setAttribute(&quot;aria-describedby&quot;, [...ids].join(&quot; &quot;));
+    }
+  };
+  const clearOpenTimeout = () =&gt; {
+    if (openTimeout != null) {
+      window.clearTimeout(openTimeout);
+      openTimeout = null;
+    }
+    pendingTrigger = null;
+  };
+  const closeTooltip = (activateSkipDelay = true) =&gt; {
+    clearOpenTimeout();
+    positionRequest += 1;
+    autoUpdateCleanup?.();
+    autoUpdateCleanup = null;
+    if (activeTrigger == null) {
+      return;
+    }
+    setDescribedBy(activeTrigger, false);
+    activeTrigger = null;
+    tooltip?.remove();
+    if (activateSkipDelay) {
+      skipDelayUntil = Date.now() + skipDelay;
+    }
+  };
+  const updatePosition = (trigger, floating) =&gt; {
+    const request = ++positionRequest;
+    void computePosition(trigger, floating, {
+      middleware: [
+        offset(tooltipGap),
+        flip({ padding: tooltipGap }),
+        shift({ padding: tooltipGap }),
+        size({
+          padding: tooltipGap,
+          apply({ availableHeight, availableWidth, elements }) {
+            elements.floating.style.setProperty(
+              &quot;--tooltip-available-width&quot;,
+              `${Math.max(0, availableWidth)}px`,
+            );
+            elements.floating.style.setProperty(
+              &quot;--tooltip-available-height&quot;,
+              `${Math.max(0, availableHeight)}px`,
+            );
+          },
+        }),
+      ],
+      placement: getPlacement(trigger),
+      strategy: &quot;fixed&quot;,
+    })
+      .then(({ x, y }) =&gt; {
+        if (activeTrigger !== trigger || request !== positionRequest) {
+          return;
+        }
+        const scale = window.devicePixelRatio || 1;
+        floating.style.transform = `translate(${Math.round(x * scale) / scale}px, ${Math.round(y * scale) / scale}px)`;
+        floating.style.visibility = &quot;visible&quot;;
+      })
+      .catch(() =&gt; {
+        if (activeTrigger === trigger &amp;&amp; request === positionRequest) {
+          closeTooltip(false);
+        }
+      });
+  };
+  const openTooltip = (trigger) =&gt; {
+    const content = getContent(trigger);
+    if (!trigger.isConnected || content.length === 0) {
+      return;
+    }
+    clearOpenTimeout();
+    if (activeTrigger === trigger) {
+      return;
+    }
+    closeTooltip();
+    const floating = getTooltip();
+    floating.textContent = content;
+    floating.style.visibility = &quot;hidden&quot;;
+    floating.style.transform = &quot;translate(0, 0)&quot;;
+    document.body.appendChild(floating);
+    activeTrigger = trigger;
+    setDescribedBy(trigger, true);
+    autoUpdateCleanup = autoUpdate(trigger, floating, () =&gt; {
+      updatePosition(trigger, floating);
+    });
+  };
+  const requestOpen = (trigger, immediate = false) =&gt; {
+    if (
+      getContent(trigger).length === 0 ||
+      activeTrigger === trigger ||
+      pendingTrigger === trigger
+    ) {
+      return;
+    }
+    clearOpenTimeout();
+    pendingTrigger = trigger;
+    const delay =
+      immediate || activeTrigger != null || Date.now() &lt; skipDelayUntil
+        ? 0
+        : hoverDelay;
+    if (delay === 0) {
+      openTooltip(trigger);
+      return;
+    }
+    openTimeout = window.setTimeout(() =&gt; {
+      openTimeout = null;
+      pendingTrigger = null;
+      openTooltip(trigger);
+    }, delay);
+  };
+  const handlePointerOpen = (event) =&gt; {
+    if (event.pointerType === &quot;touch&quot;) {
+      return;
+    }
+    const trigger = getTrigger(event.target);
+    if (trigger == null || containsTarget(trigger, event.relatedTarget)) {
+      return;
+    }
+    requestOpen(trigger);
+  };
+  const handleLeave = (event) =&gt; {
+    const trigger = getTrigger(event.target);
+    if (trigger == null || containsTarget(trigger, event.relatedTarget)) {
+      return;
+    }
+    if (activeTrigger === trigger || pendingTrigger === trigger) {
+      closeTooltip();
+    }
+  };
+  const handleFocusIn = (event) =&gt; {
+    const trigger = getTrigger(event.target);
+    if (trigger?.matches(&quot;:focus-visible&quot;)) {
+      requestOpen(trigger, true);
+    }
+  };
+  const handleKeyDown = (event) =&gt; {
+    if (event.key === &quot;Escape&quot;) {
+      closeTooltip();
+    }
+  };
+  const handleContextMenu = (event) =&gt; {
+    const trigger = getTrigger(event.target);
+    if (activeTrigger === trigger || pendingTrigger === trigger) {
+      closeTooltip();
+    }
+  };
+  const destroy = () =&gt; {
+    closeTooltip(false);
+    document.removeEventListener(&quot;pointerover&quot;, handlePointerOpen);
+    document.removeEventListener(&quot;pointerout&quot;, handleLeave);
+    document.removeEventListener(&quot;focusin&quot;, handleFocusIn);
+    document.removeEventListener(&quot;focusout&quot;, handleLeave);
+    document.removeEventListener(&quot;keydown&quot;, handleKeyDown);
+    document.removeEventListener(&quot;contextmenu&quot;, handleContextMenu);
+    tooltip = null;
+  };
+
+  document.addEventListener(&quot;pointerover&quot;, handlePointerOpen);
+  document.addEventListener(&quot;pointerout&quot;, handleLeave);
+  document.addEventListener(&quot;focusin&quot;, handleFocusIn);
+  document.addEventListener(&quot;focusout&quot;, handleLeave);
+  document.addEventListener(&quot;keydown&quot;, handleKeyDown);
+  document.addEventListener(&quot;contextmenu&quot;, handleContextMenu);
+  window.addEventListener(&quot;pagehide&quot;, destroy, { once: true });
+})();
+&lt;/script&gt;
+&lt;script id=&quot;codex-visualization-lucide&quot; async src=&quot;https://unpkg.com/lucide@1.17.0/dist/umd/lucide.js&quot;&gt;&lt;/script&gt;
+&lt;script&gt;
+(() =&gt; {
+  const initialize = () =&gt; {
+    globalThis.lucide?.createIcons({ attrs: { width: 16, height: 16 } });
+  };
+  if (globalThis.lucide != null) {
+    initialize();
+    return;
+  }
+  document
+    .getElementById(&quot;codex-visualization-lucide&quot;)
+    ?.addEventListener(&quot;load&quot;, initialize, { once: true });
+})();
+&lt;/script&gt;
+
+&lt;/body&gt;
+&lt;/html&gt;
+"></iframe>
+</body>
+</html>

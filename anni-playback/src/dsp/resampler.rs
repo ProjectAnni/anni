@@ -1,12 +1,9 @@
 // Symphonia
 // Copyright (c) 2019-2022 The Project Symphonia Developers.
-//
-// This Source Code Form is subject to the terms of the Mozilla Public
-// License, v. 2.0. If a copy of the MPL was not distributed with this
-// file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
+use anyhow::Context;
 use rubato::{
-    audioadapter_buffers::direct::SequentialSliceOfVecs, Fft, FixedSync,
+    audioadapter_buffers::direct::SequentialSliceOfVecs, Fft, FixedSync, Indexing,
     Resampler as RubatoResampler,
 };
 use symphonia::core::audio::{AudioSpec, GenericAudioBufferRef};
@@ -24,92 +21,156 @@ pub struct Resampler {
     scratch: Vec<Vec<f32>>,
     interleaved: Vec<f32>,
     chunk_size: usize,
+    channels: usize,
+    input_rate: usize,
+    output_rate: usize,
+    delay_remaining: usize,
+    total_input_frames: usize,
+    emitted_frames: usize,
+    finished: bool,
 }
 
 impl Resampler {
-    pub fn new(spec: AudioSpec, to_sample_rate: usize, duration: usize) -> Self {
-        let num_channels = spec.channels().count();
-
+    pub fn new(spec: AudioSpec, to_sample_rate: usize, duration: usize) -> anyhow::Result<Self> {
+        let channels = spec.channels().count();
+        let input_rate = spec.rate() as usize;
         let resampler = Fft::<f32>::new(
-            spec.rate() as usize,
+            input_rate,
             to_sample_rate,
-            duration,
-            num_channels,
+            duration.max(1),
+            channels,
             FixedSync::Input,
         )
-        .unwrap();
+        .context("failed to construct FFT resampler")?;
         let chunk_size = resampler.input_frames_next();
+        let delay_remaining = resampler.output_delay();
 
-        Self {
+        Ok(Self {
             resampler,
-            input: vec![Vec::with_capacity(chunk_size); num_channels],
-            scratch: vec![Vec::new(); num_channels],
+            input: vec![Vec::with_capacity(chunk_size); channels],
+            scratch: vec![Vec::new(); channels],
             interleaved: Vec::new(),
             chunk_size,
-        }
+            channels,
+            input_rate,
+            output_rate: to_sample_rate,
+            delay_remaining,
+            total_input_frames: 0,
+            emitted_frames: 0,
+            finished: false,
+        })
     }
 
-    /// Resamples a planar/non-interleaved input.
-    ///
-    /// Returns the resampled samples in an interleaved format.
+    /// Resamples every complete chunk currently available. Startup delay is
+    /// removed, so the returned samples are ready to append to the output ring.
     pub fn resample(&mut self, input: GenericAudioBufferRef<'_>) -> Option<&[f32]> {
+        if self.finished {
+            return None;
+        }
+
+        self.total_input_frames += input.frames();
         copy_to_planar_scratch(input, &mut self.scratch);
-        for (input, scratch) in self.input.iter_mut().zip(&self.scratch) {
-            input.extend_from_slice(scratch);
+        for (buffer, scratch) in self.input.iter_mut().zip(&self.scratch) {
+            buffer.extend_from_slice(scratch);
         }
 
-        if self.input.first()?.len() < self.chunk_size {
-            return None;
-        }
-
-        self.interleaved = self.resample_chunk();
-        Some(&self.interleaved)
-    }
-
-    /// Resample any remaining samples in the resample buffer.
-    pub fn flush(&mut self) -> Option<&[f32]> {
-        let len = self.input.first()?.len();
-
-        if len == 0 {
-            return None;
-        }
-
-        // Rubato's synchronous FFT resampler consumes a fixed number of frames. Pad only the
-        // final partial chunk, then drain every buffered chunk so no end-of-stream samples are
-        // discarded.
-        let remainder = len % self.chunk_size;
-        let padded_len = if remainder == 0 {
-            len
-        } else {
-            len + self.chunk_size - remainder
-        };
-        if padded_len != len {
+        let mut output = Vec::new();
+        let target_received = self.target_frames();
+        while self
+            .input
+            .first()
+            .is_some_and(|channel| channel.len() >= self.chunk_size)
+        {
+            let chunk = self.process_chunk(None);
+            self.append_valid_output(chunk, Some(target_received), &mut output);
             for channel in &mut self.input {
-                channel.resize(padded_len, 0.0);
+                channel.drain(..self.chunk_size);
             }
         }
 
-        let mut interleaved = std::mem::take(&mut self.interleaved);
-        interleaved.clear();
-        for _ in 0..padded_len / self.chunk_size {
-            interleaved.extend(self.resample_chunk());
-        }
-
-        self.interleaved = interleaved;
-        Some(&self.interleaved)
+        self.interleaved = output;
+        (!self.interleaved.is_empty()).then_some(&self.interleaved)
     }
 
-    fn resample_chunk(&mut self) -> Vec<f32> {
-        let num_channels = self.input.len();
-        let input = SequentialSliceOfVecs::new(&self.input, num_channels, self.chunk_size).unwrap();
-        let output = self.resampler.process(&input, None).unwrap();
-        let interleaved = output.take_data();
+    /// Flushes filter delay and emits exactly ceil(input_frames * ratio)
+    /// frames. Padding supplied to Rubato is never exposed to the caller.
+    pub fn flush(&mut self) -> Option<&[f32]> {
+        if self.finished {
+            return None;
+        }
+        self.finished = true;
 
-        for channel in &mut self.input {
-            channel.drain(..self.chunk_size);
+        let target_frames = self.target_frames();
+        let mut output = Vec::new();
+        let remaining = self.input.first().map_or(0, Vec::len);
+
+        if remaining > 0 {
+            for channel in &mut self.input {
+                channel.resize(self.chunk_size, 0.0);
+            }
+            let indexing = Indexing {
+                partial_len: Some(remaining),
+                ..Default::default()
+            };
+            let chunk = self.process_chunk(Some(&indexing));
+            self.append_valid_output(chunk, Some(target_frames), &mut output);
+            for channel in &mut self.input {
+                channel.clear();
+            }
         }
 
-        interleaved
+        while self.emitted_frames < target_frames {
+            for channel in &mut self.input {
+                channel.resize(self.chunk_size, 0.0);
+            }
+            let indexing = Indexing {
+                partial_len: Some(0),
+                ..Default::default()
+            };
+            let chunk = self.process_chunk(Some(&indexing));
+            self.append_valid_output(chunk, Some(target_frames), &mut output);
+            for channel in &mut self.input {
+                channel.clear();
+            }
+        }
+
+        self.interleaved = output;
+        (!self.interleaved.is_empty()).then_some(&self.interleaved)
+    }
+
+    fn process_chunk(&mut self, indexing: Option<&Indexing>) -> Vec<f32> {
+        let input =
+            SequentialSliceOfVecs::new(&self.input, self.channels, self.chunk_size).unwrap();
+        self.resampler
+            .process(&input, indexing)
+            .unwrap()
+            .take_data()
+    }
+
+    fn target_frames(&self) -> usize {
+        ((self.total_input_frames as u128 * self.output_rate as u128)
+            .div_ceil(self.input_rate as u128)) as usize
+    }
+
+    fn append_valid_output(
+        &mut self,
+        chunk: Vec<f32>,
+        target_frames: Option<usize>,
+        output: &mut Vec<f32>,
+    ) {
+        let frames = chunk.len() / self.channels;
+        let skip = self.delay_remaining.min(frames);
+        self.delay_remaining -= skip;
+
+        let available = frames - skip;
+        let allowed = target_frames
+            .map(|target| target.saturating_sub(self.emitted_frames))
+            .unwrap_or(available)
+            .min(available);
+        let start = skip * self.channels;
+        let end = start + allowed * self.channels;
+        output.extend_from_slice(&chunk[start..end]);
+        self.emitted_frames += allowed;
     }
 }
 
@@ -121,12 +182,16 @@ mod tests {
 
     use super::{copy_to_planar_scratch, Resampler};
 
+    fn stereo_spec(rate: u32) -> AudioSpec {
+        AudioSpec::new(
+            rate,
+            Channels::from(Position::FRONT_LEFT | Position::FRONT_RIGHT),
+        )
+    }
+
     #[test]
     fn replaces_planar_scratch_samples_instead_of_appending() {
-        let spec = AudioSpec::new(
-            44_100,
-            Channels::from(Position::FRONT_LEFT | Position::FRONT_RIGHT),
-        );
+        let spec = stereo_spec(44_100);
         let mut first = AudioBuffer::<f32>::new(spec.clone(), 2);
         first.resize_with_silence(2);
         let mut second = AudioBuffer::<f32>::new(spec, 1);
@@ -135,52 +200,41 @@ mod tests {
 
         copy_to_planar_scratch(first.as_generic_audio_buffer_ref(), &mut scratch);
         assert!(scratch.iter().all(|channel| channel.len() == 2));
-
         copy_to_planar_scratch(second.as_generic_audio_buffer_ref(), &mut scratch);
         assert!(scratch.iter().all(|channel| channel.len() == 1));
     }
 
     #[test]
-    fn resamples_a_complete_stereo_chunk() {
-        let spec = AudioSpec::new(
-            44_100,
-            Channels::from(Position::FRONT_LEFT | Position::FRONT_RIGHT),
-        );
-        let mut input = AudioBuffer::<f32>::new(spec.clone(), 441);
-        input.resize_with_silence(441);
+    fn flush_emits_exact_resampled_duration_without_padding() {
+        let spec = stereo_spec(44_100);
+        let input_frames = 1_001;
+        let mut input = AudioBuffer::<f32>::new(spec.clone(), input_frames);
+        input.resize_with_silence(input_frames);
+        let mut resampler = Resampler::new(spec, 48_000, 441).unwrap();
 
-        let mut resampler = Resampler::new(spec, 48_000, 441);
-        let output = resampler
+        let streamed = resampler
             .resample(input.as_generic_audio_buffer_ref())
-            .expect("a complete input chunk should be resampled");
+            .map_or(0, <[f32]>::len);
+        let flushed = resampler.flush().map_or(0, <[f32]>::len);
+        let expected_frames = (input_frames as f64 * 48_000.0 / 44_100.0).ceil() as usize;
 
-        assert!(!output.is_empty());
-        assert_eq!(output.len() % 2, 0);
+        assert_eq!(streamed + flushed, expected_frames * 2);
     }
 
     #[test]
-    fn flushes_every_buffered_chunk() {
-        let spec = AudioSpec::new(
-            44_100,
-            Channels::from(Position::FRONT_LEFT | Position::FRONT_RIGHT),
-        );
-        let mut resampler = Resampler::new(spec.clone(), 48_000, 441);
-        let chunk_size = resampler.chunk_size;
-        let mut input = AudioBuffer::<f32>::new(spec, chunk_size * 2 + chunk_size / 2);
-        input.resize_with_silence(chunk_size * 2 + chunk_size / 2);
+    fn flushes_delay_when_input_ends_on_a_chunk_boundary() {
+        let spec = stereo_spec(44_100);
+        let mut resampler = Resampler::new(spec.clone(), 48_000, 441).unwrap();
+        let frames = resampler.chunk_size;
+        let mut input = AudioBuffer::<f32>::new(spec, frames);
+        input.resize_with_silence(frames);
 
-        let first_chunk_len = resampler
+        let streamed = resampler
             .resample(input.as_generic_audio_buffer_ref())
-            .expect("the first complete chunk should be resampled")
-            .len();
-        assert!(resampler.input[0].len() > chunk_size);
+            .map_or(0, <[f32]>::len);
+        let flushed = resampler.flush().map_or(0, <[f32]>::len);
+        let expected_frames = (frames as f64 * 48_000.0 / 44_100.0).ceil() as usize;
 
-        let flushed_len = resampler
-            .flush()
-            .expect("the remaining chunks should be resampled")
-            .len();
-
-        assert!(flushed_len > first_chunk_len);
-        assert!(resampler.input.iter().all(Vec::is_empty));
+        assert_eq!(streamed + flushed, expected_frames * 2);
     }
 }
