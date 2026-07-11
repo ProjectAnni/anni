@@ -33,7 +33,6 @@ pub struct Player {
     controls: Controls,
     thread_killer: Sender<bool>,
     decoder_thread: Option<JoinHandle<()>>,
-    decoder_done: Receiver<()>,
     config: PlayerConfig,
 }
 
@@ -114,20 +113,15 @@ impl Player {
         } else {
             Decoder::try_with_config(controls.clone(), config.clone(), killer_receiver)?
         };
-        let (done_sender, done_receiver) = mpsc::channel();
         let decoder_thread = thread::Builder::new()
             .name("anni-playback-decoder".to_owned())
-            .spawn(move || {
-                decoder.start();
-                let _ = done_sender.send(());
-            })?;
+            .spawn(move || decoder.start())?;
 
         Ok((
             Self {
                 controls,
                 thread_killer: killer_sender,
                 decoder_thread: Some(decoder_thread),
-                decoder_done: done_receiver,
                 config,
             },
             event_receiver,
@@ -172,12 +166,7 @@ impl Deref for Player {
 impl Drop for Player {
     fn drop(&mut self) {
         self.request_shutdown();
-        if self
-            .decoder_done
-            .recv_timeout(Duration::from_millis(250))
-            .is_ok()
-            && let Some(thread) = self.decoder_thread.take()
-        {
+        if let Some(thread) = self.decoder_thread.take() {
             let _ = thread.join();
         }
     }
@@ -496,5 +485,11 @@ mod tests {
         let (player, _events) = Player::builder().build_lazy().unwrap();
         assert_eq!(player.stats().output_sample_rate, 0);
         player.shutdown().unwrap();
+    }
+
+    #[test]
+    fn dropping_a_lazy_player_shuts_down_the_decoder() {
+        let (player, _events) = Player::builder().build_lazy().unwrap();
+        drop(player);
     }
 }
