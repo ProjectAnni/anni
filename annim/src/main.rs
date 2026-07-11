@@ -1,6 +1,7 @@
 use annim::{
     auth::{on_connection_init, AuthToken},
     graphql::{MetadataMutation, MetadataQuery, MetadataSchema},
+    ingest::{IngestJobRepository, IngestService},
     search::RepositorySearchManager,
 };
 use async_graphql::{
@@ -74,10 +75,12 @@ async fn main() -> anyhow::Result<()> {
     let searcher_directory = std::env::var("ANNIM_SEARCH_DIRECTORY")?;
     std::fs::create_dir_all(&searcher_directory)?;
     let searcher = RepositorySearchManager::open_or_create(searcher_directory)?;
+    let ingest_service = IngestService::new(IngestJobRepository::new(database.clone()));
 
     let schema = MetadataSchema::build(MetadataQuery, MetadataMutation, EmptySubscription)
         .data(database)
         .data(searcher)
+        .data(ingest_service)
         .finish();
 
     let app = Router::new()

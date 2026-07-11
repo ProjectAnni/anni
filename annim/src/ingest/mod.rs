@@ -6,7 +6,7 @@
 use anni_ingest::{
     Digest, IngestJob, IngestJobSnapshot, JobState, MetadataRevision, SnapshotError,
 };
-use sea_orm::prelude::Uuid;
+use sea_orm::prelude::{DateTimeUtc, Uuid};
 use sea_orm::{
     sea_query::{Expr, OnConflict},
     ActiveValue::NotSet,
@@ -16,7 +16,11 @@ use sea_orm::{
 };
 use thiserror::Error;
 
-use crate::entities::ingest_job;
+use crate::entities::{helper::timestamp, ingest_job};
+
+mod service;
+
+pub use service::{IngestCommand, IngestService, IngestServiceError};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct RowVersion(u64);
@@ -65,6 +69,8 @@ impl std::fmt::Display for RowVersion {
 pub struct VersionedIngestJob {
     job: IngestJob,
     row_version: RowVersion,
+    created_at: DateTimeUtc,
+    updated_at: DateTimeUtc,
 }
 
 impl VersionedIngestJob {
@@ -78,6 +84,14 @@ impl VersionedIngestJob {
 
     pub const fn row_version(&self) -> RowVersion {
         self.row_version
+    }
+
+    pub const fn created_at(&self) -> DateTimeUtc {
+        self.created_at
+    }
+
+    pub const fn updated_at(&self) -> DateTimeUtc {
+        self.updated_at
     }
 
     pub fn into_job(self) -> IngestJob {
@@ -167,9 +181,10 @@ impl IngestJobRepository {
             .await?;
 
         match result {
-            TryInsertResult::Inserted(1) => Ok(VersionedIngestJob {
-                job: job.clone(),
-                row_version: RowVersion::INITIAL,
+            TryInsertResult::Inserted(1) => self.get(job.id()).await?.ok_or_else(|| {
+                IngestRepositoryError::Database(DbErr::Custom(
+                    "created ingest job could not be read back".to_owned(),
+                ))
             }),
             TryInsertResult::Conflicted | TryInsertResult::Inserted(0) => {
                 Err(IngestRepositoryError::AlreadyExists { job_id: job.id() })
@@ -291,10 +306,14 @@ impl IngestJobRepository {
         &self,
         versioned: &mut VersionedIngestJob,
     ) -> Result<(), IngestRepositoryError> {
-        let next = self
-            .compare_and_swap(&versioned.job, versioned.row_version)
+        self.compare_and_swap(&versioned.job, versioned.row_version)
             .await?;
-        versioned.row_version = next;
+        *versioned =
+            self.get(versioned.job.id())
+                .await?
+                .ok_or(IngestRepositoryError::NotFound {
+                    job_id: versioned.job.id(),
+                })?;
         Ok(())
     }
 }
@@ -336,7 +355,12 @@ fn model_to_versioned(
         field: "row_version",
     })?;
 
-    Ok(VersionedIngestJob { job, row_version })
+    Ok(VersionedIngestJob {
+        job,
+        row_version,
+        created_at: timestamp(model.created_at),
+        updated_at: timestamp(model.updated_at),
+    })
 }
 
 fn revision_to_i64(

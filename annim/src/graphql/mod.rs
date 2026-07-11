@@ -1,4 +1,5 @@
 mod cursor;
+mod ingest;
 mod input;
 pub mod types;
 
@@ -29,14 +30,17 @@ use types::{
 use crate::{
     auth::AdminGuard,
     entities::{album, album_tag_relation, disc, helper::now, tag_info, tag_relation, track},
+    ingest::{IngestJobRepository, IngestService},
     search::RepositorySearchManager,
 };
 
 pub type MetadataSchema = Schema<MetadataQuery, MetadataMutation, EmptySubscription>;
 
 pub fn build_schema(db: DatabaseConnection) -> MetadataSchema {
+    let ingest_service = IngestService::new(IngestJobRepository::new(db.clone()));
     Schema::build(MetadataQuery, MetadataMutation, EmptySubscription)
         .data(db)
+        .data(ingest_service)
         .finish()
 }
 
@@ -217,12 +221,48 @@ impl MetadataQuery {
             .await?;
         Ok(model.into_iter().map(|model| TagInfo(model)).collect())
     }
+
+    #[graphql(guard = "AdminGuard")]
+    async fn ingest_job(
+        &self,
+        ctx: &Context<'_>,
+        job_id: Uuid,
+    ) -> async_graphql::Result<Option<ingest::IngestJobInfo>> {
+        ingest::query_job(ctx, job_id).await
+    }
+
+    #[graphql(guard = "AdminGuard")]
+    async fn ingest_jobs(
+        &self,
+        ctx: &Context<'_>,
+        state: Option<ingest::IngestJobState>,
+        #[graphql(default = 50)] limit: i32,
+        #[graphql(default = 0)] offset: i32,
+    ) -> async_graphql::Result<Vec<ingest::IngestJobInfo>> {
+        ingest::query_jobs(ctx, state, limit, offset).await
+    }
 }
 
 pub struct MetadataMutation;
 
 #[Object(guard = "AdminGuard")]
 impl MetadataMutation {
+    async fn create_ingest_job(
+        &self,
+        ctx: &Context<'_>,
+        job_id: Option<Uuid>,
+    ) -> async_graphql::Result<ingest::IngestJobInfo> {
+        ingest::create_job(ctx, job_id).await
+    }
+
+    async fn execute_ingest_job_command(
+        &self,
+        ctx: &Context<'_>,
+        input: ingest::ExecuteIngestJobCommandInput,
+    ) -> async_graphql::Result<ingest::IngestJobInfo> {
+        ingest::execute_command(ctx, input).await
+    }
+
     /// Add the metatada of a full album to annim.
     async fn add_album<'ctx>(
         &self,
