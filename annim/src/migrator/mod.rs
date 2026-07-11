@@ -9,6 +9,7 @@ mod m20260712_000005_create_ingest_job;
 mod m20260712_000006_create_ingest_metadata_revision;
 mod m20260712_000007_create_catalog_collection;
 mod m20260712_000008_create_catalog_sources;
+mod m20260712_000009_create_cover_assets;
 
 pub struct Migrator;
 
@@ -24,6 +25,7 @@ impl MigratorTrait for Migrator {
             Box::new(m20260712_000006_create_ingest_metadata_revision::Migration),
             Box::new(m20260712_000007_create_catalog_collection::Migration),
             Box::new(m20260712_000008_create_catalog_sources::Migration),
+            Box::new(m20260712_000009_create_cover_assets::Migration),
         ]
     }
 }
