@@ -50,7 +50,7 @@ impl MigrationTrait for Migration {
 }
 
 #[derive(Iden)]
-enum IngestJob {
+pub(crate) enum IngestJob {
     Table,
     Id,
     JobId,

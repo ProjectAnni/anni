@@ -1,6 +1,6 @@
 #![cfg(feature = "sqlite")]
 
-use anni_ingest::JobState;
+use anni_ingest::{Digest, JobState};
 use annim::migrator::Migrator;
 use sea_orm::{prelude::Uuid, ConnectOptions, ConnectionTrait, Database, DbBackend, Statement};
 use sea_orm_migration::{MigratorTrait, SchemaManager};
@@ -65,4 +65,30 @@ async fn migration_enforces_stable_job_identity() {
     let duplicate = insert_job(&database, job_id).await;
 
     assert!(duplicate.is_err());
+}
+
+#[tokio::test]
+async fn migration_enforces_one_metadata_document_per_job_revision() {
+    let database = migrated_database().await;
+    let manager = SchemaManager::new(&database);
+    assert!(manager.has_table("ingest_metadata_revision").await.unwrap());
+
+    let job_id = Uuid::new_v4();
+    insert_job(&database, job_id).await.unwrap();
+    let insert = || {
+        database.execute(Statement::from_sql_and_values(
+            DbBackend::Sqlite,
+            "INSERT INTO ingest_metadata_revision \
+             (job_id, revision, document, document_digest) VALUES (?, ?, ?, ?)",
+            [
+                job_id.into(),
+                1_i64.into(),
+                "{}".into(),
+                vec![0_u8; Digest::LENGTH].into(),
+            ],
+        ))
+    };
+
+    insert().await.unwrap();
+    assert!(insert().await.is_err());
 }

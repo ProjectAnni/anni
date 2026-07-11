@@ -6,6 +6,7 @@ pub mod album;
 pub mod album_tag_relation;
 pub mod disc;
 pub mod ingest_job;
+pub mod ingest_metadata_revision;
 pub mod sea_orm_active_enums;
 pub mod tag_info;
 pub mod tag_relation;
