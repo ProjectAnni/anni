@@ -148,3 +148,61 @@ impl FromStr for CoverSourceKind {
 #[derive(Debug, Clone, PartialEq, Eq, Error)]
 #[error("unknown cover source kind: {0}")]
 pub struct UnknownCoverSourceKind(String);
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum SyncRunStatus {
+    Queued,
+    Running,
+    Succeeded,
+    Failed,
+    Cancelled,
+}
+
+impl SyncRunStatus {
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Queued => "queued",
+            Self::Running => "running",
+            Self::Succeeded => "succeeded",
+            Self::Failed => "failed",
+            Self::Cancelled => "cancelled",
+        }
+    }
+
+    pub const fn can_transition_to(self, next: Self) -> bool {
+        self as u8 == next as u8
+            || matches!(
+                (self, next),
+                (Self::Queued, Self::Running | Self::Failed | Self::Cancelled)
+                    | (
+                        Self::Running,
+                        Self::Succeeded | Self::Failed | Self::Cancelled
+                    )
+            )
+    }
+}
+
+impl fmt::Display for SyncRunStatus {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter.write_str(self.as_str())
+    }
+}
+
+impl FromStr for SyncRunStatus {
+    type Err = UnknownSyncRunStatus;
+
+    fn from_str(value: &str) -> Result<Self, Self::Err> {
+        match value {
+            "queued" => Ok(Self::Queued),
+            "running" => Ok(Self::Running),
+            "succeeded" => Ok(Self::Succeeded),
+            "failed" => Ok(Self::Failed),
+            "cancelled" => Ok(Self::Cancelled),
+            _ => Err(UnknownSyncRunStatus(value.to_owned())),
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Error)]
+#[error("unknown sync run status: {0}")]
+pub struct UnknownSyncRunStatus(String);

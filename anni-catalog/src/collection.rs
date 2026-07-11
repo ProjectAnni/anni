@@ -23,6 +23,30 @@ impl CollectionState {
             Self::Unavailable => "unavailable",
         }
     }
+
+    pub const fn is_collected(self) -> bool {
+        matches!(self, Self::Acquired | Self::Ingesting | Self::Published)
+    }
+
+    pub const fn can_transition_to(self, next: Self) -> bool {
+        self as u8 == next as u8
+            || matches!(
+                (self, next),
+                (
+                    Self::Missing,
+                    Self::Wanted | Self::Acquired | Self::Unavailable
+                ) | (
+                    Self::Wanted,
+                    Self::Missing | Self::Acquired | Self::Unavailable
+                ) | (Self::Acquired, Self::Wanted | Self::Ingesting)
+                    | (Self::Ingesting, Self::Acquired | Self::Published)
+                    | (Self::Published, Self::Acquired)
+                    | (
+                        Self::Unavailable,
+                        Self::Missing | Self::Wanted | Self::Acquired
+                    )
+            )
+    }
 }
 
 impl fmt::Display for CollectionState {
@@ -50,6 +74,55 @@ impl FromStr for CollectionState {
 #[derive(Debug, Clone, PartialEq, Eq, Error)]
 #[error("unknown collection state: {0}")]
 pub struct UnknownCollectionState(String);
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum ReleaseKind {
+    Album,
+    Single,
+    Ep,
+    Soundtrack,
+    Compilation,
+    Other,
+}
+
+impl ReleaseKind {
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Album => "album",
+            Self::Single => "single",
+            Self::Ep => "ep",
+            Self::Soundtrack => "soundtrack",
+            Self::Compilation => "compilation",
+            Self::Other => "other",
+        }
+    }
+}
+
+impl fmt::Display for ReleaseKind {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter.write_str(self.as_str())
+    }
+}
+
+impl FromStr for ReleaseKind {
+    type Err = UnknownReleaseKind;
+
+    fn from_str(value: &str) -> Result<Self, Self::Err> {
+        match value {
+            "album" => Ok(Self::Album),
+            "single" => Ok(Self::Single),
+            "ep" => Ok(Self::Ep),
+            "soundtrack" => Ok(Self::Soundtrack),
+            "compilation" => Ok(Self::Compilation),
+            "other" => Ok(Self::Other),
+            _ => Err(UnknownReleaseKind(value.to_owned())),
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Error)]
+#[error("unknown release kind: {0}")]
+pub struct UnknownReleaseKind(String);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum AudioCodec {
@@ -204,5 +277,8 @@ mod tests {
         assert_eq!(cd.quality_tier(), QualityTier::Lossless);
         assert_eq!(hi_res.quality_tier(), QualityTier::HiResLossless);
         assert_eq!(lossy.quality_tier(), QualityTier::Lossy);
+        assert!(CollectionState::Acquired.is_collected());
+        assert!(CollectionState::Acquired.can_transition_to(CollectionState::Ingesting));
+        assert!(!CollectionState::Missing.can_transition_to(CollectionState::Published));
     }
 }

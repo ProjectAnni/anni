@@ -1,9 +1,63 @@
-use std::{cmp::Ordering, num::NonZeroU32};
+use std::{cmp::Ordering, fmt, num::NonZeroU32, str::FromStr};
 
 use thiserror::Error;
 use url::Url;
 
 const PREFERRED_APPLE_ARTWORK_SIZE: u16 = 10_000;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum CoverCandidateState {
+    Discovered,
+    Verified,
+    Rejected,
+    Selected,
+}
+
+impl CoverCandidateState {
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Discovered => "discovered",
+            Self::Verified => "verified",
+            Self::Rejected => "rejected",
+            Self::Selected => "selected",
+        }
+    }
+
+    pub const fn can_transition_to(self, next: Self) -> bool {
+        self as u8 == next as u8
+            || matches!(
+                (self, next),
+                (Self::Discovered, Self::Verified | Self::Rejected)
+                    | (Self::Verified, Self::Rejected | Self::Selected)
+                    | (Self::Rejected, Self::Discovered)
+                    | (Self::Selected, Self::Verified)
+            )
+    }
+}
+
+impl fmt::Display for CoverCandidateState {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter.write_str(self.as_str())
+    }
+}
+
+impl FromStr for CoverCandidateState {
+    type Err = UnknownCoverCandidateState;
+
+    fn from_str(value: &str) -> Result<Self, Self::Err> {
+        match value {
+            "discovered" => Ok(Self::Discovered),
+            "verified" => Ok(Self::Verified),
+            "rejected" => Ok(Self::Rejected),
+            "selected" => Ok(Self::Selected),
+            _ => Err(UnknownCoverCandidateState(value.to_owned())),
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Error)]
+#[error("unknown cover candidate state: {0}")]
+pub struct UnknownCoverCandidateState(String);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct CoverQuality {
