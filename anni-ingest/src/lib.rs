@@ -9,6 +9,6 @@ mod job;
 
 pub use digest::Digest;
 pub use job::{
-    IngestJob, JobError, JobOperation, JobState, MetadataRevision, PlanReference, UnknownJobState,
-    VerificationReference,
+    IngestJob, IngestJobSnapshot, JobError, JobOperation, JobState, MetadataRevision,
+    PlanReference, SnapshotError, UnknownJobState, VerificationReference,
 };

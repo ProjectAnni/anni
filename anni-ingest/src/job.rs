@@ -130,6 +130,98 @@ pub struct VerificationReference {
     receipt_digest: Digest,
 }
 
+/// Persistence-shaped representation of an ingest job.
+///
+/// This type deliberately mirrors only domain data. Database-specific fields
+/// such as an optimistic-lock version or timestamps belong to the repository
+/// layer and are not part of the workflow aggregate.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct IngestJobSnapshot {
+    id: Uuid,
+    state: JobState,
+    metadata_revision: MetadataRevision,
+    approved_revision: Option<MetadataRevision>,
+    manifest_digest: Option<Digest>,
+    plan_digest: Option<Digest>,
+    verification_digest: Option<Digest>,
+}
+
+impl IngestJobSnapshot {
+    #[allow(clippy::too_many_arguments)]
+    pub const fn new(
+        id: Uuid,
+        state: JobState,
+        metadata_revision: MetadataRevision,
+        approved_revision: Option<MetadataRevision>,
+        manifest_digest: Option<Digest>,
+        plan_digest: Option<Digest>,
+        verification_digest: Option<Digest>,
+    ) -> Self {
+        Self {
+            id,
+            state,
+            metadata_revision,
+            approved_revision,
+            manifest_digest,
+            plan_digest,
+            verification_digest,
+        }
+    }
+
+    pub const fn id(self) -> Uuid {
+        self.id
+    }
+
+    pub const fn state(self) -> JobState {
+        self.state
+    }
+
+    pub const fn metadata_revision(self) -> MetadataRevision {
+        self.metadata_revision
+    }
+
+    pub const fn approved_revision(self) -> Option<MetadataRevision> {
+        self.approved_revision
+    }
+
+    pub const fn manifest_digest(self) -> Option<Digest> {
+        self.manifest_digest
+    }
+
+    pub const fn plan_digest(self) -> Option<Digest> {
+        self.plan_digest
+    }
+
+    pub const fn verification_digest(self) -> Option<Digest> {
+        self.verification_digest
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Error)]
+pub enum SnapshotError {
+    #[error("manifest and plan digests must either both be present or both be absent")]
+    IncompletePlan,
+    #[error("approved revision {approved} does not match current revision {current}")]
+    ApprovedRevisionMismatch {
+        approved: MetadataRevision,
+        current: MetadataRevision,
+    },
+    #[error("a persisted plan requires approval of the current metadata revision")]
+    PlanRequiresApproval,
+    #[error("a persisted verification receipt requires a plan")]
+    VerificationRequiresPlan,
+    #[error("state {state} requires an immutable plan")]
+    StateRequiresPlan { state: JobState },
+    #[error("state {state} requires an accepted verification receipt")]
+    StateRequiresVerification { state: JobState },
+    #[error("state {state} cannot contain plan or verification data")]
+    StateRejectsDerivedData { state: JobState },
+    #[error("state created cannot contain an approved revision")]
+    CreatedStateRejectsApproval,
+    #[error("state {state} cannot contain an accepted verification receipt")]
+    StateRejectsVerification { state: JobState },
+}
+
 impl VerificationReference {
     pub const fn plan_digest(self) -> Digest {
         self.plan_digest
@@ -225,6 +317,115 @@ impl IngestJob {
             plan: None,
             verification: None,
         }
+    }
+
+    /// Restore a job from durable storage while rechecking all domain
+    /// invariants. Corrupt rows therefore fail at the repository boundary
+    /// instead of creating an impossible in-memory state.
+    pub fn restore(snapshot: IngestJobSnapshot) -> Result<Self, SnapshotError> {
+        if let Some(approved) = snapshot.approved_revision
+            && approved != snapshot.metadata_revision
+        {
+            return Err(SnapshotError::ApprovedRevisionMismatch {
+                approved,
+                current: snapshot.metadata_revision,
+            });
+        }
+
+        let plan = match (snapshot.manifest_digest, snapshot.plan_digest) {
+            (Some(manifest_digest), Some(plan_digest)) => {
+                if snapshot.approved_revision != Some(snapshot.metadata_revision) {
+                    return Err(SnapshotError::PlanRequiresApproval);
+                }
+                Some(PlanReference {
+                    metadata_revision: snapshot.metadata_revision,
+                    manifest_digest,
+                    plan_digest,
+                })
+            }
+            (None, None) => None,
+            _ => return Err(SnapshotError::IncompletePlan),
+        };
+
+        let verification = match snapshot.verification_digest {
+            Some(receipt_digest) => {
+                let plan = plan.ok_or(SnapshotError::VerificationRequiresPlan)?;
+                Some(VerificationReference {
+                    plan_digest: plan.plan_digest,
+                    receipt_digest,
+                })
+            }
+            None => None,
+        };
+
+        match snapshot.state {
+            JobState::Created => {
+                if snapshot.approved_revision.is_some() {
+                    return Err(SnapshotError::CreatedStateRejectsApproval);
+                }
+                if plan.is_some() || verification.is_some() {
+                    return Err(SnapshotError::StateRejectsDerivedData {
+                        state: snapshot.state,
+                    });
+                }
+            }
+            JobState::Reviewing => {
+                if plan.is_some() || verification.is_some() {
+                    return Err(SnapshotError::StateRejectsDerivedData {
+                        state: snapshot.state,
+                    });
+                }
+            }
+            JobState::Planned | JobState::Executing | JobState::Verifying => {
+                if plan.is_none() {
+                    return Err(SnapshotError::StateRequiresPlan {
+                        state: snapshot.state,
+                    });
+                }
+                if verification.is_some() {
+                    return Err(SnapshotError::StateRejectsVerification {
+                        state: snapshot.state,
+                    });
+                }
+            }
+            JobState::ReadyToCommit | JobState::Committing | JobState::Published => {
+                if plan.is_none() {
+                    return Err(SnapshotError::StateRequiresPlan {
+                        state: snapshot.state,
+                    });
+                }
+                if verification.is_none() {
+                    return Err(SnapshotError::StateRequiresVerification {
+                        state: snapshot.state,
+                    });
+                }
+            }
+            // Terminal interruption states preserve whichever valid evidence
+            // existed at the moment the job was stopped.
+            JobState::Quarantined | JobState::Cancelled => {}
+        }
+
+        Ok(Self {
+            id: snapshot.id,
+            state: snapshot.state,
+            metadata_revision: snapshot.metadata_revision,
+            approved_revision: snapshot.approved_revision,
+            plan,
+            verification,
+        })
+    }
+
+    pub fn snapshot(&self) -> IngestJobSnapshot {
+        IngestJobSnapshot::new(
+            self.id,
+            self.state,
+            self.metadata_revision,
+            self.approved_revision,
+            self.plan.map(|plan| plan.manifest_digest),
+            self.plan.map(|plan| plan.plan_digest),
+            self.verification
+                .map(|verification| verification.receipt_digest),
+        )
     }
 
     pub const fn id(&self) -> Uuid {
@@ -606,5 +807,46 @@ mod tests {
                 operation: JobOperation::Quarantine,
             })
         ));
+    }
+
+    #[test]
+    fn snapshot_round_trip_preserves_a_reachable_job() {
+        let job = ready_to_commit_job();
+
+        assert_eq!(IngestJob::restore(job.snapshot()), Ok(job));
+    }
+
+    #[test]
+    fn restoring_snapshot_rejects_impossible_persisted_state() {
+        let id = Uuid::new_v4();
+        let incomplete_plan = IngestJobSnapshot::new(
+            id,
+            JobState::Planned,
+            MetadataRevision::INITIAL,
+            Some(MetadataRevision::INITIAL),
+            Some(digest(1)),
+            None,
+            None,
+        );
+        assert_eq!(
+            IngestJob::restore(incomplete_plan),
+            Err(SnapshotError::IncompletePlan)
+        );
+
+        let published_without_receipt = IngestJobSnapshot::new(
+            id,
+            JobState::Published,
+            MetadataRevision::INITIAL,
+            Some(MetadataRevision::INITIAL),
+            Some(digest(1)),
+            Some(digest(2)),
+            None,
+        );
+        assert_eq!(
+            IngestJob::restore(published_without_receipt),
+            Err(SnapshotError::StateRequiresVerification {
+                state: JobState::Published,
+            })
+        );
     }
 }
