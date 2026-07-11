@@ -164,8 +164,9 @@ impl MetadataValue {
             Self::Text(value) => !value.is_empty(),
             Self::TextList(values) => !values.is_empty(),
             Self::TextMap(values) => !values.is_empty(),
+            Self::Date(value) => value.year() != 0,
             Self::Absent => false,
-            Self::Date(_) | Self::TrackType(_) => true,
+            Self::TrackType(_) => true,
         }
     }
 }
@@ -1000,6 +1001,7 @@ mod tests {
 
     #[test]
     fn review_context_distinguishes_cd_requirements_and_rejects_unknown_tracks() {
+        assert!(!MetadataValue::Date(AnniDate::UNKNOWN).is_present());
         let layout = AlbumLayout::new(vec![NonZeroU16::new(2).unwrap()]).unwrap();
         let cd = MetadataReviewContext::new(MetadataProfile::Cd, layout.clone());
         let streaming = MetadataReviewContext::new(MetadataProfile::Streaming, layout);
