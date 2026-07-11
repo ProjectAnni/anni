@@ -9,6 +9,7 @@ repository.workspace = true
 license.workspace = true
 
 [dependencies]
+anni-metadata.workspace = true
 sha2 = "0.10.9"
 thiserror.workspace = true
 uuid.workspace = true

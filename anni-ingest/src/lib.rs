@@ -7,6 +7,7 @@
 mod digest;
 mod job;
 mod manifest;
+mod metadata;
 mod path;
 mod plan;
 
@@ -16,5 +17,10 @@ pub use job::{
     PlanReference, SnapshotError, UnknownJobState, VerificationReference,
 };
 pub use manifest::{AudioFormat, InputFileKind, InputManifest, ManifestEntry, ManifestError};
+pub use metadata::{
+    AlbumField, AlbumLayout, CompletenessReport, Confidence, DiscField, Evidence, EvidenceMethod,
+    EvidenceSourceKind, FieldPath, MetadataCandidate, MetadataDraft, MetadataError,
+    MetadataRequirements, MetadataValue, MetadataValueKind, TrackField,
+};
 pub use path::{PathError, SafeRelativePath};
 pub use plan::{ExecutionPlan, PlanError, PlanOperation, SplitOutputFormat};
