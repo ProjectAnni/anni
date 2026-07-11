@@ -274,6 +274,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "anni-ingest-worker"
+version = "0.1.0"
+dependencies = [
+ "anni-common",
+ "anni-ingest",
+ "anni-split",
+ "sha2 0.10.9",
+ "tempfile",
+ "thiserror 2.0.18",
+ "uuid",
+ "which 8.0.4",
+]
+
+[[package]]
 name = "anni-metadata"
 version = "0.1.0"
 dependencies = [

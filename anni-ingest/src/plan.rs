@@ -121,6 +121,8 @@ pub enum PlanError {
     EmptySplitOutputs,
     #[error("multiple operations write the same staging target: {path}")]
     DuplicateTarget { path: SafeRelativePath },
+    #[error("staging target uses worker-reserved path: {path}")]
+    ReservedTargetPath { path: SafeRelativePath },
 }
 
 fn require_source(
@@ -147,6 +149,11 @@ fn insert_target(
     targets: &mut BTreeSet<SafeRelativePath>,
     target: &SafeRelativePath,
 ) -> Result<(), PlanError> {
+    if target.as_str() == ".anni-partials" || target.as_str().starts_with(".anni-partials/") {
+        return Err(PlanError::ReservedTargetPath {
+            path: target.clone(),
+        });
+    }
     if targets.insert(target.clone()) {
         Ok(())
     } else {
@@ -315,6 +322,15 @@ mod tests {
                 vec![split_operation(), collision]
             ),
             Err(PlanError::DuplicateTarget { .. })
+        ));
+
+        let reserved = PlanOperation::CopyFile {
+            source: path("cover.jpg"),
+            target: path(".anni-partials/cover.jpg"),
+        };
+        assert!(matches!(
+            ExecutionPlan::new(job_id, MetadataRevision::INITIAL, &manifest, vec![reserved]),
+            Err(PlanError::ReservedTargetPath { .. })
         ));
     }
 }

@@ -12,6 +12,7 @@ members = [
     "anni-playback",
     "anni-metadata",
     "anni-ingest",
+    "anni-ingest-worker",
     "third_party/google-drive3",
 ]
 resolver = "3"
@@ -26,6 +27,7 @@ license = "Apache-2.0"
 anni-common = { version = "0.2.0", path = "./anni-common" }
 anni-ingest = { path = "./anni-ingest" }
 anni-metadata = { path = "./anni-metadata" }
+anni-split = { path = "./anni-split" }
 
 log = "0.4"
 uuid = { version = "1", features = ["v4"] }
