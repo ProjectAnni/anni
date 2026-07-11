@@ -107,7 +107,10 @@ impl PartialOrd for CoverQuality {
 }
 
 /// Validate a remote cover URL and remove Amazon's filename compression block.
-/// Non-Amazon URLs are returned byte-for-byte after validation.
+///
+/// Query parameters are preserved because they can contain signed access
+/// credentials rather than image transforms. Non-Amazon URLs are returned
+/// byte-for-byte after validation.
 pub fn canonicalize_cover_url(value: &str) -> Result<String, CoverUrlError> {
     let mut url = validate_remote_url(value)?;
     if !is_amazon_image_host(url.host_str().expect("validated URL has host")) {
@@ -117,7 +120,6 @@ pub fn canonicalize_cover_url(value: &str) -> Result<String, CoverUrlError> {
     if let Some(path) = amazon_original_path(url.path()) {
         url.set_path(&path);
     }
-    url.set_query(None);
     url.set_fragment(None);
     Ok(url.into())
 }
@@ -201,7 +203,7 @@ mod tests {
         let source = "https://m.media-amazon.com/images/I/81abc._AC_SL1500_.jpg?x=1";
         assert_eq!(
             canonicalize_cover_url(source).unwrap(),
-            "https://m.media-amazon.com/images/I/81abc.jpg"
+            "https://m.media-amazon.com/images/I/81abc.jpg?x=1"
         );
     }
 
