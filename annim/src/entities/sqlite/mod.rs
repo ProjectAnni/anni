@@ -5,6 +5,7 @@ pub mod prelude;
 pub mod album;
 pub mod album_tag_relation;
 pub mod disc;
+pub mod ingest_job;
 pub mod tag_info;
 pub mod tag_relation;
 pub mod track;

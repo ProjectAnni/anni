@@ -37,6 +37,7 @@ tracing-subscriber = { version = "0.3.23" }
 serde_json.workspace = true
 chrono = "0.4.45"
 serde.workspace = true
+thiserror.workspace = true
 
 # Search
 tantivy = "0.25.0"
