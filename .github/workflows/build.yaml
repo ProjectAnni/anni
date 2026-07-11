@@ -17,6 +17,7 @@ concurrency:
 env:
   CARGO_INCREMENTAL: 0
   CARGO_TERM_COLOR: always
+  LINDERA_DICTIONARIES_PATH: ${{ github.workspace }}/.lindera-dictionaries
 
 jobs:
   validate:
@@ -39,6 +40,7 @@ jobs:
             ~/.cargo/registry/index/
             ~/.cargo/registry/cache/
             ~/.cargo/git/db/
+            .lindera-dictionaries/
             target/
           key: ${{ runner.os }}-validate-cargo-${{ hashFiles('rust-toolchain.toml', 'Cargo.lock') }}
           restore-keys: |
@@ -49,6 +51,9 @@ jobs:
 
       - name: Run tests
         run: cargo test --locked --workspace --all-targets --exclude anni-playback
+
+      - name: Test optional search integration
+        run: cargo test --locked -p anni-repo --features search
 
   build:
     name: Build ${{ matrix.target }}
@@ -100,6 +105,7 @@ jobs:
             ~/.cargo/registry/index/
             ~/.cargo/registry/cache/
             ~/.cargo/git/db/
+            .lindera-dictionaries/
             target/
           key: ${{ runner.os }}-${{ matrix.target }}-release-cargo-${{ hashFiles('rust-toolchain.toml', 'Cargo.lock') }}
           restore-keys: |

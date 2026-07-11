@@ -10,8 +10,11 @@ use serde::{de::DeserializeOwned, Serialize};
 use serde_json::Value;
 use symphonia::{
     core::{
-        codecs::DecoderOptions, formats::FormatOptions, io::MediaSourceStream,
-        meta::MetadataOptions, probe::Hint,
+        codecs::audio::AudioDecoderOptions,
+        formats::{probe::Hint, FormatOptions, TrackType},
+        io::MediaSourceStream,
+        meta::MetadataOptions,
+        packet::Packet,
     },
     default::get_probe,
 };
@@ -155,25 +158,49 @@ pub fn create_dir_all(path: impl AsRef<Path>) -> io::Result<()> {
     }
 }
 
+fn for_each_packet_in_track<E>(
+    track_id: u32,
+    mut next_packet: impl FnMut() -> Result<Option<Packet>, E>,
+    mut consume: impl FnMut(&Packet) -> Result<(), E>,
+) -> Result<(), E> {
+    while let Some(packet) = next_packet()? {
+        if packet.track_id == track_id {
+            consume(&packet)?;
+        }
+    }
+
+    Ok(())
+}
+
 pub fn validate(source: Box<dyn MediaSource>) -> Result<bool, ValidationError> {
     let source = MediaSourceStream::new(source, Default::default());
 
     let format_opts = FormatOptions::default();
     let metadata_opts = MetadataOptions::default();
 
-    let probed = get_probe().format(&Hint::new(), source, &format_opts, &metadata_opts)?;
-
-    let mut format_reader = probed.format;
-    let track = match format_reader.default_track() {
+    let mut format_reader = get_probe().probe(&Hint::new(), source, format_opts, metadata_opts)?;
+    let track = match format_reader.default_track(TrackType::Audio) {
         Some(track) => track,
         None => return Ok(false),
     };
+    let track_id = track.id;
+    let codec_params = match track
+        .codec_params
+        .as_ref()
+        .and_then(|params| params.audio())
+    {
+        Some(params) => params,
+        None => return Ok(false),
+    };
 
-    let mut decoder = CODEC_REGISTRY.make(&track.codec_params, &DecoderOptions { verify: true })?;
+    let options = AudioDecoderOptions::default().verify(true);
+    let mut decoder = CODEC_REGISTRY.make_audio_decoder(codec_params, &options)?;
 
-    while let Ok(packet) = format_reader.next_packet() {
-        let _ = decoder.decode(&packet)?;
-    }
+    for_each_packet_in_track(
+        track_id,
+        || format_reader.next_packet(),
+        |packet| decoder.decode(packet).map(|_| ()),
+    )?;
 
     decoder
         .finalize()
@@ -195,4 +222,38 @@ pub enum ValidationError {
     Decode(#[from] symphonia::core::errors::Error),
     #[error("Validation is not supported on the source")]
     Unsupported,
+}
+
+#[cfg(test)]
+mod tests {
+    use std::{collections::VecDeque, convert::Infallible};
+
+    use symphonia::core::{
+        packet::Packet,
+        units::{Duration, Timestamp},
+    };
+
+    use super::for_each_packet_in_track;
+
+    #[test]
+    fn decodes_only_packets_from_the_selected_track() {
+        let mut packets = VecDeque::from([
+            Packet::new(1, Timestamp::ZERO, Duration::ZERO, []),
+            Packet::new(2, Timestamp::ZERO, Duration::ZERO, []),
+            Packet::new(1, Timestamp::ZERO, Duration::ZERO, []),
+        ]);
+        let mut decoded_track_ids = Vec::new();
+
+        for_each_packet_in_track(
+            1,
+            || Ok::<_, Infallible>(packets.pop_front()),
+            |packet| {
+                decoded_track_ids.push(packet.track_id);
+                Ok::<_, Infallible>(())
+            },
+        )
+        .unwrap();
+
+        assert_eq!(decoded_track_ids, [1, 1]);
+    }
 }

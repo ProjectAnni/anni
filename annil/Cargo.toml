@@ -10,15 +10,13 @@ license.workspace = true
 
 [dependencies]
 axum = { workspace = true, features = ["macros"] }
-tower-http = { version = "0.5.0", features = ["cors"] }
+tower-http = { version = "0.7.0", features = ["cors"] }
 tokio = { version = "1", features = ["full"] }
-tokio-util = { version = "0.7.4", features = ["io"] }
+tokio-util = { version = "0.7.18", features = ["io"] }
 futures = "0.3"
 
 anyhow.workspace = true
 thiserror.workspace = true
-async-trait = "0.1"
-
 anni-flac = { version = "0.2.2", path = "../anni-flac", features = ["async"] }
 anni-repo = { version = "0.4.2", path = "../anni-repo", features = [
     "git",
@@ -29,10 +27,10 @@ anni-provider = { version = "0.3.1", path = "../anni-provider" }
 serde.workspace = true
 toml.workspace = true
 log.workspace = true
-env_logger = "0.10"
-jwt-simple = "0.11.9"
+env_logger = "0.11"
+jwt-simple = { version = "0.12.17", default-features = false, features = ["pure-rust"] }
 uuid.workspace = true
-base64 = "0.21.0"
+base64 = "0.22.1"
 
 [features]
 default = ["metadata", "transcode"]

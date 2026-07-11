@@ -1,5 +1,6 @@
 use std::path::Path;
 
+use anni_metadata::model::TrackIdentifier;
 use lindera::{dictionary::load_dictionary, mode::Mode, segmenter::Segmenter};
 use lindera_tantivy::tokenizer::LinderaTokenizer;
 use tantivy::{
@@ -11,8 +12,6 @@ use tantivy::{
 
 pub use tantivy;
 use uuid::Uuid;
-
-use crate::prelude::TrackIdentifier;
 
 pub struct RepositorySearchManager {
     pub index: Index,

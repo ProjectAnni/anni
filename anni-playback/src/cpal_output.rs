@@ -19,9 +19,9 @@ use std::sync::{atomic::AtomicBool, Arc};
 use anyhow::Context;
 use cpal::{
     traits::{DeviceTrait, HostTrait, StreamTrait},
-    Device, Stream, StreamConfig,
+    Device, ErrorKind, Stream, StreamConfig,
 };
-use symphonia::core::audio::{AudioBufferRef, SampleBuffer, SignalSpec};
+use symphonia::core::audio::{AudioSpec, GenericAudioBufferRef};
 
 use crate::types::InternalPlayerEvent;
 use crate::utils::blocking_rb::*;
@@ -36,6 +36,11 @@ use super::{
 /// will help to reduce it.
 const BASE_VOLUME: f32 = 0.8;
 
+fn copy_to_interleaved_buffer(decoded: GenericAudioBufferRef<'_>, buffer: &mut Vec<f32>) {
+    buffer.clear();
+    decoded.copy_to_vec_interleaved(buffer);
+}
+
 pub struct CpalOutputStream {
     pub stream: Stream,
     pub ring_buffer_reader: BlockingRb<f32, Consumer>,
@@ -47,14 +52,14 @@ pub struct CpalOutputStream {
 }
 
 impl CpalOutputStream {
-    pub fn new(spec: SignalSpec, controls: Controls) -> anyhow::Result<Self> {
+    pub fn new(spec: AudioSpec, controls: Controls) -> anyhow::Result<Self> {
         // Get the output config.
-        let (device, config) = Self::get_config(spec)?;
+        let (device, config) = Self::get_config(&spec)?;
 
         // Create a ring buffer with a capacity for up-to `buf_len_ms` of audio.
-        let channels = spec.channels.count();
+        let channels = spec.channels().count();
         let buf_len_ms = 300;
-        let ring_len = ((buf_len_ms * spec.rate as usize) / 1000) * channels;
+        let ring_len = ((buf_len_ms * config.sample_rate as usize) / 1000) * channels;
 
         // Create the buffers for the stream.
         let rb = BlockingRb::<f32>::new(ring_len);
@@ -63,7 +68,7 @@ impl CpalOutputStream {
         let ring_buffer_reader = rb.1;
 
         let stream = device.build_output_stream(
-            &config,
+            config,
             {
                 let controls = controls.clone();
                 move |data: &mut [f32], _: &cpal::OutputCallbackInfo| {
@@ -104,14 +109,14 @@ impl CpalOutputStream {
             {
                 let controls = controls.clone();
                 move |err| {
-                    match err {
-                        cpal::StreamError::DeviceNotAvailable => {
+                    match err.kind() {
+                        ErrorKind::DeviceNotAvailable | ErrorKind::StreamInvalidated => {
                             // Tell the decoder that there is no longer a valid device.
                             // The decoder will make a new `cpal_output`.
                             controls.send_internal_event(InternalPlayerEvent::DeviceChanged);
                             ring_buffer_writer.cancel_write();
                         }
-                        cpal::StreamError::BackendSpecific { err } => {
+                        _ => {
                             // This should never happen.
                             panic!("Unknown error occurred during playback: {err}");
                         }
@@ -138,7 +143,7 @@ impl CpalOutputStream {
     pub fn create_output(
         &self,
         buffer_signal: Arc<AtomicBool>,
-        spec: SignalSpec,
+        spec: AudioSpec,
         duration: u64,
     ) -> CpalOutput {
         CpalOutput::new(
@@ -164,14 +169,14 @@ impl CpalOutputStream {
     }
 
     fn get_config(
-        #[cfg_attr(target_os = "windows", allow(unused))] spec: SignalSpec,
+        #[cfg_attr(target_os = "windows", allow(unused))] spec: &AudioSpec,
     ) -> anyhow::Result<(Device, StreamConfig)> {
         let host = cpal::default_host();
         let device = host
             .default_output_device()
             .context("Failed to get default output device.")?;
 
-        log::debug!("default device: {:?}", device.name());
+        log::debug!("default device: {:?}", device.description());
 
         let config;
 
@@ -189,10 +194,10 @@ impl CpalOutputStream {
 
         #[cfg(not(target_os = "windows"))]
         {
-            let channels = spec.channels.count();
+            let channels = spec.channels().count();
             config = cpal::StreamConfig {
                 channels: channels as cpal::ChannelCount,
-                sample_rate: cpal::SampleRate(spec.rate),
+                sample_rate: spec.rate(),
                 buffer_size: cpal::BufferSize::Default,
             };
         }
@@ -203,13 +208,13 @@ impl CpalOutputStream {
 
 //TODO: Support i16 and u16 instead of only f32.
 pub struct CpalOutput {
-    pub spec: SignalSpec,
+    pub spec: AudioSpec,
     pub duration: u64,
     pub buffer_signal: Arc<AtomicBool>,
     sample_rate: u32,
     ring_buffer_writer: BlockingRb<f32, Producer>,
-    sample_buffer: SampleBuffer<f32>,
-    resampler: Option<Resampler<f32>>,
+    sample_buffer: Vec<f32>,
+    resampler: Option<Resampler>,
     normalizer: Normalizer,
     controls: Controls,
 }
@@ -217,7 +222,7 @@ pub struct CpalOutput {
 impl CpalOutput {
     pub fn new(
         buffer_signal: Arc<AtomicBool>,
-        spec: SignalSpec,
+        spec: AudioSpec,
         duration: u64,
         config: StreamConfig,
         controls: Controls,
@@ -225,50 +230,54 @@ impl CpalOutput {
     ) -> Self {
         // Create a resampler only if the code is running on Windows
         // or if the output config's sample rate doesn't match the audio's.
-        let resampler: Option<Resampler<f32>> =
-            if cfg!(target_os = "windows") || spec.rate != config.sample_rate.0 {
+        let resampler: Option<Resampler> =
+            if cfg!(target_os = "windows") || spec.rate() != config.sample_rate {
                 Some(Resampler::new(
-                    spec,
-                    config.sample_rate.0 as usize,
-                    duration,
+                    spec.clone(),
+                    config.sample_rate as usize,
+                    duration as usize,
                 ))
             } else {
                 None
             };
 
-        let sample_buffer = SampleBuffer::<f32>::new(duration, spec);
-        let sample_rate = config.sample_rate.0;
+        let channels = spec.channels().count();
+        let sample_buffer = Vec::with_capacity(duration as usize * channels);
+        let sample_rate = config.sample_rate;
 
         Self {
             spec,
             duration,
             buffer_signal,
-            sample_rate: config.sample_rate.0,
+            sample_rate: config.sample_rate,
             ring_buffer_writer,
             sample_buffer,
             resampler,
-            normalizer: Normalizer::new(spec.channels.count(), sample_rate),
+            normalizer: Normalizer::new(channels, sample_rate),
             controls,
         }
     }
 
-    /// Write the `AudioBufferRef` to the buffers.
-    pub fn write(&mut self, decoded: AudioBufferRef) {
+    /// Write the decoded audio buffer to the output buffers.
+    pub fn write(&mut self, decoded: GenericAudioBufferRef<'_>) {
         if decoded.frames() == 0 {
             return;
         }
 
-        let need_resample = decoded.spec().rate != self.sample_rate;
+        let need_resample = decoded.spec().rate() != self.sample_rate;
         let mut samples = match (need_resample, &mut self.resampler) {
             (true, Some(resampler)) => {
                 // If there is a resampler, then write resampled values
                 // instead of the normal `samples`.
-                resampler.resample(decoded).unwrap_or(&[])
+                match resampler.resample(decoded) {
+                    Some(samples) => samples,
+                    None => return,
+                }
             }
             _ => {
                 // no resampler, or the target sample rate is the same as the input
-                self.sample_buffer.copy_interleaved_ref(decoded);
-                self.sample_buffer.samples()
+                copy_to_interleaved_buffer(decoded, &mut self.sample_buffer);
+                &self.sample_buffer
             }
         };
 
@@ -294,5 +303,33 @@ impl CpalOutput {
                 remaining_samples = &remaining_samples[written..];
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use symphonia::core::audio::{
+        AsGenericAudioBufferRef, AudioBuffer, AudioSpec, Channels, Position,
+    };
+
+    use super::copy_to_interleaved_buffer;
+
+    #[test]
+    fn replaces_interleaved_samples_instead_of_appending() {
+        let spec = AudioSpec::new(
+            44_100,
+            Channels::from(Position::FRONT_LEFT | Position::FRONT_RIGHT),
+        );
+        let mut first = AudioBuffer::<f32>::new(spec.clone(), 2);
+        first.resize_with_silence(2);
+        let mut second = AudioBuffer::<f32>::new(spec, 1);
+        second.resize_with_silence(1);
+        let mut samples = vec![1.0; 8];
+
+        copy_to_interleaved_buffer(first.as_generic_audio_buffer_ref(), &mut samples);
+        assert_eq!(samples.len(), 4);
+
+        copy_to_interleaved_buffer(second.as_generic_audio_buffer_ref(), &mut samples);
+        assert_eq!(samples.len(), 2);
     }
 }

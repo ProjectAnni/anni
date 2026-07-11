@@ -1,5 +1,4 @@
 use crate::error::AnnilError;
-use async_trait::async_trait;
 use axum::extract::{FromRequestParts, Path};
 use axum::http::request::Parts;
 use serde::Deserialize;
@@ -13,7 +12,6 @@ pub struct TrackIdentifier {
     pub track_id: NonZeroU8,
 }
 
-#[async_trait]
 impl<S> FromRequestParts<S> for TrackIdentifier
 where
     S: Send + Sync,

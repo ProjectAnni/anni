@@ -10,10 +10,10 @@ license.workspace = true
 
 [dependencies]
 tokio = { version = "1", features = ["full"] }
-clap = { version = "4.0.4", features = ["derive", "cargo", "env"] }
-clap_complete = "4.0.2"
+clap = { version = "4.6.1", features = ["derive", "cargo", "env"] }
+clap_complete = "4.6.7"
 regex = "1"
-edit = "0.1.2"
+edit = "0.1.5"
 once_cell.workspace = true
 
 serde.workspace = true
@@ -35,48 +35,48 @@ anni-provider = { path = "../anni-provider" }
 annil = { path = "../annil", default-features = false }
 anni-workspace = { path = "../anni-workspace" }
 anni-metadata = { workspace = true, features = ["annim"] }
-clap-handler = { version = "0.1.1", features = ["async"] }
+clap-handler = { version = "0.1.2", features = ["async"] }
 
-i18n-embed = { version = "0.14.1", features = [
+i18n-embed = { version = "0.16.0", features = [
     "fluent-system",
     "desktop-requester",
     "filesystem-assets",
 ] }
-i18n-embed-fl = "0.7.0"
-rust-embed = "8.2.0"
+i18n-embed-fl = "0.10.0"
+rust-embed = "8.12.0"
 
 log.workspace = true
-env_logger = "0.10.0"
+env_logger = "0.11.11"
 anyhow.workspace = true
 
 cuna = "0.7.0"
 id3 = "1"
-anni-vgmdb = "0.3.1"
+anni-vgmdb = { git = "https://github.com/ProjectAnni/anni-vgmdb.git", rev = "2ef9142277118ff69ffa2cedab1ba865ce057ebb" }
 musicbrainz_rs = { git = "https://github.com/ProjectAnni/musicbrainz_rs.git", default-features = false, features = [
     "rustls",
     "async",
 ] }
 
 uuid.workspace = true
-alphanumeric-sort = "1.4.4"
-ptree = { version = "0.4.0", default-features = false, features = [
+alphanumeric-sort = "1.5.8"
+ptree = { version = "0.5.2", default-features = false, features = [
     "petgraph",
     "ansi",
     "value",
 ] }
-colored = "2.0.0"
-chrono = "0.4"
+colored = "3.1.1"
+chrono = "0.4.45"
 
-inquire = "0.6.0"
-notify = { version = "6.1.1", default-features = false, features = [
+inquire = "0.9.4"
+notify = { version = "8.2.0", default-features = false, features = [
     "macos_kqueue",
 ] }
-notify-debouncer-mini = { version = "0.4.1", default-features = false }
+notify-debouncer-mini = { version = "0.7.0", default-features = false }
 anni-google-drive3 = { path = "../third_party/google-drive3" }
 
 axum.workspace = true
 reqwest = { workspace = true, features = ["json"] }
 
 [dev-dependencies]
-tempfile = "3.2.0"
-git2 = { version = "0.18.1", default-features = false }
+tempfile = "3.27.0"
+git2 = { version = "0.18.3", default-features = false }
