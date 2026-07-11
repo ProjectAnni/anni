@@ -4,6 +4,8 @@ use annim::{auth::AuthToken, graphql::build_schema, migrator::Migrator};
 use async_graphql::Request;
 use sea_orm::{prelude::Uuid, ConnectOptions, Database, DatabaseConnection};
 use sea_orm_migration::MigratorTrait;
+use tokio::time::{timeout, Duration};
+use tokio_stream::StreamExt;
 
 async fn test_schema() -> annim::graphql::MetadataSchema {
     let mut options = ConnectOptions::new("sqlite::memory:");
@@ -121,4 +123,51 @@ async fn graphql_exposes_domain_transition_errors_with_stable_codes() {
         error_code(&response),
         Some(&async_graphql::Value::from("INGEST_INVALID_TRANSITION"))
     );
+}
+
+#[tokio::test]
+async fn subscription_emits_only_after_a_committed_update() {
+    let schema = test_schema().await;
+    let job_id = Uuid::new_v4();
+    let create = schema
+        .execute(admin_request(format!(
+            r#"mutation {{ createIngestJob(jobId: "{job_id}") {{ jobId }} }}"#
+        )))
+        .await;
+    assert!(create.errors.is_empty(), "{:?}", create.errors);
+
+    let mut events = Box::pin(schema.execute_stream(admin_request(format!(
+        r#"subscription {{
+            ingestJobChanged(jobId: "{job_id}", afterRowVersion: "1") {{
+                state rowVersion
+            }}
+        }}"#
+    ))));
+
+    // Poll once so the resolver installs its receiver before the mutation.
+    assert!(timeout(Duration::from_millis(20), events.next())
+        .await
+        .is_err());
+
+    let mutation = schema
+        .execute(admin_request(format!(
+            r#"mutation {{
+                executeIngestJobCommand(input: {{
+                    jobId: "{job_id}"
+                    expectedRowVersion: "1"
+                    command: {{ beginReview: EXECUTE }}
+                }}) {{ rowVersion }}
+            }}"#
+        )))
+        .await;
+    assert!(mutation.errors.is_empty(), "{:?}", mutation.errors);
+
+    let event = timeout(Duration::from_secs(1), events.next())
+        .await
+        .expect("subscription timed out")
+        .expect("subscription ended");
+    assert!(event.errors.is_empty(), "{:?}", event.errors);
+    let event = event.data.into_json().unwrap();
+    assert_eq!(event["ingestJobChanged"]["state"], "REVIEWING");
+    assert_eq!(event["ingestJobChanged"]["rowVersion"], "2");
 }

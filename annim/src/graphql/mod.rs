@@ -8,7 +8,7 @@ use std::{i64, str::FromStr};
 use anyhow::Ok;
 use async_graphql::{
     connection::{Connection, Edge},
-    Context, EmptySubscription, Object, Schema, ID,
+    Context, Object, Schema, SchemaBuilder, Subscription, ID,
 };
 use cursor::Cursor;
 use input::{AlbumsBy, MetadataIDInput};
@@ -34,14 +34,19 @@ use crate::{
     search::RepositorySearchManager,
 };
 
-pub type MetadataSchema = Schema<MetadataQuery, MetadataMutation, EmptySubscription>;
+pub type MetadataSchema = Schema<MetadataQuery, MetadataMutation, MetadataSubscription>;
 
-pub fn build_schema(db: DatabaseConnection) -> MetadataSchema {
+pub fn schema_builder(
+    db: DatabaseConnection,
+) -> SchemaBuilder<MetadataQuery, MetadataMutation, MetadataSubscription> {
     let ingest_service = IngestService::new(IngestJobRepository::new(db.clone()));
-    Schema::build(MetadataQuery, MetadataMutation, EmptySubscription)
+    Schema::build(MetadataQuery, MetadataMutation, MetadataSubscription)
         .data(db)
         .data(ingest_service)
-        .finish()
+}
+
+pub fn build_schema(db: DatabaseConnection) -> MetadataSchema {
+    schema_builder(db).finish()
 }
 
 pub struct MetadataQuery;
@@ -244,6 +249,23 @@ impl MetadataQuery {
 }
 
 pub struct MetadataMutation;
+
+pub struct MetadataSubscription;
+
+#[Subscription]
+impl MetadataSubscription {
+    #[graphql(guard = "AdminGuard")]
+    async fn ingest_job_changed(
+        &self,
+        ctx: &Context<'_>,
+        job_id: Option<Uuid>,
+        after_row_version: Option<String>,
+    ) -> async_graphql::Result<
+        impl tokio_stream::Stream<Item = async_graphql::Result<ingest::IngestJobInfo>> + use<>,
+    > {
+        ingest::subscribe_jobs(ctx, job_id, after_row_version)
+    }
+}
 
 #[Object(guard = "AdminGuard")]
 impl MetadataMutation {

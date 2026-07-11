@@ -10,6 +10,7 @@ repository.workspace = true
 [dependencies]
 anni-ingest.workspace = true
 tokio = { version = "1", features = ["macros", "net", "rt-multi-thread", "sync"] }
+tokio-stream = { version = "0.1.18", features = ["sync"] }
 axum.workspace = true
 tower-http = { version = "0.7.0", features = ["cors"] }
 async-graphql = { version = "7.2.1", features = [

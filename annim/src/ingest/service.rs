@@ -1,8 +1,46 @@
 use anni_ingest::{Digest, IngestJob, JobError, JobState, MetadataRevision};
 use sea_orm::prelude::Uuid;
 use thiserror::Error;
+use tokio::sync::broadcast;
 
 use super::{IngestJobRepository, IngestRepositoryError, RowVersion, VersionedIngestJob};
+
+const EVENT_CHANNEL_CAPACITY: usize = 256;
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct IngestJobEvent {
+    job: VersionedIngestJob,
+}
+
+impl IngestJobEvent {
+    pub const fn job(&self) -> &VersionedIngestJob {
+        &self.job
+    }
+}
+
+#[derive(Debug, Clone)]
+struct IngestEventHub {
+    sender: broadcast::Sender<IngestJobEvent>,
+}
+
+impl Default for IngestEventHub {
+    fn default() -> Self {
+        let (sender, _) = broadcast::channel(EVENT_CHANNEL_CAPACITY);
+        Self { sender }
+    }
+}
+
+impl IngestEventHub {
+    fn publish(&self, job: &VersionedIngestJob) {
+        // Having no live Web clients is normal and must not fail a committed
+        // database write.
+        let _ = self.sender.send(IngestJobEvent { job: job.clone() });
+    }
+
+    fn subscribe(&self) -> broadcast::Receiver<IngestJobEvent> {
+        self.sender.subscribe()
+    }
+}
 
 /// Complete command vocabulary shared by Web requests and background workers.
 /// Values are parsed into domain types before this boundary is crossed.
@@ -90,11 +128,15 @@ pub enum IngestServiceError {
 #[derive(Clone)]
 pub struct IngestService {
     repository: IngestJobRepository,
+    events: IngestEventHub,
 }
 
 impl IngestService {
-    pub const fn new(repository: IngestJobRepository) -> Self {
-        Self { repository }
+    pub fn new(repository: IngestJobRepository) -> Self {
+        Self {
+            repository,
+            events: IngestEventHub::default(),
+        }
     }
 
     pub async fn create(
@@ -102,7 +144,9 @@ impl IngestService {
         job_id: Option<Uuid>,
     ) -> Result<VersionedIngestJob, IngestServiceError> {
         let job = IngestJob::new(job_id.unwrap_or_else(Uuid::new_v4));
-        Ok(self.repository.create(&job).await?)
+        let versioned = self.repository.create(&job).await?;
+        self.events.publish(&versioned);
+        Ok(versioned)
     }
 
     pub async fn get(
@@ -144,6 +188,11 @@ impl IngestService {
 
         command.apply(versioned.job_mut())?;
         self.repository.save(&mut versioned).await?;
+        self.events.publish(&versioned);
         Ok(versioned)
+    }
+
+    pub fn subscribe(&self) -> broadcast::Receiver<IngestJobEvent> {
+        self.events.subscribe()
     }
 }

@@ -20,7 +20,7 @@ use crate::entities::{helper::timestamp, ingest_job};
 
 mod service;
 
-pub use service::{IngestCommand, IngestService, IngestServiceError};
+pub use service::{IngestCommand, IngestJobEvent, IngestService, IngestServiceError};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct RowVersion(u64);

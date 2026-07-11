@@ -4,6 +4,10 @@ use async_graphql::{
 };
 use chrono::{DateTime, Utc};
 use sea_orm::prelude::Uuid;
+use tokio_stream::{
+    wrappers::{errors::BroadcastStreamRecvError, BroadcastStream},
+    Stream, StreamExt,
+};
 
 use crate::ingest::{
     IngestCommand, IngestRepositoryError, IngestService, IngestServiceError, RowVersion,
@@ -241,6 +245,37 @@ pub async fn execute_command(
         .await
         .map(Into::into)
         .map_err(service_error)
+}
+
+pub fn subscribe_jobs(
+    ctx: &Context<'_>,
+    job_id: Option<Uuid>,
+    after_row_version: Option<String>,
+) -> Result<impl Stream<Item = Result<IngestJobInfo>> + use<>> {
+    let after_row_version = after_row_version
+        .as_deref()
+        .map(parse_row_version)
+        .transpose()?;
+    let receiver = ctx.data::<IngestService>()?.subscribe();
+
+    Ok(
+        BroadcastStream::new(receiver).filter_map(move |event| match event {
+            Ok(event) => {
+                let versioned = event.job();
+                let matches_job = job_id.is_none_or(|job_id| versioned.job().id() == job_id);
+                let is_newer = after_row_version
+                    .is_none_or(|row_version| versioned.row_version() > row_version);
+                (matches_job && is_newer).then(|| Ok(versioned.clone().into()))
+            }
+            Err(BroadcastStreamRecvError::Lagged(skipped)) => Some(Err(Error::new(format!(
+            "ingest event stream fell behind by {skipped} updates; query the current job snapshot"
+        ))
+            .extend_with(|_, extensions| {
+                extensions.set("code", "INGEST_EVENT_LAGGED");
+                extensions.set("skipped", skipped.to_string());
+            }))),
+        }),
+    )
 }
 
 fn parse_revision(value: &str) -> Result<MetadataRevision> {

@@ -1,13 +1,9 @@
 use annim::{
     auth::{on_connection_init, AuthToken},
-    graphql::{MetadataMutation, MetadataQuery, MetadataSchema},
-    ingest::{IngestJobRepository, IngestService},
+    graphql::{schema_builder, MetadataSchema},
     search::RepositorySearchManager,
 };
-use async_graphql::{
-    http::{graphiql_source, ALL_WEBSOCKET_PROTOCOLS},
-    EmptySubscription,
-};
+use async_graphql::http::{graphiql_source, ALL_WEBSOCKET_PROTOCOLS};
 use async_graphql_axum::{GraphQLProtocol, GraphQLRequest, GraphQLResponse, GraphQLWebSocket};
 use axum::{
     extract::{State, WebSocketUpgrade},
@@ -23,7 +19,7 @@ use tower_http::cors;
 use tower_http::cors::CorsLayer;
 
 async fn graphql_playground() -> impl IntoResponse {
-    response::Html(graphiql_source("/", None))
+    response::Html(graphiql_source("/", Some("/ws")))
 }
 
 fn get_token_from_headers(headers: &HeaderMap) -> Option<AuthToken> {
@@ -75,13 +71,7 @@ async fn main() -> anyhow::Result<()> {
     let searcher_directory = std::env::var("ANNIM_SEARCH_DIRECTORY")?;
     std::fs::create_dir_all(&searcher_directory)?;
     let searcher = RepositorySearchManager::open_or_create(searcher_directory)?;
-    let ingest_service = IngestService::new(IngestJobRepository::new(database.clone()));
-
-    let schema = MetadataSchema::build(MetadataQuery, MetadataMutation, EmptySubscription)
-        .data(database)
-        .data(searcher)
-        .data(ingest_service)
-        .finish();
+    let schema = schema_builder(database).data(searcher).finish();
 
     let app = Router::new()
         .route("/", get(graphql_playground).post(graphql_handler))
