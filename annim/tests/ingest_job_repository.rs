@@ -1,12 +1,16 @@
 #![cfg(feature = "sqlite")]
 
+use std::num::NonZeroU16;
+
 use anni_ingest::{
-    AlbumField, Confidence, Digest, Evidence, EvidenceMethod, EvidenceSourceKind, FieldPath,
-    IngestJob, JobState, MetadataCandidate, MetadataDraft, MetadataRevision, MetadataValue,
+    AlbumField, AlbumLayout, Confidence, Digest, Evidence, EvidenceMethod, EvidenceSourceKind,
+    FieldPath, IngestJob, JobState, MetadataCandidate, MetadataDraft, MetadataProfile,
+    MetadataReviewContext, MetadataRevision, MetadataValue,
 };
 use annim::{
     ingest::{
-        IngestCommand, IngestJobRepository, IngestRepositoryError, IngestService, RowVersion,
+        IngestCommand, IngestJobRepository, IngestRepositoryError, IngestService,
+        IngestServiceError, MetadataEdit, RowVersion,
     },
     migrator::Migrator,
 };
@@ -214,6 +218,65 @@ async fn stale_metadata_writer_cannot_leave_a_document_change() {
         current.draft().candidates()[0].value(),
         &MetadataValue::Text("Winner".to_owned())
     );
+}
+
+#[tokio::test]
+async fn metadata_edits_are_idempotent_and_incomplete_approval_is_blocked() {
+    let database = migrated_database().await;
+    let repository = IngestJobRepository::new(database);
+    let service = IngestService::new(repository);
+    let created = service.create(Some(Uuid::new_v4())).await.unwrap();
+    let reviewing = service
+        .execute(
+            created.job().id(),
+            created.row_version(),
+            IngestCommand::BeginReview,
+        )
+        .await
+        .unwrap();
+    let context = MetadataReviewContext::new(
+        MetadataProfile::Cd,
+        AlbumLayout::new(vec![NonZeroU16::new(1).unwrap()]).unwrap(),
+    );
+    let configured = service
+        .edit_metadata(
+            reviewing.job().id(),
+            reviewing.row_version(),
+            MetadataRevision::INITIAL,
+            MetadataEdit::ConfigureReview(context.clone()),
+        )
+        .await
+        .unwrap();
+    let retried = service
+        .edit_metadata(
+            configured.job().job().id(),
+            configured.job().row_version(),
+            MetadataRevision::INITIAL,
+            MetadataEdit::ConfigureReview(context),
+        )
+        .await
+        .unwrap();
+    assert_eq!(retried.job().row_version(), configured.job().row_version());
+
+    assert!(matches!(
+        service
+            .execute(
+                retried.job().job().id(),
+                retried.job().row_version(),
+                IngestCommand::ApproveRevision {
+                    expected_revision: MetadataRevision::INITIAL,
+                },
+            )
+            .await,
+        Err(IngestServiceError::MetadataIncomplete { missing }) if !missing.is_empty()
+    ));
+    let current = service
+        .get(retried.job().job().id())
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(current.row_version(), retried.job().row_version());
+    assert_eq!(current.job().approved_revision(), None);
 }
 
 #[tokio::test]

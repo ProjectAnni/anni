@@ -1,9 +1,15 @@
-use anni_ingest::{Digest, IngestJob, JobError, JobState, MetadataError, MetadataRevision};
+use anni_ingest::{
+    Digest, FieldPath, IngestJob, JobError, JobState, MetadataCandidate, MetadataDecision,
+    MetadataDraft, MetadataError, MetadataReviewContext, MetadataRevision,
+};
 use sea_orm::prelude::Uuid;
 use thiserror::Error;
 use tokio::sync::broadcast;
 
-use super::{IngestJobRepository, IngestRepositoryError, RowVersion, VersionedIngestJob};
+use super::{
+    IngestJobRepository, IngestRepositoryError, PersistedMetadataDraft, RowVersion,
+    VersionedIngestJob,
+};
 
 const EVENT_CHANNEL_CAPACITY: usize = 256;
 
@@ -15,6 +21,67 @@ pub struct IngestJobEvent {
 impl IngestJobEvent {
     pub const fn job(&self) -> &VersionedIngestJob {
         &self.job
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct IngestMetadataReview {
+    job: VersionedIngestJob,
+    metadata: PersistedMetadataDraft,
+}
+
+impl IngestMetadataReview {
+    pub const fn job(&self) -> &VersionedIngestJob {
+        &self.job
+    }
+
+    pub const fn metadata(&self) -> &PersistedMetadataDraft {
+        &self.metadata
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum MetadataEdit {
+    ConfigureReview(MetadataReviewContext),
+    AddCandidate(MetadataCandidate),
+    AcceptCandidate(Uuid),
+    RejectCandidate(Uuid),
+}
+
+impl MetadataEdit {
+    fn apply(self, draft: &mut MetadataDraft) -> Result<bool, MetadataError> {
+        match self {
+            Self::ConfigureReview(context) => {
+                if draft.review_context() == Some(&context) {
+                    return Ok(false);
+                }
+                draft.set_review_context(context)?;
+                Ok(true)
+            }
+            Self::AddCandidate(candidate) => {
+                if let Some(existing) = draft.candidate(candidate.id()) {
+                    if existing == &candidate {
+                        return Ok(false);
+                    }
+                }
+                draft.add_candidate(candidate)?;
+                Ok(true)
+            }
+            Self::AcceptCandidate(candidate_id) => {
+                if draft.decision(candidate_id)? == MetadataDecision::Accepted {
+                    return Ok(false);
+                }
+                draft.accept(candidate_id)?;
+                Ok(true)
+            }
+            Self::RejectCandidate(candidate_id) => {
+                if draft.decision(candidate_id)? == MetadataDecision::Rejected {
+                    return Ok(false);
+                }
+                draft.reject(candidate_id)?;
+                Ok(true)
+            }
+        }
     }
 }
 
@@ -125,6 +192,8 @@ pub enum IngestServiceError {
     Domain(#[from] JobError),
     #[error(transparent)]
     Metadata(#[from] MetadataError),
+    #[error("metadata revision is incomplete")]
+    MetadataIncomplete { missing: Vec<FieldPath> },
 }
 
 #[derive(Clone)]
@@ -167,6 +236,85 @@ impl IngestService {
         Ok(self.repository.list(state, limit, offset).await?)
     }
 
+    pub async fn metadata(
+        &self,
+        job_id: Uuid,
+        revision: Option<MetadataRevision>,
+    ) -> Result<Option<IngestMetadataReview>, IngestServiceError> {
+        let Some(job) = self.repository.get(job_id).await? else {
+            return Ok(None);
+        };
+        let revision = revision.unwrap_or_else(|| job.job().metadata_revision());
+        let Some(metadata) = self.repository.get_metadata_draft(job_id, revision).await? else {
+            return Ok(None);
+        };
+        Ok(Some(IngestMetadataReview { job, metadata }))
+    }
+
+    pub async fn edit_metadata(
+        &self,
+        job_id: Uuid,
+        expected_row_version: RowVersion,
+        expected_revision: MetadataRevision,
+        edit: MetadataEdit,
+    ) -> Result<IngestMetadataReview, IngestServiceError> {
+        let mut versioned = self
+            .repository
+            .get(job_id)
+            .await?
+            .ok_or(IngestRepositoryError::NotFound { job_id })?;
+        if versioned.row_version() != expected_row_version {
+            return Err(IngestRepositoryError::ConcurrentModification {
+                job_id,
+                expected: expected_row_version,
+                actual: versioned.row_version(),
+            }
+            .into());
+        }
+        if versioned.job().metadata_revision() != expected_revision {
+            return Err(JobError::RevisionConflict {
+                expected: expected_revision,
+                actual: versioned.job().metadata_revision(),
+            }
+            .into());
+        }
+        if versioned.job().state() != JobState::Reviewing
+            || versioned.job().approved_revision() == Some(expected_revision)
+        {
+            return Err(IngestRepositoryError::MetadataFrozen {
+                job_id,
+                revision: expected_revision,
+            }
+            .into());
+        }
+
+        let persisted = self
+            .repository
+            .get_metadata_draft(job_id, expected_revision)
+            .await?
+            .ok_or(IngestRepositoryError::MetadataNotFound {
+                job_id,
+                revision: expected_revision,
+            })?;
+        let mut draft = persisted.draft().clone();
+        if !edit.apply(&mut draft)? {
+            return Ok(IngestMetadataReview {
+                job: versioned,
+                metadata: persisted,
+            });
+        }
+
+        let metadata = self
+            .repository
+            .save_with_metadata(&mut versioned, &draft)
+            .await?;
+        self.events.publish(&versioned);
+        Ok(IngestMetadataReview {
+            job: versioned,
+            metadata,
+        })
+    }
+
     pub async fn execute(
         &self,
         job_id: Uuid,
@@ -188,22 +336,40 @@ impl IngestService {
             .into());
         }
 
-        let draft_to_fork = if matches!(command, IngestCommand::ReviseMetadata { .. }) {
+        let metadata = if matches!(
+            command,
+            IngestCommand::ApproveRevision { .. } | IngestCommand::ReviseMetadata { .. }
+        ) {
             let revision = versioned.job().metadata_revision();
             Some(
                 self.repository
                     .get_metadata_draft(job_id, revision)
                     .await?
-                    .ok_or(IngestRepositoryError::MetadataNotFound { job_id, revision })?
-                    .into_draft(),
+                    .ok_or(IngestRepositoryError::MetadataNotFound { job_id, revision })?,
             )
         } else {
             None
         };
 
+        if matches!(command, IngestCommand::ApproveRevision { .. }) {
+            let completeness = metadata
+                .as_ref()
+                .expect("approval loads current metadata")
+                .draft()
+                .review_completeness()?;
+            if !completeness.is_complete() {
+                return Err(IngestServiceError::MetadataIncomplete {
+                    missing: completeness.missing().to_vec(),
+                });
+            }
+        }
+
         command.apply(versioned.job_mut())?;
-        if let Some(draft) = draft_to_fork {
-            let fork = draft.fork(versioned.job().metadata_revision())?;
+        if matches!(command, IngestCommand::ReviseMetadata { .. }) {
+            let fork = metadata
+                .expect("revision loads current metadata")
+                .into_draft()
+                .fork(versioned.job().metadata_revision())?;
             self.repository
                 .save_with_metadata(&mut versioned, &fork)
                 .await?;

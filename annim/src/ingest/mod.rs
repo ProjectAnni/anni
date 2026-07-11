@@ -25,7 +25,10 @@ use crate::entities::{
 
 mod service;
 
-pub use service::{IngestCommand, IngestJobEvent, IngestService, IngestServiceError};
+pub use service::{
+    IngestCommand, IngestJobEvent, IngestMetadataReview, IngestService, IngestServiceError,
+    MetadataEdit,
+};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct RowVersion(u64);
