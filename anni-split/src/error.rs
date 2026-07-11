@@ -9,6 +9,9 @@ pub enum SplitError {
     #[error(transparent)]
     CueError(#[from] cuna::error::Error),
 
+    #[error("single-input splitting requires exactly one CUE FILE block, got {actual}")]
+    UnsupportedCueFileCount { actual: usize },
+
     #[error(transparent)]
     DecodeError(#[from] anni_common::decode::DecodeError),
 

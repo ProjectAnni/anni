@@ -96,6 +96,10 @@ impl Encode for WaveHeader {
 }
 
 impl WaveHeader {
+    pub fn byte_offset_from_cd_frames(&self, frames: u32) -> u64 {
+        u64::from(self.byte_rate) * u64::from(frames) / 75
+    }
+
     pub fn offset_from_second_frames(&self, s: u32, f: u32) -> u32 {
         let br = self.byte_rate;
         br * s + br * f / 75
