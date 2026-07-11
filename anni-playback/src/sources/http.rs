@@ -156,7 +156,14 @@ impl Streamable for HttpStream {
         Ok(())
     }
 
-    fn try_write_chunk(&mut self, _should_buffer: bool) {}
+    fn try_write_chunk(&mut self, _should_buffer: bool) {
+        let (should_fetch, start) = self.should_get_chunk();
+        if should_fetch && let Err(error) = self.fetch_chunk(start) {
+            // The legacy Streamable contract cannot return an error. Keep the
+            // range missing so this method or Read::read can retry it later.
+            log::error!("failed to fetch HTTP stream chunk: {error}");
+        }
+    }
 
     fn should_get_chunk(&self) -> (bool, usize) {
         match self.downloaded.get(&self.read_position) {
@@ -236,7 +243,7 @@ mod tests {
 
     use reqwest::blocking::Client;
 
-    use super::{HttpStream, CHUNK_SIZE};
+    use super::{HttpStream, Streamable, CHUNK_SIZE};
 
     #[test]
     fn a_server_ignoring_ranges_is_downloaded_only_once() {
@@ -285,6 +292,9 @@ mod tests {
             Arc::new(AtomicBool::new(false)),
         )
         .unwrap();
+        assert_eq!(source.should_get_chunk(), (true, 0));
+        source.try_write_chunk(true);
+        assert_eq!(source.should_get_chunk(), (false, expected.len()));
         let mut actual = Vec::new();
         source.read_to_end(&mut actual).unwrap();
 
