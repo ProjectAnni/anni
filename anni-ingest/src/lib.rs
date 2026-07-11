@@ -7,7 +7,7 @@
 mod digest;
 mod job;
 
-pub use digest::Digest;
+pub use digest::{Digest, ParseDigestError};
 pub use job::{
     IngestJob, IngestJobSnapshot, JobError, JobOperation, JobState, MetadataRevision,
     PlanReference, SnapshotError, UnknownJobState, VerificationReference,
