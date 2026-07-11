@@ -308,7 +308,14 @@ impl CacheWriter {
             complete: true,
             content_length: Some(actual_length),
         };
-        atomic_write_json(&self.metadata_path, &metadata)?;
+        if let Err(error) = atomic_write_json(&self.metadata_path, &metadata) {
+            // The validated audio file is the source of truth. Missing metadata
+            // only makes a later cache lookup validate the file again.
+            log::warn!(
+                "failed to write cache metadata for {}: {error}",
+                self.final_path.display()
+            );
+        }
         self.finished = true;
         self.stats.finish_download(true);
         let _ = File::unlock(&self.lock);
@@ -461,7 +468,7 @@ mod tests {
         units::{Duration, Timestamp},
     };
 
-    use super::{for_each_packet_in_track, AudioVariant, CacheAcquire, CacheStore};
+    use super::{append_suffix, for_each_packet_in_track, AudioVariant, CacheAcquire, CacheStore};
     use crate::sources::cached_http::provider::{AudioCodec, AudioQuality};
 
     #[test]
@@ -571,6 +578,45 @@ mod tests {
 
         assert!(!final_path.exists());
         assert_eq!(store.stats().failed_downloads, 1);
+        fs::remove_dir_all(base).unwrap();
+    }
+
+    #[test]
+    fn metadata_failure_does_not_fail_a_valid_download() {
+        let unique = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
+        let base = std::env::temp_dir().join(format!("anni-playback-metadata-cache-{unique}"));
+        let store = CacheStore::new(base.clone());
+        let track = RawTrackIdentifier::new(
+            "album",
+            NonZeroU8::new(1).unwrap(),
+            NonZeroU8::new(2).unwrap(),
+        );
+        let variant = AudioVariant::new(AudioQuality::Lossless, AudioCodec::Original);
+        let final_path = store.location_of_variant(track.copied(), variant);
+        let metadata_temporary_path = append_suffix(&append_suffix(&final_path, ".info"), ".tmp");
+
+        match store.acquire_variant(track.copied(), variant).unwrap() {
+            CacheAcquire::Miss { reader, mut writer } => {
+                let audio = include_bytes!("../../../../assets/1s.flac");
+                writer.write_all(audio).unwrap();
+                writer.record_downloaded(audio.len());
+                fs::create_dir_all(&metadata_temporary_path).unwrap();
+                writer.finish(Some(audio.len() as u64)).unwrap();
+                drop(reader);
+            }
+            CacheAcquire::Hit(_) => panic!("fresh cache should miss"),
+        }
+
+        assert!(final_path.exists());
+        assert_eq!(store.stats().completed_downloads, 1);
+        assert_eq!(store.stats().failed_downloads, 0);
+        assert!(matches!(
+            store.acquire_variant(track, variant).unwrap(),
+            CacheAcquire::Hit(_)
+        ));
         fs::remove_dir_all(base).unwrap();
     }
 }

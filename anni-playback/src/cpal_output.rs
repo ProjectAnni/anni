@@ -33,7 +33,10 @@ impl CpalOutputStream {
         let (device, supported_config) = Self::get_config(settings)?;
         let config = supported_config.config();
         let sample_format = supported_config.sample_format();
-        let buffer_frames = duration_to_frames(settings.buffer_duration, config.sample_rate);
+        // CPAL 0.18 defines SampleRate as a u32 type alias. Keep the binding
+        // explicit so every numeric consumer has the same concrete contract.
+        let sample_rate: u32 = config.sample_rate;
+        let buffer_frames = duration_to_frames(settings.buffer_duration, sample_rate);
         let ring_len = buffer_frames
             .saturating_mul(config.channels as usize)
             .max(1);
@@ -141,7 +144,7 @@ impl CpalOutputStream {
         }
         .context("Could not build the output stream.")?;
         let stats = controls.stats_handle();
-        stats.set_output_format(config.sample_rate, config.channels);
+        stats.set_output_format(sample_rate, config.channels);
         stats.set_buffer(0, ring_len);
 
         Ok(Self {
@@ -383,10 +386,12 @@ impl CpalOutput {
         controls: Controls,
         ring_buffer_writer: BlockingRb<f32, Producer>,
     ) -> anyhow::Result<Self> {
-        let resampler = if spec.rate() != config.sample_rate {
+        // CPAL 0.18's SampleRate is a u32 alias, not a newtype.
+        let sample_rate: u32 = config.sample_rate;
+        let resampler = if spec.rate() != sample_rate {
             Some(Resampler::new(
                 spec.clone(),
-                config.sample_rate as usize,
+                sample_rate as usize,
                 duration as usize,
             )?)
         } else {
@@ -404,7 +409,7 @@ impl CpalOutput {
             sample_buffer: Vec::new(),
             mixed_buffer: Vec::new(),
             resampler,
-            normalizer: Normalizer::new(output_channels, config.sample_rate),
+            normalizer: Normalizer::new(output_channels, sample_rate),
             controls,
         })
     }

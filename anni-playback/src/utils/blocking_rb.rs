@@ -115,6 +115,11 @@ impl<T: Copy> BlockingRb<T, Producer> {
         }
     }
 
+    /// Permanently cancels this producer and wakes a blocked write.
+    ///
+    /// Cancellation is one-way: this producer will return `None` from every
+    /// subsequent [`Self::write`] call. Create a new ring buffer to resume
+    /// writing after cancellation.
     pub fn cancel_write(&self) {
         self.inner.cancelled.store(true, Ordering::Release);
         if let Some(producer) = self.inner.producer_thread.get() {
