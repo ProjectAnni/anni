@@ -8,18 +8,20 @@ const PREFERRED_APPLE_ARTWORK_SIZE: u16 = 10_000;
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum CoverCandidateState {
     Discovered,
+    Queued,
+    Fetching,
     Verified,
     Rejected,
-    Selected,
 }
 
 impl CoverCandidateState {
     pub const fn as_str(self) -> &'static str {
         match self {
             Self::Discovered => "discovered",
+            Self::Queued => "queued",
+            Self::Fetching => "fetching",
             Self::Verified => "verified",
             Self::Rejected => "rejected",
-            Self::Selected => "selected",
         }
     }
 
@@ -27,10 +29,13 @@ impl CoverCandidateState {
         self as u8 == next as u8
             || matches!(
                 (self, next),
-                (Self::Discovered, Self::Verified | Self::Rejected)
-                    | (Self::Verified, Self::Rejected | Self::Selected)
-                    | (Self::Rejected, Self::Discovered)
-                    | (Self::Selected, Self::Verified)
+                (Self::Discovered, Self::Queued | Self::Rejected)
+                    | (Self::Queued, Self::Fetching | Self::Rejected)
+                    | (
+                        Self::Fetching,
+                        Self::Verified | Self::Queued | Self::Rejected
+                    )
+                    | (Self::Rejected, Self::Queued)
             )
     }
 }
@@ -47,9 +52,10 @@ impl FromStr for CoverCandidateState {
     fn from_str(value: &str) -> Result<Self, Self::Err> {
         match value {
             "discovered" => Ok(Self::Discovered),
+            "queued" => Ok(Self::Queued),
+            "fetching" => Ok(Self::Fetching),
             "verified" => Ok(Self::Verified),
             "rejected" => Ok(Self::Rejected),
-            "selected" => Ok(Self::Selected),
             _ => Err(UnknownCoverCandidateState(value.to_owned())),
         }
     }
@@ -90,12 +96,21 @@ impl CoverQuality {
     pub fn pixel_area(self) -> u64 {
         u64::from(self.width.get()) * u64::from(self.height.get())
     }
+
+    pub const fn shortest_side(self) -> u32 {
+        if self.width.get() < self.height.get() {
+            self.width.get()
+        } else {
+            self.height.get()
+        }
+    }
 }
 
 impl Ord for CoverQuality {
     fn cmp(&self, other: &Self) -> Ordering {
-        self.pixel_area()
-            .cmp(&other.pixel_area())
+        self.shortest_side()
+            .cmp(&other.shortest_side())
+            .then_with(|| self.pixel_area().cmp(&other.pixel_area()))
             .then_with(|| self.byte_length.cmp(&other.byte_length))
     }
 }
@@ -227,7 +242,7 @@ mod tests {
     }
 
     #[test]
-    fn cover_quality_prefers_pixels_then_byte_length() {
+    fn cover_quality_prefers_shortest_side_then_pixels_and_bytes() {
         let small = CoverQuality::new(
             NonZeroU32::new(1_000).unwrap(),
             NonZeroU32::new(1_000).unwrap(),
@@ -239,5 +254,21 @@ mod tests {
             1_000_000,
         );
         assert!(large > small);
+
+        let banner = CoverQuality::new(
+            NonZeroU32::new(20_000).unwrap(),
+            NonZeroU32::new(100).unwrap(),
+            3_000_000,
+        );
+        assert!(small > banner);
+    }
+
+    #[test]
+    fn cover_candidate_fetch_lifecycle_is_recoverable() {
+        assert!(CoverCandidateState::Discovered.can_transition_to(CoverCandidateState::Queued));
+        assert!(CoverCandidateState::Queued.can_transition_to(CoverCandidateState::Fetching));
+        assert!(CoverCandidateState::Fetching.can_transition_to(CoverCandidateState::Queued));
+        assert!(CoverCandidateState::Fetching.can_transition_to(CoverCandidateState::Verified));
+        assert!(!CoverCandidateState::Verified.can_transition_to(CoverCandidateState::Queued));
     }
 }
