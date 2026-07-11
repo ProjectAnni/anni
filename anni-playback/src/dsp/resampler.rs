@@ -11,6 +11,13 @@ use rubato::{
 };
 use symphonia::core::audio::{AudioSpec, GenericAudioBufferRef};
 
+fn copy_to_planar_scratch(input: GenericAudioBufferRef<'_>, scratch: &mut Vec<Vec<f32>>) {
+    for channel in scratch.iter_mut() {
+        channel.clear();
+    }
+    input.copy_to_vecs_planar(scratch);
+}
+
 pub struct Resampler {
     resampler: Fft<f32>,
     input: Vec<Vec<f32>>,
@@ -46,7 +53,7 @@ impl Resampler {
     ///
     /// Returns the resampled samples in an interleaved format.
     pub fn resample(&mut self, input: GenericAudioBufferRef<'_>) -> Option<&[f32]> {
-        input.copy_to_vecs_planar(&mut self.scratch);
+        copy_to_planar_scratch(input, &mut self.scratch);
         for (input, scratch) in self.input.iter_mut().zip(&self.scratch) {
             input.extend_from_slice(scratch);
         }
@@ -112,7 +119,26 @@ mod tests {
         AsGenericAudioBufferRef, AudioBuffer, AudioSpec, Channels, Position,
     };
 
-    use super::Resampler;
+    use super::{copy_to_planar_scratch, Resampler};
+
+    #[test]
+    fn replaces_planar_scratch_samples_instead_of_appending() {
+        let spec = AudioSpec::new(
+            44_100,
+            Channels::from(Position::FRONT_LEFT | Position::FRONT_RIGHT),
+        );
+        let mut first = AudioBuffer::<f32>::new(spec.clone(), 2);
+        first.resize_with_silence(2);
+        let mut second = AudioBuffer::<f32>::new(spec, 1);
+        second.resize_with_silence(1);
+        let mut scratch = vec![vec![1.0; 8], vec![1.0; 8]];
+
+        copy_to_planar_scratch(first.as_generic_audio_buffer_ref(), &mut scratch);
+        assert!(scratch.iter().all(|channel| channel.len() == 2));
+
+        copy_to_planar_scratch(second.as_generic_audio_buffer_ref(), &mut scratch);
+        assert!(scratch.iter().all(|channel| channel.len() == 1));
+    }
 
     #[test]
     fn resamples_a_complete_stereo_chunk() {
