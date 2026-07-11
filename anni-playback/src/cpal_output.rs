@@ -36,6 +36,11 @@ use super::{
 /// will help to reduce it.
 const BASE_VOLUME: f32 = 0.8;
 
+fn copy_to_interleaved_buffer(decoded: GenericAudioBufferRef<'_>, buffer: &mut Vec<f32>) {
+    buffer.clear();
+    decoded.copy_to_vec_interleaved(buffer);
+}
+
 pub struct CpalOutputStream {
     pub stream: Stream,
     pub ring_buffer_reader: BlockingRb<f32, Consumer>,
@@ -268,7 +273,7 @@ impl CpalOutput {
             }
             _ => {
                 // no resampler, or the target sample rate is the same as the input
-                decoded.copy_to_vec_interleaved(&mut self.sample_buffer);
+                copy_to_interleaved_buffer(decoded, &mut self.sample_buffer);
                 &self.sample_buffer
             }
         };
@@ -295,5 +300,33 @@ impl CpalOutput {
                 remaining_samples = &remaining_samples[written..];
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use symphonia::core::audio::{
+        AsGenericAudioBufferRef, AudioBuffer, AudioSpec, Channels, Position,
+    };
+
+    use super::copy_to_interleaved_buffer;
+
+    #[test]
+    fn replaces_interleaved_samples_instead_of_appending() {
+        let spec = AudioSpec::new(
+            44_100,
+            Channels::from(Position::FRONT_LEFT | Position::FRONT_RIGHT),
+        );
+        let mut first = AudioBuffer::<f32>::new(spec.clone(), 2);
+        first.resize_with_silence(2);
+        let mut second = AudioBuffer::<f32>::new(spec, 1);
+        second.resize_with_silence(1);
+        let mut samples = vec![1.0; 8];
+
+        copy_to_interleaved_buffer(first.as_generic_audio_buffer_ref(), &mut samples);
+        assert_eq!(samples.len(), 4);
+
+        copy_to_interleaved_buffer(second.as_generic_audio_buffer_ref(), &mut samples);
+        assert_eq!(samples.len(), 2);
     }
 }
