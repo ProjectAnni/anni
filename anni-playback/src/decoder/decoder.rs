@@ -272,9 +272,7 @@ impl Decoder {
         // Decode the next packet.
         let packet = match playback.reader.next_packet() {
             Ok(Some(packet)) => packet,
-            // An error occurs when the stream
-            // has reached the end of the audio.
-            Ok(None) | Err(_) => {
+            Ok(None) => {
                 if self.controls.is_looping() {
                     self.controls.set_seek_ts(Some(0));
                     // crate::utils::callback_stream::update_callback_stream(Callback::PlaybackLooped);
@@ -283,6 +281,7 @@ impl Decoder {
 
                 return Ok(PlaybackState::Completed);
             }
+            Err(error) => return Err(error).context("Could not read next audio packet."),
         };
 
         if packet.track_id != playback.track_id {

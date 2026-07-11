@@ -59,7 +59,7 @@ impl CpalOutputStream {
         // Create a ring buffer with a capacity for up-to `buf_len_ms` of audio.
         let channels = spec.channels().count();
         let buf_len_ms = 300;
-        let ring_len = ((buf_len_ms * spec.rate() as usize) / 1000) * channels;
+        let ring_len = ((buf_len_ms * config.sample_rate as usize) / 1000) * channels;
 
         // Create the buffers for the stream.
         let rb = BlockingRb::<f32>::new(ring_len);
@@ -269,7 +269,10 @@ impl CpalOutput {
             (true, Some(resampler)) => {
                 // If there is a resampler, then write resampled values
                 // instead of the normal `samples`.
-                resampler.resample(decoded).unwrap_or(&[])
+                match resampler.resample(decoded) {
+                    Some(samples) => samples,
+                    None => return,
+                }
             }
             _ => {
                 // no resampler, or the target sample rate is the same as the input
