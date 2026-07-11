@@ -12,7 +12,7 @@ use anni_playback::{
     types::{PlayerEvent, ProgressState},
     Controls, Decoder,
 };
-use ratatui::{prelude::*, widgets::*};
+use ratatui::{prelude::*, widgets::*, TerminalOptions, Viewport};
 
 pub struct Player {
     controls: Controls,
@@ -171,7 +171,10 @@ fn run_app<B: Backend>(
     player: Player,
     mut playlist: Playlist,
     rx: Receiver<Event>,
-) -> Result<(), Box<dyn Error>> {
+) -> Result<(), Box<dyn Error>>
+where
+    B::Error: 'static,
+{
     let mut redraw = true;
     loop {
         if redraw {
@@ -229,10 +232,9 @@ fn run_app<B: Backend>(
 }
 
 fn ui(f: &mut Frame, playlist: &Playlist) {
-    let size = f.size();
+    let size = f.area();
 
-    let block = Block::default()
-        .title(block::Title::from("Example tui for anni-playback").alignment(Alignment::Center));
+    let block = Block::default().title(Line::from("Example tui for anni-playback").centered());
     f.render_widget(block, size);
 
     let chunks = Layout::default()
@@ -241,7 +243,7 @@ fn ui(f: &mut Frame, playlist: &Playlist) {
         .split(size);
 
     let progress = LineGauge::default()
-        .gauge_style(Style::default().fg(Color::Blue))
+        .filled_style(Style::default().fg(Color::Blue))
         .label(format!(
             "{}/{}",
             ms_to_mm_ss(playlist.progress.position),

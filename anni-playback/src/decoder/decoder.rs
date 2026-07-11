@@ -17,25 +17,23 @@
 use std::{
     sync::{atomic::AtomicBool, Arc},
     thread::{self, JoinHandle},
-    time::Duration,
 };
 
 use anyhow::{anyhow, Context};
 use once_cell::sync::Lazy;
 use symphonia::{
     core::{
-        audio::{AsAudioBufferRef, AudioBuffer},
-        formats::{FormatOptions, FormatReader, SeekMode, SeekTo},
+        audio::{AsGenericAudioBufferRef, Audio, AudioBuffer, AudioSpec, Channels, Position},
+        codecs::{
+            audio::{AudioDecoder, AudioDecoderOptions},
+            registry::CodecRegistry,
+        },
+        formats::{probe::Hint, FormatOptions, FormatReader, SeekMode, SeekTo, TrackType},
         io::MediaSourceStream,
         meta::MetadataOptions,
-        probe::Hint,
-        units::{Time, TimeBase},
+        units::{Time, TimeBase, Timestamp},
     },
     default::{self, register_enabled_codecs},
-};
-use symphonia_core::{
-    audio::{Layout, SignalSpec},
-    codecs::CodecRegistry,
 };
 
 use super::opus::OpusDecoder;
@@ -56,7 +54,7 @@ enum PlaybackState {
 pub static CODEC_REGISTRY: Lazy<CodecRegistry> = Lazy::new(|| {
     let mut registry = CodecRegistry::new();
     register_enabled_codecs(&mut registry);
-    registry.register_all::<OpusDecoder>();
+    registry.register_audio_decoder::<OpusDecoder>();
     registry
 });
 
@@ -70,19 +68,22 @@ pub struct Decoder {
     preload_playback: Option<Playback>,
     /// The `JoinHandle` for the thread that preloads a file.
     preload_thread: Option<JoinHandle<anyhow::Result<Playback>>>,
-    spec: SignalSpec,
+    spec: AudioSpec,
 }
 
 impl Decoder {
     /// Creates a new decoder.
     pub fn new(controls: Controls, sample_rate: u32, thread_killer: Receiver<bool>) -> Self {
-        let spec = SignalSpec::new_with_layout(sample_rate, Layout::Stereo);
+        let spec = AudioSpec::new(
+            sample_rate,
+            Channels::from(Position::FRONT_LEFT | Position::FRONT_RIGHT),
+        );
 
         Decoder {
             thread_killer,
             controls: controls.clone(),
             state: DecoderState::Idle,
-            cpal_output_stream: CpalOutputStream::new(spec, controls).unwrap(),
+            cpal_output_stream: CpalOutputStream::new(spec.clone(), controls).unwrap(),
             cpal_output: None,
             playback: None,
             preload_playback: None,
@@ -229,10 +230,11 @@ impl Decoder {
         if let Some(preload) = playback.preload.take() {
             // Write the decoded packet to CPAL.
             if self.cpal_output.is_none() {
-                let spec = *preload.spec();
+                let spec = preload.spec().clone();
                 let duration = preload.capacity() as u64;
 
-                self.cpal_output_stream = CpalOutputStream::new(self.spec, self.controls.clone())?;
+                self.cpal_output_stream =
+                    CpalOutputStream::new(self.spec.clone(), self.controls.clone())?;
                 self.cpal_output
                     .replace(self.cpal_output_stream.create_output(
                         playback.buffer_signal.clone(),
@@ -241,7 +243,7 @@ impl Decoder {
                     ));
             }
 
-            let buffer_ref = preload.as_audio_buffer_ref();
+            let buffer_ref = preload.as_generic_audio_buffer_ref();
             self.cpal_output.as_mut().unwrap().write(buffer_ref);
 
             return Ok(PlaybackState::Playing);
@@ -249,10 +251,7 @@ impl Decoder {
 
         if let Some(seek_ts) = *self.controls.seek_ts() {
             let seek_to = SeekTo::Time {
-                time: Time {
-                    seconds: seek_ts / 1000,
-                    frac: (seek_ts % 1000) as f64 / 1000.0,
-                },
+                time: Time::from_millis_u64(seek_ts),
                 track_id: Some(playback.track_id),
             };
             playback.reader.seek(SeekMode::Coarse, seek_to)?;
@@ -272,10 +271,10 @@ impl Decoder {
 
         // Decode the next packet.
         let packet = match playback.reader.next_packet() {
-            Ok(packet) => packet,
+            Ok(Some(packet)) => packet,
             // An error occurs when the stream
             // has reached the end of the audio.
-            Err(_) => {
+            Ok(None) | Err(_) => {
                 if self.controls.is_looping() {
                     self.controls.set_seek_ts(Some(0));
                     // crate::utils::callback_stream::update_callback_stream(Callback::PlaybackLooped);
@@ -286,7 +285,7 @@ impl Decoder {
             }
         };
 
-        if packet.track_id() != playback.track_id {
+        if packet.track_id != playback.track_id {
             return Ok(PlaybackState::Switched);
         }
 
@@ -295,12 +294,11 @@ impl Decoder {
             .decode(&packet)
             .context("Could not decode audio packet.")?;
 
-        let position = if let Some(timebase) = playback.timebase {
-            let duration: Duration = timebase.calc_time(packet.ts()).into();
-            duration.as_millis() as u64
-        } else {
-            0
-        };
+        let position = playback
+            .timebase
+            .and_then(|timebase| timebase.calc_time(packet.pts))
+            .and_then(|time| u64::try_from(time.as_millis()).ok())
+            .unwrap_or(0);
 
         // Update the progress stream with calculated times.
         let progress = ProgressState {
@@ -312,9 +310,10 @@ impl Decoder {
 
         // Write the decoded packet to CPAL.
         if self.cpal_output.is_none() {
-            let spec = *decoded.spec();
+            let spec = decoded.spec().clone();
             let duration = decoded.capacity() as u64;
-            self.cpal_output_stream = CpalOutputStream::new(self.spec, self.controls.clone())?;
+            self.cpal_output_stream =
+                CpalOutputStream::new(self.spec.clone(), self.controls.clone())?;
             self.cpal_output
                 .replace(self.cpal_output_stream.create_output(
                     playback.buffer_signal.clone(),
@@ -363,44 +362,40 @@ impl Decoder {
     ) -> anyhow::Result<Playback> {
         let duration_hint = source.duration_hint();
         let mss = MediaSourceStream::new(source.into(), Default::default());
-        let format_options = FormatOptions {
-            enable_gapless: true,
-            ..Default::default()
-        };
+        let format_options = FormatOptions::default();
         let metadata_options: MetadataOptions = Default::default();
 
-        let probed = default::get_probe()
-            .format(&Hint::new(), mss, &format_options, &metadata_options)
+        let reader = default::get_probe()
+            .probe(&Hint::new(), mss, format_options, metadata_options)
             .context("Failed to create format reader.")?;
 
-        let reader = probed.format;
-
         let track = reader
-            .default_track()
+            .default_track(TrackType::Audio)
             .context("Cannot start playback. There are no tracks present in the file.")?;
         let track_id = track.id;
+        let codec_params = track
+            .codec_params
+            .as_ref()
+            .and_then(|params| params.audio())
+            .context("Cannot start playback. The audio track has no codec parameters.")?;
 
-        let decoder = CODEC_REGISTRY.make(&track.codec_params, &Default::default())?;
+        let decoder =
+            CODEC_REGISTRY.make_audio_decoder(codec_params, &AudioDecoderOptions::default())?;
 
         // Used only for outputting the current position and duration.
-        let timebase = track.codec_params.time_base.or_else(|| {
-            track
-                .codec_params
-                .sample_rate
-                .map(|sample_rate| TimeBase::new(1, sample_rate))
-        });
-        let ts = track
-            .codec_params
-            .n_frames
-            .map(|frames| track.codec_params.start_ts + frames);
-
-        let duration = match (timebase, ts) {
-            (Some(timebase), Some(ts)) => {
-                let duration: Duration = timebase.calc_time(ts).into();
-                duration.as_millis() as u64
-            }
-            _ => duration_hint.map(|dur| dur * 1000).unwrap_or(0),
-        };
+        let timebase = track
+            .time_base
+            .or_else(|| codec_params.sample_rate.and_then(TimeBase::try_from_recip));
+        let duration = timebase
+            .zip(track.duration)
+            .and_then(|(timebase, duration)| {
+                Timestamp::try_from(duration.get())
+                    .ok()
+                    .map(|ts| (timebase, ts))
+            })
+            .and_then(|(timebase, ts)| timebase.calc_time(ts))
+            .and_then(|time| u64::try_from(time.as_millis()).ok())
+            .unwrap_or_else(|| duration_hint.map(|dur| dur * 1000).unwrap_or(0));
 
         Ok(Playback {
             reader,
@@ -424,14 +419,18 @@ impl Decoder {
         thread::spawn(move || {
             let mut playback = Self::open(source, buffer_signal.clone())?;
             // Preload
-            let packet = playback.reader.next_packet()?;
+            let packet = playback
+                .reader
+                .next_packet()?
+                .context("Cannot preload an empty audio source.")?;
             let buf_ref = playback.decoder.decode(&packet)?;
 
-            let spec = *buf_ref.spec();
-            let duration = buf_ref.capacity() as u64;
+            let spec = buf_ref.spec().clone();
+            let capacity = buf_ref.capacity();
 
-            let mut buf = AudioBuffer::new(duration, spec);
-            buf_ref.convert(&mut buf);
+            let mut buf = AudioBuffer::new(spec, capacity);
+            buf.resize_uninit(buf_ref.frames());
+            buf_ref.copy_to(&mut buf);
             playback.preload = Some(buf);
 
             Ok(playback)
@@ -489,7 +488,7 @@ impl DecoderState {
 struct Playback {
     reader: Box<dyn FormatReader>,
     track_id: u32,
-    decoder: Box<dyn symphonia::core::codecs::Decoder>,
+    decoder: Box<dyn AudioDecoder>,
     timebase: Option<TimeBase>,
     duration: u64,
     buffer_signal: Arc<AtomicBool>,

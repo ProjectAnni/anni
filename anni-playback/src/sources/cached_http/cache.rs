@@ -10,8 +10,10 @@ use serde::{de::DeserializeOwned, Serialize};
 use serde_json::Value;
 use symphonia::{
     core::{
-        codecs::DecoderOptions, formats::FormatOptions, io::MediaSourceStream,
-        meta::MetadataOptions, probe::Hint,
+        codecs::audio::AudioDecoderOptions,
+        formats::{probe::Hint, FormatOptions, TrackType},
+        io::MediaSourceStream,
+        meta::MetadataOptions,
     },
     default::get_probe,
 };
@@ -161,17 +163,24 @@ pub fn validate(source: Box<dyn MediaSource>) -> Result<bool, ValidationError> {
     let format_opts = FormatOptions::default();
     let metadata_opts = MetadataOptions::default();
 
-    let probed = get_probe().format(&Hint::new(), source, &format_opts, &metadata_opts)?;
-
-    let mut format_reader = probed.format;
-    let track = match format_reader.default_track() {
+    let mut format_reader = get_probe().probe(&Hint::new(), source, format_opts, metadata_opts)?;
+    let track = match format_reader.default_track(TrackType::Audio) {
         Some(track) => track,
         None => return Ok(false),
     };
+    let codec_params = match track
+        .codec_params
+        .as_ref()
+        .and_then(|params| params.audio())
+    {
+        Some(params) => params,
+        None => return Ok(false),
+    };
 
-    let mut decoder = CODEC_REGISTRY.make(&track.codec_params, &DecoderOptions { verify: true })?;
+    let options = AudioDecoderOptions::default().verify(true);
+    let mut decoder = CODEC_REGISTRY.make_audio_decoder(codec_params, &options)?;
 
-    while let Ok(packet) = format_reader.next_packet() {
+    while let Some(packet) = format_reader.next_packet()? {
         let _ = decoder.decode(&packet)?;
     }
 

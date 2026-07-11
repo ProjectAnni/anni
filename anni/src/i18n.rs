@@ -1,6 +1,6 @@
 use i18n_embed::{
     fluent::{fluent_language_loader, FluentLanguageLoader},
-    DesktopLanguageRequester, LanguageLoader,
+    select, DesktopLanguageRequester,
 };
 use once_cell::sync::Lazy;
 use rust_embed::RustEmbed;
@@ -12,11 +12,7 @@ struct Localizations;
 fn init_i18n() -> FluentLanguageLoader {
     let loader: FluentLanguageLoader = fluent_language_loader!();
     let requested_languages = DesktopLanguageRequester::requested_languages();
-    let mut references: Vec<_> = requested_languages.iter().collect();
-    references.push(loader.fallback_language());
-    loader
-        .load_languages(&Localizations, &references)
-        .expect("Failed to load localization.");
+    select(&loader, &Localizations, &requested_languages).expect("Failed to load localization.");
     loader
 }
 

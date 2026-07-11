@@ -13,5 +13,5 @@ anni-common.workspace = true
 
 thiserror.workspace = true
 log.workspace = true
-which = "5.0.0"
+which = "8.0.4"
 cuna = "0.7.0"

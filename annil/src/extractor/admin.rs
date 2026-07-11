@@ -1,12 +1,10 @@
 use crate::extractor::auth::AuthExtractor;
 use crate::{error::AnnilError, state::AnnilKeys};
-use async_trait::async_trait;
 use axum::{extract::FromRequestParts, http::request::Parts, Extension};
 use std::sync::Arc;
 
 pub struct AnnilAdmin;
 
-#[async_trait]
 impl<S> FromRequestParts<S> for AnnilAdmin
 where
     S: Send + Sync,

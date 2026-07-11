@@ -11,18 +11,18 @@ license.workspace = true
 [dependencies]
 byteorder = "1"
 thiserror.workspace = true
-path-absolutize = "3.0.13"
-pathdiff = "0.2.1"
+path-absolutize = "3.1.1"
+pathdiff = "0.2.3"
 log.workspace = true
 anni-artist = "0.1.1"
 
 # Remove the dependency for encoding_rs after https://github.com/hsivonen/chardetng/pull/10 was merged
-encoding_rs = { version = "0.8.31", features = ["alloc"] }
-chardetng = "0.1.17"
+encoding_rs = { version = "0.8.35", features = ["alloc"] }
+chardetng = "1.0.0"
 
 regex = "1"
 once_cell.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 
-trash = { version = "3.0.1", optional = true }
+trash = { version = "5.2.6", optional = true }

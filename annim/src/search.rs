@@ -1,7 +1,6 @@
 use std::{path::Path, sync::Arc};
 
-use lindera_core::mode::Mode;
-use lindera_dictionary::{DictionaryConfig, DictionaryKind, DictionaryLoader};
+use lindera::{dictionary::load_dictionary, mode::Mode, segmenter::Segmenter};
 use lindera_tantivy::tokenizer::LinderaTokenizer;
 use tantivy::{
     directory::MmapDirectory,
@@ -45,7 +44,7 @@ impl RepositorySearchManager {
             query_parser,
             fields,
         };
-        me.register_tokenizers();
+        me.register_tokenizers()?;
         Ok(me)
     }
 
@@ -64,17 +63,17 @@ impl RepositorySearchManager {
         Ok(())
     }
 
-    fn register_tokenizers(&self) {
-        let dictionary_config = DictionaryConfig {
-            kind: Some(DictionaryKind::IPADIC),
-            path: None,
-        };
-        let dictionary = DictionaryLoader::load_dictionary_from_config(dictionary_config).unwrap();
+    fn register_tokenizers(&self) -> Result<(), TantivyError> {
+        let dictionary = load_dictionary("embedded://ipadic").map_err(|error| {
+            TantivyError::InvalidArgument(format!("failed to load embedded IPADIC: {error}"))
+        })?;
+        let segmenter = Segmenter::new(Mode::Normal, dictionary, None);
 
-        self.index.tokenizers().register(
-            "lang_ja",
-            LinderaTokenizer::new(dictionary, None, Mode::Normal),
-        );
+        self.index
+            .tokenizers()
+            .register("lang_ja", LinderaTokenizer::from_segmenter(segmenter));
+
+        Ok(())
     }
 
     pub fn build_track_document(

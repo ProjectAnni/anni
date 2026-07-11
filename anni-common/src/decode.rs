@@ -94,9 +94,11 @@ pub fn u24_be<R: Read>(reader: &mut R) -> DecodeResult<u32> {
 }
 
 pub fn raw_to_string(input: &[u8]) -> String {
-    let mut detector = chardetng::EncodingDetector::new();
+    let mut detector = chardetng::EncodingDetector::new(chardetng::Iso2022JpDetection::Allow);
     detector.feed(input, true);
-    let (result, encoding, _) = detector.guess(None, true).decode(input);
+    let (result, encoding, _) = detector
+        .guess(None, chardetng::Utf8Detection::Allow)
+        .decode(input);
     log::trace!("Encoding detected: {}", encoding.name());
     result.into()
 }

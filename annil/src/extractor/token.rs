@@ -2,7 +2,6 @@ use crate::error::AnnilError;
 use crate::extractor::auth::AuthExtractor;
 use crate::extractor::track::TrackIdentifier;
 use crate::state::AnnilKeys;
-use async_trait::async_trait;
 use axum::extract::FromRequestParts;
 use axum::http::request::Parts;
 use axum::Extension;
@@ -50,7 +49,6 @@ pub struct ShareClaim {
     pub(crate) audios: HashMap<String, HashMap<String, Vec<NonZeroU8>>>,
 }
 
-#[async_trait]
 impl<S> FromRequestParts<S> for AnnilClaim
 where
     S: Send + Sync,

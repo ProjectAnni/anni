@@ -12,13 +12,13 @@ license.workspace = true
 hex = "0.4"
 thiserror.workspace = true
 byteorder = "1"
-image = "0.24"
+image = "0.25"
 tokio = { version = "1", features = ["io-util"], optional = true }
 async-trait = { version = "0.1", optional = true }
 log.workspace = true
 
 [dev-dependencies]
-tempfile = "3.2.0"
+tempfile = "3.27.0"
 
 [features]
 async = ["tokio", "async-trait"]
