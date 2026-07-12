@@ -1,0 +1,36 @@
+[package]
+name = "anni-catalog-worker"
+version = "0.1.0"
+publish = false
+
+edition.workspace = true
+authors.workspace = true
+repository.workspace = true
+license.workspace = true
+
+[dependencies]
+anni-catalog.workspace = true
+annim = { path = "../annim", default-features = false }
+chrono = "0.4.45"
+thiserror.workspace = true
+tokio = { version = "1", features = ["macros", "rt", "sync", "time"] }
+uuid.workspace = true
+
+[features]
+default = ["postgres"]
+sqlite = ["annim/sqlite"]
+postgres = ["annim/postgres"]
+
+[dev-dependencies]
+sea-orm = { version = "1.1.20", default-features = false, features = [
+    "macros",
+    "runtime-tokio-rustls",
+    "sqlx-sqlite",
+    "with-chrono",
+    "with-uuid",
+] }
+sea-orm-migration = { version = "1.1.20", default-features = false, features = [
+    "runtime-tokio-rustls",
+    "sqlx-sqlite",
+    "with-uuid",
+] }

@@ -221,6 +221,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "anni-catalog-worker"
+version = "0.1.0"
+dependencies = [
+ "anni-catalog",
+ "annim",
+ "chrono",
+ "sea-orm",
+ "sea-orm-migration",
+ "thiserror 2.0.18",
+ "tokio",
+ "uuid",
+]
+
+[[package]]
 name = "anni-common"
 version = "0.2.0"
 dependencies = [
