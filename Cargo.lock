@@ -241,6 +241,23 @@ dependencies = [
 ]
 
 [[package]]
+name = "anni-cover-worker"
+version = "0.1.0"
+dependencies = [
+ "anni-catalog",
+ "anni-ingest",
+ "futures-util",
+ "image",
+ "reqwest 0.13.4",
+ "sha2 0.10.9",
+ "tempfile",
+ "thiserror 2.0.18",
+ "tokio",
+ "url",
+ "uuid",
+]
+
+[[package]]
 name = "anni-flac"
 version = "0.2.2"
 dependencies = [

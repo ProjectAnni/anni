@@ -12,6 +12,7 @@ members = [
     "anni-playback",
     "anni-metadata",
     "anni-catalog",
+    "anni-cover-worker",
     "anni-ingest",
     "anni-ingest-worker",
     "third_party/google-drive3",
