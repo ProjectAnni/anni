@@ -139,6 +139,83 @@ async fn graphql_queues_catalog_sync_without_exposing_adapter_evidence_or_secret
         run_id.to_string()
     );
 
+    let history = schema
+        .execute(admin_request(format!(
+            r#"{{ catalogSyncRuns(sourceId: "{source_id}", limit: 10, offset: 0) {{
+                runId sourceId status observedCount rowVersion
+            }} }}"#
+        )))
+        .await;
+    assert!(history.errors.is_empty(), "{:?}", history.errors);
+    let history = history.data.into_json().unwrap();
+    assert_eq!(history["catalogSyncRuns"].as_array().unwrap().len(), 1);
+    assert_eq!(history["catalogSyncRuns"][0]["runId"], run_id.to_string());
+
+    let after_enqueue = schema
+        .execute(admin_request(format!(
+            r#"{{ catalogSyncSource(sourceId: "{source_id}") {{ rowVersion }} }}"#
+        )))
+        .await;
+    assert!(after_enqueue.errors.is_empty());
+    assert_eq!(
+        after_enqueue.data.into_json().unwrap()["catalogSyncSource"]["rowVersion"],
+        "2"
+    );
+    let disabled = schema
+        .execute(admin_request(format!(
+            r#"mutation {{
+                setCatalogSyncSourceEnabled(input: {{
+                    sourceId: "{source_id}"
+                    expectedRowVersion: "2"
+                    enabled: false
+                }}) {{ enabled provisioningState rowVersion }}
+            }}"#
+        )))
+        .await;
+    assert!(disabled.errors.is_empty(), "{:?}", disabled.errors);
+    let disabled = disabled.data.into_json().unwrap();
+    assert_eq!(disabled["setCatalogSyncSourceEnabled"]["enabled"], false);
+    assert_eq!(
+        disabled["setCatalogSyncSourceEnabled"]["provisioningState"],
+        "DISABLED"
+    );
+    assert_eq!(disabled["setCatalogSyncSourceEnabled"]["rowVersion"], "3");
+    let stale = schema
+        .execute(admin_request(format!(
+            r#"mutation {{
+                setCatalogSyncSourceEnabled(input: {{
+                    sourceId: "{source_id}"
+                    expectedRowVersion: "2"
+                    enabled: true
+                }}) {{ rowVersion }}
+            }}"#
+        )))
+        .await;
+    assert_eq!(stale.errors.len(), 1);
+    assert_eq!(
+        stale.errors[0]
+            .extensions
+            .as_ref()
+            .and_then(|extensions| extensions.get("code")),
+        Some(&async_graphql::Value::from("CATALOG_SYNC_SOURCE_CONFLICT"))
+    );
+    let enabled = schema
+        .execute(admin_request(format!(
+            r#"mutation {{
+                setCatalogSyncSourceEnabled(input: {{
+                    sourceId: "{source_id}"
+                    expectedRowVersion: "3"
+                    enabled: true
+                }}) {{ enabled provisioningState rowVersion }}
+            }}"#
+        )))
+        .await;
+    assert!(enabled.errors.is_empty(), "{:?}", enabled.errors);
+    assert_eq!(
+        enabled.data.into_json().unwrap()["setCatalogSyncSourceEnabled"]["rowVersion"],
+        "4"
+    );
+
     let private_fields = schema
         .execute(admin_request(format!(
             r#"{{

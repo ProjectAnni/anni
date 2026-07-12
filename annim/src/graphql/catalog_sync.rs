@@ -15,9 +15,9 @@ use chrono::{DateTime, Utc};
 use sea_orm::prelude::Uuid;
 
 use crate::catalog::{
-    CatalogSourceProvisioningState as DomainCatalogSourceProvisioningState, CatalogSourceSnapshot,
-    CatalogSyncError, CatalogSyncRunSnapshot, CatalogSyncService, NewCatalogSyncRun,
-    NewManagedCatalogSource,
+    CatalogRowVersion, CatalogSourceProvisioningState as DomainCatalogSourceProvisioningState,
+    CatalogSourceSnapshot, CatalogSyncError, CatalogSyncRunSnapshot, CatalogSyncService,
+    NewCatalogSyncRun, NewManagedCatalogSource,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Enum)]
@@ -239,6 +239,13 @@ pub struct StartCatalogSyncRunInput {
     source_id: Uuid,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, InputObject)]
+pub struct SetCatalogSyncSourceEnabledInput {
+    source_id: Uuid,
+    expected_row_version: String,
+    enabled: bool,
+}
+
 impl StartCatalogSyncRunInput {
     fn into_command(self) -> NewCatalogSyncRun {
         NewCatalogSyncRun {
@@ -279,6 +286,24 @@ pub async fn query_run(ctx: &Context<'_>, run_id: Uuid) -> Result<Option<Catalog
         .map_err(catalog_sync_error)
 }
 
+pub async fn query_runs(
+    ctx: &Context<'_>,
+    source_id: Uuid,
+    limit: i32,
+    offset: i32,
+) -> Result<Vec<CatalogSyncRunInfo>> {
+    validate_pagination(limit, offset)?;
+    ctx.data::<CatalogSyncService>()?
+        .list_runs_for_source(
+            source_id,
+            u64::try_from(limit).expect("validated positive i32"),
+            u64::try_from(offset).expect("validated non-negative i32"),
+        )
+        .await
+        .map(|runs| runs.into_iter().map(Into::into).collect())
+        .map_err(catalog_sync_error)
+}
+
 pub async fn create_source(
     ctx: &Context<'_>,
     input: CreateCatalogSyncSourceInput,
@@ -301,6 +326,44 @@ pub async fn start_run(
         .map_err(catalog_sync_error)
 }
 
+pub async fn set_source_enabled(
+    ctx: &Context<'_>,
+    input: SetCatalogSyncSourceEnabledInput,
+) -> Result<CatalogSyncSourceInfo> {
+    let expected = parse_row_version(&input.expected_row_version)?;
+    ctx.data::<CatalogSyncService>()?
+        .set_source_enabled(input.source_id, expected, input.enabled)
+        .await
+        .map(Into::into)
+        .map_err(catalog_sync_error)
+}
+
+fn validate_pagination(limit: i32, offset: i32) -> Result<()> {
+    if !(1..=500).contains(&limit) || offset < 0 {
+        return Err(
+            Error::new("limit must be between 1 and 500 and offset must be non-negative")
+                .extend_with(|_, extensions| {
+                    extensions.set("code", "CATALOG_SYNC_INVALID_PAGINATION");
+                }),
+        );
+    }
+    Ok(())
+}
+
+fn parse_row_version(value: &str) -> Result<CatalogRowVersion> {
+    value
+        .parse::<u64>()
+        .ok()
+        .and_then(CatalogRowVersion::new)
+        .ok_or_else(|| {
+            Error::new("row version must be a positive base-10 integer").extend_with(
+                |_, extensions| {
+                    extensions.set("code", "CATALOG_SYNC_INVALID_ROW_VERSION");
+                },
+            )
+        })
+}
+
 fn catalog_sync_error(error: CatalogSyncError) -> Error {
     match error {
         CatalogSyncError::ArtistNotFound { artist_id } => {
@@ -319,6 +382,16 @@ fn catalog_sync_error(error: CatalogSyncError) -> Error {
         CatalogSyncError::SourceNotFound { source_id } => {
             entity_error("CATALOG_SYNC_SOURCE_NOT_FOUND", "sourceId", source_id)
         }
+        CatalogSyncError::SourceConflict {
+            source_id,
+            expected,
+            actual,
+        } => Error::new("catalog sync source changed concurrently").extend_with(|_, extensions| {
+            extensions.set("code", "CATALOG_SYNC_SOURCE_CONFLICT");
+            extensions.set("sourceId", source_id.to_string());
+            extensions.set("expectedRowVersion", expected.to_string());
+            extensions.set("actualRowVersion", actual.to_string());
+        }),
         CatalogSyncError::SourceDisabled { source_id } => {
             entity_error("CATALOG_SYNC_SOURCE_DISABLED", "sourceId", source_id)
         }

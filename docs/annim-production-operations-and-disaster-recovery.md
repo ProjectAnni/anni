@@ -36,6 +36,8 @@
 
 Apple Music 的 credential binding 由 Annim server 的受信任配置完成。GraphQL 不接收或返回 `secret_ref`；`CatalogSyncService` 会在建立 Apple source 时附加配置好的引用，并在启动时幂等补齐旧记录中仍为 `NULL` 的引用。未配置引用时 Apple source 创建会失败，已有非法非空引用也不会被自动覆盖。当前 Web UI 尚未提供 catalog source 管理界面，其他信源仍没有可运行 adapter。
 
+Catalog sync 控制面会保留并分页返回每个 source 的 run 历史，同一 source 同时只允许一个 `queued` 或 `running` run。停用 source 使用 row-version CAS；已经 queued 的 run 会保留并暂停，worker 轮询会跳过它，重新启用后可以继续领取。已经取得有效 lease 的 worker 可以完成当前 run，停用操作不会隐式删除历史或伪造取消状态。
+
 实现入口：
 
 - Annim 启动和迁移：[annim/src/main.rs](../annim/src/main.rs)

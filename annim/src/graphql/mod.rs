@@ -96,6 +96,16 @@ impl MetadataQuery {
         catalog_sync::query_run(ctx, run_id).await
     }
 
+    async fn catalog_sync_runs(
+        &self,
+        ctx: &Context<'_>,
+        source_id: Uuid,
+        #[graphql(default = 50)] limit: i32,
+        #[graphql(default = 0)] offset: i32,
+    ) -> async_graphql::Result<Vec<catalog_sync::CatalogSyncRunInfo>> {
+        catalog_sync::query_runs(ctx, source_id, limit, offset).await
+    }
+
     async fn cover_candidates(
         &self,
         ctx: &Context<'_>,
@@ -386,6 +396,14 @@ impl MetadataMutation {
         input: catalog_sync::StartCatalogSyncRunInput,
     ) -> async_graphql::Result<catalog_sync::CatalogSyncRunInfo> {
         catalog_sync::start_run(ctx, input).await
+    }
+
+    async fn set_catalog_sync_source_enabled(
+        &self,
+        ctx: &Context<'_>,
+        input: catalog_sync::SetCatalogSyncSourceEnabledInput,
+    ) -> async_graphql::Result<catalog_sync::CatalogSyncSourceInfo> {
+        catalog_sync::set_source_enabled(ctx, input).await
     }
 
     async fn add_cover_candidate(
