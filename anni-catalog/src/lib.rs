@@ -14,4 +14,6 @@ pub use cover::{
     preferred_apple_artwork_url, CoverCandidateState, CoverMediaType, CoverQuality, CoverUrlError,
     UnknownCoverMediaType,
 };
-pub use source::{AcquisitionSourceKind, CatalogSourceKind, CoverSourceKind, SyncRunStatus};
+pub use source::{
+    AcquisitionSourceKind, CatalogSourceKind, CoverSourceKind, SyncCoverage, SyncRunStatus,
+};

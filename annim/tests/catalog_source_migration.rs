@@ -1,6 +1,6 @@
 #![cfg(feature = "sqlite")]
 
-use anni_catalog::{CatalogSourceKind, SyncRunStatus};
+use anni_catalog::{CatalogSourceKind, SyncCoverage, SyncRunStatus};
 use annim::migrator::Migrator;
 use sea_orm::{
     prelude::Uuid, ConnectOptions, ConnectionTrait, Database, DatabaseConnection, DbBackend,
@@ -88,18 +88,40 @@ async fn catalog_source_schema_keeps_immutable_observation_revisions() {
         ))
         .await
         .unwrap();
-    let status = database
+    let run = database
         .query_one(Statement::from_sql_and_values(
             DbBackend::Sqlite,
-            "SELECT status FROM catalog_sync_run WHERE run_id = ?",
+            "SELECT status, coverage, started_from_root, snapshot_complete, attempt_count, \
+             lease_token, lease_expires_at, next_attempt_at \
+             FROM catalog_sync_run WHERE run_id = ?",
             [run_id.into()],
         ))
         .await
         .unwrap()
-        .unwrap()
-        .try_get::<String>("", "status")
         .unwrap();
-    assert_eq!(status, SyncRunStatus::Queued.as_str());
+    assert_eq!(
+        run.try_get::<String>("", "status").unwrap(),
+        SyncRunStatus::Queued.as_str()
+    );
+    assert_eq!(
+        run.try_get::<String>("", "coverage").unwrap(),
+        SyncCoverage::DiscoveryOnly.as_str()
+    );
+    assert!(!run.try_get::<bool>("", "started_from_root").unwrap());
+    assert!(!run.try_get::<bool>("", "snapshot_complete").unwrap());
+    assert_eq!(run.try_get::<i32>("", "attempt_count").unwrap(), 0);
+    assert!(run
+        .try_get::<Option<Uuid>>("", "lease_token")
+        .unwrap()
+        .is_none());
+    assert!(run
+        .try_get::<Option<String>>("", "lease_expires_at")
+        .unwrap()
+        .is_none());
+    assert!(run
+        .try_get::<Option<String>>("", "next_attempt_at")
+        .unwrap()
+        .is_none());
 
     let source_release_id = Uuid::new_v4();
     let insert_release = || {

@@ -206,3 +206,71 @@ impl FromStr for SyncRunStatus {
 #[derive(Debug, Clone, PartialEq, Eq, Error)]
 #[error("unknown sync run status: {0}")]
 pub struct UnknownSyncRunStatus(String);
+
+/// How much of a remote catalog a synchronization run is expected to cover.
+///
+/// This value is intentionally separate from run success. A successful
+/// incremental or discovery run is useful evidence, but it must never imply
+/// that releases omitted from that response disappeared from the catalog.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum SyncCoverage {
+    FullSnapshot,
+    Incremental,
+    DiscoveryOnly,
+}
+
+impl SyncCoverage {
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::FullSnapshot => "full_snapshot",
+            Self::Incremental => "incremental",
+            Self::DiscoveryOnly => "discovery_only",
+        }
+    }
+
+    pub const fn may_infer_absence(self) -> bool {
+        matches!(self, Self::FullSnapshot)
+    }
+}
+
+impl fmt::Display for SyncCoverage {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter.write_str(self.as_str())
+    }
+}
+
+impl FromStr for SyncCoverage {
+    type Err = UnknownSyncCoverage;
+
+    fn from_str(value: &str) -> Result<Self, Self::Err> {
+        match value {
+            "full_snapshot" => Ok(Self::FullSnapshot),
+            "incremental" => Ok(Self::Incremental),
+            "discovery_only" => Ok(Self::DiscoveryOnly),
+            _ => Err(UnknownSyncCoverage(value.to_owned())),
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Error)]
+#[error("unknown sync coverage: {0}")]
+pub struct UnknownSyncCoverage(String);
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn only_complete_snapshot_coverage_can_support_absence_inference() {
+        for coverage in [
+            SyncCoverage::FullSnapshot,
+            SyncCoverage::Incremental,
+            SyncCoverage::DiscoveryOnly,
+        ] {
+            assert_eq!(SyncCoverage::from_str(coverage.as_str()), Ok(coverage));
+        }
+        assert!(SyncCoverage::FullSnapshot.may_infer_absence());
+        assert!(!SyncCoverage::Incremental.may_infer_absence());
+        assert!(!SyncCoverage::DiscoveryOnly.may_infer_absence());
+    }
+}
