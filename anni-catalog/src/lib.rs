@@ -10,7 +10,7 @@ mod source;
 
 pub use collection::{AudioCodec, AudioProperties, CollectionState, QualityTier, ReleaseKind};
 pub use cover::{
-    canonicalize_cover_url, preferred_apple_artwork_url, CoverCandidateState, CoverQuality,
-    CoverUrlError,
+    canonicalize_cover_url, preferred_amazon_artwork_url, preferred_apple_artwork_url,
+    CoverCandidateState, CoverQuality, CoverUrlError,
 };
 pub use source::{AcquisitionSourceKind, CatalogSourceKind, CoverSourceKind, SyncRunStatus};

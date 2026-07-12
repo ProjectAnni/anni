@@ -127,11 +127,26 @@ impl PartialOrd for CoverQuality {
 /// credentials rather than image transforms. Non-Amazon URLs are returned
 /// byte-for-byte after validation.
 pub fn canonicalize_cover_url(value: &str) -> Result<String, CoverUrlError> {
-    let mut url = validate_remote_url(value)?;
+    let url = validate_remote_url(value)?;
     if !is_amazon_image_host(url.host_str().expect("validated URL has host")) {
         return Ok(value.to_owned());
     }
 
+    canonicalize_amazon_url(url)
+}
+
+/// Derive an original-quality request URL for a known Amazon image CDN.
+/// Unknown hosts are rejected so source-specific rules cannot be applied to
+/// an unrelated website.
+pub fn preferred_amazon_artwork_url(value: &str) -> Result<String, CoverUrlError> {
+    let url = validate_remote_url(value)?;
+    if !is_amazon_image_host(url.host_str().expect("validated URL has host")) {
+        return Err(CoverUrlError::NotAmazonArtworkHost);
+    }
+    canonicalize_amazon_url(url)
+}
+
+fn canonicalize_amazon_url(mut url: Url) -> Result<String, CoverUrlError> {
     if let Some(path) = amazon_original_path(url.path()) {
         url.set_path(&path);
     }
@@ -207,6 +222,8 @@ pub enum CoverUrlError {
     MissingAppleSizeTemplate,
     #[error("Apple artwork URL must use an mzstatic.com host")]
     NotAppleArtworkHost,
+    #[error("Amazon artwork URL must use a known Amazon image CDN host")]
+    NotAmazonArtworkHost,
 }
 
 #[cfg(test)]
@@ -220,6 +237,10 @@ mod tests {
             canonicalize_cover_url(source).unwrap(),
             "https://m.media-amazon.com/images/I/81abc.jpg?x=1"
         );
+        assert!(matches!(
+            preferred_amazon_artwork_url("https://artist.example/cover._SL100_.jpg"),
+            Err(CoverUrlError::NotAmazonArtworkHost)
+        ));
     }
 
     #[test]
