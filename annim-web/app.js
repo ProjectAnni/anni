@@ -33,6 +33,58 @@ const elements = {
   toastRegion: document.querySelector("#toast-region"),
 };
 
+const METADATA_FIELD_OPTIONS = {
+  ALBUM: ["TITLE", "EDITION", "ARTIST", "ARTISTS", "RELEASE_DATE", "TRACK_TYPE", "CATALOG", "TAGS"],
+  DISC: ["TITLE", "CATALOG", "ARTIST", "ARTISTS", "TRACK_TYPE", "TAGS"],
+  TRACK: ["TITLE", "ARTIST", "ARTISTS", "TRACK_TYPE", "TAGS"],
+};
+
+const TRACK_TYPE_OPTIONS = [
+  ["NORMAL", "Normal · 普通歌曲 / 网播"],
+  ["INSTRUMENTAL", "Instrumental · 伴奏"],
+  ["ABSOLUTE", "Absolute · 纯音乐"],
+  ["DRAMA", "Drama · 广播剧"],
+  ["RADIO", "Radio · 广播节目"],
+  ["VOCAL", "Vocal · 人声"],
+];
+
+const EVIDENCE_SOURCE_OPTIONS = [
+  ["CD_BOOKLET", "CD Booklet"],
+  ["CD_PACKAGING", "CD 盘面 / 包装"],
+  ["OFFICIAL_LABEL", "唱片公司官网"],
+  ["OFFICIAL_ARTIST", "艺人官网"],
+  ["OFFICIAL_STORE", "官方商店"],
+  ["STREAMING_SERVICE", "流媒体服务"],
+  ["VGMDB", "VGMDB"],
+  ["COMMUNITY_SOURCE", "社区来源"],
+  ["FILENAME", "文件名"],
+  ["DERIVED_INFERENCE", "推断"],
+];
+
+const EVIDENCE_METHOD_OPTIONS = {
+  CD_BOOKLET: [["MANUAL_TRANSCRIPTION", "人工转录"], ["AUTOMATED_EXTRACTION", "自动提取"]],
+  CD_PACKAGING: [["MANUAL_TRANSCRIPTION", "人工转录"], ["AUTOMATED_EXTRACTION", "自动提取"]],
+  OFFICIAL_LABEL: [["WEB_IMPORT", "网页导入"], ["MANUAL_TRANSCRIPTION", "人工转录"], ["AUTOMATED_EXTRACTION", "自动提取"]],
+  OFFICIAL_ARTIST: [["WEB_IMPORT", "网页导入"], ["MANUAL_TRANSCRIPTION", "人工转录"], ["AUTOMATED_EXTRACTION", "自动提取"]],
+  OFFICIAL_STORE: [["WEB_IMPORT", "网页导入"], ["MANUAL_TRANSCRIPTION", "人工转录"], ["AUTOMATED_EXTRACTION", "自动提取"]],
+  STREAMING_SERVICE: [["WEB_IMPORT", "网页导入"], ["MANUAL_TRANSCRIPTION", "人工转录"], ["AUTOMATED_EXTRACTION", "自动提取"]],
+  VGMDB: [["WEB_IMPORT", "网页导入"], ["MANUAL_TRANSCRIPTION", "人工转录"], ["AUTOMATED_EXTRACTION", "自动提取"]],
+  COMMUNITY_SOURCE: [["WEB_IMPORT", "网页导入"], ["MANUAL_TRANSCRIPTION", "人工转录"], ["AUTOMATED_EXTRACTION", "自动提取"]],
+  FILENAME: [["MANUAL_TRANSCRIPTION", "人工转录"], ["AUTOMATED_EXTRACTION", "自动提取"], ["INFERENCE", "推断"]],
+  DERIVED_INFERENCE: [["INFERENCE", "推断"]],
+};
+
+const ABSENT_METADATA_FIELDS = new Set([
+  "ALBUM:EDITION",
+  "DISC:TITLE",
+  "DISC:ARTIST",
+  "DISC:ARTISTS",
+  "DISC:TRACK_TYPE",
+  "TRACK:ARTIST",
+  "TRACK:ARTISTS",
+  "TRACK:TRACK_TYPE",
+]);
+
 const INTAKE_QUERY = `
   query WebIntakeJobs($limit: Int!, $offset: Int!) {
     ingestJobs(limit: $limit, offset: $offset) {
@@ -205,6 +257,18 @@ const EDIT_METADATA_MUTATION = `
   }
 `;
 
+const EXECUTE_INGEST_COMMAND_MUTATION = `
+  mutation WebExecuteIngestCommand($input: ExecuteIngestJobCommandInput!) {
+    executeIngestJobCommand(input: $input) {
+      jobId
+      state
+      metadataRevision
+      approvedRevision
+      rowVersion
+    }
+  }
+`;
+
 const APPROVE_METADATA_MUTATION = `
   mutation WebApproveIngestMetadata($input: IngestMetadataRevisionActionInput!) {
     approveIngestMetadata(input: $input) {
@@ -259,6 +323,53 @@ function node(tag, options = {}, children = []) {
     if (child !== null && child !== undefined) element.append(child);
   }
   return element;
+}
+
+function replaceSelectOptions(select, options, selected = null) {
+  select.replaceChildren(
+    ...options.map(([value, label]) =>
+      node("option", {
+        text: label,
+        attributes: { value },
+      }),
+    ),
+  );
+  if (selected !== null && options.some(([value]) => value === selected)) {
+    select.value = selected;
+  }
+}
+
+function selectControl(name, options, selected = null) {
+  const select = node("select", { attributes: { name } });
+  replaceSelectOptions(select, options, selected);
+  return select;
+}
+
+function labeledControl(label, control, hint = null) {
+  const children = [node("span", { text: label }), control];
+  if (hint) children.push(node("small", { text: hint }));
+  return node("label", { className: "review-form__field" }, children);
+}
+
+function parseTrackCounts(value) {
+  const parts = value.split(/[,，+\s]+/u).filter(Boolean);
+  if (!parts.length) throw new Error("请至少填写一张碟片的轨道数。");
+  return parts.map((part) => {
+    if (!/^\d+$/.test(part)) throw new Error("轨道数只接受正整数，例如 12, 11。");
+    const count = Number(part);
+    if (!Number.isSafeInteger(count) || count < 1 || count > 65535) {
+      throw new Error("每张碟片的轨道数必须在 1–65535 之间。");
+    }
+    return count;
+  });
+}
+
+function metadataValueKind(field) {
+  if (field === "RELEASE_DATE") return "DATE";
+  if (field === "TRACK_TYPE") return "TRACK_TYPE";
+  if (field === "ARTISTS") return "TEXT_MAP";
+  if (field === "TAGS") return "TEXT_LIST";
+  return "TEXT";
 }
 
 function textOrDash(value) {
@@ -539,10 +650,12 @@ async function runReviewMutation({ query, input, jobId, successMessage }) {
   if (state.reviewMutationPending) return;
   state.reviewMutationPending = true;
   elements.ingestDetailContent.setAttribute("aria-busy", "true");
-  const actions = Array.from(elements.ingestDetailContent.querySelectorAll("button"));
-  const priorDisabledStates = actions.map((action) => action.disabled);
-  for (const action of actions) {
-    action.disabled = true;
+  const controls = Array.from(
+    elements.ingestDetailContent.querySelectorAll("button, input, select, textarea"),
+  );
+  const priorDisabledStates = controls.map((control) => control.disabled);
+  for (const control of controls) {
+    control.disabled = true;
   }
   try {
     await graphql(query, { input });
@@ -560,8 +673,8 @@ async function runReviewMutation({ query, input, jobId, successMessage }) {
   } finally {
     state.reviewMutationPending = false;
     elements.ingestDetailContent.removeAttribute("aria-busy");
-    actions.forEach((action, index) => {
-      if (action.isConnected) action.disabled = priorDisabledStates[index];
+    controls.forEach((control, index) => {
+      if (control.isConnected) control.disabled = priorDisabledStates[index];
     });
   }
 }
@@ -637,11 +750,357 @@ function candidateNode(candidate, job, draft) {
   return article;
 }
 
+function reviewConfigurationNode(job, draft) {
+  const profile = selectControl(
+    "profile",
+    [
+      ["CD", "CD · 以 Booklet / 包装为最高权威"],
+      ["STREAMING", "Streaming · 以官方流媒体版本为对象"],
+    ],
+    "CD",
+  );
+  const trackCounts = node("input", {
+    attributes: {
+      name: "trackCounts",
+      type: "text",
+      inputmode: "numeric",
+      placeholder: "例如 12, 11",
+      autocomplete: "off",
+      required: "",
+    },
+  });
+  const error = node("p", { className: "form-error", attributes: { "aria-live": "polite" } });
+  const submit = node("button", {
+    className: "primary-action",
+    text: "建立审阅布局",
+    attributes: { type: "submit" },
+  });
+  const form = node("form", { className: "review-form review-form--configuration" }, [
+    node("div", { className: "review-form__heading" }, [
+      node("strong", { text: "先定义本次发行的物理布局" }),
+      node("p", { text: "布局一旦开始录入候选就不能在当前 revision 内改写；需要变更时创建新 revision。" }),
+    ]),
+    node("div", { className: "review-form__grid" }, [
+      labeledControl("来源 Profile", profile),
+      labeledControl("每张碟片的轨道数", trackCounts, "多碟用逗号或加号分隔"),
+    ]),
+    error,
+    submit,
+  ]);
+  form.addEventListener("submit", (event) => {
+    event.preventDefault();
+    try {
+      error.textContent = "";
+      const counts = parseTrackCounts(trackCounts.value);
+      void runReviewMutation({
+        query: EDIT_METADATA_MUTATION,
+        input: {
+          jobId: job.jobId,
+          expectedRowVersion: job.rowVersion,
+          expectedRevision: draft.revision,
+          edit: { configureReview: { profile: profile.value, trackCounts: counts } },
+        },
+        jobId: job.jobId,
+        successMessage: "元数据审阅布局已建立",
+      });
+    } catch (validationError) {
+      error.textContent = validationError.message;
+    }
+  });
+  return form;
+}
+
+function buildCandidateValue(kind, control, explicitlyAbsent) {
+  if (explicitlyAbsent) return { absent: "USE" };
+  if (kind === "TEXT") {
+    if (control.value.length === 0) throw new Error("元数据原文不能为空。");
+    // Exact source text is the value: do not trim or Unicode-normalize it.
+    return { text: control.value };
+  }
+  if (kind === "DATE") {
+    if (control.value.length === 0) throw new Error("请按 YYYY、YYYY-MM 或 YYYY-MM-DD 填写日期。");
+    return { date: control.value };
+  }
+  if (kind === "TRACK_TYPE") return { trackType: control.value };
+  if (kind === "TEXT_LIST") {
+    const values = control.value.split("\n").filter((value) => value !== "");
+    if (!values.length) throw new Error("请至少填写一项；每行作为一个原样值提交。");
+    return { textList: { values } };
+  }
+  const entries = [];
+  const keys = new Set();
+  for (const line of control.value.split("\n").filter((value) => value !== "")) {
+    const separator = line.indexOf("=");
+    if (separator <= 0) throw new Error("多艺人映射每行使用 key=value，例如 vocal=歌手名。");
+    const key = line.slice(0, separator);
+    if (keys.has(key)) throw new Error(`多艺人映射包含重复 key：${key}`);
+    keys.add(key);
+    entries.push({ key, value: line.slice(separator + 1) });
+  }
+  if (!entries.length) throw new Error("请至少填写一条 key=value 映射。");
+  return { textMap: { entries } };
+}
+
+function candidateEditorNode(job, draft) {
+  const initial = draft.missingFields[0] ?? {
+    scope: "ALBUM",
+    disc: null,
+    track: null,
+    field: "TITLE",
+  };
+  const scope = selectControl(
+    "scope",
+    [
+      ["ALBUM", "Album"],
+      ["DISC", "Disc"],
+      ["TRACK", "Track"],
+    ],
+    initial.scope,
+  );
+  const field = selectControl("field", [], initial.field);
+  const disc = node("input", {
+    attributes: {
+      name: "disc",
+      type: "number",
+      min: "1",
+      value: initial.disc ?? 1,
+      required: "",
+    },
+  });
+  const track = node("input", {
+    attributes: {
+      name: "track",
+      type: "number",
+      min: "1",
+      value: initial.track ?? 1,
+      required: "",
+    },
+  });
+  const discField = labeledControl("Disc", disc);
+  const trackField = labeledControl("Track", track);
+  const valueHost = node("div", { className: "review-form__value" });
+  const explicitlyAbsent = node("input", {
+    attributes: { name: "absent", type: "checkbox" },
+  });
+  const absentField = node("label", { className: "review-form__absent" }, [
+    explicitlyAbsent,
+    node("span", { text: "此字段在原始来源中明确缺省" }),
+  ]);
+  let valueControl;
+  let valueKind;
+
+  function syncPositions() {
+    const needsDisc = scope.value !== "ALBUM";
+    const needsTrack = scope.value === "TRACK";
+    discField.hidden = !needsDisc;
+    disc.disabled = !needsDisc;
+    disc.max = String(draft.trackCounts.length);
+    if (Number(disc.value) > draft.trackCounts.length) disc.value = "1";
+    const discIndex = Math.max(0, Number(disc.value) - 1);
+    const trackMaximum = draft.trackCounts[discIndex] ?? 1;
+    trackField.hidden = !needsTrack;
+    track.disabled = !needsTrack;
+    track.max = String(trackMaximum);
+    if (Number(track.value) > trackMaximum) track.value = "1";
+  }
+
+  function renderValueControl() {
+    valueKind = metadataValueKind(field.value);
+    if (valueKind === "TRACK_TYPE") {
+      valueControl = selectControl("value", TRACK_TYPE_OPTIONS, "NORMAL");
+    } else if (valueKind === "TEXT_LIST" || valueKind === "TEXT_MAP") {
+      valueControl = node("textarea", {
+        attributes: {
+          name: "value",
+          rows: "4",
+          placeholder: valueKind === "TEXT_LIST" ? "每行一个 tag" : "每行 key=value",
+          required: "",
+        },
+      });
+    } else {
+      valueControl = node("input", {
+        attributes: {
+          name: "value",
+          type: "text",
+          placeholder: valueKind === "DATE" ? "YYYY / YYYY-MM / YYYY-MM-DD" : "严格按原文录入",
+          autocomplete: "off",
+          required: "",
+        },
+      });
+    }
+    const kindLabel = {
+      TEXT: "原文值",
+      DATE: "发行日期",
+      TRACK_TYPE: "音乐类型",
+      TEXT_LIST: "标签列表",
+      TEXT_MAP: "多艺人职责映射",
+    }[valueKind];
+    valueHost.replaceChildren(
+      labeledControl(
+        kindLabel,
+        valueControl,
+        valueKind === "TEXT" ? "不会 trim，也不会做 Unicode 归一化" : null,
+      ),
+    );
+    const absentAllowed = ABSENT_METADATA_FIELDS.has(`${scope.value}:${field.value}`);
+    absentField.hidden = !absentAllowed;
+    explicitlyAbsent.disabled = !absentAllowed;
+    if (!absentAllowed) explicitlyAbsent.checked = false;
+    valueControl.disabled = explicitlyAbsent.checked;
+  }
+
+  function syncFields(selected = null) {
+    const options = METADATA_FIELD_OPTIONS[scope.value].map((value) => [value, humanizeEnum(value)]);
+    replaceSelectOptions(field, options, selected);
+    syncPositions();
+    renderValueControl();
+  }
+
+  scope.addEventListener("change", () => syncFields());
+  field.addEventListener("change", renderValueControl);
+  disc.addEventListener("change", syncPositions);
+  explicitlyAbsent.addEventListener("change", () => {
+    valueControl.disabled = explicitlyAbsent.checked;
+  });
+  syncFields(initial.field);
+
+  const defaultSource = draft.profile === "CD" ? "CD_BOOKLET" : "STREAMING_SERVICE";
+  const sourceKind = selectControl("sourceKind", EVIDENCE_SOURCE_OPTIONS, defaultSource);
+  const method = selectControl("method", EVIDENCE_METHOD_OPTIONS[defaultSource]);
+  sourceKind.addEventListener("change", () => {
+    replaceSelectOptions(method, EVIDENCE_METHOD_OPTIONS[sourceKind.value]);
+  });
+  const locator = node("input", {
+    attributes: {
+      name: "locator",
+      type: "text",
+      value: draft.profile === "CD" ? "booklet.pdf#page=" : "",
+      placeholder: "可复核的页码、URL 或文件定位",
+      autocomplete: "off",
+      required: "",
+    },
+  });
+  const detail = node("input", {
+    attributes: {
+      name: "detail",
+      type: "text",
+      placeholder: "可选：位置或转录说明",
+      autocomplete: "off",
+    },
+  });
+  const confidence = node("input", {
+    attributes: {
+      name: "confidence",
+      type: "number",
+      min: "0",
+      max: "10000",
+      value: draft.profile === "CD" ? "10000" : "9000",
+      required: "",
+    },
+  });
+  const error = node("p", { className: "form-error", attributes: { "aria-live": "polite" } });
+  const form = node("form", { className: "review-form review-form--candidate" }, [
+    node("div", { className: "review-form__grid review-form__grid--path" }, [
+      labeledControl("Scope", scope),
+      discField,
+      trackField,
+      labeledControl("字段", field),
+    ]),
+    valueHost,
+    absentField,
+    node("div", { className: "review-form__grid" }, [
+      labeledControl("证据来源", sourceKind),
+      labeledControl("采集方法", method),
+      labeledControl("定位信息", locator),
+      labeledControl("证据详情", detail),
+      labeledControl("置信度（basis points）", confidence, "0–10000"),
+    ]),
+    error,
+    node("button", {
+      className: "primary-action",
+      text: "添加候选证据",
+      attributes: { type: "submit" },
+    }),
+  ]);
+  form.addEventListener("submit", (event) => {
+    event.preventDefault();
+    try {
+      error.textContent = "";
+      if (!locator.value.trim()) throw new Error("证据定位信息不能为空。");
+      const confidenceBasisPoints = Number(confidence.value);
+      if (
+        !Number.isSafeInteger(confidenceBasisPoints) ||
+        confidenceBasisPoints < 0 ||
+        confidenceBasisPoints > 10000
+      ) {
+        throw new Error("置信度必须是 0–10000 之间的整数。");
+      }
+      const fieldInput = { scope: scope.value, field: field.value };
+      if (scope.value !== "ALBUM") fieldInput.disc = Number(disc.value);
+      if (scope.value === "TRACK") fieldInput.track = Number(track.value);
+      const evidence = {
+        sourceKind: sourceKind.value,
+        locator: locator.value,
+        method: method.value,
+      };
+      if (detail.value !== "") evidence.detail = detail.value;
+      void runReviewMutation({
+        query: EDIT_METADATA_MUTATION,
+        input: {
+          jobId: job.jobId,
+          expectedRowVersion: job.rowVersion,
+          expectedRevision: draft.revision,
+          edit: {
+            addCandidate: {
+              field: fieldInput,
+              value: buildCandidateValue(valueKind, valueControl, explicitlyAbsent.checked),
+              evidence,
+              confidenceBasisPoints,
+            },
+          },
+        },
+        jobId: job.jobId,
+        successMessage: "候选证据已添加",
+      });
+    } catch (validationError) {
+      error.textContent = validationError.message;
+    }
+  });
+
+  const editor = node("details", { className: "candidate-editor" }, [
+    node("summary", { text: "录入 Booklet / 其他来源候选" }),
+    form,
+  ]);
+  editor.open = draft.candidates.length === 0;
+  return editor;
+}
+
 function reviewActions(job, draft) {
   const actions = node("div", { className: "review-actions" });
   const currentApproved = job.approvedRevision === draft.revision;
 
-  if (reviewIsEditable(job, draft)) {
+  if (job.state === "CREATED") {
+    const begin = node("button", {
+      className: "primary-action",
+      text: "开始元数据审阅",
+      attributes: { type: "button" },
+    });
+    begin.addEventListener("click", () =>
+      void runReviewMutation({
+        query: EXECUTE_INGEST_COMMAND_MUTATION,
+        input: {
+          jobId: job.jobId,
+          expectedRowVersion: job.rowVersion,
+          command: { beginReview: "EXECUTE" },
+        },
+        jobId: job.jobId,
+        successMessage: "任务已进入元数据审阅阶段",
+      }),
+    );
+    actions.append(begin);
+  }
+
+  if (reviewIsEditable(job, draft) && draft.requirementsConfigured) {
     const approve = node("button", {
       className: "primary-action",
       text: draft.complete ? "批准此 revision" : "必填项尚未完成",
@@ -660,6 +1119,10 @@ function reviewActions(job, draft) {
       }),
     );
     actions.append(approve);
+  }
+
+  if (reviewIsEditable(job, draft) && !draft.requirementsConfigured) {
+    actions.append(node("p", { text: "先建立 CD / Streaming profile 与多碟轨道布局。" }));
   }
 
   if (
@@ -761,7 +1224,13 @@ function renderIngestDetail(data) {
         ]),
       ]),
       reviewActions(job, draft),
-      draft.missingFields.length ? missingFieldsNode(draft) : null,
+      ...(reviewIsEditable(job, draft) && !draft.requirementsConfigured
+        ? [reviewConfigurationNode(job, draft)]
+        : []),
+      ...(reviewIsEditable(job, draft) && draft.requirementsConfigured
+        ? [candidateEditorNode(job, draft)]
+        : []),
+      ...(draft.missingFields.length ? [missingFieldsNode(draft)] : []),
       node(
         "div",
         { className: "candidate-list" },

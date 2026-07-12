@@ -402,7 +402,7 @@ async fn embedded_metadata_review_mutations_use_live_concurrency_contracts() {
     let app = router(database, &config(None, false));
     let job_id = Uuid::new_v4().to_string();
     let candidate_id = Uuid::new_v4().to_string();
-    let exact = "曲名（Booklet） / 曲名(Booklet)・A〜B～C";
+    let exact = " 曲名（Booklet） / 曲名(Booklet)・A〜B～C ";
 
     let created = execute_web_graphql(
         &app,
@@ -414,14 +414,14 @@ async fn embedded_metadata_review_mutations_use_live_concurrency_contracts() {
 
     let reviewing = execute_web_graphql(
         &app,
-        r#"mutation WebTestBeginReview($jobId: UUID!) {
-            executeIngestJobCommand(input: {
-                jobId: $jobId
-                expectedRowVersion: "1"
-                command: { beginReview: EXECUTE }
-            }) { rowVersion }
-        }"#,
-        serde_json::json!({ "jobId": job_id.clone() }),
+        web_query("EXECUTE_INGEST_COMMAND_MUTATION"),
+        serde_json::json!({
+            "input": {
+                "jobId": job_id.clone(),
+                "expectedRowVersion": "1",
+                "command": { "beginReview": "EXECUTE" },
+            }
+        }),
     )
     .await;
     assert_eq!(
@@ -431,15 +431,17 @@ async fn embedded_metadata_review_mutations_use_live_concurrency_contracts() {
 
     let configured = execute_web_graphql(
         &app,
-        r#"mutation WebTestConfigure($jobId: UUID!) {
-            editIngestMetadata(input: {
-                jobId: $jobId
-                expectedRowVersion: "2"
-                expectedRevision: "1"
-                edit: { configureReview: { profile: STREAMING, trackCounts: [1] } }
-            }) { job { rowVersion } }
-        }"#,
-        serde_json::json!({ "jobId": job_id.clone() }),
+        web_query("EDIT_METADATA_MUTATION"),
+        serde_json::json!({
+            "input": {
+                "jobId": job_id.clone(),
+                "expectedRowVersion": "2",
+                "expectedRevision": "1",
+                "edit": {
+                    "configureReview": { "profile": "STREAMING", "trackCounts": [1] }
+                },
+            }
+        }),
     )
     .await;
     assert_eq!(
@@ -449,28 +451,26 @@ async fn embedded_metadata_review_mutations_use_live_concurrency_contracts() {
 
     let added = execute_web_graphql(
         &app,
-        r#"mutation WebTestAdd($jobId: UUID!, $candidateId: UUID!, $exact: String!) {
-            editIngestMetadata(input: {
-                jobId: $jobId
-                expectedRowVersion: "3"
-                expectedRevision: "1"
-                edit: { addCandidate: {
-                    candidateId: $candidateId
-                    field: { scope: ALBUM, field: TITLE }
-                    value: { text: $exact }
-                    evidence: {
-                        sourceKind: CD_BOOKLET
-                        locator: "booklet.pdf#page=2"
-                        method: MANUAL_TRANSCRIPTION
-                    }
-                    confidenceBasisPoints: 10000
-                } }
-            }) { job { rowVersion } }
-        }"#,
+        web_query("EDIT_METADATA_MUTATION"),
         serde_json::json!({
-            "jobId": job_id.clone(),
-            "candidateId": candidate_id.clone(),
-            "exact": exact,
+            "input": {
+                "jobId": job_id.clone(),
+                "expectedRowVersion": "3",
+                "expectedRevision": "1",
+                "edit": {
+                    "addCandidate": {
+                        "candidateId": candidate_id.clone(),
+                        "field": { "scope": "ALBUM", "field": "TITLE" },
+                        "value": { "text": exact },
+                        "evidence": {
+                            "sourceKind": "CD_BOOKLET",
+                            "locator": "booklet.pdf#page=2",
+                            "method": "MANUAL_TRANSCRIPTION",
+                        },
+                        "confidenceBasisPoints": 10000,
+                    }
+                },
+            }
         }),
     )
     .await;

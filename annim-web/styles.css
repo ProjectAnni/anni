@@ -45,7 +45,9 @@ body {
 }
 
 button,
-input {
+input,
+select,
+textarea {
   font: inherit;
 }
 
@@ -1503,6 +1505,120 @@ code {
   padding-left: 18px;
 }
 
+.candidate-editor {
+  border-bottom: 1px solid var(--line);
+}
+
+.candidate-editor > summary {
+  padding: 14px 0;
+  cursor: pointer;
+  font-family: var(--utility);
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.review-form {
+  display: grid;
+  gap: 14px;
+  padding: 18px;
+  border: 1px solid var(--line);
+  background: rgba(255, 255, 255, 0.72);
+}
+
+.review-form--configuration {
+  margin-top: 14px;
+}
+
+.candidate-editor .review-form {
+  margin-bottom: 18px;
+}
+
+.review-form__heading strong {
+  font-family: var(--display);
+  font-size: 17px;
+}
+
+.review-form__heading p {
+  margin: 4px 0 0;
+  color: var(--ink-muted);
+  font-size: 10px;
+}
+
+.review-form__grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 11px;
+}
+
+.review-form__grid--path {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.review-form__field {
+  display: grid;
+  min-width: 0;
+  gap: 5px;
+}
+
+.review-form__field > span {
+  color: var(--ink-muted);
+  font-family: var(--utility);
+  font-size: 9px;
+  font-weight: 700;
+}
+
+.review-form__field > small {
+  color: var(--ink-muted);
+  font-size: 9px;
+}
+
+.review-form input,
+.review-form select,
+.review-form textarea {
+  width: 100%;
+  min-width: 0;
+  padding: 8px 9px;
+  border: 1px solid var(--line-strong);
+  border-radius: 0;
+  background: white;
+  color: var(--lacquer);
+}
+
+.review-form input,
+.review-form select {
+  min-height: 39px;
+}
+
+.review-form textarea {
+  resize: vertical;
+}
+
+.review-form__value {
+  min-width: 0;
+}
+
+.review-form__absent {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--ink-muted);
+  font-size: 10px;
+}
+
+.review-form__absent input {
+  width: auto;
+  min-height: auto;
+}
+
+.review-form > .primary-action {
+  justify-self: start;
+}
+
+.review-form :disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
 .candidate-row__actions {
   display: flex;
   gap: 8px;
@@ -2140,6 +2256,11 @@ code {
   .dialog-actions {
     align-items: stretch;
     flex-direction: column-reverse;
+  }
+
+  .review-form__grid,
+  .review-form__grid--path {
+    grid-template-columns: 1fr;
   }
 }
 
