@@ -12,8 +12,15 @@ license.workspace = true
 anni-catalog.workspace = true
 annim = { path = "../annim", default-features = false }
 chrono = "0.4.45"
+futures-util = "0.3"
+httpdate = "1.0.3"
+reqwest = { workspace = true, features = ["stream"] }
+serde.workspace = true
+serde_json = { workspace = true, features = ["raw_value"] }
 thiserror.workspace = true
 tokio = { version = "1", features = ["macros", "rt", "sync", "time"] }
+unic-langid = "0.9.6"
+url = "2.5.8"
 uuid.workspace = true
 
 [features]

@@ -227,10 +227,17 @@ dependencies = [
  "anni-catalog",
  "annim",
  "chrono",
+ "futures-util",
+ "httpdate",
+ "reqwest 0.13.4",
  "sea-orm",
  "sea-orm-migration",
+ "serde",
+ "serde_json",
  "thiserror 2.0.18",
  "tokio",
+ "unic-langid",
+ "url",
  "uuid",
 ]
 
