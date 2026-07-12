@@ -1,5 +1,5 @@
 use annim::{
-    auth::{on_connection_init, AuthToken},
+    auth::{on_connection_init, AuthConfig},
     graphql::{schema_builder, MetadataSchema},
     search::RepositorySearchManager,
 };
@@ -22,34 +22,45 @@ async fn graphql_playground() -> impl IntoResponse {
     response::Html(graphiql_source("/", Some("/ws")))
 }
 
-fn get_token_from_headers(headers: &HeaderMap) -> Option<AuthToken> {
-    headers
+#[derive(Clone)]
+struct AppState {
+    schema: MetadataSchema,
+    auth: AuthConfig,
+}
+
+fn authenticate_headers(
+    headers: &HeaderMap,
+    auth: &AuthConfig,
+) -> Option<annim::auth::AuthenticatedAdmin> {
+    let authorization = headers
         .get("Authorization")
-        .and_then(|value| value.to_str().map(|s| AuthToken::new(s.to_string())).ok())
+        .and_then(|value| value.to_str().ok())?;
+    auth.authenticate_bearer(authorization).ok()
 }
 
 async fn graphql_handler(
-    State(schema): State<MetadataSchema>,
+    State(state): State<AppState>,
     headers: HeaderMap,
     req: GraphQLRequest,
 ) -> GraphQLResponse {
     let mut req = req.into_inner();
-    if let Some(token) = get_token_from_headers(&headers) {
-        req = req.data(token);
+    if let Some(admin) = authenticate_headers(&headers, &state.auth) {
+        req = req.data(admin);
     }
-    schema.execute(req).await.into()
+    state.schema.execute(req).await.into()
 }
 
 async fn graphql_ws_handler(
-    State(schema): State<MetadataSchema>,
+    State(state): State<AppState>,
     protocol: GraphQLProtocol,
     websocket: WebSocketUpgrade,
 ) -> Response {
     websocket
         .protocols(ALL_WEBSOCKET_PROTOCOLS)
         .on_upgrade(move |stream| {
-            GraphQLWebSocket::new(stream, schema.clone(), protocol)
-                .on_connection_init(on_connection_init)
+            let auth = state.auth.clone();
+            GraphQLWebSocket::new(stream, state.schema.clone(), protocol)
+                .on_connection_init(move |value| on_connection_init(auth.clone(), value))
                 .serve()
         })
 }
@@ -62,6 +73,7 @@ async fn main() -> anyhow::Result<()> {
         .init();
 
     let database_url = std::env::var("ANNIM_DATABASE_URL")?;
+    let auth = AuthConfig::from_env()?;
     let database = Database::connect(database_url)
         .await
         .expect("Fail to initialize database connection");
@@ -73,6 +85,7 @@ async fn main() -> anyhow::Result<()> {
     let searcher = RepositorySearchManager::open_or_create(searcher_directory)?;
     let schema = schema_builder(database).data(searcher).finish();
 
+    let state = AppState { schema, auth };
     let app = Router::new()
         .route("/", get(graphql_playground).post(graphql_handler))
         .route("/ws", get(graphql_ws_handler))
@@ -82,7 +95,7 @@ async fn main() -> anyhow::Result<()> {
                 .allow_origin(cors::Any)
                 .allow_headers(cors::Any),
         )
-        .with_state(schema);
+        .with_state(state);
 
     println!("Playground: http://localhost:8000");
     axum::serve(TcpListener::bind("0.0.0.0:8000").await?, app).await?;

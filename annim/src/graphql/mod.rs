@@ -56,7 +56,7 @@ pub fn build_schema(db: DatabaseConnection) -> MetadataSchema {
 
 pub struct MetadataQuery;
 
-#[Object]
+#[Object(guard = "AdminGuard")]
 impl MetadataQuery {
     #[graphql(guard = "AdminGuard")]
     async fn catalog_artists(
@@ -299,7 +299,7 @@ pub struct MetadataMutation;
 
 pub struct MetadataSubscription;
 
-#[Subscription]
+#[Subscription(guard = "AdminGuard")]
 impl MetadataSubscription {
     #[graphql(guard = "AdminGuard")]
     async fn ingest_job_changed(

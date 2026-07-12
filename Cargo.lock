@@ -483,6 +483,7 @@ dependencies = [
  "axum",
  "base64 0.22.1",
  "chrono",
+ "constant_time_eq",
  "lindera",
  "lindera-tantivy",
  "rmp-serde",

@@ -1,6 +1,6 @@
 #![cfg(feature = "sqlite")]
 
-use annim::{auth::AuthToken, graphql::build_schema, migrator::Migrator};
+use annim::{auth::AuthConfig, graphql::build_schema, migrator::Migrator};
 use async_graphql::Request;
 use sea_orm::{prelude::Uuid, ConnectOptions, Database, DatabaseConnection};
 use sea_orm_migration::MigratorTrait;
@@ -16,8 +16,12 @@ async fn test_schema() -> annim::graphql::MetadataSchema {
 }
 
 fn admin_request(query: impl Into<String>) -> Request {
-    let token = std::env::var("ANNIM_AUTH_TOKEN").unwrap_or_else(|_| "114514".to_owned());
-    Request::new(query).data(AuthToken::new(token))
+    const TOKEN: &str = "0123456789abcdef0123456789abcdef";
+    let admin = AuthConfig::new(TOKEN)
+        .unwrap()
+        .authenticate_bearer(&format!("Bearer {TOKEN}"))
+        .unwrap();
+    Request::new(query).data(admin)
 }
 
 fn error_code(response: &async_graphql::Response) -> Option<&async_graphql::Value> {
@@ -30,7 +34,7 @@ async fn ingest_queries_require_an_admin_token() {
     let response = schema.execute("{ ingestJobs { jobId } }").await;
 
     assert_eq!(response.errors.len(), 1);
-    assert_eq!(response.errors[0].message, "Token is required");
+    assert_eq!(response.errors[0].message, "Unauthorized");
 }
 
 #[tokio::test]
