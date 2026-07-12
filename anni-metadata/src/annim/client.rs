@@ -3,12 +3,24 @@ use crate::{
     model,
 };
 use cynic::{http::ReqwestExt, MutationBuilder, QueryBuilder};
+use reqwest::header::{HeaderMap, HeaderValue, AUTHORIZATION};
+use thiserror::Error;
 
 use super::query::album::MetadataOrganizeLevel;
 
 pub struct AnnimClient {
-    client: reqwest::Client,
+    client: Result<reqwest::Client, AnnimClientConfigurationError>,
     endpoint: String,
+}
+
+#[derive(Clone, Copy, Debug, Eq, Error, PartialEq)]
+pub enum AnnimClientConfigurationError {
+    #[error("Annim bearer token cannot be empty")]
+    EmptyBearerToken,
+    #[error("Annim bearer token contains characters that are not allowed by RFC 6750")]
+    InvalidBearerToken,
+    #[error("failed to build the Annim HTTP client")]
+    HttpClient,
 }
 
 enum TagLocation {
@@ -19,20 +31,29 @@ enum TagLocation {
 
 impl AnnimClient {
     pub fn new(endpoint: String, auth: Option<&str>) -> Self {
-        let mut client = reqwest::Client::builder();
-        if let Some(auth) = auth {
-            let mut headers = reqwest::header::HeaderMap::new();
-            headers.insert(
-                reqwest::header::AUTHORIZATION,
-                reqwest::header::HeaderValue::from_str(auth).unwrap(),
-            );
-            client = client.default_headers(headers);
-        }
-
         Self {
-            client: client.build().unwrap(),
+            client: build_http_client(auth),
             endpoint,
         }
+    }
+
+    /// Creates a client and reports invalid authentication configuration immediately.
+    pub fn try_new(
+        endpoint: String,
+        auth: Option<&str>,
+    ) -> Result<Self, AnnimClientConfigurationError> {
+        Ok(Self {
+            client: Ok(build_http_client(auth)?),
+            endpoint,
+        })
+    }
+
+    fn post(&self) -> anyhow::Result<reqwest::RequestBuilder> {
+        let client = self
+            .client
+            .as_ref()
+            .map_err(|error| anyhow::Error::new(*error))?;
+        Ok(client.post(&self.endpoint))
     }
 
     pub async fn album(
@@ -40,7 +61,7 @@ impl AnnimClient {
         album_id: uuid::Uuid,
     ) -> anyhow::Result<Option<query::album::AlbumFragment>> {
         let query = query::album::AlbumQuery::build(query::album::AlbumVariables { album_id });
-        let response = self.client.post(&self.endpoint).run_graphql(query).await?;
+        let response = self.post()?.run_graphql(query).await?;
         if let Some(errors) = response.errors {
             anyhow::bail!("GraphQL error: {:?}", errors);
         }
@@ -57,7 +78,7 @@ impl AnnimClient {
             first: Some(album_ids.len() as i32),
             album_ids: Some(album_ids),
         });
-        let response = self.client.post(&self.endpoint).run_graphql(query).await?;
+        let response = self.post()?.run_graphql(query).await?;
         if let Some(errors) = response.errors {
             anyhow::bail!("GraphQL error: {:?}", errors);
         }
@@ -116,7 +137,7 @@ impl AnnimClient {
                 album: input,
                 commit: Some(commit),
             });
-        let response = self.client.post(&self.endpoint).run_graphql(query).await?;
+        let response = self.post()?.run_graphql(query).await?;
         if let Some(errors) = response.errors {
             anyhow::bail!("GraphQL error: {:?}", errors);
         }
@@ -133,12 +154,7 @@ impl AnnimClient {
             name: &name,
             type_: tag_type,
         });
-        let response = self
-            .client
-            .post(&self.endpoint)
-            .run_graphql(query)
-            .await
-            .unwrap();
+        let response = self.post()?.run_graphql(query).await?;
         if let Some(errors) = response.errors {
             anyhow::bail!("GraphQL error: {:?}", errors);
         }
@@ -155,7 +171,7 @@ impl AnnimClient {
             name: &name,
             type_: tag_type,
         });
-        let response = self.client.post(&self.endpoint).run_graphql(query).await?;
+        let response = self.post()?.run_graphql(query).await?;
         if let Some(errors) = response.errors {
             anyhow::bail!("GraphQL error: {:?}", errors);
         }
@@ -203,7 +219,7 @@ impl AnnimClient {
                 tags,
             },
         );
-        let response = self.client.post(&self.endpoint).run_graphql(query).await?;
+        let response = self.post()?.run_graphql(query).await?;
         if let Some(errors) = response.errors {
             anyhow::bail!("GraphQL error: {:?}", errors);
         }
@@ -223,7 +239,7 @@ impl AnnimClient {
                 remove: false,
             },
         );
-        let response = self.client.post(&self.endpoint).run_graphql(query).await?;
+        let response = self.post()?.run_graphql(query).await?;
         if let Some(errors) = response.errors {
             anyhow::bail!("GraphQL error: {:?}", errors);
         }
@@ -239,7 +255,7 @@ impl AnnimClient {
                 remove: true,
             },
         );
-        let response = self.client.post(&self.endpoint).run_graphql(query).await?;
+        let response = self.post()?.run_graphql(query).await?;
         if let Some(errors) = response.errors {
             anyhow::bail!("GraphQL error: {:?}", errors);
         }
@@ -255,7 +271,7 @@ impl AnnimClient {
         let query = mutation::set_organize_level::SetMetadataTags::build(
             mutation::set_organize_level::SetMetadataTagsVariables { id: album, level },
         );
-        let response = self.client.post(&self.endpoint).run_graphql(query).await?;
+        let response = self.post()?.run_graphql(query).await?;
         if let Some(errors) = response.errors {
             anyhow::bail!("GraphQL error: {:?}", errors);
         }
@@ -264,11 +280,85 @@ impl AnnimClient {
     }
 }
 
+fn build_http_client(auth: Option<&str>) -> Result<reqwest::Client, AnnimClientConfigurationError> {
+    let mut client = reqwest::Client::builder();
+    if let Some(token) = auth {
+        let mut headers = HeaderMap::new();
+        headers.insert(AUTHORIZATION, bearer_authorization_header(token)?);
+        client = client.default_headers(headers);
+    }
+
+    client
+        .build()
+        .map_err(|_| AnnimClientConfigurationError::HttpClient)
+}
+
+fn bearer_authorization_header(token: &str) -> Result<HeaderValue, AnnimClientConfigurationError> {
+    if token.is_empty() {
+        return Err(AnnimClientConfigurationError::EmptyBearerToken);
+    }
+
+    let mut padding_started = false;
+    for byte in token.bytes() {
+        if byte == b'=' {
+            padding_started = true;
+            continue;
+        }
+
+        let is_token_character =
+            byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'.' | b'_' | b'~' | b'+' | b'/');
+        if padding_started || !is_token_character {
+            return Err(AnnimClientConfigurationError::InvalidBearerToken);
+        }
+    }
+
+    let mut value = HeaderValue::from_bytes(format!("Bearer {token}").as_bytes())
+        .map_err(|_| AnnimClientConfigurationError::InvalidBearerToken)?;
+    value.set_sensitive(true);
+    Ok(value)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use std::str::FromStr;
     use uuid::Uuid;
+
+    #[test]
+    fn authorization_header_uses_bearer_scheme_and_is_sensitive() {
+        let header = bearer_authorization_header("test-token_123").unwrap();
+
+        assert_eq!(header.to_str().unwrap(), "Bearer test-token_123");
+        assert!(header.is_sensitive());
+    }
+
+    #[tokio::test]
+    async fn invalid_bearer_tokens_return_redacted_errors() {
+        assert_eq!(
+            bearer_authorization_header(""),
+            Err(AnnimClientConfigurationError::EmptyBearerToken)
+        );
+
+        let token = "do-not-leak token";
+        let immediate_error =
+            match AnnimClient::try_new("http://127.0.0.1:9/graphql".to_owned(), Some(token)) {
+                Ok(_) => panic!("an invalid bearer token must be rejected"),
+                Err(error) => error,
+            };
+        let rendered_error = format!("{immediate_error:?}: {immediate_error}");
+        assert_eq!(
+            immediate_error,
+            AnnimClientConfigurationError::InvalidBearerToken
+        );
+        assert!(!rendered_error.contains(token));
+
+        let compatible_client =
+            AnnimClient::new("http://127.0.0.1:9/graphql".to_owned(), Some(token));
+        let request_error = compatible_client.album(Uuid::nil()).await.unwrap_err();
+        let rendered_request_error = format!("{request_error:?}: {request_error}");
+        assert!(rendered_request_error.contains("RFC 6750"));
+        assert!(!rendered_request_error.contains(token));
+    }
 
     #[tokio::test]
     #[ignore = "requires a running annim service with the fixture album"]
