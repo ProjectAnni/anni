@@ -1,6 +1,8 @@
 use std::{
     collections::HashSet,
+    fmt,
     net::{AddrParseError, SocketAddr},
+    path::{Component, Path},
     sync::Arc,
 };
 
@@ -9,6 +11,122 @@ use thiserror::Error;
 use url::Url;
 
 pub const DEFAULT_BIND_ADDR: &str = "127.0.0.1:8000";
+pub const APPLE_MUSIC_SECRET_REF_ENV: &str = "ANNIM_CATALOG_APPLE_MUSIC_SECRET_REF";
+
+const MAX_CATALOG_SECRET_REF_BYTES: usize = 512;
+
+/// Trusted server-side bindings used when the browser registers catalog sources.
+///
+/// Values are opaque references into the catalog worker's secret root. The
+/// browser never submits or receives these references, and Annim never reads
+/// the referenced secret file.
+#[derive(Clone, Default, PartialEq, Eq)]
+pub struct CatalogSyncProvisioningConfig {
+    apple_music_secret_ref: Option<CatalogSecretRef>,
+}
+
+impl fmt::Debug for CatalogSyncProvisioningConfig {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter
+            .debug_struct("CatalogSyncProvisioningConfig")
+            .field(
+                "apple_music_secret_ref",
+                &self.apple_music_secret_ref.as_ref().map(|_| "[REDACTED]"),
+            )
+            .finish()
+    }
+}
+
+impl CatalogSyncProvisioningConfig {
+    pub fn from_env() -> Result<Self, CatalogSyncProvisioningConfigError> {
+        Self::from_lookup(|name| std::env::var(name).ok())
+    }
+
+    pub fn from_lookup(
+        mut lookup: impl FnMut(&str) -> Option<String>,
+    ) -> Result<Self, CatalogSyncProvisioningConfigError> {
+        let apple_music_secret_ref = lookup(APPLE_MUSIC_SECRET_REF_ENV)
+            .map(|value| CatalogSecretRef::parse(APPLE_MUSIC_SECRET_REF_ENV, value))
+            .transpose()?;
+        Ok(Self {
+            apple_music_secret_ref,
+        })
+    }
+
+    pub fn apple_music_secret_ref(&self) -> Option<&CatalogSecretRef> {
+        self.apple_music_secret_ref.as_ref()
+    }
+}
+
+/// An opaque relative reference into the catalog worker's secret root.
+///
+/// It intentionally implements neither `Display` nor serialization so a
+/// reference cannot be logged or placed in an API response by convenience.
+#[derive(Clone, PartialEq, Eq)]
+pub struct CatalogSecretRef(String);
+
+impl fmt::Debug for CatalogSecretRef {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter.write_str("[REDACTED]")
+    }
+}
+
+impl CatalogSecretRef {
+    pub fn parse(
+        name: &'static str,
+        value: String,
+    ) -> Result<Self, CatalogSyncProvisioningConfigError> {
+        validate_catalog_secret_reference(name, &value)?;
+        Ok(Self(value))
+    }
+
+    pub fn as_str(&self) -> &str {
+        &self.0
+    }
+}
+
+#[derive(Debug, Error)]
+pub enum CatalogSyncProvisioningConfigError {
+    #[error(
+        "{name} must be a relative secret file reference without traversal, control characters, or backslashes"
+    )]
+    InvalidSecretReference { name: &'static str },
+}
+
+fn validate_catalog_secret_reference(
+    name: &'static str,
+    value: &str,
+) -> Result<(), CatalogSyncProvisioningConfigError> {
+    let path = Path::new(value);
+    let valid = !value.is_empty()
+        && value.len() <= MAX_CATALOG_SECRET_REF_BYTES
+        && !value.contains('\\')
+        && !value.chars().any(char::is_control)
+        && !looks_like_compact_jwt(value)
+        && !path.is_absolute()
+        && path
+            .components()
+            .all(|component| matches!(component, Component::Normal(_)));
+    if valid {
+        Ok(())
+    } else {
+        Err(CatalogSyncProvisioningConfigError::InvalidSecretReference { name })
+    }
+}
+
+fn looks_like_compact_jwt(value: &str) -> bool {
+    if value.contains('/') {
+        return false;
+    }
+    let segments = value.split('.').collect::<Vec<_>>();
+    segments.len() == 3
+        && segments.iter().all(|segment| {
+            !segment.is_empty()
+                && segment.chars().all(|character| {
+                    character.is_ascii_alphanumeric() || matches!(character, '-' | '_')
+                })
+        })
+}
 
 /// Network-facing settings for Annim.
 ///
@@ -192,5 +310,50 @@ mod tests {
         .unwrap_err();
         let rendered = format!("{error:?}: {error}");
         assert!(!rendered.contains("do-not-log"));
+    }
+
+    #[test]
+    fn catalog_provisioning_accepts_only_redacted_relative_secret_references() {
+        let secret_ref = "apple/developer-token.jwt";
+        let configured = CatalogSyncProvisioningConfig::from_lookup(|name| {
+            (name == APPLE_MUSIC_SECRET_REF_ENV).then(|| secret_ref.to_owned())
+        })
+        .unwrap();
+        assert_eq!(
+            configured
+                .apple_music_secret_ref()
+                .map(CatalogSecretRef::as_str),
+            Some(secret_ref)
+        );
+        assert!(!format!("{:?}", configured).contains(secret_ref));
+
+        let missing = CatalogSyncProvisioningConfig::from_lookup(|_| None).unwrap();
+        assert!(missing.apple_music_secret_ref().is_none());
+
+        for invalid in [
+            "",
+            "/run/secrets/apple.jwt",
+            "../apple.jwt",
+            "apple/../developer-token.jwt",
+            ".",
+            "apple\\developer-token.jwt",
+            "apple/developer-token.jwt\n",
+            "eyJhbGciOiJFUzI1NiJ9.eyJpc3MiOiJpc3N1ZXIifQ.signature",
+        ] {
+            assert!(matches!(
+                CatalogSyncProvisioningConfig::from_lookup(|name| {
+                    (name == APPLE_MUSIC_SECRET_REF_ENV).then(|| invalid.to_owned())
+                }),
+                Err(CatalogSyncProvisioningConfigError::InvalidSecretReference { .. })
+            ));
+        }
+
+        let too_long = "a".repeat(MAX_CATALOG_SECRET_REF_BYTES + 1);
+        assert!(matches!(
+            CatalogSyncProvisioningConfig::from_lookup(|name| {
+                (name == APPLE_MUSIC_SECRET_REF_ENV).then(|| too_long.clone())
+            }),
+            Err(CatalogSyncProvisioningConfigError::InvalidSecretReference { .. })
+        ));
     }
 }

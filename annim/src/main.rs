@@ -1,7 +1,8 @@
 use annim::{
     auth::AuthConfig,
-    config::ServerConfig,
-    graphql::schema_builder,
+    catalog::CatalogSyncService,
+    config::{CatalogSyncProvisioningConfig, ServerConfig},
+    graphql::schema_builder_with_catalog_sync_service,
     search::RepositorySearchManager,
     server::{build_router, ServerState},
 };
@@ -19,14 +20,27 @@ async fn main() -> anyhow::Result<()> {
     let database_url = std::env::var("ANNIM_DATABASE_URL")?;
     let auth = AuthConfig::from_env()?;
     let server_config = ServerConfig::from_env()?;
+    let catalog_sync_provisioning = CatalogSyncProvisioningConfig::from_env()?;
     let database = Database::connect(database_url).await?;
 
     annim::migrator::Migrator::up(&database, None).await?;
 
+    let catalog_sync_service =
+        CatalogSyncService::with_provisioning(database.clone(), catalog_sync_provisioning);
+    let provisioned_sources = catalog_sync_service.provision_existing_sources().await?;
+    if provisioned_sources > 0 {
+        tracing::info!(
+            source_count = provisioned_sources,
+            "provisioned existing Apple Music catalog sources"
+        );
+    }
+
     let searcher_directory = std::env::var("ANNIM_SEARCH_DIRECTORY")?;
     std::fs::create_dir_all(&searcher_directory)?;
     let searcher = RepositorySearchManager::open_or_create(searcher_directory)?;
-    let schema = schema_builder(database.clone()).data(searcher).finish();
+    let schema = schema_builder_with_catalog_sync_service(database.clone(), catalog_sync_service)
+        .data(searcher)
+        .finish();
     let state = ServerState::new(schema, auth, database);
     let app = build_router(state, &server_config);
 

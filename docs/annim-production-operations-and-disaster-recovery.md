@@ -34,7 +34,7 @@
 
 当前 `anni-ingest-worker` 是供调用方集成的 Rust library，没有可直接部署的 worker binary、队列轮询器或环境变量契约。Annim 会保存 ingest job 状态、metadata revision 正文，以及 manifest/plan/verification 的 digest；它不保存 input manifest、execution plan 和 execution receipt 的完整正文。实际部署若已由外部协调器执行 ingest，协调器的 immutable artifact store、source root 和 staging/publish receipt 也是恢复面，不能只备份 Annim 数据库。
 
-此外，当前 Web 的 catalog source 创建入口不会接收或返回 `secret_ref`，而 Apple adapter 运行时要求数据库中已有合法 `secret_ref`。生产部署必须使用受信任的后端配置流程预置该引用；本文不把“在 Web 中配置 Apple/VGMDB 多源同步”描述为现有能力。
+Apple Music 的 credential binding 由 Annim server 的受信任配置完成。GraphQL 不接收或返回 `secret_ref`；`CatalogSyncService` 会在建立 Apple source 时附加配置好的引用，并在启动时幂等补齐旧记录中仍为 `NULL` 的引用。未配置引用时 Apple source 创建会失败，已有非法非空引用也不会被自动覆盖。当前 Web UI 尚未提供 catalog source 管理界面，其他信源仍没有可运行 adapter。
 
 实现入口：
 
@@ -96,6 +96,7 @@ Annim 数据库还可能包含 private locator、提交/生效 URL、catalog raw
 | `ANNIM_BIND_ADDR` | 否 | 默认 `127.0.0.1:8000`；非 loopback 监听必须放在受信任的 TLS reverse proxy 后 |
 | `ANNIM_ALLOWED_ORIGINS` | 否 | 逗号分隔的精确 `http`/`https` origin；默认空。不能使用 `*`、`null`、路径、凭据或尾随 `/` |
 | `ANNIM_GRAPHIQL_ENABLED` | 否 | 只能是 `true` 或 `false`，默认 `false` |
+| `ANNIM_CATALOG_APPLE_MUSIC_SECRET_REF` | 否 | Apple token 文件相对于 worker secret root 的引用；不是 token。缺失时 Annim 仍可启动，但不能从 Web 控制面建立 Apple source |
 
 健康检查不需要 token：
 
@@ -120,7 +121,7 @@ curl --fail --silent --show-error http://127.0.0.1:8000/health/ready
 | `ANNIM_CATALOG_MAX_RESPONSE_BYTES` | 否 | 默认 4 MiB；范围 64 KiB–32 MiB |
 | `ANNIM_CATALOG_MAX_SECRET_BYTES` | 否 | 默认 16 KiB；范围 256 B–64 KiB |
 
-Apple Music source 的 `secret_ref` 是相对于 secret root 的普通文件路径。resolver 会拒绝绝对路径、`.`、`..`、反斜杠、控制字符、符号链接、非普通文件、越界路径和非 UTF-8 内容。文件内容必须是合法 compact JWT，且不能带尾随换行。数据库只保存 `secret_ref`，不应保存 token 本身。
+Apple Music source 的 `secret_ref` 是相对于 secret root 的普通文件路径。Annim 启动配置会拒绝绝对路径、`.`、`..`、反斜杠、控制字符、超长值和形似直接填入的 compact JWT；worker resolver 还会拒绝符号链接、非普通文件、越界路径和非 UTF-8 内容。文件内容本身必须是合法 compact JWT，且不能带尾随换行。数据库只保存引用，不保存 token 本身。
 
 ### 3.4 Cover worker 环境变量
 
@@ -154,8 +155,8 @@ cargo build --locked --release -p anni-catalog-worker --no-default-features --fe
 
 启动顺序：
 
-1. 确认数据库、search root、cover root 和 secret root 已挂载到预期设备。
-2. 启动 `annim`。它会先执行数据库 migration。
+1. 确认数据库、search root、cover root 和 secret root 已挂载到预期设备，并确认 `ANNIM_CATALOG_APPLE_MUSIC_SECRET_REF` 能在 catalog worker 的 secret root 下解析到预期文件。
+2. 启动 `annim`。它会先执行数据库 migration，再只对 `secret_ref IS NULL` 的既有 Apple source 执行幂等 credential binding；不会覆盖非空旧值。
 3. 等待 `/health/ready` 成功。
 4. 启动 `catalog-worker`。它也会执行 migration；此时应为 no-op。
 5. 启动 `cover-worker`。
@@ -196,6 +197,7 @@ cargo build --locked --release -p anni-catalog-worker --no-default-features --fe
 ```bash
 export CATALOG_SECRET_ROOT=/run/secrets/annim/catalog
 export APPLE_SECRET_PATH="$CATALOG_SECRET_ROOT/apple/developer-token"
+export ANNIM_CATALOG_APPLE_MUSIC_SECRET_REF=apple/developer-token
 
 # [按部署平台替换] NEW_APPLE_TOKEN_FILE 是 secret manager 物化的新版本。
 install -m 0600 -- /run/secrets/NEW_APPLE_TOKEN_FILE "$APPLE_SECRET_PATH.next"

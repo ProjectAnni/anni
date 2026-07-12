@@ -1,6 +1,12 @@
 #![cfg(feature = "sqlite")]
 
-use annim::{auth::AuthConfig, graphql::build_schema, migrator::Migrator};
+use annim::{
+    auth::AuthConfig,
+    catalog::CatalogSyncService,
+    config::{CatalogSyncProvisioningConfig, APPLE_MUSIC_SECRET_REF_ENV},
+    graphql::{build_schema, schema_builder_with_catalog_sync_service},
+    migrator::Migrator,
+};
 use async_graphql::Request;
 use sea_orm::{prelude::Uuid, ConnectOptions, Database, DatabaseConnection};
 use sea_orm_migration::MigratorTrait;
@@ -11,6 +17,19 @@ async fn test_schema() -> annim::graphql::MetadataSchema {
     let database: DatabaseConnection = Database::connect(options).await.unwrap();
     Migrator::up(&database, None).await.unwrap();
     build_schema(database)
+}
+
+async fn configured_test_schema() -> annim::graphql::MetadataSchema {
+    let mut options = ConnectOptions::new("sqlite::memory:");
+    options.max_connections(1);
+    let database: DatabaseConnection = Database::connect(options).await.unwrap();
+    Migrator::up(&database, None).await.unwrap();
+    let provisioning = CatalogSyncProvisioningConfig::from_lookup(|name| {
+        (name == APPLE_MUSIC_SECRET_REF_ENV).then(|| "apple/developer-token.jwt".to_owned())
+    })
+    .unwrap();
+    let service = CatalogSyncService::with_provisioning(database.clone(), provisioning);
+    schema_builder_with_catalog_sync_service(database, service).finish()
 }
 
 fn admin_request(query: impl Into<String>) -> Request {
@@ -24,7 +43,7 @@ fn admin_request(query: impl Into<String>) -> Request {
 
 #[tokio::test]
 async fn graphql_queues_catalog_sync_without_exposing_adapter_evidence_or_secrets() {
-    let schema = test_schema().await;
+    let schema = configured_test_schema().await;
     let artist_id = Uuid::new_v4();
     let source_id = Uuid::new_v4();
     let run_id = Uuid::new_v4();
@@ -47,11 +66,12 @@ async fn graphql_queues_catalog_sync_without_exposing_adapter_evidence_or_secret
                 createCatalogSyncSource(input: {{
                     sourceId: "{source_id}"
                     artistId: "{artist_id}"
-                    kind: ARTIST_WEBSITE
-                    locator: "https://artist.example/discography?signature=private"
+                    kind: APPLE_MUSIC
+                    locator: "1370700"
+                    storefront: "jp"
                     locale: "ja-JP"
                 }}) {{
-                    sourceId artistId kind locale enabled rowVersion
+                    sourceId artistId kind storefront locale enabled provisioningState rowVersion
                 }}
             }}"#
         )))
@@ -62,13 +82,17 @@ async fn graphql_queues_catalog_sync_without_exposing_adapter_evidence_or_secret
         source["createCatalogSyncSource"]["sourceId"],
         source_id.to_string()
     );
-    assert_eq!(source["createCatalogSyncSource"]["kind"], "ARTIST_WEBSITE");
+    assert_eq!(source["createCatalogSyncSource"]["kind"], "APPLE_MUSIC");
+    assert_eq!(
+        source["createCatalogSyncSource"]["provisioningState"],
+        "READY_TO_QUEUE"
+    );
     assert_eq!(source["createCatalogSyncSource"]["rowVersion"], "1");
 
     let sources = schema
         .execute(admin_request(format!(
             r#"{{ catalogSyncSources(artistId: "{artist_id}") {{
-                sourceId kind locale enabled rowVersion
+                sourceId kind storefront locale enabled provisioningState rowVersion
             }} }}"#
         )))
         .await;
@@ -78,6 +102,10 @@ async fn graphql_queues_catalog_sync_without_exposing_adapter_evidence_or_secret
     assert_eq!(
         sources["catalogSyncSources"][0]["sourceId"],
         source_id.to_string()
+    );
+    assert_eq!(
+        sources["catalogSyncSources"][0]["provisioningState"],
+        "READY_TO_QUEUE"
     );
 
     let run = schema
@@ -131,4 +159,49 @@ async fn graphql_queues_catalog_sync_without_exposing_adapter_evidence_or_secret
         )))
         .await;
     assert!(!worker_mutation.errors.is_empty());
+
+    let unconfigured = test_schema().await;
+    let unconfigured_artist = unconfigured
+        .execute(admin_request(format!(
+            r#"mutation {{
+                createCatalogArtist(input: {{
+                    artistId: "{artist_id}"
+                    displayName: "Unconfigured Artist"
+                }}) {{ artistId }}
+            }}"#
+        )))
+        .await;
+    assert!(unconfigured_artist.errors.is_empty());
+    let rejected = unconfigured
+        .execute(admin_request(format!(
+            r#"mutation {{
+                createCatalogSyncSource(input: {{
+                    artistId: "{artist_id}"
+                    kind: APPLE_MUSIC
+                    locator: "1370700"
+                    storefront: "jp"
+                }}) {{ sourceId }}
+            }}"#
+        )))
+        .await;
+    assert_eq!(rejected.errors.len(), 1);
+    assert_eq!(
+        rejected.errors[0]
+            .extensions
+            .as_ref()
+            .and_then(|extensions| extensions.get("code")),
+        Some(&async_graphql::Value::from(
+            "CATALOG_SYNC_CREDENTIAL_NOT_CONFIGURED"
+        ))
+    );
+    let empty = unconfigured
+        .execute(admin_request(format!(
+            r#"{{ catalogSyncSources(artistId: "{artist_id}") {{ sourceId }} }}"#
+        )))
+        .await;
+    assert!(empty.errors.is_empty());
+    assert!(empty.data.into_json().unwrap()["catalogSyncSources"]
+        .as_array()
+        .unwrap()
+        .is_empty());
 }

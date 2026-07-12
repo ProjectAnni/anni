@@ -45,9 +45,16 @@ pub type MetadataSchema = Schema<MetadataQuery, MetadataMutation, MetadataSubscr
 pub fn schema_builder(
     db: DatabaseConnection,
 ) -> SchemaBuilder<MetadataQuery, MetadataMutation, MetadataSubscription> {
+    let catalog_sync_service = CatalogSyncService::new(db.clone());
+    schema_builder_with_catalog_sync_service(db, catalog_sync_service)
+}
+
+pub fn schema_builder_with_catalog_sync_service(
+    db: DatabaseConnection,
+    catalog_sync_service: CatalogSyncService,
+) -> SchemaBuilder<MetadataQuery, MetadataMutation, MetadataSubscription> {
     let ingest_service = IngestService::new(IngestJobRepository::new(db.clone()));
     let catalog_service = CatalogService::new(CatalogRepository::new(db.clone()));
-    let catalog_sync_service = CatalogSyncService::new(db.clone());
     let cover_service = CoverService::new(CoverRepository::new(db.clone()));
     Schema::build(MetadataQuery, MetadataMutation, MetadataSubscription)
         .data(db)

@@ -15,8 +15,9 @@ use chrono::{DateTime, Utc};
 use sea_orm::prelude::Uuid;
 
 use crate::catalog::{
-    CatalogSourceSnapshot, CatalogSyncError, CatalogSyncRunSnapshot, CatalogSyncService,
-    NewCatalogSource, NewCatalogSyncRun,
+    CatalogSourceProvisioningState as DomainCatalogSourceProvisioningState, CatalogSourceSnapshot,
+    CatalogSyncError, CatalogSyncRunSnapshot, CatalogSyncService, NewCatalogSyncRun,
+    NewManagedCatalogSource,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Enum)]
@@ -80,6 +81,35 @@ pub enum CatalogSyncCoverage {
     DiscoveryOnly,
 }
 
+/// Whether this server can safely queue work for a source.
+///
+/// This reports deployment capability without exposing the credential
+/// reference or assuming that the referenced token itself is valid.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Enum)]
+pub enum CatalogSyncProvisioningState {
+    ReadyToQueue,
+    Disabled,
+    CredentialNotConfigured,
+    CredentialBindingInvalid,
+    AdapterUnavailable,
+}
+
+impl From<DomainCatalogSourceProvisioningState> for CatalogSyncProvisioningState {
+    fn from(value: DomainCatalogSourceProvisioningState) -> Self {
+        match value {
+            DomainCatalogSourceProvisioningState::ReadyToQueue => Self::ReadyToQueue,
+            DomainCatalogSourceProvisioningState::Disabled => Self::Disabled,
+            DomainCatalogSourceProvisioningState::CredentialNotConfigured => {
+                Self::CredentialNotConfigured
+            }
+            DomainCatalogSourceProvisioningState::CredentialBindingInvalid => {
+                Self::CredentialBindingInvalid
+            }
+            DomainCatalogSourceProvisioningState::AdapterUnavailable => Self::AdapterUnavailable,
+        }
+    }
+}
+
 impl From<DomainSyncCoverage> for CatalogSyncCoverage {
     fn from(value: DomainSyncCoverage) -> Self {
         match value {
@@ -102,6 +132,7 @@ pub struct CatalogSyncSourceInfo {
     storefront: Option<String>,
     locale: Option<String>,
     enabled: bool,
+    provisioning_state: CatalogSyncProvisioningState,
     row_version: String,
     created_at: DateTime<Utc>,
     updated_at: DateTime<Utc>,
@@ -116,6 +147,7 @@ impl From<CatalogSourceSnapshot> for CatalogSyncSourceInfo {
             storefront: value.storefront,
             locale: value.locale,
             enabled: value.enabled,
+            provisioning_state: value.provisioning_state.into(),
             row_version: value.row_version.to_string(),
             created_at: value.created_at,
             updated_at: value.updated_at,
@@ -189,16 +221,14 @@ impl fmt::Debug for CreateCatalogSyncSourceInput {
 }
 
 impl CreateCatalogSyncSourceInput {
-    fn into_command(self) -> NewCatalogSource {
-        NewCatalogSource {
+    fn into_command(self) -> NewManagedCatalogSource {
+        NewManagedCatalogSource {
             source_id: self.source_id,
             artist_id: self.artist_id,
             kind: self.kind.into(),
             locator: self.locator,
             storefront: self.storefront,
             locale: self.locale,
-            configuration_document: None,
-            secret_ref: None,
         }
     }
 }
@@ -254,7 +284,7 @@ pub async fn create_source(
     input: CreateCatalogSyncSourceInput,
 ) -> Result<CatalogSyncSourceInfo> {
     ctx.data::<CatalogSyncService>()?
-        .create_source(input.into_command())
+        .create_managed_source(input.into_command())
         .await
         .map(Into::into)
         .map_err(catalog_sync_error)
@@ -265,7 +295,7 @@ pub async fn start_run(
     input: StartCatalogSyncRunInput,
 ) -> Result<CatalogSyncRunInfo> {
     ctx.data::<CatalogSyncService>()?
-        .start_run(input.into_command())
+        .start_managed_run(input.into_command())
         .await
         .map(Into::into)
         .map_err(catalog_sync_error)
@@ -292,6 +322,26 @@ fn catalog_sync_error(error: CatalogSyncError) -> Error {
         CatalogSyncError::SourceDisabled { source_id } => {
             entity_error("CATALOG_SYNC_SOURCE_DISABLED", "sourceId", source_id)
         }
+        CatalogSyncError::CredentialNotConfigured { kind } => Error::new(
+            "catalog sync credential is not configured on this server",
+        )
+        .extend_with(|_, extensions| {
+            extensions.set("code", "CATALOG_SYNC_CREDENTIAL_NOT_CONFIGURED");
+            extensions.set("kind", kind.as_str());
+        }),
+        CatalogSyncError::CredentialBindingInvalid { kind } => {
+            Error::new("catalog sync credential binding is invalid").extend_with(|_, extensions| {
+                extensions.set("code", "CATALOG_SYNC_CREDENTIAL_BINDING_INVALID");
+                extensions.set("kind", kind.as_str());
+            })
+        }
+        CatalogSyncError::AdapterUnavailable { kind } => Error::new(
+            "catalog sync adapter is not available in this deployment",
+        )
+        .extend_with(|_, extensions| {
+            extensions.set("code", "CATALOG_SYNC_ADAPTER_UNAVAILABLE");
+            extensions.set("kind", kind.as_str());
+        }),
         CatalogSyncError::SourceBusy { source_id } => {
             entity_error("CATALOG_SYNC_SOURCE_BUSY", "sourceId", source_id)
         }
@@ -373,12 +423,17 @@ mod tests {
             storefront: Some("jp".to_owned()),
             locale: Some("ja-JP".to_owned()),
             enabled: true,
+            provisioning_state: DomainCatalogSourceProvisioningState::AdapterUnavailable,
             row_version: CatalogRowVersion::new(u64::MAX).unwrap(),
             created_at: timestamp,
             updated_at: timestamp,
         });
         let source_debug = format!("{source:?}");
         assert_eq!(source.row_version, u64::MAX.to_string());
+        assert_eq!(
+            source.provisioning_state,
+            CatalogSyncProvisioningState::AdapterUnavailable
+        );
         assert!(!source_debug.contains(&locator));
         assert!(!source_debug.contains("token=source-secret"));
 
@@ -411,7 +466,7 @@ mod tests {
     }
 
     #[test]
-    fn browser_write_inputs_keep_sensitive_values_out_of_debug_and_worker_fields() {
+    fn browser_write_inputs_redact_locators_and_build_managed_commands() {
         let locator = "https://example.invalid/api?signature=secret".to_owned();
         let input = CreateCatalogSyncSourceInput {
             source_id: None,
@@ -428,8 +483,7 @@ mod tests {
 
         let command = input.into_command();
         assert_eq!(command.locator, locator);
-        assert!(command.configuration_document.is_none());
-        assert!(command.secret_ref.is_none());
+        assert_eq!(command.kind, DomainCatalogSourceKind::RecordLabel);
 
         let run = StartCatalogSyncRunInput {
             run_id: None,

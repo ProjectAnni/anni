@@ -24,9 +24,12 @@ use sha2::{Digest as ShaDigest, Sha256};
 use thiserror::Error;
 
 use super::CatalogRowVersion;
-use crate::entities::{
-    catalog_artist, catalog_source, catalog_source_release, catalog_source_release_revision,
-    catalog_sync_run, helper::timestamp,
+use crate::{
+    config::{CatalogSecretRef, CatalogSyncProvisioningConfig},
+    entities::{
+        catalog_artist, catalog_source, catalog_source_release, catalog_source_release_revision,
+        catalog_sync_run, helper::timestamp,
+    },
 };
 
 const MAX_SYNC_ERROR_CHARS: usize = 512;
@@ -56,6 +59,7 @@ pub struct CatalogSourceSnapshot {
     pub storefront: Option<String>,
     pub locale: Option<String>,
     pub enabled: bool,
+    pub provisioning_state: CatalogSourceProvisioningState,
     pub row_version: CatalogRowVersion,
     pub created_at: DateTimeUtc,
     pub updated_at: DateTimeUtc,
@@ -72,9 +76,58 @@ impl fmt::Debug for CatalogSourceSnapshot {
             .field("storefront", &self.storefront)
             .field("locale", &self.locale)
             .field("enabled", &self.enabled)
+            .field("provisioning_state", &self.provisioning_state)
             .field("row_version", &self.row_version)
             .field("created_at", &self.created_at)
             .field("updated_at", &self.updated_at)
+            .finish()
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CatalogSourceProvisioningState {
+    ReadyToQueue,
+    Disabled,
+    CredentialNotConfigured,
+    CredentialBindingInvalid,
+    AdapterUnavailable,
+}
+
+impl CatalogSourceSnapshot {
+    /// Reports whether the browser-managed control plane can queue this source.
+    ///
+    /// Only the Apple Music adapter is installed in the production catalog
+    /// worker today. A configured reference means the worker can attempt to
+    /// resolve a credential; it does not claim that the token itself is valid.
+    pub const fn managed_provisioning_state(&self) -> CatalogSourceProvisioningState {
+        self.provisioning_state
+    }
+}
+
+/// Browser-safe request to register a source.
+///
+/// Adapter configuration and credential references are deliberately absent;
+/// [`CatalogSyncService`] adds trusted provisioning before persistence.
+#[derive(Clone, PartialEq, Eq)]
+pub struct NewManagedCatalogSource {
+    pub source_id: Option<Uuid>,
+    pub artist_id: Uuid,
+    pub kind: CatalogSourceKind,
+    pub locator: String,
+    pub storefront: Option<String>,
+    pub locale: Option<String>,
+}
+
+impl fmt::Debug for NewManagedCatalogSource {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter
+            .debug_struct("NewManagedCatalogSource")
+            .field("source_id", &self.source_id)
+            .field("artist_id", &self.artist_id)
+            .field("kind", &self.kind)
+            .field("locator", &"[REDACTED]")
+            .field("storefront", &self.storefront)
+            .field("locale", &self.locale)
             .finish()
     }
 }
@@ -408,6 +461,12 @@ pub enum CatalogSyncError {
     SourceNotFound { source_id: Uuid },
     #[error("catalog source {source_id} is disabled")]
     SourceDisabled { source_id: Uuid },
+    #[error("catalog source credential is not configured for {kind}")]
+    CredentialNotConfigured { kind: CatalogSourceKind },
+    #[error("catalog source credential binding is invalid for {kind}")]
+    CredentialBindingInvalid { kind: CatalogSourceKind },
+    #[error("catalog source adapter is not available for {kind}")]
+    AdapterUnavailable { kind: CatalogSourceKind },
     #[error("catalog source {source_id} already has a running or contending sync run")]
     SourceBusy { source_id: Uuid },
     #[error("catalog sync run {run_id} already exists")]
@@ -476,11 +535,106 @@ pub enum CatalogSyncError {
 #[derive(Clone)]
 pub struct CatalogSyncService {
     database: DatabaseConnection,
+    provisioning: CatalogSyncProvisioningConfig,
 }
 
 impl CatalogSyncService {
     pub fn new(database: DatabaseConnection) -> Self {
-        Self { database }
+        Self::with_provisioning(database, CatalogSyncProvisioningConfig::default())
+    }
+
+    pub fn with_provisioning(
+        database: DatabaseConnection,
+        provisioning: CatalogSyncProvisioningConfig,
+    ) -> Self {
+        Self {
+            database,
+            provisioning,
+        }
+    }
+
+    /// Registers a browser-managed source after binding deployment-owned
+    /// adapter provisioning. The caller cannot supply configuration documents
+    /// or secret references.
+    pub async fn create_managed_source(
+        &self,
+        input: NewManagedCatalogSource,
+    ) -> Result<CatalogSourceSnapshot, CatalogSyncError> {
+        let secret_ref = match input.kind {
+            CatalogSourceKind::AppleMusic => Some(
+                self.provisioning
+                    .apple_music_secret_ref()
+                    .ok_or(CatalogSyncError::CredentialNotConfigured { kind: input.kind })?
+                    .as_str()
+                    .to_owned(),
+            ),
+            CatalogSourceKind::RecordLabel
+            | CatalogSourceKind::ArtistWebsite
+            | CatalogSourceKind::Vgmdb
+            | CatalogSourceKind::Manual => None,
+        };
+        self.create_source(NewCatalogSource {
+            source_id: input.source_id,
+            artist_id: input.artist_id,
+            kind: input.kind,
+            locator: input.locator,
+            storefront: input.storefront,
+            locale: input.locale,
+            configuration_document: None,
+            secret_ref,
+        })
+        .await
+    }
+
+    /// Binds the configured Apple Music credential reference to legacy source
+    /// rows that predate server-side provisioning.
+    ///
+    /// Existing non-null references are never replaced. Each update uses the
+    /// source row version as a compare-and-swap guard, so this is safe to run on
+    /// every Annim startup and returns only the number of rows it changed.
+    pub async fn provision_existing_sources(&self) -> Result<u64, CatalogSyncError> {
+        let Some(secret_ref) = self.provisioning.apple_music_secret_ref() else {
+            return Ok(0);
+        };
+        let sources = catalog_source::Entity::find()
+            .filter(catalog_source::Column::Kind.eq(CatalogSourceKind::AppleMusic.as_str()))
+            .filter(catalog_source::Column::SecretRef.is_null())
+            .all(&self.database)
+            .await?;
+        let mut changed = 0_u64;
+        for source in sources {
+            let current =
+                parse_row_version("catalog source", source.source_id, source.row_version)?;
+            let next = next_row_version("catalog source", source.source_id, current)?;
+            let updated = catalog_source::Entity::update_many()
+                .col_expr(
+                    catalog_source::Column::SecretRef,
+                    Expr::value(Some(secret_ref.as_str().to_owned())),
+                )
+                .col_expr(
+                    catalog_source::Column::RowVersion,
+                    Expr::value(row_version_as_i64(
+                        "catalog source",
+                        source.source_id,
+                        next,
+                    )?),
+                )
+                .col_expr(
+                    catalog_source::Column::UpdatedAt,
+                    Expr::current_timestamp().into(),
+                )
+                .filter(catalog_source::Column::Id.eq(source.id))
+                .filter(catalog_source::Column::SecretRef.is_null())
+                .filter(catalog_source::Column::RowVersion.eq(row_version_as_i64(
+                    "catalog source",
+                    source.source_id,
+                    current,
+                )?))
+                .exec(&self.database)
+                .await?;
+            changed = changed.saturating_add(updated.rows_affected);
+        }
+        Ok(changed)
     }
 
     pub async fn create_source(
@@ -629,6 +783,35 @@ impl CatalogSyncService {
         self.get_run(run_id)
             .await?
             .ok_or(CatalogSyncError::RunNotFound { run_id })
+    }
+
+    /// Queues work only when the installed Web-managed adapter can run it.
+    /// Trusted internal callers may use [`Self::start_run`] directly.
+    pub async fn start_managed_run(
+        &self,
+        input: NewCatalogSyncRun,
+    ) -> Result<CatalogSyncRunSnapshot, CatalogSyncError> {
+        let source =
+            self.get_source(input.source_id)
+                .await?
+                .ok_or(CatalogSyncError::SourceNotFound {
+                    source_id: input.source_id,
+                })?;
+        match source.managed_provisioning_state() {
+            CatalogSourceProvisioningState::ReadyToQueue => self.start_run(input).await,
+            CatalogSourceProvisioningState::Disabled => Err(CatalogSyncError::SourceDisabled {
+                source_id: source.source_id,
+            }),
+            CatalogSourceProvisioningState::CredentialNotConfigured => {
+                Err(CatalogSyncError::CredentialNotConfigured { kind: source.kind })
+            }
+            CatalogSourceProvisioningState::CredentialBindingInvalid => {
+                Err(CatalogSyncError::CredentialBindingInvalid { kind: source.kind })
+            }
+            CatalogSourceProvisioningState::AdapterUnavailable => {
+                Err(CatalogSyncError::AdapterUnavailable { kind: source.kind })
+            }
+        }
     }
 
     pub async fn get_run(
@@ -1659,6 +1842,8 @@ fn source_model_to_snapshot(
             value: model.kind.clone(),
         }
     })?;
+    let provisioning_state =
+        source_provisioning_state(kind, model.enabled, model.secret_ref.as_deref());
     Ok(CatalogSourceSnapshot {
         source_id,
         artist_id,
@@ -1667,10 +1852,37 @@ fn source_model_to_snapshot(
         storefront: model.storefront,
         locale: model.locale,
         enabled: model.enabled,
+        provisioning_state,
         row_version: parse_row_version("catalog source", source_id, model.row_version)?,
         created_at: timestamp(model.created_at),
         updated_at: timestamp(model.updated_at),
     })
+}
+
+fn source_provisioning_state(
+    kind: CatalogSourceKind,
+    enabled: bool,
+    secret_ref: Option<&str>,
+) -> CatalogSourceProvisioningState {
+    if !enabled {
+        return CatalogSourceProvisioningState::Disabled;
+    }
+    match kind {
+        CatalogSourceKind::AppleMusic => match secret_ref {
+            None => CatalogSourceProvisioningState::CredentialNotConfigured,
+            Some(value)
+                if CatalogSecretRef::parse("catalog_source.secret_ref", value.to_owned())
+                    .is_ok() =>
+            {
+                CatalogSourceProvisioningState::ReadyToQueue
+            }
+            Some(_) => CatalogSourceProvisioningState::CredentialBindingInvalid,
+        },
+        CatalogSourceKind::RecordLabel
+        | CatalogSourceKind::ArtistWebsite
+        | CatalogSourceKind::Vgmdb
+        | CatalogSourceKind::Manual => CatalogSourceProvisioningState::AdapterUnavailable,
+    }
 }
 
 fn run_model_to_snapshot(
@@ -1936,6 +2148,110 @@ mod tests {
         .exec_without_returning(database)
         .await
         .unwrap();
+    }
+
+    #[tokio::test]
+    async fn managed_apple_sources_bind_and_backfill_only_trusted_secret_references() {
+        let database = migrated_database().await;
+        let artist_id = Uuid::new_v4();
+        insert_artist(&database, artist_id).await;
+        let secret_ref = "apple/developer-token.jwt";
+        let provisioning = CatalogSyncProvisioningConfig::from_lookup(|name| {
+            (name == crate::config::APPLE_MUSIC_SECRET_REF_ENV).then(|| secret_ref.to_owned())
+        })
+        .unwrap();
+        let service = CatalogSyncService::with_provisioning(database.clone(), provisioning);
+
+        let managed = service
+            .create_managed_source(NewManagedCatalogSource {
+                source_id: None,
+                artist_id,
+                kind: CatalogSourceKind::AppleMusic,
+                locator: "1370700".to_owned(),
+                storefront: Some("jp".to_owned()),
+                locale: Some("ja-JP".to_owned()),
+            })
+            .await
+            .unwrap();
+        assert_eq!(
+            managed.provisioning_state,
+            CatalogSourceProvisioningState::ReadyToQueue
+        );
+
+        let legacy = service
+            .create_source(NewCatalogSource {
+                source_id: None,
+                artist_id,
+                kind: CatalogSourceKind::AppleMusic,
+                locator: "1370701".to_owned(),
+                storefront: Some("jp".to_owned()),
+                locale: None,
+                configuration_document: None,
+                secret_ref: None,
+            })
+            .await
+            .unwrap();
+        assert_eq!(
+            legacy.provisioning_state,
+            CatalogSourceProvisioningState::CredentialNotConfigured
+        );
+
+        let invalid = service
+            .create_source(NewCatalogSource {
+                source_id: None,
+                artist_id,
+                kind: CatalogSourceKind::AppleMusic,
+                locator: "1370702".to_owned(),
+                storefront: Some("jp".to_owned()),
+                locale: None,
+                configuration_document: None,
+                secret_ref: Some("../legacy-token".to_owned()),
+            })
+            .await
+            .unwrap();
+        assert_eq!(
+            invalid.provisioning_state,
+            CatalogSourceProvisioningState::CredentialBindingInvalid
+        );
+
+        assert_eq!(service.provision_existing_sources().await.unwrap(), 1);
+        assert_eq!(service.provision_existing_sources().await.unwrap(), 0);
+        let managed_model = get_source_model(&database, managed.source_id)
+            .await
+            .unwrap()
+            .unwrap();
+        let legacy_model = get_source_model(&database, legacy.source_id)
+            .await
+            .unwrap()
+            .unwrap();
+        let invalid_model = get_source_model(&database, invalid.source_id)
+            .await
+            .unwrap()
+            .unwrap();
+        assert_eq!(managed_model.secret_ref.as_deref(), Some(secret_ref));
+        assert_eq!(legacy_model.secret_ref.as_deref(), Some(secret_ref));
+        assert_eq!(legacy_model.row_version, 2);
+        assert_eq!(invalid_model.secret_ref.as_deref(), Some("../legacy-token"));
+        assert_eq!(invalid_model.row_version, 1);
+        assert_eq!(
+            service
+                .get_source(legacy.source_id)
+                .await
+                .unwrap()
+                .unwrap()
+                .provisioning_state,
+            CatalogSourceProvisioningState::ReadyToQueue
+        );
+        assert!(matches!(
+            service
+                .start_managed_run(NewCatalogSyncRun {
+                    run_id: None,
+                    source_id: invalid.source_id,
+                    requested_cursor: None,
+                })
+                .await,
+            Err(CatalogSyncError::CredentialBindingInvalid { .. })
+        ));
     }
 
     #[tokio::test]
