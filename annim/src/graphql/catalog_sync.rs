@@ -7,7 +7,8 @@
 use std::fmt;
 
 use anni_catalog::{
-    CatalogSourceKind as DomainCatalogSourceKind, SyncRunStatus as DomainSyncRunStatus,
+    CatalogSourceKind as DomainCatalogSourceKind, SyncCoverage as DomainSyncCoverage,
+    SyncRunStatus as DomainSyncRunStatus,
 };
 use async_graphql::{Context, Enum, Error, ErrorExtensions, InputObject, Result, SimpleObject};
 use chrono::{DateTime, Utc};
@@ -72,6 +73,23 @@ impl From<DomainSyncRunStatus> for CatalogSyncRunStatus {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Enum)]
+pub enum CatalogSyncCoverage {
+    FullSnapshot,
+    Incremental,
+    DiscoveryOnly,
+}
+
+impl From<DomainSyncCoverage> for CatalogSyncCoverage {
+    fn from(value: DomainSyncCoverage) -> Self {
+        match value {
+            DomainSyncCoverage::FullSnapshot => Self::FullSnapshot,
+            DomainSyncCoverage::Incremental => Self::Incremental,
+            DomainSyncCoverage::DiscoveryOnly => Self::DiscoveryOnly,
+        }
+    }
+}
+
 /// Source metadata safe for an authenticated browser administrator.
 ///
 /// The source locator is deliberately not represented. It may be a signed URL
@@ -114,7 +132,12 @@ pub struct CatalogSyncRunInfo {
     run_id: Uuid,
     source_id: Uuid,
     status: CatalogSyncRunStatus,
+    coverage: CatalogSyncCoverage,
+    started_from_root: bool,
+    snapshot_complete: bool,
     observed_count: String,
+    attempt_count: String,
+    next_attempt_at: Option<DateTime<Utc>>,
     row_version: String,
     created_at: DateTime<Utc>,
     started_at: Option<DateTime<Utc>>,
@@ -127,7 +150,12 @@ impl From<CatalogSyncRunSnapshot> for CatalogSyncRunInfo {
             run_id: value.run_id,
             source_id: value.source_id,
             status: value.status.into(),
+            coverage: value.coverage.into(),
+            started_from_root: value.started_from_root,
+            snapshot_complete: value.snapshot_complete,
             observed_count: value.observed_count.to_string(),
+            attempt_count: value.attempt_count.to_string(),
+            next_attempt_at: value.next_attempt_at,
             row_version: value.row_version.to_string(),
             created_at: value.created_at,
             started_at: value.started_at,
@@ -360,6 +388,11 @@ mod tests {
             result_cursor: Some("result-secret".to_owned()),
             observed_count: u32::MAX,
             error_message: Some("adapter-secret".to_owned()),
+            coverage: DomainSyncCoverage::Incremental,
+            started_from_root: false,
+            snapshot_complete: true,
+            attempt_count: u32::MAX,
+            next_attempt_at: Some(timestamp),
             row_version: CatalogRowVersion::new(u64::MAX).unwrap(),
             created_at: timestamp,
             started_at: Some(timestamp),
@@ -367,6 +400,8 @@ mod tests {
         });
         let run_debug = format!("{run:?}");
         assert_eq!(run.observed_count, u32::MAX.to_string());
+        assert_eq!(run.attempt_count, u32::MAX.to_string());
+        assert_eq!(run.coverage, CatalogSyncCoverage::Incremental);
         assert_eq!(run.row_version, u64::MAX.to_string());
         assert!(!run_debug.contains("requested-secret"));
         assert!(!run_debug.contains("result-secret"));

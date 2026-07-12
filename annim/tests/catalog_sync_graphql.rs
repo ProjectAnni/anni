@@ -84,7 +84,8 @@ async fn graphql_queues_catalog_sync_without_exposing_adapter_evidence_or_secret
         .execute(admin_request(format!(
             r#"mutation {{
                 startCatalogSyncRun(input: {{ runId: "{run_id}", sourceId: "{source_id}" }}) {{
-                    runId sourceId status observedCount rowVersion startedAt finishedAt
+                    runId sourceId status coverage startedFromRoot snapshotComplete
+                    observedCount attemptCount rowVersion startedAt finishedAt
                 }}
             }}"#
         )))
@@ -92,7 +93,11 @@ async fn graphql_queues_catalog_sync_without_exposing_adapter_evidence_or_secret
     assert!(run.errors.is_empty(), "{:?}", run.errors);
     let run = run.data.into_json().unwrap();
     assert_eq!(run["startCatalogSyncRun"]["status"], "QUEUED");
+    assert_eq!(run["startCatalogSyncRun"]["coverage"], "DISCOVERY_ONLY");
+    assert_eq!(run["startCatalogSyncRun"]["startedFromRoot"], true);
+    assert_eq!(run["startCatalogSyncRun"]["snapshotComplete"], false);
     assert_eq!(run["startCatalogSyncRun"]["observedCount"], "0");
+    assert_eq!(run["startCatalogSyncRun"]["attemptCount"], "0");
     assert_eq!(run["startCatalogSyncRun"]["rowVersion"], "1");
 
     let polled = schema

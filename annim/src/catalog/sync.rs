@@ -11,7 +11,7 @@
 
 use std::{fmt, str::FromStr};
 
-use anni_catalog::{CatalogSourceKind, SyncRunStatus};
+use anni_catalog::{CatalogSourceKind, SyncCoverage, SyncRunStatus};
 use anni_ingest::Digest;
 use sea_orm::{
     prelude::{DateTimeUtc, Uuid},
@@ -115,6 +115,11 @@ pub struct CatalogSyncRunSnapshot {
     pub result_cursor: Option<String>,
     pub observed_count: u32,
     pub error_message: Option<String>,
+    pub coverage: SyncCoverage,
+    pub started_from_root: bool,
+    pub snapshot_complete: bool,
+    pub attempt_count: u32,
+    pub next_attempt_at: Option<DateTimeUtc>,
     pub row_version: CatalogRowVersion,
     pub created_at: DateTimeUtc,
     pub started_at: Option<DateTimeUtc>,
@@ -141,6 +146,11 @@ impl fmt::Debug for CatalogSyncRunSnapshot {
                 "error_message",
                 &self.error_message.as_ref().map(|_| "[REDACTED]"),
             )
+            .field("coverage", &self.coverage)
+            .field("started_from_root", &self.started_from_root)
+            .field("snapshot_complete", &self.snapshot_complete)
+            .field("attempt_count", &self.attempt_count)
+            .field("next_attempt_at", &self.next_attempt_at)
             .field("row_version", &self.row_version)
             .field("created_at", &self.created_at)
             .field("started_at", &self.started_at)
@@ -239,20 +249,34 @@ pub struct RecordedCatalogObservation {
 
 #[derive(Clone, PartialEq, Eq)]
 pub enum FinishCatalogSyncRun {
-    Succeeded { result_cursor: Option<String> },
-    Failed { error_message: String },
-    Cancelled { message: Option<String> },
+    Succeeded {
+        result_cursor: Option<String>,
+        coverage: SyncCoverage,
+        snapshot_complete: bool,
+    },
+    Failed {
+        error_message: String,
+    },
+    Cancelled {
+        message: Option<String>,
+    },
 }
 
 impl fmt::Debug for FinishCatalogSyncRun {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::Succeeded { result_cursor } => formatter
+            Self::Succeeded {
+                result_cursor,
+                coverage,
+                snapshot_complete,
+            } => formatter
                 .debug_struct("Succeeded")
                 .field(
                     "result_cursor",
                     &result_cursor.as_ref().map(|_| "[REDACTED]"),
                 )
+                .field("coverage", coverage)
+                .field("snapshot_complete", snapshot_complete)
                 .finish(),
             Self::Failed { .. } => formatter
                 .debug_struct("Failed")
@@ -277,9 +301,26 @@ impl FinishCatalogSyncRun {
 
     fn result_cursor(&self) -> Option<&str> {
         match self {
-            Self::Succeeded { result_cursor } => result_cursor.as_deref(),
+            Self::Succeeded { result_cursor, .. } => result_cursor.as_deref(),
             Self::Failed { .. } | Self::Cancelled { .. } => None,
         }
+    }
+
+    fn coverage(&self) -> SyncCoverage {
+        match self {
+            Self::Succeeded { coverage, .. } => *coverage,
+            Self::Failed { .. } | Self::Cancelled { .. } => SyncCoverage::DiscoveryOnly,
+        }
+    }
+
+    fn snapshot_complete(&self) -> bool {
+        matches!(
+            self,
+            Self::Succeeded {
+                snapshot_complete: true,
+                ..
+            }
+        )
     }
 }
 
@@ -489,6 +530,7 @@ impl CatalogSyncService {
             });
         }
         let run_id = input.run_id.unwrap_or_else(Uuid::new_v4);
+        let started_from_root = input.requested_cursor.is_none();
         let active_model = catalog_sync_run::ActiveModel {
             id: NotSet,
             run_id: Set(run_id),
@@ -498,6 +540,13 @@ impl CatalogSyncService {
             result_cursor: Set(None),
             observed_count: Set(0),
             error_message: Set(None),
+            coverage: Set(SyncCoverage::DiscoveryOnly.as_str().to_owned()),
+            started_from_root: Set(started_from_root),
+            snapshot_complete: Set(false),
+            lease_token: Set(None),
+            lease_expires_at: Set(None),
+            next_attempt_at: Set(None),
+            attempt_count: Set(0),
             row_version: Set(1),
             created_at: NotSet,
             started_at: Set(None),
@@ -928,11 +977,15 @@ impl CatalogSyncService {
             .one(&transaction)
             .await?
             .ok_or_else(|| missing_run_source(run_id))?;
+        let coverage = outcome.coverage();
+        let snapshot_complete = outcome.snapshot_complete();
 
         // Retrying a completed command with the current version is a no-op.
         if status == next_status
             && run.result_cursor.as_deref() == outcome.result_cursor()
             && run.error_message.as_deref() == stored_error.as_deref()
+            && run.coverage == coverage.as_str()
+            && run.snapshot_complete == snapshot_complete
             && run.finished_at.is_some()
         {
             let snapshot = run_model_to_snapshot(run, source.source_id)?;
@@ -952,7 +1005,11 @@ impl CatalogSyncService {
 
         let finished_at = now();
         let mut newly_not_seen = 0_u32;
-        if next_status == SyncRunStatus::Succeeded {
+        if next_status == SyncRunStatus::Succeeded
+            && coverage.may_infer_absence()
+            && run.started_from_root
+            && snapshot_complete
+        {
             let started_at =
                 run.started_at
                     .ok_or_else(|| CatalogSyncError::InvalidPersistedValue {
@@ -1026,6 +1083,14 @@ impl CatalogSyncService {
             .col_expr(
                 catalog_sync_run::Column::ErrorMessage,
                 Expr::value(stored_error),
+            )
+            .col_expr(
+                catalog_sync_run::Column::Coverage,
+                Expr::value(coverage.as_str()),
+            )
+            .col_expr(
+                catalog_sync_run::Column::SnapshotComplete,
+                Expr::value(snapshot_complete),
             )
             .col_expr(
                 catalog_sync_run::Column::FinishedAt,
@@ -1190,6 +1255,7 @@ fn run_model_to_snapshot(
     source_id: Uuid,
 ) -> Result<CatalogSyncRunSnapshot, CatalogSyncError> {
     let run_id = model.run_id;
+    let coverage = parse_sync_coverage(run_id, &model.coverage)?;
     Ok(CatalogSyncRunSnapshot {
         run_id,
         source_id,
@@ -1198,6 +1264,11 @@ fn run_model_to_snapshot(
         result_cursor: model.result_cursor,
         observed_count: checked_observed_count(run_id, model.observed_count)?,
         error_message: model.error_message,
+        coverage,
+        started_from_root: model.started_from_root,
+        snapshot_complete: model.snapshot_complete,
+        attempt_count: checked_attempt_count(run_id, model.attempt_count)?,
+        next_attempt_at: model.next_attempt_at.map(timestamp),
         row_version: parse_row_version("sync run", run_id, model.row_version)?,
         created_at: timestamp(model.created_at),
         started_at: model.started_at.map(timestamp),
@@ -1317,11 +1388,29 @@ fn parse_run_status(run_id: Uuid, value: &str) -> Result<SyncRunStatus, CatalogS
     })
 }
 
+fn parse_sync_coverage(run_id: Uuid, value: &str) -> Result<SyncCoverage, CatalogSyncError> {
+    SyncCoverage::from_str(value).map_err(|_| CatalogSyncError::InvalidPersistedValue {
+        entity: "sync run",
+        id: run_id,
+        field: "coverage",
+        value: value.to_owned(),
+    })
+}
+
 fn checked_observed_count(run_id: Uuid, value: i32) -> Result<u32, CatalogSyncError> {
     u32::try_from(value).map_err(|_| CatalogSyncError::InvalidPersistedValue {
         entity: "sync run",
         id: run_id,
         field: "observed_count",
+        value: value.to_string(),
+    })
+}
+
+fn checked_attempt_count(run_id: Uuid, value: i32) -> Result<u32, CatalogSyncError> {
+    u32::try_from(value).map_err(|_| CatalogSyncError::InvalidPersistedValue {
+        entity: "sync run",
+        id: run_id,
+        field: "attempt_count",
         value: value.to_string(),
     })
 }
@@ -1522,21 +1611,23 @@ mod tests {
                 recorded_second.run.run_id,
                 recorded_second.run.row_version,
                 FinishCatalogSyncRun::Succeeded {
-                    result_cursor: Some("page:2".to_owned()),
+                    result_cursor: None,
+                    coverage: SyncCoverage::FullSnapshot,
+                    snapshot_complete: true,
                 },
             )
             .await
             .unwrap();
         assert_eq!(finished.newly_not_seen, 0);
 
-        // A later successful run sees only the first release. Its unchanged
-        // response is not copied into a new revision, while the second release
-        // is retained and receives its first absence timestamp.
+        // A successful incremental run sees only the first release. It is
+        // useful evidence, but it must not infer that the second release
+        // disappeared.
         let queued = service
             .start_run(NewCatalogSyncRun {
                 run_id: None,
                 source_id: source.source_id,
-                requested_cursor: finished.run.result_cursor.clone(),
+                requested_cursor: Some("incremental:page:2".to_owned()),
             })
             .await
             .unwrap();
@@ -1556,6 +1647,54 @@ mod tests {
                 recorded.run.row_version,
                 FinishCatalogSyncRun::Succeeded {
                     result_cursor: None,
+                    coverage: SyncCoverage::Incremental,
+                    snapshot_complete: true,
+                },
+            )
+            .await
+            .unwrap();
+        assert_eq!(finished.newly_not_seen, 0);
+        let still_present = get_source_release_model(
+            &database,
+            catalog_source::Entity::find()
+                .filter(catalog_source::Column::SourceId.eq(source.source_id))
+                .one(&database)
+                .await
+                .unwrap()
+                .unwrap()
+                .id,
+            &second.external_release_id,
+        )
+        .await
+        .unwrap()
+        .unwrap();
+        assert!(still_present.not_seen_since.is_none());
+
+        // Only a complete full snapshot from the root may infer absence.
+        let queued = service
+            .start_run(NewCatalogSyncRun {
+                run_id: None,
+                source_id: source.source_id,
+                requested_cursor: None,
+            })
+            .await
+            .unwrap();
+        let running = service
+            .claim_run(queued.run_id, queued.row_version)
+            .await
+            .unwrap();
+        let recorded = service
+            .record_observation(running.run_id, running.row_version, first.clone())
+            .await
+            .unwrap();
+        let finished = service
+            .finish_run(
+                recorded.run.run_id,
+                recorded.run.row_version,
+                FinishCatalogSyncRun::Succeeded {
+                    result_cursor: None,
+                    coverage: SyncCoverage::FullSnapshot,
+                    snapshot_complete: true,
                 },
             )
             .await
