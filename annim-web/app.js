@@ -7,6 +7,15 @@ const state = {
   artists: [],
   selectedArtistId: null,
   selectedRelease: null,
+  selectedCollection: null,
+  catalogSources: [],
+  catalogSourcesStatus: "idle",
+  catalogSourcesError: "",
+  catalogRunsBySource: {},
+  catalogHistoryStateBySource: {},
+  catalogRefreshTimer: null,
+  catalogPollGeneration: 0,
+  artistLoadGeneration: 0,
   view: "workflow",
   reviewMutationPending: false,
   catalogMutationPending: false,
@@ -45,6 +54,10 @@ const elements = {
   releaseManageState: document.querySelector("#release-manage-state"),
   collectionCopyForm: document.querySelector("#collection-copy-form"),
   collectionCopyFormError: document.querySelector("#collection-copy-form-error"),
+  catalogSourceDialog: document.querySelector("#catalog-source-dialog"),
+  catalogSourceForm: document.querySelector("#catalog-source-form"),
+  catalogSourceArtist: document.querySelector("#catalog-source-artist"),
+  catalogSourceFormError: document.querySelector("#catalog-source-form-error"),
   toastRegion: document.querySelector("#toast-region"),
 };
 
@@ -62,6 +75,32 @@ const TRACK_TYPE_OPTIONS = [
   ["RADIO", "Radio · 广播节目"],
   ["VOCAL", "Vocal · 人声"],
 ];
+
+const CATALOG_SOURCE_KIND_LABELS = {
+  APPLE_MUSIC: "Apple Music",
+  RECORD_LABEL: "唱片公司官网",
+  ARTIST_WEBSITE: "艺人官网",
+  VGMDB: "VGMDB",
+  MANUAL: "人工目录",
+};
+
+const CATALOG_PROVISIONING_LABELS = {
+  READY_TO_QUEUE: "可执行",
+  DISABLED: "已停用",
+  CREDENTIAL_NOT_CONFIGURED: "服务端凭据未配置",
+  CREDENTIAL_BINDING_INVALID: "凭据引用无效",
+  ADAPTER_UNAVAILABLE: "Worker adapter 未安装",
+};
+
+const CATALOG_RUN_STATUS_LABELS = {
+  QUEUED: "排队中",
+  RUNNING: "同步中",
+  SUCCEEDED: "已完成",
+  FAILED: "失败",
+  CANCELLED: "已取消",
+};
+
+const ACTIVE_CATALOG_RUN_STATES = new Set(["QUEUED", "RUNNING"]);
 
 const EVIDENCE_SOURCE_OPTIONS = [
   ["CD_BOOKLET", "CD Booklet"],
@@ -258,6 +297,80 @@ const COLLECTION_QUERY = `
   }
 `;
 
+const CATALOG_SYNC_SOURCES_QUERY = `
+  query WebCatalogSyncSources($artistId: UUID!) {
+    catalogSyncSources(artistId: $artistId) {
+      sourceId
+      artistId
+      kind
+      storefront
+      locale
+      enabled
+      provisioningState
+      rowVersion
+      createdAt
+      updatedAt
+    }
+  }
+`;
+
+const CATALOG_SYNC_SOURCE_QUERY = `
+  query WebCatalogSyncSource($sourceId: UUID!) {
+    catalogSyncSource(sourceId: $sourceId) {
+      sourceId
+      artistId
+      kind
+      storefront
+      locale
+      enabled
+      provisioningState
+      rowVersion
+      createdAt
+      updatedAt
+    }
+  }
+`;
+
+const CATALOG_SYNC_RUNS_QUERY = `
+  query WebCatalogSyncRuns($sourceId: UUID!, $limit: Int!, $offset: Int!) {
+    catalogSyncRuns(sourceId: $sourceId, limit: $limit, offset: $offset) {
+      runId
+      sourceId
+      status
+      coverage
+      startedFromRoot
+      snapshotComplete
+      observedCount
+      attemptCount
+      nextAttemptAt
+      rowVersion
+      createdAt
+      startedAt
+      finishedAt
+    }
+  }
+`;
+
+const CATALOG_SYNC_RUN_QUERY = `
+  query WebCatalogSyncRun($runId: UUID!) {
+    catalogSyncRun(runId: $runId) {
+      runId
+      sourceId
+      status
+      coverage
+      startedFromRoot
+      snapshotComplete
+      observedCount
+      attemptCount
+      nextAttemptAt
+      rowVersion
+      createdAt
+      startedAt
+      finishedAt
+    }
+  }
+`;
+
 const CREATE_CATALOG_ARTIST_MUTATION = `
   mutation WebCreateCatalogArtist($input: CreateCatalogArtistInput!) {
     createCatalogArtist(input: $input) {
@@ -283,6 +396,60 @@ const CREATE_CATALOG_RELEASE_MUTATION = `
       kind
       collectionState
       rowVersion
+      updatedAt
+    }
+  }
+`;
+
+const CREATE_CATALOG_SYNC_SOURCE_MUTATION = `
+  mutation WebCreateCatalogSyncSource($input: CreateCatalogSyncSourceInput!) {
+    createCatalogSyncSource(input: $input) {
+      sourceId
+      artistId
+      kind
+      storefront
+      locale
+      enabled
+      provisioningState
+      rowVersion
+      createdAt
+      updatedAt
+    }
+  }
+`;
+
+const START_CATALOG_SYNC_RUN_MUTATION = `
+  mutation WebStartCatalogSyncRun($input: StartCatalogSyncRunInput!) {
+    startCatalogSyncRun(input: $input) {
+      runId
+      sourceId
+      status
+      coverage
+      startedFromRoot
+      snapshotComplete
+      observedCount
+      attemptCount
+      nextAttemptAt
+      rowVersion
+      createdAt
+      startedAt
+      finishedAt
+    }
+  }
+`;
+
+const SET_CATALOG_SYNC_SOURCE_ENABLED_MUTATION = `
+  mutation WebSetCatalogSyncSourceEnabled($input: SetCatalogSyncSourceEnabledInput!) {
+    setCatalogSyncSourceEnabled(input: $input) {
+      sourceId
+      artistId
+      kind
+      storefront
+      locale
+      enabled
+      provisioningState
+      rowVersion
+      createdAt
       updatedAt
     }
   }
@@ -543,13 +710,29 @@ function openSessionDialog(message = "") {
   window.setTimeout(() => elements.adminToken.focus(), 0);
 }
 
+function stopCatalogRefresh() {
+  if (state.catalogRefreshTimer !== null) {
+    window.clearTimeout(state.catalogRefreshTimer);
+    state.catalogRefreshTimer = null;
+  }
+  state.catalogPollGeneration += 1;
+}
+
 function clearSession({ notify = true } = {}) {
+  stopCatalogRefresh();
   sessionStorage.removeItem(SESSION_KEY);
   state.token = "";
   state.jobs = [];
   state.artists = [];
   state.selectedArtistId = null;
   state.selectedRelease = null;
+  state.selectedCollection = null;
+  state.catalogSources = [];
+  state.catalogSourcesStatus = "idle";
+  state.catalogSourcesError = "";
+  state.catalogRunsBySource = {};
+  state.catalogHistoryStateBySource = {};
+  state.artistLoadGeneration += 1;
   updateSessionUi();
   elements.intakeCount.textContent = "—";
   elements.artistCount.textContent = "—";
@@ -619,6 +802,7 @@ async function checkServer() {
 function setView(view) {
   const safeView = VIEWS.has(view) ? view : "workflow";
   state.view = safeView;
+  if (safeView !== "artists") stopCatalogRefresh();
   for (const section of document.querySelectorAll("[data-view]")) {
     section.hidden = section.dataset.view !== safeView;
   }
@@ -631,7 +815,10 @@ function setView(view) {
   document.querySelector("#main-content")?.focus({ preventScroll: true });
 
   if (safeView === "intake") void ensureIntakeLoaded();
-  if (safeView === "artists") void ensureArtistsLoaded();
+  if (safeView === "artists") {
+    void ensureArtistsLoaded();
+    if (state.selectedArtistId) void selectArtist(state.selectedArtistId, { background: true });
+  }
 }
 
 function routeFromHash() {
@@ -1395,23 +1582,29 @@ function optionalExactFormValue(form, name) {
   return value === "" ? null : value;
 }
 
-async function runCatalogMutation(form, errorTarget, query, input) {
-  if (state.catalogMutationPending) return null;
+async function runCatalogOperation(container, errorTarget, operation) {
+  if (state.catalogMutationPending) {
+    errorTarget.dataset.errorCode = "CATALOG_MUTATION_BUSY";
+    errorTarget.textContent = "另一项目录写操作仍在进行，请等待其完成。";
+    return null;
+  }
   state.catalogMutationPending = true;
+  delete errorTarget.dataset.errorCode;
   errorTarget.textContent = "正在保存…";
-  const controls = Array.from(form.querySelectorAll("button, input, select, textarea"));
+  const controls = Array.from(container.querySelectorAll("button, input, select, textarea"));
   const priorDisabledStates = controls.map((control) => control.disabled);
   controls.forEach((control) => {
     control.disabled = true;
   });
   try {
-    const data = await graphql(query, { input });
+    const data = await operation();
     errorTarget.textContent = "";
     return data;
   } catch (error) {
     errorTarget.textContent = error.message;
+    errorTarget.dataset.errorCode = error.code ?? "UNKNOWN_ERROR";
     if (error instanceof SessionRequiredError) {
-      form.closest("dialog")?.close();
+      container.closest("dialog")?.close();
       openSessionDialog(error.message);
     }
     return null;
@@ -1421,6 +1614,10 @@ async function runCatalogMutation(form, errorTarget, query, input) {
       if (control.isConnected) control.disabled = priorDisabledStates[index];
     });
   }
+}
+
+async function runCatalogMutation(form, errorTarget, query, input) {
+  return runCatalogOperation(form, errorTarget, () => graphql(query, { input }));
 }
 
 function openArtistDialog() {
@@ -1444,6 +1641,18 @@ function openReleaseDialog(artist) {
   elements.releaseDialogArtist.textContent = `发行会归入 ${artist.displayName} 的拉表。`;
   elements.releaseDialog.showModal();
   window.setTimeout(() => elements.releaseCreateForm.elements.namedItem("title").focus(), 0);
+}
+
+function openCatalogSourceDialog(artist) {
+  if (!state.token) {
+    openSessionDialog("绑定官方目录需要管理会话。");
+    return;
+  }
+  elements.catalogSourceForm.reset();
+  elements.catalogSourceFormError.textContent = "";
+  elements.catalogSourceArtist.textContent = `Apple Music 信源会归入 ${artist.displayName}。`;
+  elements.catalogSourceDialog.showModal();
+  window.setTimeout(() => elements.catalogSourceForm.elements.namedItem("locator").focus(), 0);
 }
 
 function openReleaseManager(release) {
@@ -1542,6 +1751,495 @@ function describeQuality(copies) {
     .join(" / ");
 }
 
+function catalogProvisioningClass(value) {
+  return `catalog-provisioning-pill catalog-provisioning-pill--${String(value || "unknown")
+    .toLowerCase()
+    .replaceAll("_", "-")}`;
+}
+
+function catalogCoverageLabel(value) {
+  return (
+    {
+      FULL_SNAPSHOT: "完整快照",
+      INCREMENTAL: "增量观察",
+      DISCOVERY_ONLY: "目录发现",
+    }[value] ?? humanizeEnum(value)
+  );
+}
+
+function catalogRunDetail(run, source) {
+  const attempts = String(run.attemptCount ?? "0");
+  const observed = String(run.observedCount ?? "0");
+  if (run.status === "QUEUED") {
+    if (!source.enabled) return "任务已暂停；启用信源后继续排队。";
+    if (run.nextAttemptAt) {
+      const retryAt = new Date(run.nextAttemptAt);
+      if (!Number.isNaN(retryAt.getTime()) && retryAt.getTime() > Date.now()) {
+        return `第 ${attempts} 次尝试未完成；${formatDateTime(run.nextAttemptAt)} 自动重试。`;
+      }
+      return `第 ${attempts} 次尝试未完成；重试时间已到，等待 Worker。`;
+    }
+    return attempts === "0" ? "等待 Worker 接管。" : `等待第 ${attempts} 次重试。`;
+  }
+  if (run.status === "RUNNING") {
+    return `第 ${attempts} 次执行 · 已形成 ${observed} 条 observation。`;
+  }
+  if (run.status === "SUCCEEDED") {
+    return `${catalogCoverageLabel(run.coverage)} · ${run.snapshotComplete ? "快照完整" : "快照未完整"} · ${observed} 条 observation。`;
+  }
+  if (run.status === "FAILED") {
+    return "任务已结束；错误详情只保留在受控 Worker 日志中。";
+  }
+  if (run.status === "CANCELLED") return "任务已取消，历史记录仍然保留。";
+  return `${catalogCoverageLabel(run.coverage)} · ${observed} 条 observation。`;
+}
+
+function catalogRunRow(run, source) {
+  const time = run.finishedAt ?? run.startedAt ?? run.nextAttemptAt ?? run.createdAt;
+  return node(
+    "article",
+    {
+      className: `catalog-run-row catalog-run-row--${run.status.toLowerCase()}`,
+      attributes: { "data-catalog-run-id": run.runId },
+    },
+    [
+      node("div", { className: "catalog-run-row__header" }, [
+        node("strong", { text: CATALOG_RUN_STATUS_LABELS[run.status] ?? humanizeEnum(run.status) }),
+        node("time", { text: formatDateTime(time), attributes: time ? { datetime: time } : {} }),
+      ]),
+      node("p", { className: "catalog-run-detail", text: catalogRunDetail(run, source) }),
+      node("span", {
+        className: "catalog-run-id",
+        text: `Run ${compactId(run.runId)}`,
+        attributes: { title: run.runId },
+      }),
+    ],
+  );
+}
+
+function catalogHistoryForSource(source) {
+  const historyState = state.catalogHistoryStateBySource[source.sourceId] ?? {
+    status: "loading",
+    error: "",
+  };
+  const runs = state.catalogRunsBySource[source.sourceId] ?? [];
+  const children = [node("h4", { text: "最近运行" })];
+  if (historyState.status === "loading") {
+    children.push(node("p", { className: "catalog-run-detail", text: "正在读取运行历史…" }));
+  } else if (historyState.status === "error") {
+    children.push(
+      node("p", {
+        className: "catalog-source-error",
+        text: historyState.error || "无法读取运行历史；为避免重复任务，同步按钮已锁定。",
+      }),
+    );
+  } else if (!runs.length) {
+    children.push(node("p", { className: "catalog-run-detail", text: "尚未执行同步。" }));
+  } else {
+    children.push(...runs.slice(0, 5).map((run) => catalogRunRow(run, source)));
+  }
+  return node("div", { className: "catalog-run-history" }, children);
+}
+
+function catalogSourceCard(source, panelError) {
+  const historyState = state.catalogHistoryStateBySource[source.sourceId] ?? {
+    status: "loading",
+  };
+  const runs = state.catalogRunsBySource[source.sourceId] ?? [];
+  const activeRun = runs.find((run) => ACTIVE_CATALOG_RUN_STATES.has(run.status));
+  const running = runs.some((run) => run.status === "RUNNING");
+  const historyUnknown = historyState.status !== "ready";
+  const startDisabled =
+    historyState.status !== "ready" ||
+    source.provisioningState !== "READY_TO_QUEUE" ||
+    Boolean(activeRun);
+
+  const start = node("button", {
+    className: "primary-action",
+    text: activeRun ? "已有活动任务" : "同步目录",
+    attributes: {
+      type: "button",
+      "data-catalog-action": "start",
+      "data-source-id": source.sourceId,
+    },
+  });
+  start.disabled = startDisabled;
+  start.addEventListener("click", () => void startCatalogSync(source, panelError));
+
+  const toggle = node("button", {
+    className: "secondary-action",
+    text: source.enabled ? "暂停信源" : "启用信源",
+    attributes: {
+      type: "button",
+      "data-catalog-action": "toggle",
+      "data-source-id": source.sourceId,
+      "aria-describedby": running || historyUnknown ? `catalog-action-note-${source.sourceId}` : null,
+    },
+  });
+  toggle.disabled = running || historyUnknown;
+  if (running) toggle.title = "运行中的任务不会被启停操作取消；请等待本次任务结束。";
+  toggle.addEventListener("click", () => void toggleCatalogSource(source, panelError));
+
+  const retry = node("button", {
+    className: "secondary-action",
+    text: "重试运行历史",
+    attributes: {
+      type: "button",
+      "data-catalog-action": "retry-history",
+      "data-source-id": source.sourceId,
+    },
+  });
+  retry.addEventListener("click", () => void retryCatalogHistory(source, panelError));
+
+  const actionNote =
+    running || historyUnknown
+      ? node("p", {
+          className: "catalog-action-note",
+          text: running
+            ? "任务正在执行；暂停不是取消，因此本次结束前不能更改信源状态。"
+            : "确认运行历史前，启停和新建任务都会保持锁定。",
+          attributes: { id: `catalog-action-note-${source.sourceId}` },
+        })
+      : null;
+
+  const meta = node("dl", { className: "catalog-source-meta" }, [
+    node("div", {}, [node("dt", { text: "Storefront" }), node("dd", { text: textOrDash(source.storefront) })]),
+    node("div", {}, [node("dt", { text: "Locale" }), node("dd", { text: textOrDash(source.locale) })]),
+    node("div", {}, [
+      node("dt", { text: "Source" }),
+      node("dd", { text: compactId(source.sourceId), attributes: { title: source.sourceId } }),
+    ]),
+    node("div", {}, [
+      node("dt", { text: "更新" }),
+      node("dd", { text: formatDateTime(source.updatedAt) }),
+    ]),
+  ]);
+
+  return node(
+    "article",
+    { className: "catalog-source-card", attributes: { "data-catalog-source-id": source.sourceId } },
+    [
+      node("header", { className: "catalog-source-card__header" }, [
+        node("div", {}, [
+          node("span", { className: "eyebrow", text: "Managed source" }),
+          node("h4", { text: CATALOG_SOURCE_KIND_LABELS[source.kind] ?? humanizeEnum(source.kind) }),
+        ]),
+        node("span", {
+          className: catalogProvisioningClass(source.provisioningState),
+          text: CATALOG_PROVISIONING_LABELS[source.provisioningState] ?? humanizeEnum(source.provisioningState),
+        }),
+      ]),
+      meta,
+      catalogHistoryForSource(source),
+      actionNote,
+      node(
+        "div",
+        { className: "catalog-source-actions" },
+        [historyState.status === "error" ? retry : null, toggle, start],
+      ),
+    ],
+  );
+}
+
+function catalogSourcePanel(artist) {
+  const addSource = node("button", {
+    className: "secondary-action",
+    text: "绑定 Apple Music",
+    attributes: { type: "button", "data-catalog-action": "create-source" },
+  });
+  addSource.addEventListener("click", () => openCatalogSourceDialog(artist));
+
+  const panelError = node("p", {
+    className: "catalog-source-error",
+    attributes: { role: "alert", "data-catalog-panel-error": "" },
+  });
+  const body = node("div");
+  if (state.catalogSourcesStatus === "loading" || state.catalogSourcesStatus === "idle") {
+    body.className = "catalog-run-detail";
+    body.textContent = "正在读取官方目录信源…";
+  } else if (state.catalogSourcesStatus === "error") {
+    body.className = "catalog-source-error";
+    body.textContent = state.catalogSourcesError || "无法读取目录信源。发行拉表仍可继续使用。";
+  } else if (!state.catalogSources.length) {
+    body.className = "catalog-sync-intro";
+    body.append(
+      node("strong", { text: "尚未绑定官方目录" }),
+      node("span", { text: "先绑定 Apple Music Artist ID；其他官方来源会沿用同一条受控同步链路。" }),
+    );
+  } else {
+    body.className = "catalog-sync-grid";
+    body.replaceChildren(
+      ...state.catalogSources.map((source) => catalogSourceCard(source, panelError)),
+    );
+  }
+
+  return node("section", { className: "catalog-sync-panel", attributes: { id: "catalog-sync-panel" } }, [
+    node("div", { className: "catalog-sync-heading" }, [
+      node("div", {}, [
+        node("span", { className: "eyebrow", text: "Official discography" }),
+        node("h3", { text: "目录同步" }),
+      ]),
+      addSource,
+    ]),
+    node("p", {
+      className: "catalog-sync-intro",
+      text: "同步只生成待核对的 observation，不会覆盖 Booklet 结论，也不会把发行自动标记为已收集。",
+    }),
+    body,
+    panelError,
+  ]);
+}
+
+function updateCatalogSourcePanel() {
+  const current = document.querySelector("#catalog-sync-panel");
+  const artist = state.selectedCollection?.artist;
+  if (!current || !artist) return;
+  current.replaceWith(catalogSourcePanel(artist));
+}
+
+function upsertCatalogSource(source) {
+  const index = state.catalogSources.findIndex((item) => item.sourceId === source.sourceId);
+  if (index === -1) state.catalogSources.push(source);
+  else state.catalogSources[index] = source;
+}
+
+function upsertCatalogRun(run) {
+  const runs = [...(state.catalogRunsBySource[run.sourceId] ?? [])];
+  const index = runs.findIndex((item) => item.runId === run.runId);
+  if (index === -1) runs.unshift(run);
+  else runs[index] = run;
+  runs.sort((left, right) => String(right.createdAt).localeCompare(String(left.createdAt)));
+  state.catalogRunsBySource[run.sourceId] = runs.slice(0, 5);
+}
+
+function catalogSelectionIsCurrent(artistId, token, loadGeneration = null) {
+  return (
+    state.view === "artists" &&
+    state.selectedArtistId === artistId &&
+    state.token === token &&
+    (loadGeneration === null || state.artistLoadGeneration === loadGeneration)
+  );
+}
+
+function catalogRunsToPoll() {
+  const sources = new Map(state.catalogSources.map((source) => [source.sourceId, source]));
+  const active = [];
+  for (const [sourceId, runs] of Object.entries(state.catalogRunsBySource)) {
+    const source = sources.get(sourceId);
+    if (!source) continue;
+    for (const run of runs) {
+      if (run.status === "RUNNING" || (run.status === "QUEUED" && source.enabled)) {
+        active.push(run);
+      }
+    }
+  }
+  return active;
+}
+
+function catalogPollDelay(runs) {
+  if (runs.some((run) => run.status === "RUNNING")) return 3_000;
+  let delay = 5_000;
+  const futureRetries = runs
+    .map((run) => (run.nextAttemptAt ? new Date(run.nextAttemptAt).getTime() - Date.now() : 0))
+    .filter((value) => Number.isFinite(value) && value > 0);
+  if (futureRetries.length) delay = Math.min(...futureRetries);
+  return Math.max(5_000, Math.min(30_000, delay));
+}
+
+function scheduleCatalogRefresh() {
+  stopCatalogRefresh();
+  if (!state.token || state.view !== "artists" || document.hidden || !state.selectedArtistId) return;
+  const runs = catalogRunsToPoll();
+  if (!runs.length) return;
+  const artistId = state.selectedArtistId;
+  const token = state.token;
+  const generation = state.catalogPollGeneration;
+  state.catalogRefreshTimer = window.setTimeout(() => {
+    state.catalogRefreshTimer = null;
+    void pollCatalogRuns(runs, artistId, token, generation);
+  }, catalogPollDelay(runs));
+}
+
+async function pollCatalogRuns(runs, artistId, token, generation) {
+  const results = await Promise.allSettled(
+    runs.map(async (run) => {
+      const [runData, sourceData] = await Promise.all([
+        graphql(CATALOG_SYNC_RUN_QUERY, { runId: run.runId }),
+        graphql(CATALOG_SYNC_SOURCE_QUERY, { sourceId: run.sourceId }),
+      ]);
+      if (!runData.catalogSyncRun) {
+        throw new GraphqlRequestError("同步任务已不存在。", "CATALOG_SYNC_RUN_NOT_FOUND");
+      }
+      if (!sourceData.catalogSyncSource) {
+        throw new GraphqlRequestError("目录信源已不存在。", "CATALOG_SYNC_SOURCE_NOT_FOUND");
+      }
+      return { run: runData.catalogSyncRun, source: sourceData.catalogSyncSource };
+    }),
+  );
+  if (
+    generation !== state.catalogPollGeneration ||
+    !catalogSelectionIsCurrent(artistId, token)
+  ) {
+    return;
+  }
+
+  results.forEach((result, index) => {
+    const sourceId = runs[index].sourceId;
+    if (result.status === "fulfilled") {
+      upsertCatalogRun(result.value.run);
+      upsertCatalogSource(result.value.source);
+      state.catalogHistoryStateBySource[sourceId] = { status: "ready", error: "" };
+      return;
+    }
+    const error = result.reason;
+    state.catalogHistoryStateBySource[sourceId] = {
+      status: "error",
+      error: `运行状态刷新失败：${error.message}`,
+    };
+  });
+  updateCatalogSourcePanel();
+  scheduleCatalogRefresh();
+}
+
+async function startCatalogSync(source, panelError) {
+  const panel = panelError.closest("#catalog-sync-panel");
+  if (!panel || state.selectedArtistId !== source.artistId) return;
+  stopCatalogRefresh();
+  const token = state.token;
+  const loadGeneration = state.artistLoadGeneration;
+  const contextIsCurrent = () =>
+    catalogSelectionIsCurrent(source.artistId, token, loadGeneration);
+  const result = await runCatalogOperation(panel, panelError, async () => {
+    const runData = await graphql(START_CATALOG_SYNC_RUN_MUTATION, {
+      input: { sourceId: source.sourceId },
+    });
+    if (!contextIsCurrent()) return { obsolete: true };
+    const sourceData = await graphql(CATALOG_SYNC_SOURCE_QUERY, { sourceId: source.sourceId });
+    if (!contextIsCurrent()) return { obsolete: true };
+    if (!sourceData.catalogSyncSource) {
+      throw new GraphqlRequestError("同步已排队，但信源无法重新读取。", "CATALOG_SYNC_SOURCE_NOT_FOUND");
+    }
+    return { run: runData.startCatalogSyncRun, source: sourceData.catalogSyncSource };
+  });
+  if (!result) {
+    if (!contextIsCurrent()) return;
+    const message = panelError.textContent;
+    if (panelError.dataset.errorCode === "CATALOG_MUTATION_BUSY") {
+      scheduleCatalogRefresh();
+      return;
+    }
+    showToast(message, "error");
+    await selectArtist(source.artistId, { background: true });
+    return;
+  }
+  if (result.obsolete || !contextIsCurrent()) return;
+  upsertCatalogSource(result.source);
+  upsertCatalogRun(result.run);
+  state.catalogHistoryStateBySource[source.sourceId] = { status: "ready", error: "" };
+  updateCatalogSourcePanel();
+  scheduleCatalogRefresh();
+  showToast("目录同步任务已进入队列");
+}
+
+async function toggleCatalogSource(source, panelError) {
+  const panel = panelError.closest("#catalog-sync-panel");
+  if (!panel || state.selectedArtistId !== source.artistId) return;
+  stopCatalogRefresh();
+  const token = state.token;
+  const loadGeneration = state.artistLoadGeneration;
+  const desiredEnabled = !source.enabled;
+  const contextIsCurrent = () =>
+    catalogSelectionIsCurrent(source.artistId, token, loadGeneration);
+  const result = await runCatalogOperation(panel, panelError, async () => {
+    const [latestData, historyData] = await Promise.all([
+      graphql(CATALOG_SYNC_SOURCE_QUERY, { sourceId: source.sourceId }),
+      graphql(CATALOG_SYNC_RUNS_QUERY, { sourceId: source.sourceId, limit: 5, offset: 0 }),
+    ]);
+    if (!contextIsCurrent()) return { obsolete: true };
+    const latest = latestData.catalogSyncSource;
+    if (!latest) {
+      throw new GraphqlRequestError("信源已不存在。", "CATALOG_SYNC_SOURCE_NOT_FOUND");
+    }
+    const runs = historyData.catalogSyncRuns;
+    if (runs.some((run) => run.status === "RUNNING")) {
+      return { blockedByRunning: true, source: latest, runs };
+    }
+    if (latest.enabled !== source.enabled) {
+      return { staleIntent: true, source: latest, runs };
+    }
+    const mutationData = await graphql(SET_CATALOG_SYNC_SOURCE_ENABLED_MUTATION, {
+      input: {
+        sourceId: latest.sourceId,
+        expectedRowVersion: latest.rowVersion,
+        enabled: desiredEnabled,
+      },
+    });
+    if (!contextIsCurrent()) return { obsolete: true };
+    return { source: mutationData.setCatalogSyncSourceEnabled, runs };
+  });
+  if (!result) {
+    if (!contextIsCurrent()) return;
+    const message = panelError.textContent;
+    const code = panelError.dataset.errorCode;
+    if (code === "CATALOG_MUTATION_BUSY") {
+      scheduleCatalogRefresh();
+      return;
+    }
+    showToast(
+      code === "CATALOG_SYNC_SOURCE_CONFLICT"
+        ? `${message} 已重新读取最新状态。`
+        : `${message} 正在核对服务端状态。`,
+      "error",
+    );
+    await selectArtist(source.artistId, { background: true });
+    return;
+  }
+  if (result.obsolete || !contextIsCurrent()) return;
+  upsertCatalogSource(result.source);
+  state.catalogRunsBySource[source.sourceId] = result.runs;
+  state.catalogHistoryStateBySource[source.sourceId] = { status: "ready", error: "" };
+  updateCatalogSourcePanel();
+  scheduleCatalogRefresh();
+  if (result.staleIntent) {
+    showToast("信源状态已被其他会话更改；本次未执行相反操作，请按最新状态重新确认。", "error");
+  } else if (result.blockedByRunning) {
+    showToast("任务已开始执行；暂停不是取消，请等待本次运行结束。", "error");
+  } else {
+    showToast(result.source.enabled ? "目录信源已启用" : "目录信源已暂停");
+  }
+}
+
+async function retryCatalogHistory(source, panelError) {
+  const panel = panelError.closest("#catalog-sync-panel");
+  if (!panel || state.selectedArtistId !== source.artistId) return;
+  stopCatalogRefresh();
+  const token = state.token;
+  const loadGeneration = state.artistLoadGeneration;
+  const contextIsCurrent = () =>
+    catalogSelectionIsCurrent(source.artistId, token, loadGeneration);
+  const result = await runCatalogOperation(panel, panelError, async () => {
+    const [historyData, sourceData] = await Promise.all([
+      graphql(CATALOG_SYNC_RUNS_QUERY, { sourceId: source.sourceId, limit: 5, offset: 0 }),
+      graphql(CATALOG_SYNC_SOURCE_QUERY, { sourceId: source.sourceId }),
+    ]);
+    if (!contextIsCurrent()) return { obsolete: true };
+    if (!sourceData.catalogSyncSource) {
+      throw new GraphqlRequestError("信源已不存在。", "CATALOG_SYNC_SOURCE_NOT_FOUND");
+    }
+    return { runs: historyData.catalogSyncRuns, source: sourceData.catalogSyncSource };
+  });
+  if (!result) {
+    if (contextIsCurrent()) scheduleCatalogRefresh();
+    return;
+  }
+  if (result.obsolete || !contextIsCurrent()) return;
+  upsertCatalogSource(result.source);
+  state.catalogRunsBySource[source.sourceId] = result.runs;
+  state.catalogHistoryStateBySource[source.sourceId] = { status: "ready", error: "" };
+  updateCatalogSourcePanel();
+  scheduleCatalogRefresh();
+}
+
 function renderCollection(collection) {
   if (!collection) {
     renderMessage(elements.collectionSheet, "empty", "尚未建立拉表", "该 Artist 当前没有 collection 记录。");
@@ -1569,10 +2267,12 @@ function renderCollection(collection) {
       createRelease,
     ]),
   ]);
+  const sourcePanel = catalogSourcePanel(artist);
 
   if (!releases.length) {
     elements.collectionSheet.replaceChildren(
       heading,
+      sourcePanel,
       node("div", { className: "empty-state" }, [
         node("strong", { text: "发行列表为空" }),
         node("p", { text: "可以手工登记发行，或绑定官方目录来源后同步。" }),
@@ -1627,20 +2327,96 @@ function renderCollection(collection) {
     ]),
     tbody,
   ]);
-  elements.collectionSheet.replaceChildren(heading, table);
+  elements.collectionSheet.replaceChildren(heading, sourcePanel, table);
 }
 
-async function selectArtist(artistId) {
+async function selectArtist(artistId, { background = false } = {}) {
+  stopCatalogRefresh();
+  const loadGeneration = ++state.artistLoadGeneration;
+  const token = state.token;
+  const switchingArtist = state.selectedArtistId !== artistId;
   state.selectedArtistId = artistId;
-  renderArtists(state.artists);
-  renderMessage(elements.collectionSheet, "loading", "正在读取发行列表", "汇总目录状态与音频副本。");
-  try {
-    const data = await graphql(COLLECTION_QUERY, { artistId, limit: 500, offset: 0 });
-    renderCollection(data.catalogArtistCollection);
-  } catch (error) {
-    if (error instanceof SessionRequiredError) openSessionDialog(error.message);
-    renderMessage(elements.collectionSheet, "error", "无法读取发行列表", error.message);
+  state.selectedRelease = null;
+  state.catalogSourcesStatus = "loading";
+  state.catalogSourcesError = "";
+  if (switchingArtist) {
+    state.selectedCollection = null;
+    state.catalogSources = [];
+    state.catalogRunsBySource = {};
+    state.catalogHistoryStateBySource = {};
   }
+  renderArtists(state.artists);
+  if (!background || !state.selectedCollection) {
+    renderMessage(elements.collectionSheet, "loading", "正在读取 Artist 工作台", "并行汇总发行、副本与官方目录信源。");
+  }
+
+  const [collectionResult, sourcesResult] = await Promise.allSettled([
+    graphql(COLLECTION_QUERY, { artistId, limit: 500, offset: 0 }),
+    graphql(CATALOG_SYNC_SOURCES_QUERY, { artistId }),
+  ]);
+  for (const result of [collectionResult, sourcesResult]) {
+    if (result.status === "rejected" && result.reason instanceof SessionRequiredError) {
+      openSessionDialog(result.reason.message);
+    }
+  }
+  if (!catalogSelectionIsCurrent(artistId, token, loadGeneration)) return;
+
+  if (collectionResult.status === "rejected") {
+    renderMessage(
+      elements.collectionSheet,
+      "error",
+      "无法读取发行列表",
+      collectionResult.reason.message,
+    );
+    return;
+  }
+
+  state.selectedCollection = collectionResult.value.catalogArtistCollection;
+  if (sourcesResult.status === "rejected") {
+    state.catalogSources = [];
+    state.catalogSourcesStatus = "error";
+    state.catalogSourcesError = `官方目录读取失败：${sourcesResult.reason.message}`;
+    state.catalogRunsBySource = {};
+    state.catalogHistoryStateBySource = {};
+    renderCollection(state.selectedCollection);
+    return;
+  }
+
+  state.catalogSources = sourcesResult.value.catalogSyncSources;
+  state.catalogSourcesStatus = "ready";
+  state.catalogRunsBySource = {};
+  state.catalogHistoryStateBySource = Object.fromEntries(
+    state.catalogSources.map((source) => [source.sourceId, { status: "loading", error: "" }]),
+  );
+  renderCollection(state.selectedCollection);
+
+  const historyResults = await Promise.allSettled(
+    state.catalogSources.map((source) =>
+      graphql(CATALOG_SYNC_RUNS_QUERY, { sourceId: source.sourceId, limit: 5, offset: 0 }),
+    ),
+  );
+  for (const result of historyResults) {
+    if (result.status === "rejected" && result.reason instanceof SessionRequiredError) {
+      openSessionDialog(result.reason.message);
+    }
+  }
+  if (!catalogSelectionIsCurrent(artistId, token, loadGeneration)) return;
+
+  historyResults.forEach((result, index) => {
+    const sourceId = state.catalogSources[index].sourceId;
+    if (result.status === "fulfilled") {
+      state.catalogRunsBySource[sourceId] = result.value.catalogSyncRuns;
+      state.catalogHistoryStateBySource[sourceId] = { status: "ready", error: "" };
+    } else {
+      state.catalogRunsBySource[sourceId] = [];
+      state.catalogHistoryStateBySource[sourceId] = {
+        status: "error",
+        error: `运行历史读取失败：${result.reason.message}`,
+      };
+    }
+  });
+  updateCatalogSourcePanel();
+  scheduleCatalogRefresh();
 }
 
 async function connectSession(token) {
@@ -1747,6 +2523,55 @@ elements.releaseCreateForm.addEventListener("submit", async (event) => {
   elements.releaseCreateForm.reset();
   showToast(`发行「${release.title}」已登记`);
   await selectArtist(artistId);
+});
+
+elements.catalogSourceForm.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const artistId = state.selectedArtistId;
+  if (!artistId) {
+    elements.catalogSourceFormError.textContent = "请先选择 Artist。";
+    return;
+  }
+  const locator = elements.catalogSourceForm.elements.namedItem("locator").value;
+  const storefront = elements.catalogSourceForm.elements.namedItem("storefront").value;
+  const locale = elements.catalogSourceForm.elements.namedItem("locale").value;
+  if (!/^(?!0+$)\d{1,32}$/.test(locator)) {
+    elements.catalogSourceFormError.textContent = "Apple Music Artist ID 必须是 1–32 位非全零数字。";
+    return;
+  }
+  if (!/^[a-z]{2}$/.test(storefront)) {
+    elements.catalogSourceFormError.textContent = "Storefront 必须是两个小写 ASCII 字母。";
+    return;
+  }
+  if (locale !== "") {
+    if (locale.length > 35 || !/^[\x21-\x7e]+$/.test(locale) || locale.includes("_")) {
+      elements.catalogSourceFormError.textContent = "Locale 必须是最多 35 位的 ASCII BCP 47 标记，不能使用下划线。";
+      return;
+    }
+    try {
+      Intl.getCanonicalLocales(locale);
+    } catch {
+      elements.catalogSourceFormError.textContent = "Locale 不是有效的 BCP 47 标记。";
+      return;
+    }
+  }
+  const data = await runCatalogMutation(
+    elements.catalogSourceForm,
+    elements.catalogSourceFormError,
+    CREATE_CATALOG_SYNC_SOURCE_MUTATION,
+    {
+      artistId,
+      kind: "APPLE_MUSIC",
+      locator,
+      storefront,
+      locale: locale === "" ? null : locale,
+    },
+  );
+  if (!data) return;
+  elements.catalogSourceDialog.close();
+  elements.catalogSourceForm.reset();
+  showToast("Apple Music 目录信源已建立");
+  await selectArtist(artistId, { background: true });
 });
 
 for (const button of elements.collectionCopyForm.querySelectorAll("[data-release-command]")) {
@@ -1882,8 +2707,16 @@ for (const button of document.querySelectorAll("[data-close-catalog-dialog]")) {
 
 elements.artistSearchForm.addEventListener("submit", async (event) => {
   event.preventDefault();
+  stopCatalogRefresh();
+  state.artistLoadGeneration += 1;
   state.selectedArtistId = null;
   state.selectedRelease = null;
+  state.selectedCollection = null;
+  state.catalogSources = [];
+  state.catalogSourcesStatus = "idle";
+  state.catalogSourcesError = "";
+  state.catalogRunsBySource = {};
+  state.catalogHistoryStateBySource = {};
   renderMessage(elements.collectionSheet, "empty", "选择一位艺人", "查看发行列表、来源与音质。");
   try {
     await loadArtists(elements.artistSearch.value.trim() || null);
@@ -1896,7 +2729,14 @@ elements.artistSearchForm.addEventListener("submit", async (event) => {
 for (const button of document.querySelectorAll("[data-refresh]")) {
   button.addEventListener("click", () => {
     if (button.dataset.refresh === "intake") void ensureIntakeLoaded(true);
-    if (button.dataset.refresh === "artists") void ensureArtistsLoaded(true);
+    if (button.dataset.refresh === "artists") {
+      void (async () => {
+        await ensureArtistsLoaded(true);
+        if (state.selectedArtistId) {
+          await selectArtist(state.selectedArtistId, { background: true });
+        }
+      })();
+    }
   });
 }
 
@@ -1905,6 +2745,13 @@ document.querySelector("[data-close-drawer]").addEventListener("click", () => {
 });
 
 window.addEventListener("hashchange", routeFromHash);
+document.addEventListener("visibilitychange", () => {
+  if (document.hidden) {
+    stopCatalogRefresh();
+  } else if (state.view === "artists" && state.selectedArtistId) {
+    void selectArtist(state.selectedArtistId, { background: true });
+  }
+});
 
 updateSessionUi();
 routeFromHash();

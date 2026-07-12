@@ -2,8 +2,9 @@
 
 use annim::{
     auth::AuthConfig,
-    config::ServerConfig,
-    graphql::build_schema,
+    catalog::CatalogSyncService,
+    config::{CatalogSyncProvisioningConfig, ServerConfig, APPLE_MUSIC_SECRET_REF_ENV},
+    graphql::{build_schema, schema_builder_with_catalog_sync_service},
     migrator::Migrator,
     server::{build_router, ServerState},
 };
@@ -44,6 +45,19 @@ fn config(allowed_origins: Option<&str>, graphiql_enabled: bool) -> ServerConfig
 
 fn router(database: DatabaseConnection, config: &ServerConfig) -> Router {
     let schema = build_schema(database.clone());
+    let auth = AuthConfig::new(TOKEN).unwrap();
+    build_router(ServerState::new(schema, auth, database), config)
+}
+
+fn configured_catalog_router(database: DatabaseConnection, config: &ServerConfig) -> Router {
+    let provisioning = CatalogSyncProvisioningConfig::from_lookup(|name| {
+        (name == APPLE_MUSIC_SECRET_REF_ENV).then(|| "apple/developer-token.jwt".to_owned())
+    })
+    .unwrap();
+    let catalog_sync_service =
+        CatalogSyncService::with_provisioning(database.clone(), provisioning);
+    let schema =
+        schema_builder_with_catalog_sync_service(database.clone(), catalog_sync_service).finish();
     let auth = AuthConfig::new(TOKEN).unwrap();
     build_router(ServerState::new(schema, auth, database), config)
 }
@@ -694,5 +708,162 @@ async fn embedded_catalog_authoring_mutations_preserve_exact_artist_and_release_
     assert_eq!(
         collection["releases"][0]["copies"][0]["qualityTier"],
         "HI_RES_LOSSLESS"
+    );
+}
+
+#[tokio::test]
+async fn embedded_catalog_sync_controls_follow_the_live_provisioning_and_concurrency_contract() {
+    let database = connected_database().await;
+    Migrator::up(&database, None).await.unwrap();
+    let app = configured_catalog_router(database, &config(None, false));
+
+    let created_artist = execute_web_graphql(
+        &app,
+        web_query("CREATE_CATALOG_ARTIST_MUTATION"),
+        serde_json::json!({
+            "input": {
+                "displayName": "Catalog Sync Test Artist",
+            }
+        }),
+    )
+    .await;
+    assert!(created_artist.get("errors").is_none(), "{created_artist}");
+    let artist_id = created_artist["data"]["createCatalogArtist"]["artistId"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+
+    let created_source = execute_web_graphql(
+        &app,
+        web_query("CREATE_CATALOG_SYNC_SOURCE_MUTATION"),
+        serde_json::json!({
+            "input": {
+                "artistId": artist_id.clone(),
+                "kind": "APPLE_MUSIC",
+                "locator": "1370700",
+                "storefront": "jp",
+                "locale": "ja-JP",
+            }
+        }),
+    )
+    .await;
+    assert!(created_source.get("errors").is_none(), "{created_source}");
+    let source = &created_source["data"]["createCatalogSyncSource"];
+    assert_eq!(source["provisioningState"], "READY_TO_QUEUE");
+    assert_eq!(source["rowVersion"], "1");
+    assert_eq!(source["enabled"], true);
+    let source_id = source["sourceId"].as_str().unwrap().to_owned();
+
+    let sources = execute_web_graphql(
+        &app,
+        web_query("CATALOG_SYNC_SOURCES_QUERY"),
+        serde_json::json!({ "artistId": artist_id }),
+    )
+    .await;
+    assert!(sources.get("errors").is_none(), "{sources}");
+    let sources = sources["data"]["catalogSyncSources"].as_array().unwrap();
+    assert_eq!(sources.len(), 1);
+    assert_eq!(sources[0]["sourceId"], source_id);
+    assert_eq!(sources[0]["rowVersion"], "1");
+
+    let source_by_id = execute_web_graphql(
+        &app,
+        web_query("CATALOG_SYNC_SOURCE_QUERY"),
+        serde_json::json!({ "sourceId": source_id.clone() }),
+    )
+    .await;
+    assert!(source_by_id.get("errors").is_none(), "{source_by_id}");
+    assert_eq!(
+        source_by_id["data"]["catalogSyncSource"]["sourceId"],
+        source_id
+    );
+
+    let started = execute_web_graphql(
+        &app,
+        web_query("START_CATALOG_SYNC_RUN_MUTATION"),
+        serde_json::json!({ "input": { "sourceId": source_id.clone() } }),
+    )
+    .await;
+    assert!(started.get("errors").is_none(), "{started}");
+    let run = &started["data"]["startCatalogSyncRun"];
+    assert_eq!(run["sourceId"], source_id);
+    assert_eq!(run["status"], "QUEUED");
+    assert_eq!(run["rowVersion"], "1");
+    let run_id = run["runId"].as_str().unwrap().to_owned();
+
+    let run_by_id = execute_web_graphql(
+        &app,
+        web_query("CATALOG_SYNC_RUN_QUERY"),
+        serde_json::json!({ "runId": run_id.clone() }),
+    )
+    .await;
+    assert!(run_by_id.get("errors").is_none(), "{run_by_id}");
+    assert_eq!(run_by_id["data"]["catalogSyncRun"]["runId"], run_id);
+    assert_eq!(run_by_id["data"]["catalogSyncRun"]["status"], "QUEUED");
+
+    let sources_after_enqueue = execute_web_graphql(
+        &app,
+        web_query("CATALOG_SYNC_SOURCES_QUERY"),
+        serde_json::json!({ "artistId": artist_id }),
+    )
+    .await;
+    assert!(
+        sources_after_enqueue.get("errors").is_none(),
+        "{sources_after_enqueue}"
+    );
+    let source_after_enqueue = &sources_after_enqueue["data"]["catalogSyncSources"][0];
+    assert_eq!(source_after_enqueue["sourceId"], source_id);
+    assert_eq!(source_after_enqueue["rowVersion"], "2");
+
+    let history = execute_web_graphql(
+        &app,
+        web_query("CATALOG_SYNC_RUNS_QUERY"),
+        serde_json::json!({
+            "sourceId": source_id.clone(),
+            "limit": 10,
+            "offset": 0,
+        }),
+    )
+    .await;
+    assert!(history.get("errors").is_none(), "{history}");
+    let runs = history["data"]["catalogSyncRuns"].as_array().unwrap();
+    assert_eq!(runs.len(), 1);
+    assert_eq!(runs[0]["runId"], run_id);
+    assert_eq!(runs[0]["sourceId"], source_id);
+    assert_eq!(runs[0]["status"], "QUEUED");
+
+    let disabled = execute_web_graphql(
+        &app,
+        web_query("SET_CATALOG_SYNC_SOURCE_ENABLED_MUTATION"),
+        serde_json::json!({
+            "input": {
+                "sourceId": source_id.clone(),
+                "expectedRowVersion": "2",
+                "enabled": false,
+            }
+        }),
+    )
+    .await;
+    assert!(disabled.get("errors").is_none(), "{disabled}");
+    let disabled = &disabled["data"]["setCatalogSyncSourceEnabled"];
+    assert_eq!(disabled["enabled"], false);
+    assert_eq!(disabled["provisioningState"], "DISABLED");
+    assert_eq!(disabled["rowVersion"], "3");
+
+    let stale_reenable = execute_web_graphql(
+        &app,
+        web_query("SET_CATALOG_SYNC_SOURCE_ENABLED_MUTATION"),
+        serde_json::json!({
+            "input": {
+                "sourceId": source_id,
+                "expectedRowVersion": "2",
+                "enabled": true,
+            }
+        }),
+    )
+    .await;
+    assert_eq!(
+        stale_reenable["errors"][0]["extensions"]["code"],
+        "CATALOG_SYNC_SOURCE_CONFLICT"
     );
 }

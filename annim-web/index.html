@@ -871,6 +871,47 @@
       </form>
     </dialog>
 
+    <dialog class="session-dialog catalog-dialog" id="catalog-source-dialog">
+      <form id="catalog-source-form">
+        <div class="dialog-heading">
+          <span class="eyebrow">Official catalog source</span>
+          <h2>绑定 Apple Music</h2>
+          <p id="catalog-source-artist">信源会归入当前 Artist。</p>
+        </div>
+        <div class="catalog-source-contract">
+          <strong>凭据由 Annim server 托管</strong>
+          <span>此处不接收 developer token 或 secret reference；未完成服务端 provisioning 时创建会被拒绝。</span>
+        </div>
+        <label for="catalog-source-locator">Apple Music Artist ID</label>
+        <input
+          id="catalog-source-locator"
+          name="locator"
+          type="text"
+          inputmode="numeric"
+          pattern="(?!0+$)[0-9]{1,32}"
+          maxlength="32"
+          autocomplete="off"
+          spellcheck="false"
+          required
+        />
+        <div class="dialog-field-grid">
+          <label>
+            <span>Storefront</span>
+            <input name="storefront" type="text" value="jp" pattern="[a-z]{2}" maxlength="2" autocomplete="off" required />
+          </label>
+          <label>
+            <span>Locale（可选）</span>
+            <input name="locale" type="text" value="ja-JP" maxlength="35" autocomplete="off" spellcheck="false" />
+          </label>
+        </div>
+        <p class="form-error" id="catalog-source-form-error" role="alert"></p>
+        <div class="dialog-actions">
+          <button class="secondary-action" type="button" data-close-catalog-dialog>取消</button>
+          <button class="primary-action" type="submit">建立信源</button>
+        </div>
+      </form>
+    </dialog>
+
     <div class="toast-region" id="toast-region" aria-live="polite" aria-atomic="true"></div>
   </body>
 </html>
