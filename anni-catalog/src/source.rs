@@ -176,7 +176,7 @@ impl SyncRunStatus {
                 (Self::Queued, Self::Running | Self::Failed | Self::Cancelled)
                     | (
                         Self::Running,
-                        Self::Succeeded | Self::Failed | Self::Cancelled
+                        Self::Queued | Self::Succeeded | Self::Failed | Self::Cancelled
                     )
             )
     }
@@ -272,5 +272,6 @@ mod tests {
         assert!(SyncCoverage::FullSnapshot.may_infer_absence());
         assert!(!SyncCoverage::Incremental.may_infer_absence());
         assert!(!SyncCoverage::DiscoveryOnly.may_infer_absence());
+        assert!(SyncRunStatus::Running.can_transition_to(SyncRunStatus::Queued));
     }
 }

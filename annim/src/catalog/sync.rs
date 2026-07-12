@@ -9,7 +9,7 @@
 //! `secret_ref`. Those values are worker-only inputs and must not leak through
 //! a future GraphQL query merely because a source was listed.
 
-use std::{fmt, str::FromStr};
+use std::{fmt, str::FromStr, time::Duration};
 
 use anni_catalog::{CatalogSourceKind, SyncCoverage, SyncRunStatus};
 use anni_ingest::Digest;
@@ -17,8 +17,8 @@ use sea_orm::{
     prelude::{DateTimeUtc, Uuid},
     sea_query::Expr,
     ActiveValue::{NotSet, Set},
-    ColumnTrait, ConnectionTrait, DatabaseConnection, DbErr, EntityTrait, QueryFilter, QueryOrder,
-    TransactionTrait,
+    ColumnTrait, Condition, ConnectionTrait, DatabaseConnection, DbErr, EntityTrait, QueryFilter,
+    QueryOrder, QuerySelect, TransactionTrait,
 };
 use sha2::{Digest as ShaDigest, Sha256};
 use thiserror::Error;
@@ -26,16 +26,26 @@ use thiserror::Error;
 use super::CatalogRowVersion;
 use crate::entities::{
     catalog_artist, catalog_source, catalog_source_release, catalog_source_release_revision,
-    catalog_sync_run,
-    helper::{now, timestamp},
+    catalog_sync_run, helper::timestamp,
 };
 
 const MAX_SYNC_ERROR_CHARS: usize = 512;
+const MAX_CLAIM_CAS_ATTEMPTS: usize = 16;
 
 #[cfg(feature = "postgres")]
 type PersistedTimestamp = chrono::NaiveDateTime;
 #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
 type PersistedTimestamp = DateTimeUtc;
+
+#[cfg(feature = "postgres")]
+fn store_timestamp(value: DateTimeUtc) -> PersistedTimestamp {
+    value.naive_utc()
+}
+
+#[cfg(all(feature = "sqlite", not(feature = "postgres")))]
+fn store_timestamp(value: DateTimeUtc) -> PersistedTimestamp {
+    value
+}
 
 #[derive(Clone, PartialEq, Eq)]
 pub struct CatalogSourceSnapshot {
@@ -176,6 +186,57 @@ impl fmt::Debug for NewCatalogSyncRun {
                 "requested_cursor",
                 &self.requested_cursor.as_ref().map(|_| "[REDACTED]"),
             )
+            .finish()
+    }
+}
+
+/// Worker-only execution envelope for a catalog run.
+///
+/// This is deliberately never inserted into the GraphQL schema. The custom
+/// Debug implementation exposes only non-secret identifiers and counters.
+#[derive(Clone, PartialEq, Eq)]
+pub struct CatalogSyncLease {
+    pub run_id: Uuid,
+    pub source_id: Uuid,
+    pub kind: CatalogSourceKind,
+    pub locator: String,
+    pub storefront: Option<String>,
+    pub locale: Option<String>,
+    pub configuration_document: Option<String>,
+    pub secret_ref: Option<String>,
+    pub requested_cursor: Option<String>,
+    pub lease_token: Uuid,
+    pub lease_expires_at: DateTimeUtc,
+    pub attempt_count: u32,
+    pub row_version: CatalogRowVersion,
+}
+
+impl fmt::Debug for CatalogSyncLease {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter
+            .debug_struct("CatalogSyncLease")
+            .field("run_id", &self.run_id)
+            .field("source_id", &self.source_id)
+            .field("kind", &self.kind)
+            .field("locator", &"[REDACTED]")
+            .field("storefront", &self.storefront)
+            .field("locale", &self.locale)
+            .field(
+                "configuration_document",
+                &self.configuration_document.as_ref().map(|_| "[REDACTED]"),
+            )
+            .field(
+                "secret_ref",
+                &self.secret_ref.as_ref().map(|_| "[REDACTED]"),
+            )
+            .field(
+                "requested_cursor",
+                &self.requested_cursor.as_ref().map(|_| "[REDACTED]"),
+            )
+            .field("lease_token", &"[REDACTED]")
+            .field("lease_expires_at", &self.lease_expires_at)
+            .field("attempt_count", &self.attempt_count)
+            .field("row_version", &self.row_version)
             .finish()
     }
 }
@@ -369,6 +430,10 @@ pub enum CatalogSyncError {
     },
     #[error("catalog sync run {run_id} is {status}, not running")]
     RunNotRunning { run_id: Uuid, status: SyncRunStatus },
+    #[error("catalog sync run {run_id} is not currently claimable")]
+    RunNotClaimable { run_id: Uuid },
+    #[error("catalog sync run {run_id} is not owned by this worker lease")]
+    LeaseMismatch { run_id: Uuid },
     #[error("catalog source release {source_release_id} changed concurrently")]
     ObservationConflict { source_release_id: Uuid },
     #[error("invalid catalog sync {field}: {message}")]
@@ -580,13 +645,26 @@ impl CatalogSyncService {
         run_model_to_snapshot(run, source.source_id).map(Some)
     }
 
-    /// Atomically changes a queued run to running. The row-version predicate
-    /// makes competing worker claims deterministic: only one claim succeeds.
+    /// Claims a specific queued run or recovers its expired worker lease.
     pub async fn claim_run(
         &self,
         run_id: Uuid,
         expected: CatalogRowVersion,
-    ) -> Result<CatalogSyncRunSnapshot, CatalogSyncError> {
+        lease_for: Duration,
+    ) -> Result<CatalogSyncLease, CatalogSyncError> {
+        self.claim_run_at(run_id, expected, chrono::Utc::now(), lease_for)
+            .await
+    }
+
+    async fn claim_run_at(
+        &self,
+        run_id: Uuid,
+        expected: CatalogRowVersion,
+        claimed_at: DateTimeUtc,
+        lease_for: Duration,
+    ) -> Result<CatalogSyncLease, CatalogSyncError> {
+        let lease_expires_at = lease_deadline(claimed_at, lease_for)?;
+        let stored_now = store_timestamp(claimed_at);
         let transaction = self.database.begin().await?;
         let run = get_run_model(&transaction, run_id)
             .await?
@@ -600,12 +678,19 @@ impl CatalogSyncService {
             });
         }
         let status = parse_run_status(run_id, &run.status)?;
-        if status != SyncRunStatus::Queued {
-            return Err(CatalogSyncError::InvalidRunTransition {
-                run_id,
-                from: status,
-                to: SyncRunStatus::Running,
-            });
+        let claimable = match status {
+            SyncRunStatus::Queued => run
+                .next_attempt_at
+                .as_ref()
+                .is_none_or(|not_before| timestamp(not_before.to_owned()) <= claimed_at),
+            SyncRunStatus::Running => run
+                .lease_expires_at
+                .as_ref()
+                .is_none_or(|expires_at| timestamp(expires_at.to_owned()) <= claimed_at),
+            SyncRunStatus::Succeeded | SyncRunStatus::Failed | SyncRunStatus::Cancelled => false,
+        };
+        if !claimable {
+            return Err(CatalogSyncError::RunNotClaimable { run_id });
         }
         let source = catalog_source::Entity::find_by_id(run.source_db_id)
             .one(&transaction)
@@ -625,6 +710,7 @@ impl CatalogSyncService {
             .filter(catalog_sync_run::Column::SourceDbId.eq(source.id))
             .filter(catalog_sync_run::Column::RunId.ne(run_id))
             .filter(catalog_sync_run::Column::Status.eq(SyncRunStatus::Running.as_str()))
+            .filter(catalog_sync_run::Column::LeaseExpiresAt.gt(stored_now))
             .one(&transaction)
             .await?
             .is_some();
@@ -665,12 +751,42 @@ impl CatalogSyncService {
         }
 
         let next = next_row_version("sync run", run_id, expected)?;
+        let attempt_count =
+            run.attempt_count
+                .checked_add(1)
+                .ok_or(CatalogSyncError::NumericOutOfRange {
+                    entity: "sync run",
+                    id: run_id,
+                    field: "attempt_count",
+                })?;
+        let lease_token = Uuid::new_v4();
+        let started_at = run.started_at.unwrap_or(stored_now);
         let result = catalog_sync_run::Entity::update_many()
             .col_expr(
                 catalog_sync_run::Column::Status,
                 Expr::value(SyncRunStatus::Running.as_str()),
             )
-            .col_expr(catalog_sync_run::Column::StartedAt, Expr::value(now()))
+            .col_expr(catalog_sync_run::Column::StartedAt, Expr::value(started_at))
+            .col_expr(
+                catalog_sync_run::Column::LeaseToken,
+                Expr::value(Some(lease_token)),
+            )
+            .col_expr(
+                catalog_sync_run::Column::LeaseExpiresAt,
+                Expr::value(Some(store_timestamp(lease_expires_at))),
+            )
+            .col_expr(
+                catalog_sync_run::Column::NextAttemptAt,
+                Expr::value(None::<PersistedTimestamp>),
+            )
+            .col_expr(
+                catalog_sync_run::Column::AttemptCount,
+                Expr::value(attempt_count),
+            )
+            .col_expr(
+                catalog_sync_run::Column::ErrorMessage,
+                Expr::value(None::<String>),
+            )
             .col_expr(
                 catalog_sync_run::Column::RowVersion,
                 Expr::value(row_version_as_i64("sync run", run_id, next)?),
@@ -680,7 +796,215 @@ impl CatalogSyncService {
                 catalog_sync_run::Column::RowVersion
                     .eq(row_version_as_i64("sync run", run_id, expected)?),
             )
-            .filter(catalog_sync_run::Column::Status.eq(SyncRunStatus::Queued.as_str()))
+            .exec(&transaction)
+            .await?;
+        if result.rows_affected != 1 {
+            return run_conflict_or_not_found(&transaction, run_id, expected).await;
+        }
+        let updated = get_run_model(&transaction, run_id)
+            .await?
+            .ok_or(CatalogSyncError::RunNotFound { run_id })?;
+        let lease = lease_from_models(updated, source, lease_token, lease_expires_at)?;
+        transaction.commit().await?;
+        Ok(lease)
+    }
+
+    /// Claims the oldest due run. Expired leases are eligible, so a dead
+    /// worker cannot wedge catalog synchronization permanently.
+    pub async fn claim_next(
+        &self,
+        lease_for: Duration,
+    ) -> Result<Option<CatalogSyncLease>, CatalogSyncError> {
+        self.claim_next_at(chrono::Utc::now(), lease_for).await
+    }
+
+    async fn claim_next_at(
+        &self,
+        claimed_at: DateTimeUtc,
+        lease_for: Duration,
+    ) -> Result<Option<CatalogSyncLease>, CatalogSyncError> {
+        // Validate before polling so an empty queue does not hide bad worker
+        // configuration.
+        lease_deadline(claimed_at, lease_for)?;
+        let stored_now = store_timestamp(claimed_at);
+        let mut skipped_run_ids = Vec::new();
+        let mut skipped_source_db_ids = Vec::new();
+        for _ in 0..MAX_CLAIM_CAS_ATTEMPTS {
+            let queued_due = Condition::all()
+                .add(catalog_sync_run::Column::Status.eq(SyncRunStatus::Queued.as_str()))
+                .add(
+                    Condition::any()
+                        .add(catalog_sync_run::Column::NextAttemptAt.is_null())
+                        .add(catalog_sync_run::Column::NextAttemptAt.lte(stored_now)),
+                );
+            let expired_running = Condition::all()
+                .add(catalog_sync_run::Column::Status.eq(SyncRunStatus::Running.as_str()))
+                .add(
+                    Condition::any()
+                        .add(catalog_sync_run::Column::LeaseExpiresAt.is_null())
+                        .add(catalog_sync_run::Column::LeaseExpiresAt.lte(stored_now)),
+                );
+            let mut query = catalog_sync_run::Entity::find()
+                .filter(Condition::any().add(queued_due).add(expired_running))
+                .order_by_asc(catalog_sync_run::Column::NextAttemptAt)
+                .order_by_asc(catalog_sync_run::Column::CreatedAt)
+                .order_by_asc(catalog_sync_run::Column::Id)
+                .limit(1);
+            if !skipped_run_ids.is_empty() {
+                query = query
+                    .filter(catalog_sync_run::Column::RunId.is_not_in(skipped_run_ids.clone()));
+            }
+            if !skipped_source_db_ids.is_empty() {
+                query = query.filter(
+                    catalog_sync_run::Column::SourceDbId.is_not_in(skipped_source_db_ids.clone()),
+                );
+            }
+            let Some(run) = query.one(&self.database).await? else {
+                return Ok(None);
+            };
+            let expected = parse_row_version("sync run", run.run_id, run.row_version)?;
+            match self
+                .claim_run_at(run.run_id, expected, claimed_at, lease_for)
+                .await
+            {
+                Ok(lease) => return Ok(Some(lease)),
+                Err(CatalogSyncError::SourceBusy { .. }) => {
+                    skipped_source_db_ids.push(run.source_db_id);
+                }
+                Err(
+                    CatalogSyncError::RunConflict { .. } | CatalogSyncError::RunNotClaimable { .. },
+                ) => skipped_run_ids.push(run.run_id),
+                Err(error) => return Err(error),
+            }
+        }
+        Ok(None)
+    }
+
+    pub async fn renew_lease(
+        &self,
+        run_id: Uuid,
+        expected: CatalogRowVersion,
+        lease_token: Uuid,
+        lease_for: Duration,
+    ) -> Result<CatalogSyncLease, CatalogSyncError> {
+        self.renew_lease_at(run_id, expected, lease_token, chrono::Utc::now(), lease_for)
+            .await
+    }
+
+    async fn renew_lease_at(
+        &self,
+        run_id: Uuid,
+        expected: CatalogRowVersion,
+        lease_token: Uuid,
+        renewed_at: DateTimeUtc,
+        lease_for: Duration,
+    ) -> Result<CatalogSyncLease, CatalogSyncError> {
+        let lease_expires_at = lease_deadline(renewed_at, lease_for)?;
+        let transaction = self.database.begin().await?;
+        let run = get_run_model(&transaction, run_id)
+            .await?
+            .ok_or(CatalogSyncError::RunNotFound { run_id })?;
+        ensure_current_lease(&run, expected, lease_token, renewed_at)?;
+        let source = catalog_source::Entity::find_by_id(run.source_db_id)
+            .one(&transaction)
+            .await?
+            .ok_or_else(|| missing_run_source(run_id))?;
+        let next = next_row_version("sync run", run_id, expected)?;
+        let result = catalog_sync_run::Entity::update_many()
+            .col_expr(
+                catalog_sync_run::Column::LeaseExpiresAt,
+                Expr::value(Some(store_timestamp(lease_expires_at))),
+            )
+            .col_expr(
+                catalog_sync_run::Column::RowVersion,
+                Expr::value(row_version_as_i64("sync run", run_id, next)?),
+            )
+            .filter(catalog_sync_run::Column::RunId.eq(run_id))
+            .filter(catalog_sync_run::Column::LeaseToken.eq(lease_token))
+            .filter(catalog_sync_run::Column::Status.eq(SyncRunStatus::Running.as_str()))
+            .filter(
+                catalog_sync_run::Column::RowVersion
+                    .eq(row_version_as_i64("sync run", run_id, expected)?),
+            )
+            .exec(&transaction)
+            .await?;
+        if result.rows_affected != 1 {
+            return run_conflict_or_not_found(&transaction, run_id, expected).await;
+        }
+        let updated = get_run_model(&transaction, run_id)
+            .await?
+            .ok_or(CatalogSyncError::RunNotFound { run_id })?;
+        let lease = lease_from_models(updated, source, lease_token, lease_expires_at)?;
+        transaction.commit().await?;
+        Ok(lease)
+    }
+
+    /// Releases a current worker lease back to the queue after a recoverable
+    /// adapter failure. Progress and observations remain attached to the same
+    /// run; a later claim receives a fresh token and increments attempt_count.
+    pub async fn retry_run(
+        &self,
+        run_id: Uuid,
+        expected: CatalogRowVersion,
+        lease_token: Uuid,
+        error_message: &str,
+        not_before: DateTimeUtc,
+    ) -> Result<CatalogSyncRunSnapshot, CatalogSyncError> {
+        if error_message.is_empty() {
+            return Err(CatalogSyncError::InvalidInput {
+                field: "error_message",
+                message: "retry must include an error message",
+            });
+        }
+        let checked_at = chrono::Utc::now();
+        let transaction = self.database.begin().await?;
+        let run = get_run_model(&transaction, run_id)
+            .await?
+            .ok_or(CatalogSyncError::RunNotFound { run_id })?;
+        ensure_current_lease(&run, expected, lease_token, checked_at)?;
+        let source = catalog_source::Entity::find_by_id(run.source_db_id)
+            .one(&transaction)
+            .await?
+            .ok_or_else(|| missing_run_source(run_id))?;
+        let next = next_row_version("sync run", run_id, expected)?;
+        let stored_error = sanitize_sync_error(error_message)
+            .unwrap_or_else(|| "source adapter retry scheduled".to_owned());
+        let result = catalog_sync_run::Entity::update_many()
+            .col_expr(
+                catalog_sync_run::Column::Status,
+                Expr::value(SyncRunStatus::Queued.as_str()),
+            )
+            .col_expr(
+                catalog_sync_run::Column::ErrorMessage,
+                Expr::value(Some(stored_error)),
+            )
+            .col_expr(
+                catalog_sync_run::Column::LeaseToken,
+                Expr::value(None::<Uuid>),
+            )
+            .col_expr(
+                catalog_sync_run::Column::LeaseExpiresAt,
+                Expr::value(None::<PersistedTimestamp>),
+            )
+            .col_expr(
+                catalog_sync_run::Column::NextAttemptAt,
+                Expr::value(Some(store_timestamp(not_before))),
+            )
+            .col_expr(
+                catalog_sync_run::Column::SnapshotComplete,
+                Expr::value(false),
+            )
+            .col_expr(
+                catalog_sync_run::Column::RowVersion,
+                Expr::value(row_version_as_i64("sync run", run_id, next)?),
+            )
+            .filter(catalog_sync_run::Column::RunId.eq(run_id))
+            .filter(catalog_sync_run::Column::Status.eq(SyncRunStatus::Running.as_str()))
+            .filter(catalog_sync_run::Column::LeaseToken.eq(lease_token))
+            .filter(
+                catalog_sync_run::Column::RowVersion
+                    .eq(row_version_as_i64("sync run", run_id, expected)?),
+            )
             .exec(&transaction)
             .await?;
         if result.rows_affected != 1 {
@@ -703,6 +1027,7 @@ impl CatalogSyncService {
         &self,
         run_id: Uuid,
         expected: CatalogRowVersion,
+        lease_token: Uuid,
         input: CatalogReleaseObservation,
     ) -> Result<RecordedCatalogObservation, CatalogSyncError> {
         validate_observation(&input)?;
@@ -711,18 +1036,8 @@ impl CatalogSyncService {
         let run = get_run_model(&transaction, run_id)
             .await?
             .ok_or(CatalogSyncError::RunNotFound { run_id })?;
-        let actual = parse_row_version("sync run", run_id, run.row_version)?;
-        if actual != expected {
-            return Err(CatalogSyncError::RunConflict {
-                run_id,
-                expected,
-                actual,
-            });
-        }
-        let status = parse_run_status(run_id, &run.status)?;
-        if status != SyncRunStatus::Running {
-            return Err(CatalogSyncError::RunNotRunning { run_id, status });
-        }
+        let observed_at_utc = chrono::Utc::now();
+        ensure_current_lease(&run, expected, lease_token, observed_at_utc)?;
         let started_at = run
             .started_at
             .ok_or_else(|| CatalogSyncError::InvalidPersistedValue {
@@ -735,7 +1050,7 @@ impl CatalogSyncService {
             .one(&transaction)
             .await?
             .ok_or_else(|| missing_run_source(run_id))?;
-        let observed_at = now();
+        let observed_at = store_timestamp(observed_at_utc);
 
         let existing =
             get_source_release_model(&transaction, run.source_db_id, &input.external_release_id)
@@ -914,6 +1229,7 @@ impl CatalogSyncService {
                     .eq(row_version_as_i64("sync run", run_id, expected)?),
             )
             .filter(catalog_sync_run::Column::Status.eq(SyncRunStatus::Running.as_str()))
+            .filter(catalog_sync_run::Column::LeaseToken.eq(lease_token))
             .exec(&transaction)
             .await?;
         if result.rows_affected != 1 {
@@ -940,6 +1256,7 @@ impl CatalogSyncService {
         &self,
         run_id: Uuid,
         expected: CatalogRowVersion,
+        lease_token: Uuid,
         outcome: FinishCatalogSyncRun,
     ) -> Result<FinishedCatalogSyncRun, CatalogSyncError> {
         if matches!(&outcome, FinishCatalogSyncRun::Failed { error_message } if error_message.is_empty())
@@ -1003,7 +1320,9 @@ impl CatalogSyncService {
             });
         }
 
-        let finished_at = now();
+        let finished_at_utc = chrono::Utc::now();
+        ensure_current_lease(&run, expected, lease_token, finished_at_utc)?;
+        let finished_at = store_timestamp(finished_at_utc);
         let mut newly_not_seen = 0_u32;
         if next_status == SyncRunStatus::Succeeded
             && coverage.may_infer_absence()
@@ -1097,6 +1416,18 @@ impl CatalogSyncService {
                 Expr::value(finished_at),
             )
             .col_expr(
+                catalog_sync_run::Column::LeaseToken,
+                Expr::value(None::<Uuid>),
+            )
+            .col_expr(
+                catalog_sync_run::Column::LeaseExpiresAt,
+                Expr::value(None::<PersistedTimestamp>),
+            )
+            .col_expr(
+                catalog_sync_run::Column::NextAttemptAt,
+                Expr::value(None::<PersistedTimestamp>),
+            )
+            .col_expr(
                 catalog_sync_run::Column::RowVersion,
                 Expr::value(row_version_as_i64("sync run", run_id, next)?),
             )
@@ -1106,6 +1437,7 @@ impl CatalogSyncService {
                     .eq(row_version_as_i64("sync run", run_id, expected)?),
             )
             .filter(catalog_sync_run::Column::Status.eq(status.as_str()))
+            .filter(catalog_sync_run::Column::LeaseToken.eq(lease_token))
             .exec(&transaction)
             .await?;
         if result.rows_affected != 1 {
@@ -1152,6 +1484,92 @@ async fn get_run_model<C: ConnectionTrait>(
         .filter(catalog_sync_run::Column::RunId.eq(run_id))
         .one(connection)
         .await
+}
+
+fn lease_deadline(
+    claimed_at: DateTimeUtc,
+    lease_for: Duration,
+) -> Result<DateTimeUtc, CatalogSyncError> {
+    if lease_for.is_zero() {
+        return Err(CatalogSyncError::InvalidInput {
+            field: "lease_for",
+            message: "duration must be positive",
+        });
+    }
+    let delta =
+        chrono::Duration::from_std(lease_for).map_err(|_| CatalogSyncError::InvalidInput {
+            field: "lease_for",
+            message: "duration is too large",
+        })?;
+    claimed_at
+        .checked_add_signed(delta)
+        .ok_or(CatalogSyncError::InvalidInput {
+            field: "lease_for",
+            message: "duration overflows timestamp",
+        })
+}
+
+fn ensure_current_lease(
+    run: &catalog_sync_run::Model,
+    expected: CatalogRowVersion,
+    lease_token: Uuid,
+    checked_at: DateTimeUtc,
+) -> Result<(), CatalogSyncError> {
+    let run_id = run.run_id;
+    let actual = parse_row_version("sync run", run_id, run.row_version)?;
+    if actual != expected {
+        return Err(CatalogSyncError::RunConflict {
+            run_id,
+            expected,
+            actual,
+        });
+    }
+    let status = parse_run_status(run_id, &run.status)?;
+    if status != SyncRunStatus::Running {
+        return Err(CatalogSyncError::RunNotRunning { run_id, status });
+    }
+    let current = run.lease_token == Some(lease_token)
+        && run
+            .lease_expires_at
+            .as_ref()
+            .is_some_and(|expires_at| timestamp(expires_at.to_owned()) > checked_at);
+    if !current {
+        return Err(CatalogSyncError::LeaseMismatch { run_id });
+    }
+    Ok(())
+}
+
+fn lease_from_models(
+    run: catalog_sync_run::Model,
+    source: catalog_source::Model,
+    lease_token: Uuid,
+    lease_expires_at: DateTimeUtc,
+) -> Result<CatalogSyncLease, CatalogSyncError> {
+    let run_id = run.run_id;
+    let source_id = source.source_id;
+    let kind = CatalogSourceKind::from_str(&source.kind).map_err(|_| {
+        CatalogSyncError::InvalidPersistedValue {
+            entity: "catalog source",
+            id: source_id,
+            field: "kind",
+            value: source.kind.clone(),
+        }
+    })?;
+    Ok(CatalogSyncLease {
+        run_id,
+        source_id,
+        kind,
+        locator: source.locator,
+        storefront: source.storefront,
+        locale: source.locale,
+        configuration_document: source.configuration_document,
+        secret_ref: source.secret_ref,
+        requested_cursor: run.requested_cursor,
+        lease_token,
+        lease_expires_at,
+        attempt_count: checked_attempt_count(run_id, run.attempt_count)?,
+        row_version: parse_row_version("sync run", run_id, run.row_version)?,
+    })
 }
 
 async fn get_source_release_model<C: ConnectionTrait>(
@@ -1521,6 +1939,7 @@ mod tests {
         let artist_id = Uuid::new_v4();
         insert_artist(&database, artist_id).await;
         let service = CatalogSyncService::new(database.clone());
+        let lease_for = Duration::from_secs(60);
 
         let source = service
             .create_source(NewCatalogSource {
@@ -1562,7 +1981,7 @@ mod tests {
             .await
             .unwrap();
         let running = service
-            .claim_run(queued.run_id, queued.row_version)
+            .claim_run(queued.run_id, queued.row_version, lease_for)
             .await
             .unwrap();
         let competing = service
@@ -1575,12 +1994,17 @@ mod tests {
             .unwrap();
         assert!(matches!(
             service
-                .claim_run(competing.run_id, competing.row_version)
+                .claim_run(competing.run_id, competing.row_version, lease_for)
                 .await,
             Err(CatalogSyncError::SourceBusy { .. })
         ));
         let recorded = service
-            .record_observation(running.run_id, running.row_version, first.clone())
+            .record_observation(
+                running.run_id,
+                running.row_version,
+                running.lease_token,
+                first.clone(),
+            )
             .await
             .unwrap();
         assert_eq!(recorded.run.observed_count, 1);
@@ -1589,7 +2013,12 @@ mod tests {
         assert!(recorded.first_observation_in_run);
 
         let replayed = service
-            .record_observation(recorded.run.run_id, recorded.run.row_version, first.clone())
+            .record_observation(
+                recorded.run.run_id,
+                recorded.run.row_version,
+                running.lease_token,
+                first.clone(),
+            )
             .await
             .unwrap();
         assert_eq!(replayed.run.row_version, recorded.run.row_version);
@@ -1601,6 +2030,7 @@ mod tests {
             .record_observation(
                 replayed.run.run_id,
                 replayed.run.row_version,
+                running.lease_token,
                 second.clone(),
             )
             .await
@@ -1610,6 +2040,7 @@ mod tests {
             .finish_run(
                 recorded_second.run.run_id,
                 recorded_second.run.row_version,
+                running.lease_token,
                 FinishCatalogSyncRun::Succeeded {
                     result_cursor: None,
                     coverage: SyncCoverage::FullSnapshot,
@@ -1632,11 +2063,16 @@ mod tests {
             .await
             .unwrap();
         let running = service
-            .claim_run(queued.run_id, queued.row_version)
+            .claim_run(queued.run_id, queued.row_version, lease_for)
             .await
             .unwrap();
         let recorded = service
-            .record_observation(running.run_id, running.row_version, first.clone())
+            .record_observation(
+                running.run_id,
+                running.row_version,
+                running.lease_token,
+                first.clone(),
+            )
             .await
             .unwrap();
         assert!(!recorded.revision_appended);
@@ -1645,6 +2081,7 @@ mod tests {
             .finish_run(
                 recorded.run.run_id,
                 recorded.run.row_version,
+                running.lease_token,
                 FinishCatalogSyncRun::Succeeded {
                     result_cursor: None,
                     coverage: SyncCoverage::Incremental,
@@ -1680,17 +2117,23 @@ mod tests {
             .await
             .unwrap();
         let running = service
-            .claim_run(queued.run_id, queued.row_version)
+            .claim_run(queued.run_id, queued.row_version, lease_for)
             .await
             .unwrap();
         let recorded = service
-            .record_observation(running.run_id, running.row_version, first.clone())
+            .record_observation(
+                running.run_id,
+                running.row_version,
+                running.lease_token,
+                first.clone(),
+            )
             .await
             .unwrap();
         let finished = service
             .finish_run(
                 recorded.run.run_id,
                 recorded.run.row_version,
+                running.lease_token,
                 FinishCatalogSyncRun::Succeeded {
                     result_cursor: None,
                     coverage: SyncCoverage::FullSnapshot,
@@ -1727,18 +2170,156 @@ mod tests {
             .await
             .unwrap();
         let running = service
-            .claim_run(queued.run_id, queued.row_version)
+            .claim_run(queued.run_id, queued.row_version, lease_for)
             .await
             .unwrap();
         let mut reparsed = first;
         reparsed.parsed_document =
             r#"{"title":"作品・A〜B～C (初回)","kind":"album","parser":2}"#.to_owned();
         let recorded = service
-            .record_observation(running.run_id, running.row_version, reparsed)
+            .record_observation(
+                running.run_id,
+                running.row_version,
+                running.lease_token,
+                reparsed,
+            )
             .await
             .unwrap();
         assert!(recorded.revision_appended);
         assert_eq!(recorded.observation.revision, 2);
+    }
+
+    #[tokio::test]
+    async fn catalog_leases_expire_recover_and_redact_worker_configuration() {
+        let database = migrated_database().await;
+        let artist_id = Uuid::new_v4();
+        insert_artist(&database, artist_id).await;
+        let service = CatalogSyncService::new(database);
+        let locator = "https://artist.example/discography?token=source-secret";
+        let source = service
+            .create_source(NewCatalogSource {
+                source_id: None,
+                artist_id,
+                kind: CatalogSourceKind::ArtistWebsite,
+                locator: locator.to_owned(),
+                storefront: None,
+                locale: Some("ja-JP".to_owned()),
+                configuration_document: Some("{\"authorization\":\"config-secret\"}".to_owned()),
+                secret_ref: Some("secret/catalog/artist".to_owned()),
+            })
+            .await
+            .unwrap();
+        let queued = service
+            .start_run(NewCatalogSyncRun {
+                run_id: None,
+                source_id: source.source_id,
+                requested_cursor: Some("cursor-secret".to_owned()),
+            })
+            .await
+            .unwrap();
+        let now = chrono::Utc::now();
+        let first = service
+            .claim_run_at(
+                queued.run_id,
+                queued.row_version,
+                now - chrono::Duration::minutes(2),
+                Duration::from_secs(30),
+            )
+            .await
+            .unwrap();
+        assert_eq!(first.attempt_count, 1);
+        let debug = format!("{first:?}");
+        for secret in [
+            locator,
+            "source-secret",
+            "config-secret",
+            "secret/catalog/artist",
+            "cursor-secret",
+            &first.lease_token.to_string(),
+        ] {
+            assert!(!debug.contains(secret));
+        }
+
+        assert!(matches!(
+            service
+                .record_observation(
+                    first.run_id,
+                    first.row_version,
+                    first.lease_token,
+                    CatalogReleaseObservation {
+                        external_release_id: "album/not-written".to_owned(),
+                        source_url: "https://artist.example/album/not-written".to_owned(),
+                        raw_document: "{}".to_owned(),
+                        parsed_document: "{}".to_owned(),
+                    },
+                )
+                .await,
+            Err(CatalogSyncError::LeaseMismatch { .. })
+        ));
+
+        let recovered = service
+            .claim_next_at(now, Duration::from_secs(60))
+            .await
+            .unwrap()
+            .expect("expired run is recoverable");
+        assert_eq!(recovered.run_id, first.run_id);
+        assert_eq!(recovered.attempt_count, 2);
+        assert_ne!(recovered.lease_token, first.lease_token);
+
+        let renewed = service
+            .renew_lease_at(
+                recovered.run_id,
+                recovered.row_version,
+                recovered.lease_token,
+                now,
+                Duration::from_secs(120),
+            )
+            .await
+            .unwrap();
+        assert_eq!(renewed.lease_token, recovered.lease_token);
+        assert!(renewed.lease_expires_at > recovered.lease_expires_at);
+        assert!(renewed.row_version > recovered.row_version);
+        assert!(matches!(
+            service
+                .renew_lease(
+                    renewed.run_id,
+                    renewed.row_version,
+                    first.lease_token,
+                    Duration::from_secs(60),
+                )
+                .await,
+            Err(CatalogSyncError::LeaseMismatch { .. })
+        ));
+
+        let not_before = now + chrono::Duration::seconds(30);
+        let retried = service
+            .retry_run(
+                renewed.run_id,
+                renewed.row_version,
+                renewed.lease_token,
+                "GET https://artist.example?token=must-not-persist failed",
+                not_before,
+            )
+            .await
+            .unwrap();
+        assert_eq!(retried.status, SyncRunStatus::Queued);
+        assert_eq!(retried.next_attempt_at, Some(not_before));
+        assert_eq!(
+            retried.error_message.as_deref(),
+            Some("source adapter retry scheduled")
+        );
+        assert!(service
+            .claim_next_at(now + chrono::Duration::seconds(20), Duration::from_secs(60))
+            .await
+            .unwrap()
+            .is_none());
+        let third = service
+            .claim_next_at(now + chrono::Duration::seconds(31), Duration::from_secs(60))
+            .await
+            .unwrap()
+            .expect("scheduled retry becomes claimable");
+        assert_eq!(third.run_id, renewed.run_id);
+        assert_eq!(third.attempt_count, 3);
     }
 
     #[test]

@@ -333,7 +333,9 @@ fn catalog_sync_error(error: CatalogSyncError) -> Error {
                 extensions.set("field", field);
             })
         }
-        CatalogSyncError::ObservationConflict { .. }
+        CatalogSyncError::RunNotClaimable { .. }
+        | CatalogSyncError::LeaseMismatch { .. }
+        | CatalogSyncError::ObservationConflict { .. }
         | CatalogSyncError::InvalidPersistedValue { .. }
         | CatalogSyncError::MissingObservationRevision { .. }
         | CatalogSyncError::InvalidObservationDigestLength { .. }
