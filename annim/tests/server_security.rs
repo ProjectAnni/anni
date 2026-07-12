@@ -597,6 +597,77 @@ async fn embedded_catalog_authoring_mutations_preserve_exact_artist_and_release_
     assert_eq!(release["title"], exact_title);
     assert_eq!(release["collectionState"], "MISSING");
     assert_eq!(release["rowVersion"], "1");
+    let release_id = release["releaseId"].as_str().unwrap().to_owned();
+
+    let wanted = execute_web_graphql(
+        &app,
+        web_query("EXECUTE_CATALOG_RELEASE_COMMAND_MUTATION"),
+        serde_json::json!({
+            "input": {
+                "releaseId": release_id.clone(),
+                "expectedRowVersion": "1",
+                "command": { "markWanted": "EXECUTE" },
+            }
+        }),
+    )
+    .await;
+    assert!(wanted.get("errors").is_none(), "{wanted}");
+    assert_eq!(
+        wanted["data"]["executeCatalogReleaseCommand"]["collectionState"],
+        "WANTED"
+    );
+    assert_eq!(
+        wanted["data"]["executeCatalogReleaseCommand"]["rowVersion"],
+        "2"
+    );
+
+    let exact_source = " 天使动漫（群友补档） ";
+    let recorded = execute_web_graphql(
+        &app,
+        web_query("EXECUTE_CATALOG_RELEASE_COMMAND_MUTATION"),
+        serde_json::json!({
+            "input": {
+                "releaseId": release_id,
+                "expectedRowVersion": "2",
+                "command": {
+                    "recordCopy": {
+                        "sourceKind": "ANGEL_ANIME",
+                        "sourceLabel": exact_source,
+                        "privateLocator": "私有/不可公开/PT种子",
+                        "codec": "FLAC",
+                        "sampleRateHz": 96000,
+                        "bitDepth": 24,
+                        "channels": 2,
+                        "trackCount": 12,
+                        "byteLength": "1234567890",
+                        "manifestDigest": "5a".repeat(32),
+                        "qualityVerified": true,
+                        "notes": "原始抓取・A〜B～C",
+                    }
+                },
+            }
+        }),
+    )
+    .await;
+    assert!(recorded.get("errors").is_none(), "{recorded}");
+    let recorded_release = &recorded["data"]["executeCatalogReleaseCommand"];
+    assert_eq!(recorded_release["collectionState"], "ACQUIRED");
+    assert_eq!(recorded_release["rowVersion"], "3");
+    assert_eq!(recorded_release["copies"][0]["sourceLabel"], exact_source);
+    assert_eq!(
+        recorded_release["copies"][0]["qualityTier"],
+        "HI_RES_LOSSLESS"
+    );
+    assert_eq!(recorded_release["copies"][0]["byteLength"], "1234567890");
+    assert_eq!(recorded_release["copies"][0]["qualityVerified"], true);
+    assert!(
+        recorded_release["copies"][0]
+            .as_object()
+            .unwrap()
+            .get("privateLocator")
+            .is_none(),
+        "private locator must not be exposed by the embedded client mutation"
+    );
 
     let collection = execute_web_graphql(
         &app,
@@ -611,5 +682,17 @@ async fn embedded_catalog_authoring_mutations_preserve_exact_artist_and_release_
     assert_eq!(
         collection["data"]["catalogArtistCollection"]["releases"][0]["title"],
         exact_title
+    );
+    let collection = &collection["data"]["catalogArtistCollection"];
+    assert_eq!(collection["summary"]["acquired"], "1");
+    assert_eq!(collection["summary"]["collected"], "1");
+    assert_eq!(collection["releases"][0]["collectionState"], "ACQUIRED");
+    assert_eq!(
+        collection["releases"][0]["copies"][0]["sourceLabel"],
+        exact_source
+    );
+    assert_eq!(
+        collection["releases"][0]["copies"][0]["qualityTier"],
+        "HI_RES_LOSSLESS"
     );
 }

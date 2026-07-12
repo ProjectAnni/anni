@@ -1807,7 +1807,7 @@ code {
 
 .release-table {
   width: 100%;
-  min-width: 760px;
+  min-width: 820px;
   border-collapse: collapse;
   font-size: 11px;
 }
@@ -1873,6 +1873,8 @@ code {
 
 .catalog-dialog {
   width: min(620px, calc(100vw - 34px));
+  max-height: calc(100vh - 34px);
+  overflow-y: auto;
 }
 
 .session-dialog::backdrop {
@@ -1917,6 +1919,70 @@ code {
   display: grid;
   min-width: 0;
   gap: 6px;
+}
+
+.dialog-subheading {
+  display: grid;
+  gap: 2px;
+  padding-top: 15px;
+  border-top: 1px solid var(--line);
+}
+
+.dialog-subheading strong {
+  font-family: var(--display);
+  font-size: 17px;
+}
+
+.dialog-subheading span {
+  color: var(--ink-muted);
+  font-size: 10px;
+}
+
+.release-status-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  padding: 11px;
+  border: 1px solid var(--line);
+  background: rgba(11, 24, 33, 0.025);
+}
+
+.release-status-toolbar > span {
+  margin-right: auto;
+}
+
+.release-status-toolbar button,
+.table-action {
+  min-height: 30px;
+  padding: 5px 9px;
+  border: 1px solid var(--line-strong);
+  background: transparent;
+  cursor: pointer;
+  font-size: 9px;
+  font-weight: 700;
+}
+
+.release-status-toolbar button:hover,
+.table-action:hover {
+  border-color: var(--laser);
+  background: rgba(39, 166, 178, 0.08);
+}
+
+.release-status-toolbar button:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.dialog-checkbox {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+}
+
+.dialog-checkbox input {
+  width: auto;
+  min-height: auto;
 }
 
 .form-error {

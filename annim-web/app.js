@@ -6,6 +6,7 @@ const state = {
   jobs: [],
   artists: [],
   selectedArtistId: null,
+  selectedRelease: null,
   view: "workflow",
   reviewMutationPending: false,
   catalogMutationPending: false,
@@ -39,6 +40,11 @@ const elements = {
   releaseCreateForm: document.querySelector("#release-create-form"),
   releaseFormError: document.querySelector("#release-form-error"),
   releaseDialogArtist: document.querySelector("#release-dialog-artist"),
+  releaseManageDialog: document.querySelector("#release-manage-dialog"),
+  releaseManageTitle: document.querySelector("#release-manage-title"),
+  releaseManageState: document.querySelector("#release-manage-state"),
+  collectionCopyForm: document.querySelector("#collection-copy-form"),
+  collectionCopyFormError: document.querySelector("#collection-copy-form-error"),
   toastRegion: document.querySelector("#toast-region"),
 };
 
@@ -282,6 +288,35 @@ const CREATE_CATALOG_RELEASE_MUTATION = `
   }
 `;
 
+const EXECUTE_CATALOG_RELEASE_COMMAND_MUTATION = `
+  mutation WebExecuteCatalogReleaseCommand($input: ExecuteCatalogReleaseCommandInput!) {
+    executeCatalogReleaseCommand(input: $input) {
+      releaseId
+      artistId
+      title
+      collectionState
+      rowVersion
+      copies {
+        copyId
+        sourceKind
+        sourceLabel
+        codec
+        qualityTier
+        sampleRateHz
+        bitDepth
+        channels
+        trackCount
+        byteLength
+        manifestDigest
+        qualityVerified
+        ingestJobId
+        notes
+        acquiredAt
+      }
+    }
+  }
+`;
+
 const EDIT_METADATA_MUTATION = `
   mutation WebEditIngestMetadata($input: EditIngestMetadataInput!) {
     editIngestMetadata(input: $input) {
@@ -424,6 +459,12 @@ function humanizeEnum(value) {
     .join(" ");
 }
 
+function formatCodec(value) {
+  return ["FLAC", "WAV", "ALAC", "AAC", "MP3", "OPUS"].includes(value)
+    ? value
+    : humanizeEnum(value);
+}
+
 function compactId(value) {
   if (!value || value.length < 15) return textOrDash(value);
   return `${value.slice(0, 8)}…${value.slice(-6)}`;
@@ -508,6 +549,7 @@ function clearSession({ notify = true } = {}) {
   state.jobs = [];
   state.artists = [];
   state.selectedArtistId = null;
+  state.selectedRelease = null;
   updateSessionUi();
   elements.intakeCount.textContent = "—";
   elements.artistCount.textContent = "—";
@@ -1404,6 +1446,68 @@ function openReleaseDialog(artist) {
   window.setTimeout(() => elements.releaseCreateForm.elements.namedItem("title").focus(), 0);
 }
 
+function openReleaseManager(release) {
+  if (!state.token) {
+    openSessionDialog("管理发行需要管理会话。");
+    return;
+  }
+  state.selectedRelease = release;
+  elements.collectionCopyForm.reset();
+  elements.collectionCopyFormError.textContent = "";
+  elements.releaseManageTitle.textContent = release.title;
+  elements.releaseManageState.className = collectionStateClass(release.collectionState);
+  elements.releaseManageState.textContent = humanizeEnum(release.collectionState);
+  const allowedStates = {
+    markWanted: ["MISSING", "UNAVAILABLE"],
+    markMissing: ["WANTED", "UNAVAILABLE"],
+    markUnavailable: ["MISSING", "WANTED"],
+  };
+  for (const button of elements.collectionCopyForm.querySelectorAll("[data-release-command]")) {
+    button.disabled = !allowedStates[button.dataset.releaseCommand].includes(
+      release.collectionState,
+    );
+  }
+  elements.collectionCopyForm.querySelector("[data-register-copy]").disabled = ![
+    "MISSING",
+    "WANTED",
+    "UNAVAILABLE",
+    "ACQUIRED",
+  ].includes(release.collectionState);
+  elements.releaseManageDialog.showModal();
+}
+
+function optionalPositiveIntegerFormValue(form, name, label, maximum = Number.MAX_SAFE_INTEGER) {
+  const raw = form.elements.namedItem(name).value;
+  if (raw === "") return null;
+  if (!/^\d+$/.test(raw)) throw new Error(`${label}必须是正整数。`);
+  const value = Number(raw);
+  if (!Number.isSafeInteger(value) || value < 1 || value > maximum) {
+    throw new Error(`${label}超出支持范围。`);
+  }
+  return value;
+}
+
+function optionalByteLengthFormValue(form) {
+  const raw = form.elements.namedItem("byteLength").value;
+  if (raw === "") return null;
+  if (!/^\d+$/.test(raw) || BigInt(raw) === 0n) {
+    throw new Error("字节数必须是正整数。");
+  }
+  if (BigInt(raw) > 9_223_372_036_854_775_807n) {
+    throw new Error("字节数超出支持范围。");
+  }
+  return raw;
+}
+
+async function finishReleaseMutation(data, message) {
+  if (!data) return;
+  const release = data.executeCatalogReleaseCommand;
+  state.selectedRelease = release;
+  elements.releaseManageDialog.close();
+  showToast(message(release));
+  if (state.selectedArtistId) await selectArtist(state.selectedArtistId);
+}
+
 function collectionStateClass(value) {
   const safe = String(value || "unknown").toLowerCase().replaceAll("_", "-");
   return `collection-state-pill collection-state-pill--${safe}`;
@@ -1426,7 +1530,12 @@ function describeQuality(copies) {
       ]
         .filter(Boolean)
         .join(" / ");
-      return [humanizeEnum(copy.qualityTier), humanizeEnum(copy.codec), resolution]
+      return [
+        humanizeEnum(copy.qualityTier),
+        formatCodec(copy.codec),
+        resolution,
+        copy.qualityVerified ? "已验证" : "待验证",
+      ]
         .filter(Boolean)
         .join(" · ");
     })
@@ -1475,8 +1584,14 @@ function renderCollection(collection) {
   const tbody = node(
     "tbody",
     {},
-    releases.map((release) =>
-      node("tr", {}, [
+    releases.map((release) => {
+      const manage = node("button", {
+        className: "table-action",
+        text: "管理",
+        attributes: { type: "button", "aria-label": `管理发行 ${release.title}` },
+      });
+      manage.addEventListener("click", () => openReleaseManager(release));
+      return node("tr", {}, [
         node("td", {}, [
           node("span", { className: "release-title", text: release.title }),
           node("span", {
@@ -1495,8 +1610,9 @@ function renderCollection(collection) {
         node("td", {}, [
           node("span", { className: "quality-pill", text: describeQuality(release.copies) }),
         ]),
-      ]),
-    ),
+        node("td", {}, [manage]),
+      ]);
+    }),
   );
   const table = node("table", { className: "release-table" }, [
     node("thead", {}, [
@@ -1506,6 +1622,7 @@ function renderCollection(collection) {
         node("th", { text: "状态" }),
         node("th", { text: "取得来源" }),
         node("th", { text: "音质" }),
+        node("th", { text: "操作" }),
       ]),
     ]),
     tbody,
@@ -1632,6 +1749,133 @@ elements.releaseCreateForm.addEventListener("submit", async (event) => {
   await selectArtist(artistId);
 });
 
+for (const button of elements.collectionCopyForm.querySelectorAll("[data-release-command]")) {
+  button.addEventListener("click", async () => {
+    const release = state.selectedRelease;
+    if (!release) {
+      elements.collectionCopyFormError.textContent = "请重新打开要管理的发行。";
+      return;
+    }
+    const data = await runCatalogMutation(
+      elements.collectionCopyForm,
+      elements.collectionCopyFormError,
+      EXECUTE_CATALOG_RELEASE_COMMAND_MUTATION,
+      {
+        releaseId: release.releaseId,
+        expectedRowVersion: release.rowVersion,
+        command: { [button.dataset.releaseCommand]: "EXECUTE" },
+      },
+    );
+    await finishReleaseMutation(
+      data,
+      (updated) => `发行状态已更新为 ${humanizeEnum(updated.collectionState)}`,
+    );
+  });
+}
+
+elements.collectionCopyForm.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const release = state.selectedRelease;
+  if (!release) {
+    elements.collectionCopyFormError.textContent = "请重新打开要管理的发行。";
+    return;
+  }
+
+  const sourceLabel = elements.collectionCopyForm.elements.namedItem("sourceLabel").value;
+  if (!sourceLabel.trim()) {
+    elements.collectionCopyFormError.textContent = "来源名称不能为空。";
+    return;
+  }
+
+  let sampleRateHz;
+  let bitDepth;
+  let channels;
+  let trackCount;
+  let byteLength;
+  try {
+    sampleRateHz = optionalPositiveIntegerFormValue(
+      elements.collectionCopyForm,
+      "sampleRateHz",
+      "采样率",
+      2_147_483_647,
+    );
+    bitDepth = optionalPositiveIntegerFormValue(
+      elements.collectionCopyForm,
+      "bitDepth",
+      "位深",
+      255,
+    );
+    channels = optionalPositiveIntegerFormValue(
+      elements.collectionCopyForm,
+      "channels",
+      "声道数",
+      255,
+    );
+    trackCount = optionalPositiveIntegerFormValue(
+      elements.collectionCopyForm,
+      "trackCount",
+      "轨道数",
+      2_147_483_647,
+    );
+    byteLength = optionalByteLengthFormValue(elements.collectionCopyForm);
+  } catch (error) {
+    elements.collectionCopyFormError.textContent = error.message;
+    return;
+  }
+
+  const manifestDigest = optionalExactFormValue(
+    elements.collectionCopyForm,
+    "manifestDigest",
+  );
+  if (manifestDigest && !/^[0-9a-fA-F]{64}$/.test(manifestDigest)) {
+    elements.collectionCopyFormError.textContent = "Manifest SHA-256 必须是 64 位十六进制。";
+    return;
+  }
+
+  const ingestJobId = optionalExactFormValue(elements.collectionCopyForm, "ingestJobId");
+  if (
+    ingestJobId &&
+    !/^[0-9a-fA-F]{8}(?:-[0-9a-fA-F]{4}){3}-[0-9a-fA-F]{12}$/.test(
+      ingestJobId,
+    )
+  ) {
+    elements.collectionCopyFormError.textContent = "Ingest Job UUID 格式不正确。";
+    return;
+  }
+
+  const data = await runCatalogMutation(
+    elements.collectionCopyForm,
+    elements.collectionCopyFormError,
+    EXECUTE_CATALOG_RELEASE_COMMAND_MUTATION,
+    {
+      releaseId: release.releaseId,
+      expectedRowVersion: release.rowVersion,
+      command: {
+        recordCopy: {
+          sourceKind: elements.collectionCopyForm.elements.namedItem("sourceKind").value,
+          sourceLabel,
+          privateLocator: optionalExactFormValue(
+            elements.collectionCopyForm,
+            "privateLocator",
+          ),
+          codec: elements.collectionCopyForm.elements.namedItem("codec").value,
+          sampleRateHz,
+          bitDepth,
+          channels,
+          trackCount,
+          byteLength,
+          manifestDigest,
+          qualityVerified:
+            elements.collectionCopyForm.elements.namedItem("qualityVerified").checked,
+          ingestJobId,
+          notes: optionalExactFormValue(elements.collectionCopyForm, "notes"),
+        },
+      },
+    },
+  );
+  await finishReleaseMutation(data, () => `音源副本「${sourceLabel}」已登记`);
+});
+
 for (const button of document.querySelectorAll("[data-close-catalog-dialog]")) {
   button.addEventListener("click", () => button.closest("dialog").close());
 }
@@ -1639,6 +1883,7 @@ for (const button of document.querySelectorAll("[data-close-catalog-dialog]")) {
 elements.artistSearchForm.addEventListener("submit", async (event) => {
   event.preventDefault();
   state.selectedArtistId = null;
+  state.selectedRelease = null;
   renderMessage(elements.collectionSheet, "empty", "选择一位艺人", "查看发行列表、来源与音质。");
   try {
     await loadArtists(elements.artistSearch.value.trim() || null);

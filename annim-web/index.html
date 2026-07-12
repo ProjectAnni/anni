@@ -778,6 +778,99 @@
       </form>
     </dialog>
 
+    <dialog class="session-dialog catalog-dialog" id="release-manage-dialog">
+      <form id="collection-copy-form">
+        <div class="dialog-heading">
+          <span class="eyebrow">Collection copy</span>
+          <h2 id="release-manage-title">管理发行</h2>
+          <p>目录状态与实际音频副本分开记录；私有定位信息不会出现在查询结果中。</p>
+        </div>
+
+        <div class="release-status-toolbar" aria-label="发行收集状态">
+          <span id="release-manage-state">Missing</span>
+          <button type="button" data-release-command="markWanted">标记想要</button>
+          <button type="button" data-release-command="markMissing">标记缺失</button>
+          <button type="button" data-release-command="markUnavailable">标记不可得</button>
+        </div>
+
+        <div class="dialog-subheading">
+          <strong>登记实际音频副本</strong>
+          <span>同一发行可以保留多个来源与音质，不会互相覆盖。</span>
+        </div>
+        <div class="dialog-field-grid">
+          <label>
+            <span>取得来源</span>
+            <select name="sourceKind">
+              <option value="OWNED_CD">自购 / 持有 CD</option>
+              <option value="ANGEL_ANIME">天使动漫</option>
+              <option value="PRIVATE_TRACKER">PT 站</option>
+              <option value="BIT_TORRENT">BT</option>
+              <option value="FRIEND_SHARE">群友分享</option>
+              <option value="STREAMING">流媒体</option>
+              <option value="OTHER">其他</option>
+            </select>
+          </label>
+          <label>
+            <span>来源名称</span>
+            <input name="sourceLabel" type="text" placeholder="例如：天使动漫（群友补档）" autocomplete="off" required />
+          </label>
+          <label>
+            <span>Codec</span>
+            <select name="codec">
+              <option value="FLAC">FLAC</option>
+              <option value="WAV">WAV</option>
+              <option value="ALAC">ALAC</option>
+              <option value="AAC">AAC</option>
+              <option value="MP3">MP3</option>
+              <option value="OPUS">Opus</option>
+              <option value="OTHER">Other</option>
+            </select>
+          </label>
+          <label>
+            <span>私有定位（可选）</span>
+            <input name="privateLocator" type="text" autocomplete="off" />
+          </label>
+          <label>
+            <span>采样率 Hz（可选）</span>
+            <input name="sampleRateHz" type="number" min="1" max="2147483647" value="44100" />
+          </label>
+          <label>
+            <span>位深（可选）</span>
+            <input name="bitDepth" type="number" min="1" max="255" value="16" />
+          </label>
+          <label>
+            <span>声道数（可选）</span>
+            <input name="channels" type="number" min="1" max="255" value="2" />
+          </label>
+          <label>
+            <span>轨道数（可选）</span>
+            <input name="trackCount" type="number" min="1" max="2147483647" />
+          </label>
+          <label>
+            <span>字节数（可选）</span>
+            <input name="byteLength" type="text" inputmode="numeric" autocomplete="off" />
+          </label>
+          <label>
+            <span>Ingest Job UUID（可选）</span>
+            <input name="ingestJobId" type="text" autocomplete="off" spellcheck="false" />
+          </label>
+        </div>
+        <label for="copy-manifest-digest">Manifest SHA-256（可选）</label>
+        <input id="copy-manifest-digest" name="manifestDigest" type="text" autocomplete="off" spellcheck="false" />
+        <label for="copy-notes">副本备注（可选）</label>
+        <textarea id="copy-notes" name="notes" rows="3"></textarea>
+        <label class="dialog-checkbox">
+          <input name="qualityVerified" type="checkbox" />
+          <span>音频属性已经人工或工具验证</span>
+        </label>
+        <p class="form-error" id="collection-copy-form-error" role="alert"></p>
+        <div class="dialog-actions">
+          <button class="secondary-action" type="button" data-close-catalog-dialog>关闭</button>
+          <button class="primary-action" type="submit" data-register-copy>登记副本</button>
+        </div>
+      </form>
+    </dialog>
+
     <div class="toast-region" id="toast-region" aria-live="polite" aria-atomic="true"></div>
   </body>
 </html>
