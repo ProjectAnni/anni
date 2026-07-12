@@ -8,6 +8,7 @@ const state = {
   selectedArtistId: null,
   view: "workflow",
   reviewMutationPending: false,
+  catalogMutationPending: false,
 };
 
 const elements = {
@@ -30,6 +31,14 @@ const elements = {
   artistSearch: document.querySelector("#artist-search"),
   artistList: document.querySelector("#artist-list"),
   collectionSheet: document.querySelector("#collection-sheet"),
+  createArtistButton: document.querySelector("#create-artist-button"),
+  artistDialog: document.querySelector("#artist-dialog"),
+  artistCreateForm: document.querySelector("#artist-create-form"),
+  artistFormError: document.querySelector("#artist-form-error"),
+  releaseDialog: document.querySelector("#release-dialog"),
+  releaseCreateForm: document.querySelector("#release-create-form"),
+  releaseFormError: document.querySelector("#release-form-error"),
+  releaseDialogArtist: document.querySelector("#release-dialog-artist"),
   toastRegion: document.querySelector("#toast-region"),
 };
 
@@ -239,6 +248,36 @@ const COLLECTION_QUERY = `
           acquiredAt
         }
       }
+    }
+  }
+`;
+
+const CREATE_CATALOG_ARTIST_MUTATION = `
+  mutation WebCreateCatalogArtist($input: CreateCatalogArtistInput!) {
+    createCatalogArtist(input: $input) {
+      artistId
+      displayName
+      sortName
+      notes
+      rowVersion
+      updatedAt
+    }
+  }
+`;
+
+const CREATE_CATALOG_RELEASE_MUTATION = `
+  mutation WebCreateCatalogRelease($input: CreateCatalogReleaseInput!) {
+    createCatalogRelease(input: $input) {
+      releaseId
+      artistId
+      title
+      edition
+      catalog
+      releaseDate
+      kind
+      collectionState
+      rowVersion
+      updatedAt
     }
   }
 `;
@@ -1309,6 +1348,62 @@ async function ensureArtistsLoaded(force = false) {
   }
 }
 
+function optionalExactFormValue(form, name) {
+  const value = form.elements.namedItem(name).value;
+  return value === "" ? null : value;
+}
+
+async function runCatalogMutation(form, errorTarget, query, input) {
+  if (state.catalogMutationPending) return null;
+  state.catalogMutationPending = true;
+  errorTarget.textContent = "正在保存…";
+  const controls = Array.from(form.querySelectorAll("button, input, select, textarea"));
+  const priorDisabledStates = controls.map((control) => control.disabled);
+  controls.forEach((control) => {
+    control.disabled = true;
+  });
+  try {
+    const data = await graphql(query, { input });
+    errorTarget.textContent = "";
+    return data;
+  } catch (error) {
+    errorTarget.textContent = error.message;
+    if (error instanceof SessionRequiredError) {
+      form.closest("dialog")?.close();
+      openSessionDialog(error.message);
+    }
+    return null;
+  } finally {
+    state.catalogMutationPending = false;
+    controls.forEach((control, index) => {
+      if (control.isConnected) control.disabled = priorDisabledStates[index];
+    });
+  }
+}
+
+function openArtistDialog() {
+  if (!state.token) {
+    openSessionDialog("新建 Artist 需要管理会话。");
+    return;
+  }
+  elements.artistCreateForm.reset();
+  elements.artistFormError.textContent = "";
+  elements.artistDialog.showModal();
+  window.setTimeout(() => elements.artistCreateForm.elements.namedItem("displayName").focus(), 0);
+}
+
+function openReleaseDialog(artist) {
+  if (!state.token) {
+    openSessionDialog("登记发行需要管理会话。");
+    return;
+  }
+  elements.releaseCreateForm.reset();
+  elements.releaseFormError.textContent = "";
+  elements.releaseDialogArtist.textContent = `发行会归入 ${artist.displayName} 的拉表。`;
+  elements.releaseDialog.showModal();
+  window.setTimeout(() => elements.releaseCreateForm.elements.namedItem("title").focus(), 0);
+}
+
 function collectionStateClass(value) {
   const safe = String(value || "unknown").toLowerCase().replaceAll("_", "-");
   return `collection-state-pill collection-state-pill--${safe}`;
@@ -1344,16 +1439,25 @@ function renderCollection(collection) {
     return;
   }
   const { artist, summary, releases } = collection;
+  const createRelease = node("button", {
+    className: "secondary-action",
+    text: "登记发行",
+    attributes: { type: "button" },
+  });
+  createRelease.addEventListener("click", () => openReleaseDialog(artist));
   const heading = node("header", { className: "collection-heading" }, [
     node("div", {}, [
       node("h2", { text: artist.displayName }),
       node("p", { text: `${collection.releaseTotalCount} 个发行记录` }),
     ]),
-    node("div", { className: "collection-summary" }, [
-      node("span", { text: `已收集 ${summary.collected}` }),
-      node("span", { text: `缺失 ${summary.missing}` }),
-      node("span", { text: `想要 ${summary.wanted}` }),
-      node("span", { text: `已发布 ${summary.published}` }),
+    node("div", { className: "collection-heading__actions" }, [
+      node("div", { className: "collection-summary" }, [
+        node("span", { text: `已收集 ${summary.collected}` }),
+        node("span", { text: `缺失 ${summary.missing}` }),
+        node("span", { text: `想要 ${summary.wanted}` }),
+        node("span", { text: `已发布 ${summary.published}` }),
+      ]),
+      createRelease,
     ]),
   ]);
 
@@ -1362,7 +1466,7 @@ function renderCollection(collection) {
       heading,
       node("div", { className: "empty-state" }, [
         node("strong", { text: "发行列表为空" }),
-        node("p", { text: "绑定官方目录来源并完成同步后，Release 会显示在这里。" }),
+        node("p", { text: "可以手工登记发行，或绑定官方目录来源后同步。" }),
       ]),
     );
     return;
@@ -1459,6 +1563,78 @@ elements.forgetSession.addEventListener("click", () => {
   clearSession();
   elements.sessionDialog.close();
 });
+
+elements.createArtistButton.addEventListener("click", openArtistDialog);
+
+elements.artistCreateForm.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const displayName = elements.artistCreateForm.elements.namedItem("displayName").value;
+  if (!displayName.trim()) {
+    elements.artistFormError.textContent = "显示名称不能为空。";
+    return;
+  }
+  const data = await runCatalogMutation(
+    elements.artistCreateForm,
+    elements.artistFormError,
+    CREATE_CATALOG_ARTIST_MUTATION,
+    {
+      displayName,
+      sortName: optionalExactFormValue(elements.artistCreateForm, "sortName"),
+      notes: optionalExactFormValue(elements.artistCreateForm, "notes"),
+    },
+  );
+  if (!data) return;
+  const artist = data.createCatalogArtist;
+  elements.artistDialog.close();
+  elements.artistCreateForm.reset();
+  elements.artistSearch.value = "";
+  showToast(`Artist「${artist.displayName}」已创建`);
+  await loadArtists();
+  await selectArtist(artist.artistId);
+});
+
+elements.releaseCreateForm.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const artistId = state.selectedArtistId;
+  if (!artistId) {
+    elements.releaseFormError.textContent = "请先选择 Artist。";
+    return;
+  }
+  const title = elements.releaseCreateForm.elements.namedItem("title").value;
+  if (!title.trim()) {
+    elements.releaseFormError.textContent = "发行标题不能为空。";
+    return;
+  }
+  const releaseDate = optionalExactFormValue(elements.releaseCreateForm, "releaseDate");
+  if (releaseDate && !/^\d{4}(?:-\d{2}){0,2}$/.test(releaseDate)) {
+    elements.releaseFormError.textContent = "发行日期应为 YYYY、YYYY-MM 或 YYYY-MM-DD。";
+    return;
+  }
+  const data = await runCatalogMutation(
+    elements.releaseCreateForm,
+    elements.releaseFormError,
+    CREATE_CATALOG_RELEASE_MUTATION,
+    {
+      artistId,
+      title,
+      edition: optionalExactFormValue(elements.releaseCreateForm, "edition"),
+      catalog: optionalExactFormValue(elements.releaseCreateForm, "catalog"),
+      releaseDate,
+      kind: elements.releaseCreateForm.elements.namedItem("kind").value,
+      notes: optionalExactFormValue(elements.releaseCreateForm, "notes"),
+    },
+  );
+  if (!data) return;
+  const release = data.createCatalogRelease;
+  elements.releaseDialog.close();
+  elements.releaseCreateForm.reset();
+  showToast(`发行「${release.title}」已登记`);
+  await selectArtist(artistId);
+});
+
+for (const button of document.querySelectorAll("[data-close-catalog-dialog]")) {
+  button.addEventListener("click", () => button.closest("dialog").close());
+}
 
 elements.artistSearchForm.addEventListener("submit", async (event) => {
   event.preventDefault();

@@ -549,3 +549,67 @@ async fn embedded_metadata_review_mutations_use_live_concurrency_contracts() {
         "2"
     );
 }
+
+#[tokio::test]
+async fn embedded_catalog_authoring_mutations_preserve_exact_artist_and_release_text() {
+    let database = connected_database().await;
+    Migrator::up(&database, None).await.unwrap();
+    let app = router(database, &config(None, false));
+    let exact_artist = " Artist（公式）・A〜B～C ";
+    let exact_title = " 作品・A〜B～C（初回） ";
+
+    let created_artist = execute_web_graphql(
+        &app,
+        web_query("CREATE_CATALOG_ARTIST_MUTATION"),
+        serde_json::json!({
+            "input": {
+                "displayName": exact_artist,
+                "sortName": "Artist",
+                "notes": "official spelling",
+            }
+        }),
+    )
+    .await;
+    assert!(created_artist.get("errors").is_none(), "{created_artist}");
+    let artist = &created_artist["data"]["createCatalogArtist"];
+    assert_eq!(artist["displayName"], exact_artist);
+    assert_eq!(artist["rowVersion"], "1");
+    let artist_id = artist["artistId"].as_str().unwrap().to_owned();
+
+    let created_release = execute_web_graphql(
+        &app,
+        web_query("CREATE_CATALOG_RELEASE_MUTATION"),
+        serde_json::json!({
+            "input": {
+                "artistId": artist_id.clone(),
+                "title": exact_title,
+                "edition": "初回限定盤（CD＋BD）",
+                "catalog": "TEST-0001",
+                "releaseDate": "2026-07",
+                "kind": "ALBUM",
+                "notes": "manual catalog entry",
+            }
+        }),
+    )
+    .await;
+    assert!(created_release.get("errors").is_none(), "{created_release}");
+    let release = &created_release["data"]["createCatalogRelease"];
+    assert_eq!(release["title"], exact_title);
+    assert_eq!(release["collectionState"], "MISSING");
+    assert_eq!(release["rowVersion"], "1");
+
+    let collection = execute_web_graphql(
+        &app,
+        web_query("COLLECTION_QUERY"),
+        serde_json::json!({ "artistId": artist_id, "limit": 10, "offset": 0 }),
+    )
+    .await;
+    assert_eq!(
+        collection["data"]["catalogArtistCollection"]["artist"]["displayName"],
+        exact_artist
+    );
+    assert_eq!(
+        collection["data"]["catalogArtistCollection"]["releases"][0]["title"],
+        exact_title
+    );
+}

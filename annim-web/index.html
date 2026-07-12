@@ -653,7 +653,10 @@
               <h1>艺人拉表</h1>
               <p>把官方发行列表与实际持有副本放在同一张表里，同时记录来源和音质。</p>
             </div>
-            <button class="secondary-action" type="button" data-refresh="artists">刷新艺人</button>
+            <div class="view-header__actions">
+              <button class="primary-action" id="create-artist-button" type="button">新建 Artist</button>
+              <button class="secondary-action" type="button" data-refresh="artists">刷新艺人</button>
+            </div>
           </header>
 
           <form class="search-bar" id="artist-search-form" role="search">
@@ -700,6 +703,77 @@
         <div class="dialog-actions">
           <button class="danger-action" id="forget-session" type="button">清除当前会话</button>
           <button class="primary-action" value="connect" type="submit">连接</button>
+        </div>
+      </form>
+    </dialog>
+
+    <dialog class="session-dialog catalog-dialog" id="artist-dialog">
+      <form id="artist-create-form">
+        <div class="dialog-heading">
+          <span class="eyebrow">Artist ledger</span>
+          <h2>新建 Artist</h2>
+          <p>名称按来源原文保存；系统不会 trim 或做 Unicode 归一化。</p>
+        </div>
+        <label for="artist-display-name">显示名称</label>
+        <input id="artist-display-name" name="displayName" type="text" autocomplete="off" required />
+        <label for="artist-sort-name">排序名称（可选）</label>
+        <input id="artist-sort-name" name="sortName" type="text" autocomplete="off" />
+        <label for="artist-notes">备注（可选）</label>
+        <textarea id="artist-notes" name="notes" rows="3"></textarea>
+        <p class="form-error" id="artist-form-error" role="alert"></p>
+        <div class="dialog-actions">
+          <button class="secondary-action" type="button" data-close-catalog-dialog>取消</button>
+          <button class="primary-action" type="submit">创建 Artist</button>
+        </div>
+      </form>
+    </dialog>
+
+    <dialog class="session-dialog catalog-dialog" id="release-dialog">
+      <form id="release-create-form">
+        <div class="dialog-heading">
+          <span class="eyebrow">Release ledger</span>
+          <h2>登记发行</h2>
+          <p id="release-dialog-artist">发行会归入当前 Artist 的拉表。</p>
+        </div>
+        <label for="release-title">发行标题</label>
+        <input id="release-title" name="title" type="text" autocomplete="off" required />
+        <div class="dialog-field-grid">
+          <label>
+            <span>版本（可选）</span>
+            <input id="release-edition" name="edition" type="text" autocomplete="off" />
+          </label>
+          <label>
+            <span>品番（可选）</span>
+            <input id="release-catalog" name="catalog" type="text" autocomplete="off" />
+          </label>
+          <label>
+            <span>发行日期（可选）</span>
+            <input
+              id="release-date"
+              name="releaseDate"
+              type="text"
+              placeholder="YYYY / YYYY-MM / YYYY-MM-DD"
+              autocomplete="off"
+            />
+          </label>
+          <label>
+            <span>发行类型</span>
+            <select id="release-kind" name="kind">
+              <option value="ALBUM">Album</option>
+              <option value="SINGLE">Single</option>
+              <option value="EP">EP</option>
+              <option value="SOUNDTRACK">Soundtrack</option>
+              <option value="COMPILATION">Compilation</option>
+              <option value="OTHER">Other</option>
+            </select>
+          </label>
+        </div>
+        <label for="release-notes">备注（可选）</label>
+        <textarea id="release-notes" name="notes" rows="3"></textarea>
+        <p class="form-error" id="release-form-error" role="alert"></p>
+        <div class="dialog-actions">
+          <button class="secondary-action" type="button" data-close-catalog-dialog>取消</button>
+          <button class="primary-action" type="submit">登记发行</button>
         </div>
       </form>
     </dialog>
