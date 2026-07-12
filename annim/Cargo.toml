@@ -43,6 +43,7 @@ constant_time_eq = "0.4.2"
 chrono = "0.4.45"
 serde.workspace = true
 thiserror.workspace = true
+url = "2.5.8"
 
 # Search
 tantivy = "0.25.0"
@@ -51,6 +52,9 @@ lindera-tantivy = { version = "4.0.0", features = ["embed-ipadic"] }
 
 rmp-serde = "1.3.1"
 base64 = "0.22.1"
+
+[dev-dependencies]
+tower = { version = "0.5", features = ["util"] }
 
 [features]
 default = ["postgres"]
