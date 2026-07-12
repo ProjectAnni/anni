@@ -6,6 +6,71 @@ use url::Url;
 const PREFERRED_APPLE_ARTWORK_SIZE: u16 = 10_000;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum CoverMediaType {
+    Jpeg,
+    Png,
+    Webp,
+}
+
+impl CoverMediaType {
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Jpeg => "image/jpeg",
+            Self::Png => "image/png",
+            Self::Webp => "image/webp",
+        }
+    }
+
+    pub const fn extension(self) -> &'static str {
+        match self {
+            Self::Jpeg => "jpg",
+            Self::Png => "png",
+            Self::Webp => "webp",
+        }
+    }
+}
+
+impl fmt::Display for CoverMediaType {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter.write_str(self.as_str())
+    }
+}
+
+impl FromStr for CoverMediaType {
+    type Err = UnknownCoverMediaType;
+
+    fn from_str(value: &str) -> Result<Self, Self::Err> {
+        match value {
+            "image/jpeg" => Ok(Self::Jpeg),
+            "image/png" => Ok(Self::Png),
+            "image/webp" => Ok(Self::Webp),
+            _ => Err(UnknownCoverMediaType(value.to_owned())),
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Error)]
+#[error("unsupported cover media type: {0}")]
+pub struct UnknownCoverMediaType(String);
+
+/// Return the only storage key form accepted for verified cover masters.
+/// The caller supplies a SHA-256 digest calculated from the encoded bytes.
+pub fn cover_asset_storage_key(content_sha256: &[u8; 32], media_type: CoverMediaType) -> String {
+    let mut encoded = String::with_capacity(64);
+    for byte in content_sha256 {
+        use std::fmt::Write as _;
+        write!(&mut encoded, "{byte:02x}").expect("writing to String cannot fail");
+    }
+    format!(
+        "sha256/{}/{}/{}.{}",
+        &encoded[..2],
+        &encoded[2..4],
+        encoded,
+        media_type.extension()
+    )
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum CoverCandidateState {
     Discovered,
     Queued,
@@ -291,5 +356,10 @@ mod tests {
         assert!(CoverCandidateState::Fetching.can_transition_to(CoverCandidateState::Queued));
         assert!(CoverCandidateState::Fetching.can_transition_to(CoverCandidateState::Verified));
         assert!(!CoverCandidateState::Verified.can_transition_to(CoverCandidateState::Queued));
+
+        assert_eq!(
+            cover_asset_storage_key(&[0xab; 32], CoverMediaType::Jpeg),
+            format!("sha256/ab/ab/{}.jpg", "ab".repeat(32))
+        );
     }
 }
