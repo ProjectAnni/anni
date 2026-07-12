@@ -948,6 +948,7 @@ impl CatalogSyncService {
         expected: CatalogRowVersion,
         lease_token: Uuid,
         error_message: &str,
+        resume_cursor: Option<String>,
         not_before: DateTimeUtc,
     ) -> Result<CatalogSyncRunSnapshot, CatalogSyncError> {
         if error_message.is_empty() {
@@ -977,6 +978,10 @@ impl CatalogSyncService {
             .col_expr(
                 catalog_sync_run::Column::ErrorMessage,
                 Expr::value(Some(stored_error)),
+            )
+            .col_expr(
+                catalog_sync_run::Column::RequestedCursor,
+                Expr::value(resume_cursor),
             )
             .col_expr(
                 catalog_sync_run::Column::LeaseToken,
@@ -2298,6 +2303,7 @@ mod tests {
                 renewed.row_version,
                 renewed.lease_token,
                 "GET https://artist.example?token=must-not-persist failed",
+                Some("resume-cursor-secret".to_owned()),
                 not_before,
             )
             .await
@@ -2320,6 +2326,11 @@ mod tests {
             .expect("scheduled retry becomes claimable");
         assert_eq!(third.run_id, renewed.run_id);
         assert_eq!(third.attempt_count, 3);
+        assert_eq!(
+            third.requested_cursor.as_deref(),
+            Some("resume-cursor-secret")
+        );
+        assert!(!format!("{third:?}").contains("resume-cursor-secret"));
     }
 
     #[test]
