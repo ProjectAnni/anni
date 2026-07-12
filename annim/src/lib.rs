@@ -9,3 +9,4 @@ pub mod ingest;
 pub mod migrator;
 pub mod search;
 pub mod server;
+mod web;

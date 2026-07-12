@@ -5,7 +5,8 @@ use async_graphql_axum::{GraphQLProtocol, GraphQLRequest, GraphQLResponse, Graph
 use axum::{
     extract::{Request, State, WebSocketUpgrade},
     http::{
-        header::{AUTHORIZATION, CONTENT_TYPE, ORIGIN, WWW_AUTHENTICATE},
+        header::{AUTHORIZATION, CONTENT_TYPE, HOST, ORIGIN, WWW_AUTHENTICATE},
+        uri::Authority,
         HeaderMap, HeaderValue, Method, StatusCode,
     },
     middleware::{self, Next},
@@ -16,11 +17,13 @@ use axum::{
 use sea_orm::DatabaseConnection;
 use serde::Serialize;
 use tower_http::cors::{AllowOrigin, CorsLayer};
+use url::Url;
 
 use crate::{
     auth::{on_connection_init, AuthConfig, AuthenticatedAdmin},
     config::ServerConfig,
     graphql::MetadataSchema,
+    web,
 };
 
 const BEARER_CHALLENGE: HeaderValue = HeaderValue::from_static("Bearer realm=\"annim\"");
@@ -59,10 +62,54 @@ impl OriginPolicy {
         let mut values = headers.get_all(ORIGIN).iter();
         match (values.next(), values.next()) {
             (None, None) => true,
-            (Some(origin), None) => self.allowed.iter().any(|allowed| allowed == origin),
+            (Some(origin), None) => {
+                self.allowed.iter().any(|allowed| allowed == origin)
+                    || origin_matches_host(origin, headers.get(HOST))
+            }
             _ => false,
         }
     }
+}
+
+/// The embedded client is served by Annim itself, so its browser requests are
+/// allowed when the Origin authority matches the HTTP Host authority. This
+/// remains fail-closed for cross-origin callers and works behind a reverse
+/// proxy without trusting forwarded-host headers.
+fn origin_matches_host(origin: &HeaderValue, host: Option<&HeaderValue>) -> bool {
+    let Some(host) = host.and_then(|value| value.to_str().ok()) else {
+        return false;
+    };
+    let Ok(authority) = host.parse::<Authority>() else {
+        return false;
+    };
+    let Some(origin) = origin
+        .to_str()
+        .ok()
+        .and_then(|value| Url::parse(value).ok())
+    else {
+        return false;
+    };
+    if !matches!(origin.scheme(), "http" | "https")
+        || !origin.username().is_empty()
+        || origin.password().is_some()
+        || origin.query().is_some()
+        || origin.fragment().is_some()
+        || origin.path() != "/"
+    {
+        return false;
+    }
+    let Some(origin_host) = origin.host_str() else {
+        return false;
+    };
+    let origin_host = origin_host.trim_matches(['[', ']']);
+    let request_host = authority.host().trim_matches(['[', ']']);
+    if !origin_host.eq_ignore_ascii_case(request_host) {
+        return false;
+    }
+    authority.port_u16().map_or_else(
+        || origin.port().is_none(),
+        |port| origin.port_or_known_default() == Some(port),
+    )
 }
 
 pub fn build_router(state: ServerState, config: &ServerConfig) -> Router {
@@ -82,6 +129,10 @@ pub fn build_router(state: ServerState, config: &ServerConfig) -> Router {
     Router::new()
         .route("/", root)
         .route("/ws", get(graphql_ws_handler))
+        .route("/app", get(web::index))
+        .route("/app/", get(web::index))
+        .route("/app/styles.css", get(web::styles))
+        .route("/app/app.js", get(web::app))
         .route("/health/live", get(liveness))
         .route("/health/ready", get(readiness))
         .with_state(state)

@@ -4,25 +4,28 @@ use annim::{
     auth::AuthConfig,
     config::ServerConfig,
     graphql::build_schema,
+    migrator::Migrator,
     server::{build_router, ServerState},
 };
 use axum::{
-    body::Body,
+    body::{to_bytes, Body},
     http::{
         header::{
             ACCESS_CONTROL_ALLOW_ORIGIN, ACCESS_CONTROL_REQUEST_HEADERS,
-            ACCESS_CONTROL_REQUEST_METHOD, AUTHORIZATION, CACHE_CONTROL, CONTENT_TYPE, ORIGIN,
-            WWW_AUTHENTICATE,
+            ACCESS_CONTROL_REQUEST_METHOD, AUTHORIZATION, CACHE_CONTROL, CONTENT_TYPE, HOST,
+            ORIGIN, WWW_AUTHENTICATE,
         },
         Method, Request, StatusCode,
     },
     Router,
 };
-use sea_orm::{ConnectOptions, Database, DatabaseConnection};
+use sea_orm::{prelude::Uuid, ConnectOptions, Database, DatabaseConnection};
+use sea_orm_migration::MigratorTrait;
 use tower::ServiceExt;
 
 const TOKEN: &str = "0123456789abcdef0123456789abcdef";
 const ALLOWED_ORIGIN: &str = "https://ui.example";
+const WEB_APP: &str = include_str!("../../annim-web/app.js");
 
 async fn connected_database() -> DatabaseConnection {
     let mut options = ConnectOptions::new("sqlite::memory:");
@@ -59,6 +62,16 @@ fn graphql_request(origin: Option<&str>, authorization: Option<&str>) -> Request
     builder
         .body(Body::from(r#"{"query":"{ __typename }"}"#))
         .unwrap()
+}
+
+fn web_query(name: &str) -> &str {
+    let marker = format!("const {name} = `");
+    let start = WEB_APP.find(&marker).expect("embedded query must exist") + marker.len();
+    let remainder = &WEB_APP[start..];
+    let end = remainder
+        .find("`;\n")
+        .expect("embedded query must end with a template literal");
+    &remainder[..end]
 }
 
 #[tokio::test]
@@ -245,4 +258,134 @@ async fn exact_origin_policy_is_shared_by_http_cors_and_websocket_handshakes() {
         .await
         .unwrap();
     assert_ne!(allowed_ws_route.status(), StatusCode::FORBIDDEN);
+}
+
+#[tokio::test]
+async fn embedded_web_client_is_public_but_locked_to_same_origin_assets() {
+    let app = router(connected_database().await, &config(None, false));
+
+    for (path, content_type) in [
+        ("/app", "text/html; charset=utf-8"),
+        ("/app/", "text/html; charset=utf-8"),
+        ("/app/styles.css", "text/css; charset=utf-8"),
+        ("/app/app.js", "text/javascript; charset=utf-8"),
+    ] {
+        let response = app
+            .clone()
+            .oneshot(Request::get(path).body(Body::empty()).unwrap())
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::OK, "{path}");
+        assert_eq!(
+            response.headers().get(CONTENT_TYPE).unwrap(),
+            content_type,
+            "{path}"
+        );
+        assert_eq!(response.headers().get(CACHE_CONTROL).unwrap(), "no-store");
+        assert_eq!(
+            response.headers().get("x-content-type-options").unwrap(),
+            "nosniff"
+        );
+        let policy = response
+            .headers()
+            .get("content-security-policy")
+            .unwrap()
+            .to_str()
+            .unwrap();
+        assert!(policy.contains("default-src 'none'"));
+        assert!(policy.contains("script-src 'self'"));
+        assert!(policy.contains("connect-src 'self'"));
+
+        let body = to_bytes(response.into_body(), 2 * 1024 * 1024)
+            .await
+            .unwrap();
+        assert!(!body.is_empty(), "{path}");
+    }
+
+    let missing = app
+        .clone()
+        .oneshot(Request::get("/app/unknown.js").body(Body::empty()).unwrap())
+        .await
+        .unwrap();
+    assert_eq!(missing.status(), StatusCode::NOT_FOUND);
+
+    let missing_host_graphql = app
+        .clone()
+        .oneshot(graphql_request(
+            Some("http://127.0.0.1:8000"),
+            Some(&format!("Bearer {TOKEN}")),
+        ))
+        .await
+        .unwrap();
+    assert_eq!(missing_host_graphql.status(), StatusCode::FORBIDDEN);
+
+    let same_origin_graphql = app
+        .oneshot(
+            Request::builder()
+                .method(Method::POST)
+                .uri("/")
+                .header(HOST, "127.0.0.1:8000")
+                .header(ORIGIN, "http://127.0.0.1:8000")
+                .header(AUTHORIZATION, format!("Bearer {TOKEN}"))
+                .header(CONTENT_TYPE, "application/json")
+                .body(Body::from(r#"{"query":"{ __typename }"}"#))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(same_origin_graphql.status(), StatusCode::OK);
+}
+
+#[tokio::test]
+async fn embedded_client_queries_match_the_live_graphql_schema() {
+    let database = connected_database().await;
+    Migrator::up(&database, None).await.unwrap();
+    let app = router(database, &config(None, false));
+    let missing_id = Uuid::new_v4().to_string();
+
+    for (name, variables) in [
+        (
+            "INTAKE_QUERY",
+            serde_json::json!({ "limit": 1, "offset": 0 }),
+        ),
+        (
+            "INGEST_REVIEW_QUERY",
+            serde_json::json!({ "jobId": missing_id.clone() }),
+        ),
+        (
+            "ARTISTS_QUERY",
+            serde_json::json!({ "search": null, "limit": 1, "offset": 0 }),
+        ),
+        (
+            "COLLECTION_QUERY",
+            serde_json::json!({ "artistId": missing_id, "limit": 1, "offset": 0 }),
+        ),
+    ] {
+        let body = serde_json::json!({
+            "query": web_query(name),
+            "variables": variables,
+        });
+        let response = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .method(Method::POST)
+                    .uri("/")
+                    .header(HOST, "127.0.0.1:8000")
+                    .header(ORIGIN, "http://127.0.0.1:8000")
+                    .header(AUTHORIZATION, format!("Bearer {TOKEN}"))
+                    .header(CONTENT_TYPE, "application/json")
+                    .body(Body::from(body.to_string()))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::OK, "{name}");
+        let response = to_bytes(response.into_body(), 1024 * 1024).await.unwrap();
+        let response: serde_json::Value = serde_json::from_slice(&response).unwrap();
+        assert!(
+            response.get("errors").is_none(),
+            "{name} failed: {response}"
+        );
+    }
 }
