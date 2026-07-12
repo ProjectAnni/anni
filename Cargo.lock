@@ -475,6 +475,7 @@ name = "annim"
 version = "0.1.0"
 dependencies = [
  "anni-catalog",
+ "anni-cover-worker",
  "anni-ingest",
  "anni-metadata",
  "anyhow",

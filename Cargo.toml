@@ -28,6 +28,7 @@ license = "Apache-2.0"
 [workspace.dependencies]
 anni-common = { version = "0.2.0", path = "./anni-common" }
 anni-catalog = { path = "./anni-catalog" }
+anni-cover-worker = { path = "./anni-cover-worker" }
 anni-ingest = { path = "./anni-ingest" }
 anni-metadata = { path = "./anni-metadata" }
 anni-split = { path = "./anni-split" }
