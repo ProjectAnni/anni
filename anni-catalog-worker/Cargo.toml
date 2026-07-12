@@ -15,29 +15,44 @@ chrono = "0.4.45"
 futures-util = "0.3"
 httpdate = "1.0.3"
 reqwest = { workspace = true, features = ["stream"] }
+sea-orm = { version = "1.1.20", default-features = false, features = [
+    "macros",
+    "runtime-tokio-rustls",
+    "with-chrono",
+    "with-uuid",
+] }
+sea-orm-migration = { version = "1.1.20", default-features = false, features = [
+    "runtime-tokio-rustls",
+    "with-uuid",
+] }
 serde.workspace = true
 serde_json = { workspace = true, features = ["raw_value"] }
 thiserror.workspace = true
-tokio = { version = "1", features = ["macros", "rt", "sync", "time"] }
+tokio = { version = "1", features = [
+    "macros",
+    "rt-multi-thread",
+    "signal",
+    "sync",
+    "time",
+] }
+tracing = "0.1.44"
+tracing-subscriber = { version = "0.3.23", features = ["env-filter"] }
 unic-langid = "0.9.6"
 url = "2.5.8"
 uuid.workspace = true
 
 [features]
 default = ["postgres"]
-sqlite = ["annim/sqlite"]
-postgres = ["annim/postgres"]
+sqlite = [
+    "annim/sqlite",
+    "sea-orm/sqlx-sqlite",
+    "sea-orm-migration/sqlx-sqlite",
+]
+postgres = [
+    "annim/postgres",
+    "sea-orm/sqlx-postgres",
+    "sea-orm-migration/sqlx-postgres",
+]
 
 [dev-dependencies]
-sea-orm = { version = "1.1.20", default-features = false, features = [
-    "macros",
-    "runtime-tokio-rustls",
-    "sqlx-sqlite",
-    "with-chrono",
-    "with-uuid",
-] }
-sea-orm-migration = { version = "1.1.20", default-features = false, features = [
-    "runtime-tokio-rustls",
-    "sqlx-sqlite",
-    "with-uuid",
-] }
+tempfile = "3.27.0"
