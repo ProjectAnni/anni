@@ -74,6 +74,32 @@ fn web_query(name: &str) -> &str {
     &remainder[..end]
 }
 
+async fn execute_web_graphql(
+    app: &Router,
+    query: &str,
+    variables: serde_json::Value,
+) -> serde_json::Value {
+    let body = serde_json::json!({ "query": query, "variables": variables });
+    let response = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .method(Method::POST)
+                .uri("/")
+                .header(HOST, "127.0.0.1:8000")
+                .header(ORIGIN, "http://127.0.0.1:8000")
+                .header(AUTHORIZATION, format!("Bearer {TOKEN}"))
+                .header(CONTENT_TYPE, "application/json")
+                .body(Body::from(body.to_string()))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::OK);
+    let response = to_bytes(response.into_body(), 1024 * 1024).await.unwrap();
+    serde_json::from_slice(&response).unwrap()
+}
+
 #[tokio::test]
 async fn graphql_auth_debug_ui_and_health_have_fail_closed_transport_statuses() {
     let database = connected_database().await;
@@ -361,31 +387,165 @@ async fn embedded_client_queries_match_the_live_graphql_schema() {
             serde_json::json!({ "artistId": missing_id, "limit": 1, "offset": 0 }),
         ),
     ] {
-        let body = serde_json::json!({
-            "query": web_query(name),
-            "variables": variables,
-        });
-        let response = app
-            .clone()
-            .oneshot(
-                Request::builder()
-                    .method(Method::POST)
-                    .uri("/")
-                    .header(HOST, "127.0.0.1:8000")
-                    .header(ORIGIN, "http://127.0.0.1:8000")
-                    .header(AUTHORIZATION, format!("Bearer {TOKEN}"))
-                    .header(CONTENT_TYPE, "application/json")
-                    .body(Body::from(body.to_string()))
-                    .unwrap(),
-            )
-            .await
-            .unwrap();
-        assert_eq!(response.status(), StatusCode::OK, "{name}");
-        let response = to_bytes(response.into_body(), 1024 * 1024).await.unwrap();
-        let response: serde_json::Value = serde_json::from_slice(&response).unwrap();
+        let response = execute_web_graphql(&app, web_query(name), variables).await;
         assert!(
             response.get("errors").is_none(),
             "{name} failed: {response}"
         );
     }
+}
+
+#[tokio::test]
+async fn embedded_metadata_review_mutations_use_live_concurrency_contracts() {
+    let database = connected_database().await;
+    Migrator::up(&database, None).await.unwrap();
+    let app = router(database, &config(None, false));
+    let job_id = Uuid::new_v4().to_string();
+    let candidate_id = Uuid::new_v4().to_string();
+    let exact = "曲名（Booklet） / 曲名(Booklet)・A〜B～C";
+
+    let created = execute_web_graphql(
+        &app,
+        "mutation WebTestCreate($jobId: UUID!) { createIngestJob(jobId: $jobId) { rowVersion } }",
+        serde_json::json!({ "jobId": job_id.clone() }),
+    )
+    .await;
+    assert_eq!(created["data"]["createIngestJob"]["rowVersion"], "1");
+
+    let reviewing = execute_web_graphql(
+        &app,
+        r#"mutation WebTestBeginReview($jobId: UUID!) {
+            executeIngestJobCommand(input: {
+                jobId: $jobId
+                expectedRowVersion: "1"
+                command: { beginReview: EXECUTE }
+            }) { rowVersion }
+        }"#,
+        serde_json::json!({ "jobId": job_id.clone() }),
+    )
+    .await;
+    assert_eq!(
+        reviewing["data"]["executeIngestJobCommand"]["rowVersion"],
+        "2"
+    );
+
+    let configured = execute_web_graphql(
+        &app,
+        r#"mutation WebTestConfigure($jobId: UUID!) {
+            editIngestMetadata(input: {
+                jobId: $jobId
+                expectedRowVersion: "2"
+                expectedRevision: "1"
+                edit: { configureReview: { profile: STREAMING, trackCounts: [1] } }
+            }) { job { rowVersion } }
+        }"#,
+        serde_json::json!({ "jobId": job_id.clone() }),
+    )
+    .await;
+    assert_eq!(
+        configured["data"]["editIngestMetadata"]["job"]["rowVersion"],
+        "3"
+    );
+
+    let added = execute_web_graphql(
+        &app,
+        r#"mutation WebTestAdd($jobId: UUID!, $candidateId: UUID!, $exact: String!) {
+            editIngestMetadata(input: {
+                jobId: $jobId
+                expectedRowVersion: "3"
+                expectedRevision: "1"
+                edit: { addCandidate: {
+                    candidateId: $candidateId
+                    field: { scope: ALBUM, field: TITLE }
+                    value: { text: $exact }
+                    evidence: {
+                        sourceKind: CD_BOOKLET
+                        locator: "booklet.pdf#page=2"
+                        method: MANUAL_TRANSCRIPTION
+                    }
+                    confidenceBasisPoints: 10000
+                } }
+            }) { job { rowVersion } }
+        }"#,
+        serde_json::json!({
+            "jobId": job_id.clone(),
+            "candidateId": candidate_id.clone(),
+            "exact": exact,
+        }),
+    )
+    .await;
+    assert_eq!(
+        added["data"]["editIngestMetadata"]["job"]["rowVersion"],
+        "4"
+    );
+
+    let accepted = execute_web_graphql(
+        &app,
+        web_query("EDIT_METADATA_MUTATION"),
+        serde_json::json!({
+            "input": {
+                "jobId": job_id.clone(),
+                "expectedRowVersion": "4",
+                "expectedRevision": "1",
+                "edit": { "acceptCandidate": { "candidateId": candidate_id } },
+            }
+        }),
+    )
+    .await;
+    assert_eq!(
+        accepted["data"]["editIngestMetadata"]["job"]["rowVersion"],
+        "5"
+    );
+
+    let review = execute_web_graphql(
+        &app,
+        web_query("INGEST_REVIEW_QUERY"),
+        serde_json::json!({ "jobId": job_id.clone() }),
+    )
+    .await;
+    let candidate = &review["data"]["ingestMetadataDraft"]["draft"]["candidates"][0];
+    assert_eq!(candidate["value"]["text"], exact);
+    assert_eq!(candidate["decision"], "ACCEPTED");
+
+    let incomplete = execute_web_graphql(
+        &app,
+        web_query("APPROVE_METADATA_MUTATION"),
+        serde_json::json!({
+            "input": {
+                "jobId": job_id.clone(),
+                "expectedRowVersion": "5",
+                "expectedRevision": "1",
+            }
+        }),
+    )
+    .await;
+    assert_eq!(
+        incomplete["errors"][0]["extensions"]["code"],
+        "INGEST_METADATA_INCOMPLETE"
+    );
+
+    let revised = execute_web_graphql(
+        &app,
+        web_query("REVISE_METADATA_MUTATION"),
+        serde_json::json!({
+            "input": {
+                "jobId": job_id,
+                "expectedRowVersion": "5",
+                "expectedRevision": "1",
+            }
+        }),
+    )
+    .await;
+    assert_eq!(
+        revised["data"]["reviseIngestMetadata"]["job"]["rowVersion"],
+        "6"
+    );
+    assert_eq!(
+        revised["data"]["reviseIngestMetadata"]["job"]["metadataRevision"],
+        "2"
+    );
+    assert_eq!(
+        revised["data"]["reviseIngestMetadata"]["draft"]["revision"],
+        "2"
+    );
 }

@@ -1465,6 +1465,90 @@ code {
   margin-top: 4px;
   color: var(--ink-muted);
   font-size: 10px;
+  overflow-wrap: anywhere;
+}
+
+.review-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 16px 0 18px;
+  border-bottom: 1px solid var(--line);
+}
+
+.review-actions p {
+  margin: 0;
+  color: var(--ink-muted);
+  font-size: 11px;
+  line-height: 1.6;
+}
+
+.missing-fields {
+  padding: 12px 0;
+  border-bottom: 1px solid var(--line);
+  color: var(--ink-muted);
+  font-size: 10px;
+}
+
+.missing-fields summary {
+  cursor: pointer;
+  font-family: var(--utility);
+  font-weight: 700;
+}
+
+.missing-fields ul {
+  display: grid;
+  gap: 5px;
+  margin: 10px 0 0;
+  padding-left: 18px;
+}
+
+.candidate-row__actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 12px;
+  padding-top: 10px;
+  border-top: 1px solid var(--line);
+}
+
+.candidate-action {
+  min-height: 32px;
+  padding: 6px 12px;
+  border: 1px solid var(--line-strong);
+  background: transparent;
+  cursor: pointer;
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.candidate-action--accept {
+  color: var(--verified);
+}
+
+.candidate-action--accept:hover {
+  border-color: var(--verified);
+  background: rgba(31, 123, 93, 0.07);
+}
+
+.candidate-action--reject {
+  color: var(--danger);
+}
+
+.candidate-action--reject:hover {
+  border-color: var(--danger);
+  background: rgba(179, 61, 69, 0.06);
+}
+
+.review-actions button:disabled,
+.candidate-action:disabled {
+  opacity: 0.48;
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
+}
+
+.drawer-content[aria-busy="true"] button {
+  cursor: wait;
 }
 
 .search-bar {

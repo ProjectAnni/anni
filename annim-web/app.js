@@ -7,6 +7,7 @@ const state = {
   artists: [],
   selectedArtistId: null,
   view: "workflow",
+  reviewMutationPending: false,
 };
 
 const elements = {
@@ -185,6 +186,51 @@ const COLLECTION_QUERY = `
           notes
           acquiredAt
         }
+      }
+    }
+  }
+`;
+
+const EDIT_METADATA_MUTATION = `
+  mutation WebEditIngestMetadata($input: EditIngestMetadataInput!) {
+    editIngestMetadata(input: $input) {
+      job {
+        jobId
+        rowVersion
+      }
+      draft {
+        revision
+      }
+    }
+  }
+`;
+
+const APPROVE_METADATA_MUTATION = `
+  mutation WebApproveIngestMetadata($input: IngestMetadataRevisionActionInput!) {
+    approveIngestMetadata(input: $input) {
+      job {
+        jobId
+        rowVersion
+        approvedRevision
+      }
+      draft {
+        revision
+        complete
+      }
+    }
+  }
+`;
+
+const REVISE_METADATA_MUTATION = `
+  mutation WebReviseIngestMetadata($input: IngestMetadataRevisionActionInput!) {
+    reviseIngestMetadata(input: $input) {
+      job {
+        jobId
+        rowVersion
+        metadataRevision
+      }
+      draft {
+        revision
       }
     }
   }
@@ -485,11 +531,53 @@ async function ensureIntakeLoaded(force = false) {
   }
 }
 
-function candidateNode(candidate) {
+function reviewIsEditable(job, draft) {
+  return job.state === "REVIEWING" && job.approvedRevision !== draft.revision;
+}
+
+async function runReviewMutation({ query, input, jobId, successMessage }) {
+  if (state.reviewMutationPending) return;
+  state.reviewMutationPending = true;
+  elements.ingestDetailContent.setAttribute("aria-busy", "true");
+  const actions = Array.from(elements.ingestDetailContent.querySelectorAll("button"));
+  const priorDisabledStates = actions.map((action) => action.disabled);
+  for (const action of actions) {
+    action.disabled = true;
+  }
+  try {
+    await graphql(query, { input });
+    showToast(successMessage);
+    await openIngestDetail(jobId);
+    await ensureIntakeLoaded(true);
+  } catch (error) {
+    const conflict = error instanceof GraphqlRequestError && error.code === "INGEST_JOB_CONFLICT";
+    showToast(conflict ? "审阅稿已被其他会话更新，已重新载入。" : error.message, "error");
+    if (error instanceof SessionRequiredError) {
+      openSessionDialog(error.message);
+    } else {
+      await openIngestDetail(jobId);
+    }
+  } finally {
+    state.reviewMutationPending = false;
+    elements.ingestDetailContent.removeAttribute("aria-busy");
+    actions.forEach((action, index) => {
+      if (action.isConnected) action.disabled = priorDisabledStates[index];
+    });
+  }
+}
+
+function candidateNode(candidate, job, draft) {
   const decision = candidate.recommended
     ? `${humanizeEnum(candidate.decision)} · 推荐`
     : humanizeEnum(candidate.decision);
-  return node("article", { className: "candidate-row" }, [
+  const evidence = [
+    humanizeEnum(candidate.evidence.sourceKind),
+    humanizeEnum(candidate.evidence.method),
+    candidate.evidence.locator,
+    candidate.evidence.detail,
+    `${(candidate.confidenceBasisPoints / 100).toFixed(2)}%`,
+  ].filter(Boolean);
+  const article = node("article", { className: "candidate-row" }, [
     node("div", { className: "candidate-row__head" }, [
       node("span", { className: "candidate-row__field", text: formatField(candidate.field) }),
       node("span", { className: "candidate-row__decision", text: decision }),
@@ -497,8 +585,127 @@ function candidateNode(candidate) {
     node("div", { className: "candidate-row__value", text: formatCandidateValue(candidate.value) }),
     node("div", {
       className: "candidate-row__source",
-      text: `${humanizeEnum(candidate.evidence.sourceKind)} · ${candidate.evidence.locator} · ${(candidate.confidenceBasisPoints / 100).toFixed(2)}%`,
+      text: evidence.join(" · "),
     }),
+  ]);
+
+  if (reviewIsEditable(job, draft)) {
+    const accept = node("button", {
+      className: "candidate-action candidate-action--accept",
+      text: candidate.decision === "ACCEPTED" ? "已接受" : "接受",
+      attributes: {
+        type: "button",
+        disabled: candidate.decision === "ACCEPTED" ? "" : null,
+      },
+    });
+    const reject = node("button", {
+      className: "candidate-action candidate-action--reject",
+      text: candidate.decision === "REJECTED" ? "已拒绝" : "拒绝",
+      attributes: {
+        type: "button",
+        disabled: candidate.decision === "REJECTED" ? "" : null,
+      },
+    });
+    accept.addEventListener("click", () =>
+      void runReviewMutation({
+        query: EDIT_METADATA_MUTATION,
+        input: {
+          jobId: job.jobId,
+          expectedRowVersion: job.rowVersion,
+          expectedRevision: draft.revision,
+          edit: { acceptCandidate: { candidateId: candidate.candidateId } },
+        },
+        jobId: job.jobId,
+        successMessage: "候选值已接受",
+      }),
+    );
+    reject.addEventListener("click", () =>
+      void runReviewMutation({
+        query: EDIT_METADATA_MUTATION,
+        input: {
+          jobId: job.jobId,
+          expectedRowVersion: job.rowVersion,
+          expectedRevision: draft.revision,
+          edit: { rejectCandidate: { candidateId: candidate.candidateId } },
+        },
+        jobId: job.jobId,
+        successMessage: "候选值已拒绝",
+      }),
+    );
+    article.append(node("div", { className: "candidate-row__actions" }, [accept, reject]));
+  }
+  return article;
+}
+
+function reviewActions(job, draft) {
+  const actions = node("div", { className: "review-actions" });
+  const currentApproved = job.approvedRevision === draft.revision;
+
+  if (reviewIsEditable(job, draft)) {
+    const approve = node("button", {
+      className: "primary-action",
+      text: draft.complete ? "批准此 revision" : "必填项尚未完成",
+      attributes: { type: "button", disabled: draft.complete ? null : "" },
+    });
+    approve.addEventListener("click", () =>
+      void runReviewMutation({
+        query: APPROVE_METADATA_MUTATION,
+        input: {
+          jobId: job.jobId,
+          expectedRowVersion: job.rowVersion,
+          expectedRevision: draft.revision,
+        },
+        jobId: job.jobId,
+        successMessage: `Metadata revision ${draft.revision} 已批准`,
+      }),
+    );
+    actions.append(approve);
+  }
+
+  if (
+    currentApproved &&
+    ["REVIEWING", "PLANNED", "READY_TO_COMMIT", "QUARANTINED"].includes(job.state)
+  ) {
+    const revise = node("button", {
+      className: "secondary-action",
+      text: "创建新 revision",
+      attributes: { type: "button" },
+    });
+    revise.addEventListener("click", () =>
+      void runReviewMutation({
+        query: REVISE_METADATA_MUTATION,
+        input: {
+          jobId: job.jobId,
+          expectedRowVersion: job.rowVersion,
+          expectedRevision: draft.revision,
+        },
+        jobId: job.jobId,
+        successMessage: "已创建新的元数据 revision",
+      }),
+    );
+    actions.append(revise);
+  }
+
+  if (!actions.childElementCount) {
+    actions.append(
+      node("p", {
+        text: currentApproved
+          ? "当前 revision 已冻结；任务进入安全检查点后才能修订。"
+          : "当前任务状态不允许编辑元数据。",
+      }),
+    );
+  }
+  return actions;
+}
+
+function missingFieldsNode(draft) {
+  return node("details", { className: "missing-fields" }, [
+    node("summary", { text: `缺失字段 ${draft.missingFields.length}` }),
+    node(
+      "ul",
+      {},
+      draft.missingFields.map((field) => node("li", { text: formatField(field) })),
+    ),
   ]);
 }
 
@@ -548,16 +755,18 @@ function renderIngestDetail(data) {
           node("h2", { text: `Metadata revision ${draft.revision}` }),
           node("p", {
             text: draft.requirementsConfigured
-              ? `必填完成 ${accepted} / ${total} · ${draft.complete ? "可以批准" : "仍有缺失"}`
+              ? `${humanizeEnum(draft.profile)} · ${draft.trackCounts.join(" + ")} tracks · 必填完成 ${accepted} / ${total} · ${draft.complete ? "可以批准" : "仍有缺失"}`
               : "尚未配置 CD / 流媒体审阅 profile 与轨道布局",
           }),
         ]),
       ]),
+      reviewActions(job, draft),
+      draft.missingFields.length ? missingFieldsNode(draft) : null,
       node(
         "div",
         { className: "candidate-list" },
         draft.candidates.length
-          ? draft.candidates.map(candidateNode)
+          ? draft.candidates.map((candidate) => candidateNode(candidate, job, draft))
           : [
               node("div", { className: "empty-state" }, [
                 node("strong", { text: "没有候选证据" }),
