@@ -1,4 +1,5 @@
 mod catalog;
+mod catalog_sync;
 mod cover;
 mod cursor;
 mod ingest;
@@ -32,7 +33,7 @@ use types::{
 
 use crate::{
     auth::AdminGuard,
-    catalog::{CatalogRepository, CatalogService},
+    catalog::{CatalogRepository, CatalogService, CatalogSyncService},
     cover::{CoverRepository, CoverService},
     entities::{album, album_tag_relation, disc, helper::now, tag_info, tag_relation, track},
     ingest::{IngestJobRepository, IngestService},
@@ -46,11 +47,13 @@ pub fn schema_builder(
 ) -> SchemaBuilder<MetadataQuery, MetadataMutation, MetadataSubscription> {
     let ingest_service = IngestService::new(IngestJobRepository::new(db.clone()));
     let catalog_service = CatalogService::new(CatalogRepository::new(db.clone()));
+    let catalog_sync_service = CatalogSyncService::new(db.clone());
     let cover_service = CoverService::new(CoverRepository::new(db.clone()));
     Schema::build(MetadataQuery, MetadataMutation, MetadataSubscription)
         .data(db)
         .data(ingest_service)
         .data(catalog_service)
+        .data(catalog_sync_service)
         .data(cover_service)
 }
 
@@ -62,6 +65,30 @@ pub struct MetadataQuery;
 
 #[Object(guard = "AdminGuard")]
 impl MetadataQuery {
+    async fn catalog_sync_sources(
+        &self,
+        ctx: &Context<'_>,
+        artist_id: Uuid,
+    ) -> async_graphql::Result<Vec<catalog_sync::CatalogSyncSourceInfo>> {
+        catalog_sync::query_sources(ctx, artist_id).await
+    }
+
+    async fn catalog_sync_source(
+        &self,
+        ctx: &Context<'_>,
+        source_id: Uuid,
+    ) -> async_graphql::Result<Option<catalog_sync::CatalogSyncSourceInfo>> {
+        catalog_sync::query_source(ctx, source_id).await
+    }
+
+    async fn catalog_sync_run(
+        &self,
+        ctx: &Context<'_>,
+        run_id: Uuid,
+    ) -> async_graphql::Result<Option<catalog_sync::CatalogSyncRunInfo>> {
+        catalog_sync::query_run(ctx, run_id).await
+    }
+
     async fn cover_candidates(
         &self,
         ctx: &Context<'_>,
@@ -338,6 +365,22 @@ impl MetadataSubscription {
 
 #[Object(guard = "AdminGuard")]
 impl MetadataMutation {
+    async fn create_catalog_sync_source(
+        &self,
+        ctx: &Context<'_>,
+        input: catalog_sync::CreateCatalogSyncSourceInput,
+    ) -> async_graphql::Result<catalog_sync::CatalogSyncSourceInfo> {
+        catalog_sync::create_source(ctx, input).await
+    }
+
+    async fn start_catalog_sync_run(
+        &self,
+        ctx: &Context<'_>,
+        input: catalog_sync::StartCatalogSyncRunInput,
+    ) -> async_graphql::Result<catalog_sync::CatalogSyncRunInfo> {
+        catalog_sync::start_run(ctx, input).await
+    }
+
     async fn add_cover_candidate(
         &self,
         ctx: &Context<'_>,

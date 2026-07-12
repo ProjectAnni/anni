@@ -451,6 +451,27 @@ impl CatalogSyncService {
         source_model_to_snapshot(source, artist.artist_id).map(Some)
     }
 
+    /// Lists the configured catalog sources for one artist in a stable order.
+    /// Adapter configuration, secret references, and observation documents
+    /// remain private because they are not part of the returned snapshot.
+    pub async fn list_sources_for_artist(
+        &self,
+        artist_id: Uuid,
+    ) -> Result<Vec<CatalogSourceSnapshot>, CatalogSyncError> {
+        let artist = get_artist_model(&self.database, artist_id)
+            .await?
+            .ok_or(CatalogSyncError::ArtistNotFound { artist_id })?;
+        catalog_source::Entity::find()
+            .filter(catalog_source::Column::ArtistDbId.eq(artist.id))
+            .order_by_asc(catalog_source::Column::Kind)
+            .order_by_asc(catalog_source::Column::CreatedAt)
+            .all(&self.database)
+            .await?
+            .into_iter()
+            .map(|source| source_model_to_snapshot(source, artist_id))
+            .collect()
+    }
+
     /// Queue a run. A worker must subsequently claim it with the returned row
     /// version before it may write observations.
     pub async fn start_run(
@@ -1425,6 +1446,10 @@ mod tests {
             })
             .await
             .unwrap();
+        let listed = service.list_sources_for_artist(artist_id).await.unwrap();
+        assert_eq!(listed.len(), 1);
+        assert_eq!(listed[0].source_id, source.source_id);
+        assert_eq!(listed[0].locator, "https://vgmdb.net/artist/1234");
 
         let first = CatalogReleaseObservation {
             external_release_id: "album/作品・A〜B～C".to_owned(),
