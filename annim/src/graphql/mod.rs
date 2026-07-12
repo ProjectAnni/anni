@@ -1,4 +1,5 @@
 mod catalog;
+mod cover;
 mod cursor;
 mod ingest;
 mod ingest_metadata;
@@ -32,6 +33,7 @@ use types::{
 use crate::{
     auth::AdminGuard,
     catalog::{CatalogRepository, CatalogService},
+    cover::{CoverRepository, CoverService},
     entities::{album, album_tag_relation, disc, helper::now, tag_info, tag_relation, track},
     ingest::{IngestJobRepository, IngestService},
     search::RepositorySearchManager,
@@ -44,10 +46,12 @@ pub fn schema_builder(
 ) -> SchemaBuilder<MetadataQuery, MetadataMutation, MetadataSubscription> {
     let ingest_service = IngestService::new(IngestJobRepository::new(db.clone()));
     let catalog_service = CatalogService::new(CatalogRepository::new(db.clone()));
+    let cover_service = CoverService::new(CoverRepository::new(db.clone()));
     Schema::build(MetadataQuery, MetadataMutation, MetadataSubscription)
         .data(db)
         .data(ingest_service)
         .data(catalog_service)
+        .data(cover_service)
 }
 
 pub fn build_schema(db: DatabaseConnection) -> MetadataSchema {
@@ -58,6 +62,24 @@ pub struct MetadataQuery;
 
 #[Object(guard = "AdminGuard")]
 impl MetadataQuery {
+    async fn cover_candidates(
+        &self,
+        ctx: &Context<'_>,
+        release_id: Uuid,
+        disc_number: Option<i32>,
+    ) -> async_graphql::Result<Vec<cover::CoverCandidateInfo>> {
+        cover::query_candidates(ctx, release_id, disc_number).await
+    }
+
+    async fn cover_selection(
+        &self,
+        ctx: &Context<'_>,
+        release_id: Uuid,
+        disc_number: i32,
+    ) -> async_graphql::Result<Option<cover::CoverSelectionInfo>> {
+        cover::query_selection(ctx, release_id, disc_number).await
+    }
+
     #[graphql(guard = "AdminGuard")]
     async fn catalog_artists(
         &self,
@@ -316,6 +338,38 @@ impl MetadataSubscription {
 
 #[Object(guard = "AdminGuard")]
 impl MetadataMutation {
+    async fn add_cover_candidate(
+        &self,
+        ctx: &Context<'_>,
+        input: cover::AddCoverCandidateInput,
+    ) -> async_graphql::Result<cover::CoverCandidateInfo> {
+        cover::add_candidate(ctx, input).await
+    }
+
+    async fn queue_cover_candidate(
+        &self,
+        ctx: &Context<'_>,
+        input: cover::QueueCoverCandidateInput,
+    ) -> async_graphql::Result<cover::CoverCandidateInfo> {
+        cover::queue_candidate(ctx, input).await
+    }
+
+    async fn reject_cover_candidate(
+        &self,
+        ctx: &Context<'_>,
+        input: cover::RejectCoverCandidateInput,
+    ) -> async_graphql::Result<cover::CoverCandidateInfo> {
+        cover::reject_candidate(ctx, input).await
+    }
+
+    async fn select_cover(
+        &self,
+        ctx: &Context<'_>,
+        input: cover::SelectCoverInput,
+    ) -> async_graphql::Result<cover::CoverSelectionInfo> {
+        cover::select_cover(ctx, input).await
+    }
+
     async fn create_catalog_artist(
         &self,
         ctx: &Context<'_>,
