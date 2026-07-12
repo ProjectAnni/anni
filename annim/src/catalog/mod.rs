@@ -4,6 +4,10 @@
 //! lifecycle writes use the release row version as the aggregate lock, even
 //! when the durable fact being added is a `collection_copy` row.
 
+mod sync;
+
+pub use sync::*;
+
 use std::{collections::HashMap, num::NonZeroU32, str::FromStr};
 
 use anni_catalog::{
