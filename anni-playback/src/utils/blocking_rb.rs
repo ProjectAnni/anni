@@ -15,321 +15,268 @@
 // If not, see <https://www.gnu.org/licenses/>.
 
 use std::{
-    sync::{atomic::AtomicUsize, Arc, Condvar, Mutex},
-    time::Duration,
+    sync::{
+        atomic::{AtomicBool, Ordering},
+        Arc, OnceLock,
+    },
+    thread,
 };
 
-/// Provides the producer methods of the ring buffer.
+use crossbeam::queue::ArrayQueue;
+
 #[derive(Clone)]
 pub struct Producer;
 
-/// Provides the consumer methods of the ring buffer.
 #[derive(Clone)]
 pub struct Consumer;
 
-#[derive(Clone)]
+struct Inner<T> {
+    queue: ArrayQueue<T>,
+    cancelled: AtomicBool,
+    producer_thread: OnceLock<thread::Thread>,
+}
+
+/// A bounded queue with a blocking producer and a lock-free realtime consumer.
+///
+/// There is one producer (the decoder) and one consumer (the CPAL callback). The
+/// consumer never waits and never takes a mutex.
 pub struct BlockingRb<T, Type = Producer> {
-    size: usize,
-    num_values: Arc<AtomicUsize>,
-    buf: Arc<Mutex<Vec<T>>>,
-    read_pos: Arc<AtomicUsize>,
-    write_pos: Arc<AtomicUsize>,
-    producer_events: Arc<(Mutex<Event>, Condvar)>,
+    inner: Arc<Inner<T>>,
     _type: std::marker::PhantomData<Type>,
 }
 
-impl<T: Copy + Clone + Default + Sync + Send, Type> BlockingRb<T, Type> {
-    /// Returns a producer and a consumer tuple.
+impl<T, Type> Clone for BlockingRb<T, Type> {
+    fn clone(&self) -> Self {
+        Self {
+            inner: Arc::clone(&self.inner),
+            _type: std::marker::PhantomData,
+        }
+    }
+}
+
+impl<T, Type> BlockingRb<T, Type> {
     pub fn new(size: usize) -> (BlockingRb<T, Producer>, BlockingRb<T, Consumer>) {
-        let num_values = Arc::new(AtomicUsize::new(0));
-        let buf = Arc::new(Mutex::new(vec![T::default(); size]));
-        let read_pos = Arc::new(AtomicUsize::new(0));
-        let write_pos = Arc::new(AtomicUsize::new(0));
-        let producer_events = Arc::new((Mutex::new(Event::None), Condvar::new()));
+        assert!(size > 0, "ring buffer capacity must be greater than zero");
+
+        let inner = Arc::new(Inner {
+            queue: ArrayQueue::new(size),
+            cancelled: AtomicBool::new(false),
+            producer_thread: OnceLock::new(),
+        });
 
         (
             BlockingRb {
-                size,
-                num_values: num_values.clone(),
-                buf: buf.clone(),
-                read_pos: read_pos.clone(),
-                write_pos: write_pos.clone(),
-                producer_events: producer_events.clone(),
-                _type: std::marker::PhantomData::<Producer>,
+                inner: Arc::clone(&inner),
+                _type: std::marker::PhantomData,
             },
             BlockingRb {
-                size,
-                num_values,
-                buf,
-                read_pos,
-                write_pos,
-                producer_events,
-                _type: std::marker::PhantomData::<Consumer>,
+                inner,
+                _type: std::marker::PhantomData,
             },
         )
     }
 
-    /// Returns the number of free spaces in the ring buffer.
-    fn num_free(&self) -> usize {
-        let num_values = self.num_values.load(std::sync::atomic::Ordering::SeqCst);
-        self.size - num_values
+    pub fn len(&self) -> usize {
+        self.inner.queue.len()
     }
 
-    fn is_full(&self) -> bool {
-        let num_values = self.num_values.load(std::sync::atomic::Ordering::SeqCst);
-        num_values == self.size
+    pub fn capacity(&self) -> usize {
+        self.inner.queue.capacity()
     }
 
-    fn is_empty(&self) -> bool {
-        let num_values = self.num_values.load(std::sync::atomic::Ordering::SeqCst);
-        num_values == 0
+    pub fn is_empty(&self) -> bool {
+        self.inner.queue.is_empty()
     }
 }
 
-impl<T: Copy + Clone + Default + Sync + Send> BlockingRb<T, Producer> {
-    /// Blocks the thread until there is space in the
-    /// buffer to write to. This operation can be cancelled
-    /// by calling `cancel`.
-    ///
-    /// Returns the number of items written.
-    /// Returns `None` if the given slice is empty
-    /// or the operation was cancelled.
+impl<T: Copy> BlockingRb<T, Producer> {
+    /// Writes as many items as currently fit, waiting when the queue is full.
+    /// Returns `None` only for an empty input or after cancellation.
     pub fn write(&self, slice: &[T]) -> Option<usize> {
         if slice.is_empty() {
             return None;
         }
+        let current_thread = thread::current();
+        let producer_thread = self
+            .inner
+            .producer_thread
+            .get_or_init(|| current_thread.clone());
+        assert_eq!(
+            producer_thread.id(),
+            current_thread.id(),
+            "BlockingRb supports exactly one producer thread"
+        );
 
-        let num_free = self.num_free();
-        // Block if the buffer doesn't have space for the slice.
-        if num_free < slice.len() || self.is_full() {
-            // Wait for the event to tell us that there free space
-            // available or that the operation should be cancelled.
-            let (mutex, cvar) = &*self.producer_events;
-            let event = mutex.lock().unwrap();
-            // todo: solve remaining problems in https://github.com/ProjectAnni/anni/pull/41
-            let (event, timeout) = cvar
-                .wait_timeout(event, Duration::from_millis(500))
-                .unwrap();
-
-            if timeout.timed_out() {
+        loop {
+            if self.inner.cancelled.load(Ordering::Acquire) {
                 return None;
             }
 
-            match *event {
-                Event::CancelWrite => return None,
-                Event::FreeSpace => (),
-                _ => panic!("This event is not supported by `write()`."),
+            let mut written = 0;
+            for &value in slice {
+                if self.inner.queue.push(value).is_err() {
+                    break;
+                }
+                written += 1;
             }
+
+            if written > 0 {
+                return Some(written);
+            }
+
+            thread::park();
         }
-
-        let mut buf = self.buf.lock().unwrap();
-
-        // Write as much of the given slice as possible.
-        // If the slice is larger than the buffer, then write until
-        // the buffer size.
-        let count = slice.len().min(num_free);
-
-        let write_pos = self.write_pos.load(std::sync::atomic::Ordering::SeqCst);
-
-        if write_pos + count < self.size {
-            // The data can fit in line in the buffer.
-            buf[write_pos..write_pos + count].copy_from_slice(&slice[..count]);
-        } else {
-            // How much data can be written before wrapping.
-            let num_end = self.size - write_pos;
-            // The data is towards the end of the buffer and
-            // needs to be wrapped.
-            buf[write_pos..].copy_from_slice(&slice[..num_end]);
-            buf[..count - num_end].copy_from_slice(&slice[num_end..count]);
-        }
-
-        let write_pos = (write_pos + count) % self.size;
-        self.write_pos
-            .store(write_pos, std::sync::atomic::Ordering::SeqCst);
-        self.num_values
-            .fetch_add(count, std::sync::atomic::Ordering::SeqCst);
-
-        Some(count)
     }
 
-    /// Cancels the current write operation.
+    /// Permanently cancels this producer and wakes a blocked write.
+    ///
+    /// Cancellation is one-way: this producer will return `None` from every
+    /// subsequent [`Self::write`] call. Create a new ring buffer to resume
+    /// writing after cancellation.
     pub fn cancel_write(&self) {
-        let (mutex, cvar) = &*self.producer_events;
-        *mutex.lock().unwrap() = Event::CancelWrite;
-        cvar.notify_all();
+        self.inner.cancelled.store(true, Ordering::Release);
+        if let Some(producer) = self.inner.producer_thread.get() {
+            producer.unpark();
+        }
     }
 }
 
-impl<T: Copy + Clone + Default + Sync + Send> BlockingRb<T, Consumer> {
-    /// Reads from the ring buffer and fills the given slice
-    /// with as much data as possible.
-    ///
-    /// Returns the number of items written.
-    /// Returns `None` if the given slice is empty
-    /// or the buffer is empty.
+impl<T: Copy> BlockingRb<T, Consumer> {
+    pub fn drain_with(&self, limit: usize, mut consume: impl FnMut(usize, T)) -> usize {
+        let mut read = 0;
+        while read < limit {
+            let Some(value) = self.inner.queue.pop() else {
+                break;
+            };
+            consume(read, value);
+            read += 1;
+        }
+
+        if read > 0
+            && let Some(producer) = self.inner.producer_thread.get()
+        {
+            producer.unpark();
+        }
+        read
+    }
+
+    /// Reads only values that were actually written. Any unfilled portion of
+    /// `slice` is left untouched for the caller to fill with silence.
+    #[cfg(test)]
     pub fn read(&self, slice: &mut [T]) -> Option<usize> {
-        if slice.is_empty() || self.is_empty() {
+        if slice.is_empty() {
             return None;
         }
 
-        let buf = self.buf.lock().unwrap();
+        let limit = slice.len();
+        let read = self.drain_with(limit, |index, value| slice[index] = value);
+        (read > 0).then_some(read)
+    }
 
-        // Fill as much of the slice as possible.
-        // If the slice is larger than the buffer, then read until
-        // the buffer size.
-        let count = slice.len().min(self.size);
-
-        let read_pos = self.read_pos.load(std::sync::atomic::Ordering::SeqCst);
-
-        if read_pos + count < self.size {
-            // The data can be read in line from the buffer.
-            slice[..count].copy_from_slice(&buf[read_pos..read_pos + count]);
-        } else {
-            // How much data can be written before wrapping.
-            let num_end = self.size - read_pos;
-            // The read position is towards the end of the buffer and
-            // needs to be wrapped.
-            slice[..num_end].copy_from_slice(&buf[read_pos..]);
-            slice[num_end..count].copy_from_slice(&buf[..count - num_end]);
+    pub fn skip_all(&self) -> usize {
+        let mut skipped = 0;
+        while self.inner.queue.pop().is_some() {
+            skipped += 1;
         }
-
-        self.read_pos.store(
-            (read_pos + count) % self.size,
-            std::sync::atomic::Ordering::SeqCst,
-        );
-
-        let num_values = self.num_values.load(std::sync::atomic::Ordering::SeqCst);
-        self.num_values.store(
-            num_values.saturating_sub(count),
-            std::sync::atomic::Ordering::SeqCst,
-        );
-
-        let (mutex, cvar) = &*self.producer_events;
-        *mutex.lock().unwrap() = Event::FreeSpace;
-        cvar.notify_all();
-
-        Some(count)
+        if skipped > 0
+            && let Some(producer) = self.inner.producer_thread.get()
+        {
+            producer.unpark();
+        }
+        skipped
     }
-
-    /// Sets the read position to the write position.
-    /// This lets the consumer skip reading all the data
-    /// in between in case it is useless.
-    pub fn skip_all(&self) {
-        let write_pos = self.write_pos.load(std::sync::atomic::Ordering::SeqCst);
-        self.read_pos
-            .store(write_pos, std::sync::atomic::Ordering::SeqCst);
-
-        // This method basically "reads" until the write position.
-        // When reading, the following has to be done.
-        self.num_values
-            .store(0, std::sync::atomic::Ordering::SeqCst);
-
-        let (mutex, cvar) = &*self.producer_events;
-        *mutex.lock().unwrap() = Event::FreeSpace;
-        cvar.notify_all();
-    }
-}
-
-/// Ring buffer events.
-#[derive(Clone, Copy)]
-enum Event {
-    None,
-    /// There is free space in the buffer (sent after the buffer was read).
-    FreeSpace,
-    /// The write operation has been cancelled.
-    CancelWrite,
 }
 
 #[cfg(test)]
 mod tests {
-    /// Expected output:
-    /// [1, 2, 3, 4, 5, 6, 7, 0, 0, 0]
+    use std::{sync::mpsc, thread, time::Duration};
+
+    use super::BlockingRb;
+
     #[test]
-    fn test_write() {
-        let (writer, _) = crate::utils::blocking_rb::BlockingRb::<u32>::new(10);
+    fn partial_read_does_not_consume_unwritten_values() {
+        let (writer, reader) = BlockingRb::<u32>::new(8);
+        assert_eq!(writer.write(&[11, 22]), Some(2));
 
-        let data = vec![1, 2, 3, 4, 5];
-        let _ = writer.write(&data);
-        println!("{:?}", *writer.buf.lock().unwrap());
-        assert!(writer.num_free() == 5);
-
-        let data = vec![6, 7];
-        let _ = writer.write(&data);
-        println!("{:?}", *writer.buf.lock().unwrap());
-        assert!(writer.num_free() == 3);
-    }
-
-    /// Expected output:
-    /// [11, 12, 3, 4, 5, 6, 7, 8, 9, 10]
-    ///
-    /// *Thread Blocked*
-    #[test]
-    fn test_write_wrap() {
-        let (writer, reader) = crate::utils::blocking_rb::BlockingRb::<u32>::new(10);
-
-        let data = vec![1, 2, 3, 4, 5];
-        let _ = writer.write(&data);
-        println!("{:?}", *writer.buf.lock().unwrap());
-        assert!(writer.num_free() == 5);
-
-        let mut read_buf = vec![0; 2];
-        let _ = reader.read(&mut read_buf);
-        println!("{:?}", *reader.buf.lock().unwrap());
-        assert!(reader.num_free() == 7);
-
-        let data = vec![6, 7, 8, 9, 10, 11, 12];
-        let _ = writer.write(&data);
-        println!("{:?}", *writer.buf.lock().unwrap());
-        assert!(writer.num_free() == 0);
-
-        // This should block to prevent overwriting.
-        let data = vec![13, 14, 15];
-        let _ = writer.write(&data);
-        println!("{:?}", *writer.buf.lock().unwrap());
+        let mut output = [99; 4];
+        assert_eq!(reader.read(&mut output), Some(2));
+        assert_eq!(output, [11, 22, 99, 99]);
+        assert!(reader.is_empty());
     }
 
     #[test]
-    fn test_read() {
-        let (writer, reader) = crate::utils::blocking_rb::BlockingRb::<u32>::new(10);
+    fn wraps_without_reordering_samples() {
+        let (writer, reader) = BlockingRb::<u32>::new(4);
+        assert_eq!(writer.write(&[1, 2, 3, 4]), Some(4));
 
-        let data = vec![1, 2, 3, 4, 5];
-        let _ = writer.write(&data);
-        println!("{:?}", *writer.buf.lock().unwrap());
-        assert!(writer.num_free() == 5);
+        let mut first = [0; 3];
+        assert_eq!(reader.read(&mut first), Some(3));
+        assert_eq!(first, [1, 2, 3]);
 
-        let mut read_buf = vec![0; 2];
-        let _ = reader.read(&mut read_buf);
-        println!("{:?}", *reader.buf.lock().unwrap());
-        assert!(reader.num_free() == 7);
-
-        let mut read_buf = vec![0; 2];
-        let _ = reader.read(&mut read_buf);
-        println!("{:?}", *reader.buf.lock().unwrap());
-        assert!(reader.num_free() == 9);
+        assert_eq!(writer.write(&[5, 6, 7]), Some(3));
+        let mut second = [0; 4];
+        assert_eq!(reader.read(&mut second), Some(4));
+        assert_eq!(second, [4, 5, 6, 7]);
     }
 
     #[test]
-    fn test_read_wrap() {
-        let (writer, reader) = crate::utils::blocking_rb::BlockingRb::<u32>::new(10);
+    fn skip_all_reports_discarded_values() {
+        let (writer, reader) = BlockingRb::<u32>::new(4);
+        assert_eq!(writer.write(&[1, 2, 3]), Some(3));
+        assert_eq!(reader.skip_all(), 3);
+        assert!(reader.is_empty());
+    }
 
-        let data = vec![1, 2, 3, 4, 5];
-        let _ = writer.write(&data);
-        println!("{:?}", *writer.buf.lock().unwrap());
-        assert!(writer.num_free() == 5);
+    #[test]
+    fn blocked_writer_wakes_when_the_consumer_drains() {
+        let (writer, reader) = BlockingRb::<u32>::new(1);
+        let (ready_sender, ready_receiver) = mpsc::channel();
+        let (done_sender, done_receiver) = mpsc::channel();
+        let producer = thread::spawn(move || {
+            assert_eq!(writer.write(&[1]), Some(1));
+            ready_sender.send(()).unwrap();
+            done_sender.send(writer.write(&[2])).unwrap();
+        });
 
-        let mut read_buf = vec![0; 5];
-        let _ = reader.read(&mut read_buf);
-        println!("{:?}", *reader.buf.lock().unwrap());
-        assert!(reader.num_free() == 10);
+        ready_receiver.recv().unwrap();
+        assert!(done_receiver
+            .recv_timeout(Duration::from_millis(20))
+            .is_err());
+        let mut first = [0];
+        assert_eq!(reader.read(&mut first), Some(1));
+        assert_eq!(first, [1]);
+        assert_eq!(
+            done_receiver.recv_timeout(Duration::from_secs(1)).unwrap(),
+            Some(1)
+        );
+        producer.join().unwrap();
 
-        let data = vec![6, 7, 8, 9, 10, 11, 12, 13, 14, 15];
-        let _ = writer.write(&data);
-        println!("{:?}", *writer.buf.lock().unwrap());
-        assert!(writer.num_free() == 0);
+        let mut second = [0];
+        assert_eq!(reader.read(&mut second), Some(1));
+        assert_eq!(second, [2]);
+    }
 
-        let mut read_buf = vec![0; 7];
-        let _ = reader.read(&mut read_buf);
-        println!("{:?}", *reader.buf.lock().unwrap());
-        assert!(reader.num_free() == 7);
+    #[test]
+    fn cancellation_unparks_a_blocked_writer() {
+        let (writer, _reader) = BlockingRb::<u32>::new(1);
+        let cancel = writer.clone();
+        let (ready_sender, ready_receiver) = mpsc::channel();
+        let (done_sender, done_receiver) = mpsc::channel();
+        let producer = thread::spawn(move || {
+            assert_eq!(writer.write(&[1]), Some(1));
+            ready_sender.send(()).unwrap();
+            done_sender.send(writer.write(&[2])).unwrap();
+        });
+
+        ready_receiver.recv().unwrap();
+        assert!(done_receiver
+            .recv_timeout(Duration::from_millis(20))
+            .is_err());
+        cancel.cancel_write();
+        assert_eq!(
+            done_receiver.recv_timeout(Duration::from_secs(1)).unwrap(),
+            None
+        );
+        producer.join().unwrap();
     }
 }

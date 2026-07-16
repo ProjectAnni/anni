@@ -21,7 +21,7 @@ const NORMALIZE_TO: f64 = -14.0;
 const LOWER_THRESHOLD: f32 = 0.2;
 
 pub struct Normalizer {
-    ebur128: EbuR128,
+    ebur128: Option<EbuR128>,
     buffer: Vec<f32>,
     /// True if the input samples are loud enough to start being normalized.
     /// This prevents normalizing parts of a song that the artist intented to be quiet.
@@ -30,7 +30,7 @@ pub struct Normalizer {
 
 impl Normalizer {
     pub fn new(channels: usize, sample_rate: u32) -> Self {
-        let ebur128 = EbuR128::new(channels as u32, sample_rate, Mode::I.union(Mode::M)).unwrap();
+        let ebur128 = EbuR128::new(channels as u32, sample_rate, Mode::I.union(Mode::M)).ok();
 
         Normalizer {
             ebur128,
@@ -40,6 +40,8 @@ impl Normalizer {
     }
 
     pub fn normalize(&mut self, input: &[f32]) -> Option<&[f32]> {
+        let ebur128 = self.ebur128.as_mut()?;
+
         // Completely quiet inputs cause a crackling sound to be made.
         if !input.iter().any(|x| *x != 0.0) {
             return None;
@@ -47,18 +49,20 @@ impl Normalizer {
 
         // Don't apply any gain when threshold is not passed.
         if !self.passed_lower_threshold {
-            let samples_passing_threshold = input[0..3].iter().find(|e| **e >= LOWER_THRESHOLD);
-            self.passed_lower_threshold = samples_passing_threshold.is_some();
+            self.passed_lower_threshold =
+                input.iter().any(|sample| sample.abs() >= LOWER_THRESHOLD);
             return None;
         }
 
-        let _ = self.ebur128.add_frames_f32(input);
+        if ebur128.add_frames_f32(input).is_err() {
+            return None;
+        }
 
-        let global_loudness = self.ebur128.loudness_global().unwrap();
+        let global_loudness = ebur128.loudness_global().unwrap_or(f64::NEG_INFINITY);
         let gain = if global_loudness.is_finite() {
             calc_gain(global_loudness)
         } else {
-            let loudness = self.ebur128.loudness_momentary().unwrap();
+            let loudness = ebur128.loudness_momentary().unwrap_or(f64::NEG_INFINITY);
             calc_gain(loudness)
         };
 

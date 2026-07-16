@@ -60,6 +60,7 @@ pub struct OpusDecoder {
     params: AudioCodecParameters,
     buf: AudioBuffer<f32>,
     rawbuf: Vec<f32>,
+    gapless: bool,
 }
 
 /// # SAFETY
@@ -72,7 +73,7 @@ pub struct OpusDecoder {
 unsafe impl Sync for OpusDecoder {}
 
 impl OpusDecoder {
-    fn try_new(params: &AudioCodecParameters, _options: &AudioDecoderOptions) -> SymphResult<Self> {
+    fn try_new(params: &AudioCodecParameters, options: &AudioDecoderOptions) -> SymphResult<Self> {
         let inner = AudiopusDecoder::new(SAMPLE_RATE, OpusChannels::Stereo).unwrap();
 
         let mut params = params.clone();
@@ -85,6 +86,7 @@ impl OpusDecoder {
             params,
             buf: AudioBuffer::new(stereo_spec(), MONO_FRAME_SIZE),
             rawbuf: vec![0.0f32; STEREO_FRAME_SIZE],
+            gapless: options.gapless,
         })
     }
 
@@ -127,6 +129,13 @@ impl OpusDecoder {
             for (target, sample) in self.buf.plane_mut(channel).unwrap().iter_mut().zip(source) {
                 *target = sample;
             }
+        }
+
+        if self.gapless {
+            self.buf.trim(
+                packet.trim_start.get() as usize,
+                packet.trim_end.get() as usize,
+            );
         }
 
         Ok(())

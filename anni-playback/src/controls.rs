@@ -16,22 +16,29 @@
 
 use std::{
     path::Path,
-    sync::{atomic::AtomicBool, Arc, RwLock, RwLockReadGuard},
+    sync::{
+        atomic::{AtomicBool, AtomicU32, Ordering},
+        Arc, RwLock, RwLockReadGuard,
+    },
 };
 
 use crossbeam::channel::unbounded;
 
-use crate::types::*;
+use crate::{
+    stats::{PlaybackStatus, PlayerStats, PlayerStatsHandle},
+    types::*,
+};
 
 /// Creates a getter and setter for an AtomicBool.
 macro_rules! getset_atomic_bool {
     ($name:ident, $setter_name:ident) => {
         pub fn $name(&self) -> bool {
-            self.$name.load(std::sync::atomic::Ordering::SeqCst)
+            self.$name.load(std::sync::atomic::Ordering::Acquire)
         }
 
         pub fn $setter_name(&self, value: bool) {
-            self.$name.store(value, std::sync::atomic::Ordering::SeqCst);
+            self.$name
+                .store(value, std::sync::atomic::Ordering::Release);
         }
     };
 }
@@ -60,11 +67,14 @@ pub struct Controls {
     is_looping: Arc<AtomicBool>,
     is_normalizing: Arc<AtomicBool>,
     is_file_preloaded: Arc<AtomicBool>,
+    output_enabled: Arc<AtomicBool>,
     volume: Arc<RwLock<f32>>,
+    volume_bits: Arc<AtomicU32>,
     seek_ts: Arc<RwLock<Option<u64>>>,
     progress: Arc<RwLock<ProgressState>>,
 
     player_event_sender: Arc<std::sync::mpsc::Sender<PlayerEvent>>,
+    stats: PlayerStatsHandle,
 }
 
 impl Controls {
@@ -76,7 +86,9 @@ impl Controls {
             is_looping: Arc::new(AtomicBool::new(false)),
             is_normalizing: Arc::new(AtomicBool::new(false)),
             is_file_preloaded: Arc::new(AtomicBool::new(false)),
+            output_enabled: Arc::new(AtomicBool::new(false)),
             volume: Arc::new(RwLock::new(1.0)),
+            volume_bits: Arc::new(AtomicU32::new(1.0f32.to_bits())),
             seek_ts: Arc::new(RwLock::new(None)),
             progress: Arc::new(RwLock::new(ProgressState {
                 position: 0,
@@ -84,6 +96,7 @@ impl Controls {
             })),
 
             player_event_sender: Arc::new(player_event_sender),
+            stats: PlayerStatsHandle::default(),
         }
     }
 
@@ -119,16 +132,16 @@ impl Controls {
         self.event_handler.read().unwrap()
     }
 
-    fn send_player_event(&self, event: PlayerEvent) {
-        self.player_event_sender.send(event).unwrap();
+    pub(crate) fn send_player_event(&self, event: PlayerEvent) {
+        let _ = self.player_event_sender.send(event);
     }
 
     pub(crate) fn send_internal_event(&self, event: InternalPlayerEvent) {
-        self.event_handler().0.send(event).unwrap();
+        let _ = self.event_handler().0.send(event);
     }
 
     pub fn progress(&self) -> ProgressState {
-        self.progress.read().unwrap().clone()
+        *self.progress.read().unwrap()
     }
 
     pub fn set_progress(&self, value: ProgressState) {
@@ -140,51 +153,117 @@ impl Controls {
     }
 
     pub fn play(&self) {
-        if self.is_playing() {
-            return;
-        }
-
         self.send_internal_event(InternalPlayerEvent::Play);
-        self.send_player_event(PlayerEvent::Play);
-        self.set_is_playing(true);
-        self.set_is_stopped(false);
     }
 
     pub fn pause(&self) {
-        if !self.is_playing() {
-            return;
-        }
-
         self.send_internal_event(InternalPlayerEvent::Pause);
-        self.send_player_event(PlayerEvent::Pause);
-        self.set_is_playing(false);
-        self.set_is_stopped(false);
     }
 
     pub fn stop(&self) {
-        if self.is_stopped() {
-            return;
-        }
-
         self.send_internal_event(InternalPlayerEvent::Stop);
-
-        let progress = ProgressState {
-            position: 0,
-            duration: 0,
-        };
-
-        self.set_progress(progress);
-        self.send_player_event(PlayerEvent::Stop);
-        self.set_is_playing(false);
-        self.set_is_stopped(true);
     }
 
     pub fn seek(&self, milliseconds: u64) {
-        self.set_seek_ts(Some(milliseconds));
+        self.send_internal_event(InternalPlayerEvent::Seek(milliseconds));
+    }
+
+    pub fn shutdown(&self) {
+        self.send_internal_event(InternalPlayerEvent::Shutdown);
+    }
+
+    pub fn stats(&self) -> PlayerStats {
+        self.stats.snapshot()
+    }
+
+    pub fn set_volume(&self, value: f32) {
+        let value = if value.is_finite() {
+            value.clamp(0.0, 2.0)
+        } else {
+            1.0
+        };
+        *self.volume.write().unwrap() = value;
+        self.volume_bits.store(value.to_bits(), Ordering::Relaxed);
+    }
+
+    /// Returns the current volume while preserving the original controls API.
+    pub fn volume(&self) -> RwLockReadGuard<'_, f32> {
+        self.volume.read().unwrap()
+    }
+
+    pub(crate) fn volume_value(&self) -> f32 {
+        f32::from_bits(self.volume_bits.load(Ordering::Relaxed))
+    }
+
+    pub(crate) fn output_enabled(&self) -> bool {
+        self.output_enabled.load(Ordering::Acquire)
+    }
+
+    pub(crate) fn set_output_enabled(&self, enabled: bool) {
+        self.output_enabled.store(enabled, Ordering::Release);
+    }
+
+    pub(crate) fn stats_handle(&self) -> PlayerStatsHandle {
+        self.stats.clone()
+    }
+
+    pub(crate) fn ready(&self, progress: ProgressState) {
+        self.set_progress(progress);
+        self.set_is_playing(false);
+        self.set_is_stopped(false);
+        self.stats.set_status(PlaybackStatus::Ready);
+        self.send_player_event(PlayerEvent::Ready(progress));
+    }
+
+    pub(crate) fn playing(&self) {
+        self.set_is_playing(true);
+        self.set_is_stopped(false);
+        self.stats.set_status(PlaybackStatus::Playing);
+        self.send_player_event(PlayerEvent::Play);
+    }
+
+    pub(crate) fn paused(&self) {
+        self.set_is_playing(false);
+        self.set_is_stopped(false);
+        self.stats.set_status(PlaybackStatus::Paused);
+        self.send_player_event(PlayerEvent::Pause);
+    }
+
+    pub(crate) fn stopped(&self) {
         self.set_progress(ProgressState {
-            position: milliseconds,
-            duration: self.progress().duration,
+            position: 0,
+            duration: 0,
         });
+        self.set_is_playing(false);
+        self.set_is_stopped(true);
+        self.stats.set_status(PlaybackStatus::Stopped);
+        self.send_player_event(PlayerEvent::Stop);
+    }
+
+    pub(crate) fn report_error(&self, error: PlaybackError) {
+        if error.fatal {
+            self.set_is_playing(false);
+            self.set_is_stopped(true);
+            self.set_output_enabled(false);
+            self.stats.set_status(PlaybackStatus::Error);
+        }
+        self.send_player_event(PlayerEvent::Error(error));
+    }
+
+    pub(crate) fn set_buffering_realtime(&self, buffering: bool) {
+        self.stats.set_output_buffering(buffering);
+    }
+
+    pub(crate) fn notify_buffering(&self, buffering: bool) {
+        self.send_player_event(PlayerEvent::Buffering(buffering));
+    }
+
+    pub(crate) fn preload_ready(&self) {
+        self.send_player_event(PlayerEvent::PreloadReady);
+    }
+
+    pub(crate) fn end_of_track(&self) {
+        self.send_player_event(PlayerEvent::EndOfTrack);
     }
 
     pub(crate) fn preload_played(&self) {
@@ -197,6 +276,43 @@ impl Controls {
     getset_atomic_bool!(is_looping, set_is_looping);
     getset_atomic_bool!(is_normalizing, set_is_normalizing);
     getset_atomic_bool!(is_file_preloaded, set_is_file_preloaded);
-    getset_rwlock!(volume, set_volume, f32);
     getset_rwlock!(seek_ts, set_seek_ts, Option<u64>);
+}
+
+#[cfg(test)]
+mod tests {
+    use super::Controls;
+
+    #[test]
+    fn commands_do_not_publish_optimistic_state_events() {
+        let (sender, receiver) = std::sync::mpsc::channel();
+        let controls = Controls::new(sender);
+        controls.play();
+        controls.seek(1_000);
+
+        assert!(!controls.is_playing());
+        assert_eq!(*controls.seek_ts(), None);
+        assert!(receiver.try_recv().is_err());
+    }
+
+    #[test]
+    fn a_dropped_event_receiver_does_not_panic_the_player() {
+        let (sender, receiver) = std::sync::mpsc::channel();
+        let controls = Controls::new(sender);
+        drop(receiver);
+
+        controls.playing();
+        controls.paused();
+        controls.stopped();
+    }
+
+    #[test]
+    fn volume_is_finite_and_bounded() {
+        let (sender, _receiver) = std::sync::mpsc::channel();
+        let controls = Controls::new(sender);
+        controls.set_volume(f32::NAN);
+        assert_eq!(controls.volume_value(), 1.0);
+        controls.set_volume(10.0);
+        assert_eq!(controls.volume_value(), 2.0);
+    }
 }

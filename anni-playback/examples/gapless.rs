@@ -1,36 +1,6 @@
-use std::{ops::Deref, sync::mpsc::Receiver, thread};
+use std::thread;
 
-use anni_playback::{create_unbound_channel, types::PlayerEvent, Controls, Decoder};
-
-pub struct Player {
-    controls: Controls,
-}
-
-impl Player {
-    pub fn new() -> (Player, Receiver<PlayerEvent>) {
-        let (sender, receiver) = std::sync::mpsc::channel();
-        let controls = Controls::new(sender);
-        let thread_killer = create_unbound_channel();
-
-        thread::spawn({
-            let controls = controls.clone();
-            move || {
-                let decoder = Decoder::new(controls, 48000, thread_killer.1.clone());
-                decoder.start();
-            }
-        });
-
-        (Player { controls }, receiver)
-    }
-}
-
-impl Deref for Player {
-    type Target = Controls;
-
-    fn deref(&self) -> &Self::Target {
-        &self.controls
-    }
-}
+use anni_playback::{types::PlayerEvent, Player};
 
 fn main() -> anyhow::Result<()> {
     let (Some(first), Some(second), Some(third)) = (
@@ -42,32 +12,38 @@ fn main() -> anyhow::Result<()> {
         std::process::exit(1);
     };
 
-    let (player, receiver) = Player::new();
+    let (player, receiver) = Player::builder()
+        .preferred_sample_rate(Some(48_000))
+        .build()?;
 
     let thread = thread::spawn({
-        let controls = player.controls.clone();
+        let controls = player.controls().clone();
+        let mut third = Some(third);
 
         move || loop {
             match receiver.recv() {
                 Ok(msg) => match msg {
-                    PlayerEvent::Play => {
-                        println!("Play");
-
-                        // Preload the second track after first track has started playing
-                        let _ = controls.open_file(second.clone(), true);
+                    PlayerEvent::Ready(progress) => {
+                        println!("Ready: {} ms", progress.duration)
                     }
+                    PlayerEvent::Play => println!("Play"),
                     PlayerEvent::Pause => println!("Pause"),
                     PlayerEvent::PreloadPlayed => {
                         println!("PreloadPlayed");
 
-                        // The second track is played, load the third track
-                        // FIXME: only load once
-                        let _ = controls.open_file(third.clone(), true);
+                        if let Some(third) = third.take() {
+                            let _ = controls.open_file(third, true);
+                        }
                     }
+                    PlayerEvent::PreloadReady => println!("PreloadReady"),
+                    PlayerEvent::EndOfTrack => println!("EndOfTrack"),
+                    PlayerEvent::Buffering(buffering) => println!("Buffering: {buffering}"),
+                    PlayerEvent::Error(error) => eprintln!("Playback error: {error:?}"),
                     PlayerEvent::Progress(progress) => {
                         println!("Progress: {}/{}", progress.position, progress.duration);
                     }
-                    PlayerEvent::Stop => println!("Stop"),
+                    PlayerEvent::Stop => break,
+                    _ => {}
                 },
                 Err(e) => {
                     eprintln!("{}", e);
@@ -77,8 +53,11 @@ fn main() -> anyhow::Result<()> {
     });
 
     player.open_file(first, false)?;
+    player.open_file(second, true)?;
     player.play();
-    thread.join().unwrap();
+    thread
+        .join()
+        .map_err(|_| anyhow::anyhow!("player event thread panicked"))?;
 
     Ok(())
 }

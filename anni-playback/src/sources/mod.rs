@@ -20,13 +20,6 @@ pub mod cached_http;
 pub mod http;
 pub mod streamable;
 
-/// A type that holds an ID and a `std::sync::mpsc::Receiver`.
-/// Used for multithreaded download of audio data.
-struct Receiver {
-    id: u128,
-    receiver: std::sync::mpsc::Receiver<(usize, Vec<u8>)>,
-}
-
 pub trait AnniSource: MediaSource + IntoBoxedMediaSource {
     /// The duration of underlying source in seconds.
     fn duration_hint(&self) -> Option<u64> {
