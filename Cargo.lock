@@ -213,6 +213,38 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ec66320836265a59098af8343573a2160b12b8db033b6b879fa01fbcf95a50ed"
 
 [[package]]
+name = "anni-catalog"
+version = "0.1.0"
+dependencies = [
+ "thiserror 2.0.18",
+ "url",
+]
+
+[[package]]
+name = "anni-catalog-worker"
+version = "0.1.0"
+dependencies = [
+ "anni-catalog",
+ "annim",
+ "chrono",
+ "futures-util",
+ "httpdate",
+ "reqwest 0.13.4",
+ "sea-orm",
+ "sea-orm-migration",
+ "serde",
+ "serde_json",
+ "tempfile",
+ "thiserror 2.0.18",
+ "tokio",
+ "tracing",
+ "tracing-subscriber",
+ "unic-langid",
+ "url",
+ "uuid",
+]
+
+[[package]]
 name = "anni-common"
 version = "0.2.0"
 dependencies = [
@@ -227,8 +259,26 @@ dependencies = [
  "regex",
  "serde",
  "serde_json",
+ "tempfile",
  "thiserror 2.0.18",
  "trash",
+]
+
+[[package]]
+name = "anni-cover-worker"
+version = "0.1.0"
+dependencies = [
+ "anni-catalog",
+ "anni-ingest",
+ "futures-util",
+ "image",
+ "reqwest 0.13.4",
+ "sha2 0.10.9",
+ "tempfile",
+ "thiserror 2.0.18",
+ "tokio",
+ "url",
+ "uuid",
 ]
 
 [[package]]
@@ -261,6 +311,32 @@ dependencies = [
  "tower-service",
  "url",
  "yup-oauth2",
+]
+
+[[package]]
+name = "anni-ingest"
+version = "0.1.0"
+dependencies = [
+ "anni-metadata",
+ "serde",
+ "serde_json",
+ "sha2 0.10.9",
+ "thiserror 2.0.18",
+ "uuid",
+]
+
+[[package]]
+name = "anni-ingest-worker"
+version = "0.1.0"
+dependencies = [
+ "anni-common",
+ "anni-ingest",
+ "anni-split",
+ "sha2 0.10.9",
+ "tempfile",
+ "thiserror 2.0.18",
+ "uuid",
+ "which 8.0.4",
 ]
 
 [[package]]
@@ -422,12 +498,17 @@ dependencies = [
 name = "annim"
 version = "0.1.0"
 dependencies = [
+ "anni-catalog",
+ "anni-cover-worker",
+ "anni-ingest",
+ "anni-metadata",
  "anyhow",
  "async-graphql",
  "async-graphql-axum",
  "axum",
  "base64 0.22.1",
  "chrono",
+ "constant_time_eq",
  "lindera",
  "lindera-tantivy",
  "rmp-serde",
@@ -435,11 +516,16 @@ dependencies = [
  "sea-orm-migration",
  "serde",
  "serde_json",
+ "sha2 0.10.9",
  "tantivy",
+ "thiserror 2.0.18",
  "tokio",
+ "tokio-stream",
+ "tower",
  "tower-http 0.7.0",
  "tracing",
  "tracing-subscriber",
+ "url",
 ]
 
 [[package]]
@@ -8082,6 +8168,7 @@ dependencies = [
  "futures-core",
  "pin-project-lite",
  "tokio",
+ "tokio-util",
 ]
 
 [[package]]

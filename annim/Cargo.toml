@@ -8,7 +8,19 @@ authors.workspace = true
 repository.workspace = true
 
 [dependencies]
-tokio = { version = "1", features = ["macros", "net", "rt-multi-thread", "sync"] }
+anni-catalog.workspace = true
+anni-cover-worker.workspace = true
+anni-ingest.workspace = true
+anni-metadata.workspace = true
+tokio = { version = "1", features = [
+    "macros",
+    "net",
+    "rt-multi-thread",
+    "signal",
+    "sync",
+    "time",
+] }
+tokio-stream = { version = "0.1.18", features = ["sync"] }
 axum.workspace = true
 tower-http = { version = "0.7.0", features = ["cors"] }
 async-graphql = { version = "7.2.1", features = [
@@ -34,8 +46,12 @@ anyhow.workspace = true
 tracing = { version = "0.1.44" }
 tracing-subscriber = { version = "0.3.23" }
 serde_json.workspace = true
+sha2 = "0.10.9"
+constant_time_eq = "0.4.2"
 chrono = "0.4.45"
 serde.workspace = true
+thiserror.workspace = true
+url = "2.5.8"
 
 # Search
 tantivy = "0.25.0"
@@ -44,6 +60,9 @@ lindera-tantivy = { version = "4.0.0", features = ["embed-ipadic"] }
 
 rmp-serde = "1.3.1"
 base64 = "0.22.1"
+
+[dev-dependencies]
+tower = { version = "0.5", features = ["util"] }
 
 [features]
 default = ["postgres"]

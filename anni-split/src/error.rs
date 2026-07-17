@@ -9,6 +9,19 @@ pub enum SplitError {
     #[error(transparent)]
     CueError(#[from] cuna::error::Error),
 
+    #[error("single-input splitting requires exactly one CUE FILE block, got {actual}")]
+    UnsupportedCueFileCount { actual: usize },
+
+    #[error(
+        "codec command {command:?} failed with status {status:?}{stderr_suffix}",
+        stderr_suffix = if stderr.is_empty() { String::new() } else { format!(": {stderr}") }
+    )]
+    CommandFailed {
+        command: String,
+        status: Option<i32>,
+        stderr: String,
+    },
+
     #[error(transparent)]
     DecodeError(#[from] anni_common::decode::DecodeError),
 

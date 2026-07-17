@@ -1,5 +1,12 @@
 pub mod auth;
+pub mod catalog;
+pub mod config;
+pub mod cover;
+pub mod cover_worker;
 pub mod entities;
 pub mod graphql;
+pub mod ingest;
 pub mod migrator;
 pub mod search;
+pub mod server;
+mod web;

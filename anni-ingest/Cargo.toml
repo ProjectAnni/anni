@@ -1,0 +1,19 @@
+[package]
+name = "anni-ingest"
+version = "0.1.0"
+publish = false
+
+edition.workspace = true
+authors.workspace = true
+repository.workspace = true
+license.workspace = true
+
+[dependencies]
+anni-metadata.workspace = true
+serde.workspace = true
+sha2 = "0.10.9"
+thiserror.workspace = true
+uuid = { workspace = true, features = ["serde"] }
+
+[dev-dependencies]
+serde_json.workspace = true

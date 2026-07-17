@@ -1,61 +1,14 @@
 use annim::{
-    auth::{on_connection_init, AuthToken},
-    graphql::{MetadataMutation, MetadataQuery, MetadataSchema},
+    auth::AuthConfig,
+    catalog::CatalogSyncService,
+    config::{CatalogSyncProvisioningConfig, ServerConfig},
+    graphql::schema_builder_with_catalog_sync_service,
     search::RepositorySearchManager,
-};
-use async_graphql::{
-    http::{graphiql_source, ALL_WEBSOCKET_PROTOCOLS},
-    EmptySubscription,
-};
-use async_graphql_axum::{GraphQLProtocol, GraphQLRequest, GraphQLResponse, GraphQLWebSocket};
-use axum::{
-    extract::{State, WebSocketUpgrade},
-    http::{HeaderMap, Method},
-    response::{self, IntoResponse, Response},
-    routing::get,
-    Router,
+    server::{build_router, ServerState},
 };
 use sea_orm::Database;
 use sea_orm_migration::MigratorTrait;
 use tokio::net::TcpListener;
-use tower_http::cors;
-use tower_http::cors::CorsLayer;
-
-async fn graphql_playground() -> impl IntoResponse {
-    response::Html(graphiql_source("/", None))
-}
-
-fn get_token_from_headers(headers: &HeaderMap) -> Option<AuthToken> {
-    headers
-        .get("Authorization")
-        .and_then(|value| value.to_str().map(|s| AuthToken::new(s.to_string())).ok())
-}
-
-async fn graphql_handler(
-    State(schema): State<MetadataSchema>,
-    headers: HeaderMap,
-    req: GraphQLRequest,
-) -> GraphQLResponse {
-    let mut req = req.into_inner();
-    if let Some(token) = get_token_from_headers(&headers) {
-        req = req.data(token);
-    }
-    schema.execute(req).await.into()
-}
-
-async fn graphql_ws_handler(
-    State(schema): State<MetadataSchema>,
-    protocol: GraphQLProtocol,
-    websocket: WebSocketUpgrade,
-) -> Response {
-    websocket
-        .protocols(ALL_WEBSOCKET_PROTOCOLS)
-        .on_upgrade(move |stream| {
-            GraphQLWebSocket::new(stream, schema.clone(), protocol)
-                .on_connection_init(on_connection_init)
-                .serve()
-        })
-}
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
@@ -65,34 +18,38 @@ async fn main() -> anyhow::Result<()> {
         .init();
 
     let database_url = std::env::var("ANNIM_DATABASE_URL")?;
-    let database = Database::connect(database_url)
-        .await
-        .expect("Fail to initialize database connection");
+    let auth = AuthConfig::from_env()?;
+    let server_config = ServerConfig::from_env()?;
+    let catalog_sync_provisioning = CatalogSyncProvisioningConfig::from_env()?;
+    let database = Database::connect(database_url).await?;
 
     annim::migrator::Migrator::up(&database, None).await?;
+
+    let catalog_sync_service =
+        CatalogSyncService::with_provisioning(database.clone(), catalog_sync_provisioning);
+    let provisioned_sources = catalog_sync_service.provision_existing_sources().await?;
+    if provisioned_sources > 0 {
+        tracing::info!(
+            source_count = provisioned_sources,
+            "provisioned existing Apple Music catalog sources"
+        );
+    }
 
     let searcher_directory = std::env::var("ANNIM_SEARCH_DIRECTORY")?;
     std::fs::create_dir_all(&searcher_directory)?;
     let searcher = RepositorySearchManager::open_or_create(searcher_directory)?;
-
-    let schema = MetadataSchema::build(MetadataQuery, MetadataMutation, EmptySubscription)
-        .data(database)
+    let schema = schema_builder_with_catalog_sync_service(database.clone(), catalog_sync_service)
         .data(searcher)
         .finish();
+    let state = ServerState::new(schema, auth, database);
+    let app = build_router(state, &server_config);
 
-    let app = Router::new()
-        .route("/", get(graphql_playground).post(graphql_handler))
-        .route("/ws", get(graphql_ws_handler))
-        .layer(
-            CorsLayer::new()
-                .allow_methods([Method::GET, Method::POST])
-                .allow_origin(cors::Any)
-                .allow_headers(cors::Any),
-        )
-        .with_state(schema);
-
-    println!("Playground: http://localhost:8000");
-    axum::serve(TcpListener::bind("0.0.0.0:8000").await?, app).await?;
+    let bind_addr = server_config.bind_addr();
+    tracing::info!(%bind_addr, "Annim server listening");
+    if !bind_addr.ip().is_loopback() {
+        tracing::warn!("non-loopback listeners should be protected by a TLS reverse proxy");
+    }
+    axum::serve(TcpListener::bind(bind_addr).await?, app).await?;
 
     Ok(())
 }

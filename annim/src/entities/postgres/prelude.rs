@@ -2,7 +2,19 @@
 
 pub use super::album::Entity as Album;
 pub use super::album_tag_relation::Entity as AlbumTagRelation;
+pub use super::catalog_artist::Entity as CatalogArtist;
+pub use super::catalog_release::Entity as CatalogRelease;
+pub use super::catalog_source::Entity as CatalogSource;
+pub use super::catalog_source_release::Entity as CatalogSourceRelease;
+pub use super::catalog_source_release_revision::Entity as CatalogSourceReleaseRevision;
+pub use super::catalog_sync_run::Entity as CatalogSyncRun;
+pub use super::collection_copy::Entity as CollectionCopy;
+pub use super::cover_asset::Entity as CoverAsset;
+pub use super::cover_candidate::Entity as CoverCandidate;
+pub use super::cover_selection::Entity as CoverSelection;
 pub use super::disc::Entity as Disc;
+pub use super::ingest_job::Entity as IngestJob;
+pub use super::ingest_metadata_revision::Entity as IngestMetadataRevision;
 pub use super::tag_info::Entity as TagInfo;
 pub use super::tag_relation::Entity as TagRelation;
 pub use super::track::Entity as Track;

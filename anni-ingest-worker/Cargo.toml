@@ -1,0 +1,21 @@
+[package]
+name = "anni-ingest-worker"
+version = "0.1.0"
+publish = false
+
+edition.workspace = true
+authors.workspace = true
+repository.workspace = true
+license.workspace = true
+
+[dependencies]
+anni-common.workspace = true
+anni-ingest.workspace = true
+anni-split.workspace = true
+sha2 = "0.10.9"
+thiserror.workspace = true
+uuid.workspace = true
+which = "8.0.4"
+
+[dev-dependencies]
+tempfile = "3"

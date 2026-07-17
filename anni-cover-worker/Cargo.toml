@@ -1,0 +1,24 @@
+[package]
+name = "anni-cover-worker"
+version = "0.1.0"
+publish = false
+
+edition.workspace = true
+authors.workspace = true
+repository.workspace = true
+license.workspace = true
+
+[dependencies]
+anni-catalog.workspace = true
+anni-ingest.workspace = true
+futures-util = "0.3"
+image = "0.25"
+reqwest = { workspace = true, features = ["stream"] }
+sha2 = "0.10.9"
+thiserror.workspace = true
+tokio = { version = "1", features = ["fs", "io-util", "net", "time"] }
+url = "2.5.8"
+uuid.workspace = true
+
+[dev-dependencies]
+tempfile = "3.27.0"

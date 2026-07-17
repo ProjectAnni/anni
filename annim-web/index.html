@@ -1,0 +1,917 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta
+      name="description"
+      content="Annim 音频入库工作台：从原盘证据、元数据审阅到安全发布。"
+    />
+    <title>Annim · 音频入库工作台</title>
+    <link rel="stylesheet" href="/app/styles.css" />
+    <script type="module" src="/app/app.js"></script>
+  </head>
+  <body>
+    <a class="skip-link" href="#main-content">跳到主要内容</a>
+
+    <div class="app-shell">
+      <header class="topbar">
+        <a class="brand" href="#workflow" aria-label="返回工作流总览">
+          <span class="brand-mark" aria-hidden="true">
+            <span></span>
+          </span>
+          <span>
+            <strong>Annim</strong>
+            <small>Audio intake desk</small>
+          </span>
+        </a>
+
+        <div class="server-state" aria-live="polite">
+          <span class="state-lamp" id="server-lamp"></span>
+          <span id="server-label">正在确认服务状态</span>
+        </div>
+
+        <button class="session-button" id="session-button" type="button">
+          <span class="session-button__label">管理会话</span>
+          <span class="session-button__state" id="session-state">未连接</span>
+        </button>
+      </header>
+
+      <aside class="sidebar" aria-label="工作台导航">
+        <div class="sidebar-intro">
+          <span class="eyebrow">Collection OS</span>
+          <p>每一步都留下证据，每一次写入都可以解释。</p>
+        </div>
+
+        <nav class="primary-nav">
+          <a class="nav-item is-active" href="#workflow" data-view-link="workflow">
+            <span class="nav-index">00</span>
+            <span>工作流总览</span>
+          </a>
+          <a class="nav-item" href="#intake" data-view-link="intake">
+            <span class="nav-index">01</span>
+            <span>入库队列</span>
+            <span class="nav-count" id="intake-count">—</span>
+          </a>
+          <a class="nav-item" href="#artists" data-view-link="artists">
+            <span class="nav-index">02</span>
+            <span>艺人拉表</span>
+            <span class="nav-count" id="artist-count">—</span>
+          </a>
+        </nav>
+
+        <div class="sidebar-rule">
+          <span>Authority</span>
+          <strong>Booklet first</strong>
+          <p>网络结果只进入候选区，不会静默覆盖 CD 原始记载。</p>
+        </div>
+      </aside>
+
+      <main id="main-content" class="main-content" tabindex="-1">
+        <section class="view" id="workflow-view" data-view="workflow">
+          <div class="hero">
+            <div class="hero-copy">
+              <span class="eyebrow">Target workflow · v1</span>
+              <h1>从原盘证据，<br />到可验证的音乐库。</h1>
+              <p class="hero-lede">
+                Web 端负责看清、比较和确认；Annim 后端负责编排状态、保存证据和执行安全边界；worker
+                只处理已经冻结的计划。
+              </p>
+              <div class="hero-actions">
+                <a class="primary-action" href="#intake">查看入库队列</a>
+                <a class="text-action" href="#architecture">理解系统边界</a>
+              </div>
+            </div>
+
+            <div class="disc-map" aria-label="七阶段入库流程">
+              <div class="disc-map__grooves" aria-hidden="true"></div>
+              <div class="disc-map__label">
+                <strong>7</strong>
+                <span>个阶段</span>
+              </div>
+              <ol class="disc-map__stages">
+                <li class="disc-stage disc-stage--1"><span>收件</span></li>
+                <li class="disc-stage disc-stage--2"><span>拆轨</span></li>
+                <li class="disc-stage disc-stage--3"><span>证据</span></li>
+                <li class="disc-stage disc-stage--4"><span>审阅</span></li>
+                <li class="disc-stage disc-stage--5"><span>补全</span></li>
+                <li class="disc-stage disc-stage--6"><span>执行</span></li>
+                <li class="disc-stage disc-stage--7"><span>发布</span></li>
+              </ol>
+            </div>
+          </div>
+
+          <section class="outcome-strip" aria-label="目标效果">
+            <article>
+              <span class="outcome-value">0</span>
+              <div>
+                <strong>原始文件被改写</strong>
+                <p>源文件只读，处理发生在私有 staging。</p>
+              </div>
+            </article>
+            <article>
+              <span class="outcome-value">100%</span>
+              <div>
+                <strong>字段可追溯</strong>
+                <p>值、来源、方法、置信度与决定一起保存。</p>
+              </div>
+            </article>
+            <article>
+              <span class="outcome-value">1</span>
+              <div>
+                <strong>明确发布点</strong>
+                <p>验证完成后才允许原子提交到正式库。</p>
+              </div>
+            </article>
+          </section>
+
+          <section class="section-heading" id="stages">
+            <div>
+              <span class="eyebrow">Operator journey</span>
+              <h2>每个阶段要做什么</h2>
+            </div>
+            <p>
+              阶段顺序是真实的状态约束。后一步不能绕过前一步的证据与校验，也不能在后台“猜着完成”。
+            </p>
+          </section>
+
+          <div class="stage-ledger">
+            <article class="stage-card">
+              <header>
+                <span class="stage-number">01</span>
+                <div>
+                  <span class="stage-kicker">Receive &amp; seal</span>
+                  <h3>收件与原件封存</h3>
+                </div>
+                <span class="status-tag status-tag--done">核心已实现</span>
+              </header>
+              <div class="stage-columns">
+                <div>
+                  <h4>你要做</h4>
+                  <p>选择 CD 抓轨目录或流媒体文件，登记取得来源，并确认本次入库对象。</p>
+                </div>
+                <div>
+                  <h4>系统做</h4>
+                  <p>建立不可变 manifest，记录路径、大小与 SHA-256；源目录随后只读，所有输出进入 staging。</p>
+                </div>
+                <div class="target-cell">
+                  <h4>完成标志</h4>
+                  <p>每个输入都有摘要，manifest 被冻结，后续计划只能引用摘要而不能替换源文件。</p>
+                </div>
+              </div>
+              <footer>
+                <code>anni-ingest/src/manifest.rs</code>
+                <code>anni-workspace</code>
+                <code>annim/src/ingest</code>
+              </footer>
+            </article>
+
+            <article class="stage-card">
+              <header>
+                <span class="stage-number">02</span>
+                <div>
+                  <span class="stage-kicker">Parse &amp; split</span>
+                  <h3>CUE/WAV 解析与安全拆轨</h3>
+                </div>
+                <span class="status-tag status-tag--done">核心已实现</span>
+              </header>
+              <div class="stage-columns">
+                <div>
+                  <h4>你要做</h4>
+                  <p>确认 CUE 对应的 WAV、轨道边界和 HTOA 等异常提示；不需要手工搬运输出文件。</p>
+                </div>
+                <div>
+                  <h4>系统做</h4>
+                  <p>先解析、再生成冻结执行计划；worker 写入独立临时文件，校验完成后才登记产物。</p>
+                </div>
+                <div class="target-cell">
+                  <h4>完成标志</h4>
+                  <p>轨道数量、时长与摘要可复核；失败只留下隔离记录，不会删除或覆盖整轨 WAV。</p>
+                </div>
+              </div>
+              <footer>
+                <code>anni-split</code>
+                <code>anni-ingest/src/plan.rs</code>
+                <code>anni-ingest-worker</code>
+              </footer>
+            </article>
+
+            <article class="stage-card stage-card--authority">
+              <header>
+                <span class="stage-number">03</span>
+                <div>
+                  <span class="stage-kicker">Evidence, not overwrite</span>
+                  <h3>元数据证据化</h3>
+                </div>
+                <span class="status-tag status-tag--done">核心已实现</span>
+              </header>
+              <div class="stage-columns">
+                <div>
+                  <h4>你要做</h4>
+                  <p>优先录入 Booklet 与包装上的原文；保留全角、半角、大小写、空格和括号形态。</p>
+                </div>
+                <div>
+                  <h4>系统做</h4>
+                  <p>每个候选值绑定来源、定位信息、采集方法与置信度。AI 和网络只添加候选，不改 canonical 值。</p>
+                </div>
+                <div class="target-cell">
+                  <h4>完成标志</h4>
+                  <p>标题、艺人、日期、曲种等必需字段都有可追溯候选，且 Booklet 冲突被明确呈现。</p>
+                </div>
+              </div>
+              <div class="exact-text-sample" aria-label="原文字符保留示例">
+                <span>exact text</span>
+                <code>作品・A〜B～C（初回）</code>
+                <p>项目既有的中点与波浪线约定视为已确认实践，不作为冲突项；其余字符不做静默归一化。</p>
+              </div>
+              <footer>
+                <code>anni-ingest/src/metadata.rs</code>
+                <code>annim/src/graphql/ingest_metadata.rs</code>
+              </footer>
+            </article>
+
+            <article class="stage-card">
+              <header>
+                <span class="stage-number">04</span>
+                <div>
+                  <span class="stage-kicker">Human decision</span>
+                  <h3>逐字段审阅与版本冻结</h3>
+                </div>
+                <span class="status-tag status-tag--partial">人工工作台已实现</span>
+              </header>
+              <div class="stage-columns">
+                <div>
+                  <h4>你要做</h4>
+                  <p>在一个视图里比较候选、查看证据并接受或拒绝；重点确认曲种、艺人职责与多碟结构。</p>
+                </div>
+                <div>
+                  <h4>系统做</h4>
+                  <p>计算缺失必填项，保存每次 revision；用 row version 拒绝过期页面的覆盖写入。</p>
+                </div>
+                <div class="target-cell">
+                  <h4>完成标志</h4>
+                  <p>审阅 completeness 为 100%，被批准 revision 冻结；任何后续改动都产生新 revision。</p>
+                </div>
+              </div>
+              <footer>
+                <code>annim GraphQL metadata review</code>
+                <code>annim-web / metadata workbench</code>
+              </footer>
+            </article>
+
+            <article class="stage-card">
+              <header>
+                <span class="stage-number">05</span>
+                <div>
+                  <span class="stage-kicker">Catalog &amp; artwork</span>
+                  <h3>目录同步与封面择优</h3>
+                </div>
+                <span class="status-tag status-tag--partial">后台核心已实现</span>
+              </header>
+              <div class="stage-columns">
+                <div>
+                  <h4>你要做</h4>
+                  <p>为艺人绑定 Apple、官网或 VGMDB 信源；对候选封面比较像素、来源与版本后确认。</p>
+                </div>
+                <div>
+                  <h4>系统做</h4>
+                  <p>后台分页拉取目录并保留原始响应；下载封面时禁止私网跳转，验证格式后按摘要存储。</p>
+                </div>
+                <div class="target-cell">
+                  <h4>完成标志</h4>
+                  <p>艺人拉表显示已收集、缺失和音质；选定封面指向已验证的本地不可变资产。</p>
+                </div>
+              </div>
+              <div class="stage-note">
+                <span>Cover strategy</span>
+                <p>
+                  Apple artwork 展开尺寸模板；艺人/厂牌官网保留原始链接；Amazon 只在已知图片 CDN
+                  上移除文件名中的压缩块（例如 <code>._AC_SL1500_</code>），不会删除可能承载签名或凭据的任意查询参数。
+                </p>
+              </div>
+              <footer>
+                <code>anni-catalog-worker</code>
+                <code>anni-cover-worker</code>
+                <code>annim/src/catalog</code>
+                <code>annim/src/cover</code>
+              </footer>
+            </article>
+
+            <article class="stage-card stage-card--safe">
+              <header>
+                <span class="stage-number">06</span>
+                <div>
+                  <span class="stage-kicker">Execute the frozen plan</span>
+                  <h3>执行、校验与隔离</h3>
+                </div>
+                <span class="status-tag status-tag--done">核心已实现</span>
+              </header>
+              <div class="stage-columns">
+                <div>
+                  <h4>你要做</h4>
+                  <p>启动已经批准的 plan；如果输入摘要或 revision 已变化，回到审阅而不是强行继续。</p>
+                </div>
+                <div>
+                  <h4>系统做</h4>
+                  <p>worker 持 lease 执行，逐项核对 plan digest、输出摘要和媒体属性；异常进入 quarantine。</p>
+                </div>
+                <div class="target-cell">
+                  <h4>完成标志</h4>
+                  <p>verification digest 绑定本次产物，所有步骤幂等；重复执行不会生成不一致的第二份结果。</p>
+                </div>
+              </div>
+              <footer>
+                <code>anni-ingest-worker</code>
+                <code>annim ingest state machine</code>
+              </footer>
+            </article>
+
+            <article class="stage-card">
+              <header>
+                <span class="stage-number">07</span>
+                <div>
+                  <span class="stage-kicker">Atomic publish</span>
+                  <h3>原子发布与进度回写</h3>
+                </div>
+                <span class="status-tag status-tag--partial">闭环待完善</span>
+              </header>
+              <div class="stage-columns">
+                <div>
+                  <h4>你要做</h4>
+                  <p>在验证摘要一致后确认发布；之后只在正式库中查看，不再手工移动 staging 文件。</p>
+                </div>
+                <div>
+                  <h4>系统做</h4>
+                  <p>原子提交到 Anni 仓库，关联 artist/release/copy/ingest job，并回写音质与取得来源。</p>
+                </div>
+                <div class="target-cell">
+                  <h4>完成标志</h4>
+                  <p>正式库可读、拉表状态变为 Published；审计记录能从成品反查到输入、计划和证据。</p>
+                </div>
+              </div>
+              <div class="stage-note">
+                <span>Copy provenance</span>
+                <p>
+                  每份实际音频单独记录 source kind 与自由文本 source label，例如“天使动漫”“某 PT/BT
+                  站”“群友分享”；同一发行可同时保留多个音质与来源，不用互相覆盖。
+                </p>
+              </div>
+              <footer>
+                <code>anni-repo integration</code>
+                <code>catalog collection copy</code>
+                <code>disaster recovery runbook</code>
+              </footer>
+            </article>
+          </div>
+
+          <section class="architecture" id="architecture">
+            <div class="section-heading section-heading--compact">
+              <div>
+                <span class="eyebrow">Server–client boundary</span>
+                <h2>目标架构</h2>
+              </div>
+              <p>浏览器只发控制命令；耗时、敏感和文件相关工作全部离开请求线程。</p>
+            </div>
+
+            <div class="architecture-map" role="img" aria-label="Annim server-client 架构图">
+              <div class="architecture-node architecture-node--client">
+                <span>Client</span>
+                <strong>Annim Web</strong>
+                <p>队列 · 审阅 · 拉表 · 封面</p>
+              </div>
+              <div class="architecture-link">
+                <span>HTTPS / GraphQL</span>
+              </div>
+              <div class="architecture-node architecture-node--server">
+                <span>Control plane</span>
+                <strong>Annim Server</strong>
+                <p>Auth · CAS · 状态机 · 审计</p>
+              </div>
+              <div class="architecture-link architecture-link--branch">
+                <span>leases + frozen plans</span>
+              </div>
+              <div class="architecture-workers">
+                <div>
+                  <span>Worker</span>
+                  <strong>Ingest</strong>
+                </div>
+                <div>
+                  <span>Worker</span>
+                  <strong>Catalog</strong>
+                </div>
+                <div>
+                  <span>Worker</span>
+                  <strong>Cover</strong>
+                </div>
+              </div>
+              <div class="architecture-link">
+                <span>verified writes only</span>
+              </div>
+              <div class="architecture-storage">
+                <div>
+                  <span>Private</span>
+                  <strong>Staging</strong>
+                </div>
+                <div>
+                  <span>Durable</span>
+                  <strong>Database</strong>
+                </div>
+                <div>
+                  <span>Published</span>
+                  <strong>Anni Repository</strong>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <section class="authority-section">
+            <div class="section-heading section-heading--compact">
+              <div>
+                <span class="eyebrow">Metadata authority</span>
+                <h2>冲突时听谁的</h2>
+              </div>
+              <p>优先级不等于自动接受。所有来源先成为候选，再由规则推荐、由人确认。</p>
+            </div>
+            <ol class="authority-ladder">
+              <li>
+                <span class="authority-rank">A</span>
+                <div>
+                  <strong>CD Booklet / 盘面 / 包装</strong>
+                  <p>收藏实体的原始记载，最高权威；逐字符转录并保留版次。</p>
+                </div>
+              </li>
+              <li>
+                <span class="authority-rank">B</span>
+                <div>
+                  <strong>唱片公司与艺人官网</strong>
+                  <p>用于补充发行信息、职责与版本；与实体冲突时必须提示。</p>
+                </div>
+              </li>
+              <li>
+                <span class="authority-rank">C</span>
+                <div>
+                  <strong>官方商店 / Apple Music</strong>
+                  <p>适合补齐目录和封面；流媒体版可能不同于 CD 版。</p>
+                </div>
+              </li>
+              <li>
+                <span class="authority-rank">D</span>
+                <div>
+                  <strong>VGMDB 与社区来源</strong>
+                  <p>VGMDB 适合发现专辑，社区来源适合定位线索；两者都不能静默定稿。</p>
+                </div>
+              </li>
+              <li>
+                <span class="authority-rank">E</span>
+                <div>
+                  <strong>文件名与 AI 推断</strong>
+                  <p>只用于产生待审候选，必须标注 inference，不能补写不存在的事实。</p>
+                </div>
+              </li>
+            </ol>
+          </section>
+
+          <section class="safety-section">
+            <div class="section-heading section-heading--compact">
+              <div>
+                <span class="eyebrow">Safety &amp; recovery</span>
+                <h2>失败也不能伤到原件</h2>
+              </div>
+              <p>安全不是一个确认弹窗，而是从输入、执行、提交到备份都无法绕过的不变量。</p>
+            </div>
+            <div class="safety-grid">
+              <article>
+                <span class="safety-index">S1</span>
+                <h3>原件只读</h3>
+                <p>服务不提供删除源文件的命令。manifest 记录摘要；摘要变化时停止任务，而不是继续使用“看起来相同”的路径。</p>
+                <strong>故障结果：任务失效，原件不变</strong>
+              </article>
+              <article>
+                <span class="safety-index">S2</span>
+                <h3>私有 staging</h3>
+                <p>临时路径由 worker 创建，拒绝越界与覆盖；拆轨和封面都先写 partial，再校验摘要与媒体结构。</p>
+                <strong>故障结果：partial 被隔离，可重试</strong>
+              </article>
+              <article>
+                <span class="safety-index">S3</span>
+                <h3>冻结计划 + CAS</h3>
+                <p>每个写操作携带 row version、metadata revision 与 plan digest；过期页面和重复 worker 不能相互覆盖。</p>
+                <strong>故障结果：冲突显式返回，等待刷新</strong>
+              </article>
+              <article>
+                <span class="safety-index">S4</span>
+                <h3>验证后发布</h3>
+                <p>产物通过数量、摘要和媒体属性验证后才进入 Ready to commit；发布点必须可重放且幂等。</p>
+                <strong>故障结果：正式库仍保持旧状态</strong>
+              </article>
+              <article>
+                <span class="safety-index">S5</span>
+                <h3>3-2-1 灾备</h3>
+                <p>目标部署需同时备份数据库、内容寻址资产和正式仓库；至少一份离线/异地不可变副本，并定期做恢复演练。</p>
+                <strong>建设项：backup/restore runbook + 演练记录</strong>
+              </article>
+              <article>
+                <span class="safety-index">S6</span>
+                <h3>审计闭环</h3>
+                <p>成品反查到 copy、ingest job、verification、plan、manifest 与 evidence；排障不依赖易失日志。</p>
+                <strong>建设项：发布回写与审计查询页</strong>
+              </article>
+            </div>
+          </section>
+
+          <section class="build-matrix-section">
+            <div class="section-heading section-heading--compact">
+              <div>
+                <span class="eyebrow">Implementation map</span>
+                <h2>现有模块与后续建设</h2>
+              </div>
+              <p>“已有”表示当前仓库中有真实执行路径和测试；“下一步”表示仍需要产品界面、适配器或运维闭环。</p>
+            </div>
+            <div class="build-matrix-wrap">
+              <table class="build-matrix">
+                <thead>
+                  <tr>
+                    <th>能力</th>
+                    <th>当前调用点</th>
+                    <th>状态</th>
+                    <th>下一步</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td>入库状态与并发控制</td>
+                    <td><code>annim/src/ingest</code> · <code>annim/src/graphql/ingest.rs</code></td>
+                    <td><span class="matrix-state matrix-state--done">已有</span></td>
+                    <td>Web 写操作与冲突恢复提示</td>
+                  </tr>
+                  <tr>
+                    <td>不可变 manifest / plan</td>
+                    <td><code>anni-ingest/src/manifest.rs</code> · <code>plan.rs</code></td>
+                    <td><span class="matrix-state matrix-state--done">已有</span></td>
+                    <td>从浏览器创建 staging job 的受控上传/登记入口</td>
+                  </tr>
+                  <tr>
+                    <td>CUE/WAV 拆轨</td>
+                    <td><code>anni-split</code> · <code>anni-ingest-worker</code></td>
+                    <td><span class="matrix-state matrix-state--done">已有</span></td>
+                    <td>在 Job 详情中展示边界、时长和验证报告</td>
+                  </tr>
+                  <tr>
+                    <td>字段证据与审阅 revision</td>
+                    <td><code>anni-ingest/src/metadata.rs</code> · <code>ingest_metadata.rs</code> · <code>annim-web/app.js</code></td>
+                    <td><span class="matrix-state matrix-state--done">已有</span></td>
+                    <td>Booklet 扫描资产、OCR/AI 候选 Agent、批量字段导入与对照</td>
+                  </tr>
+                  <tr>
+                    <td>Artist 拉表与音质来源</td>
+                    <td><code>anni-catalog</code> · <code>annim/src/catalog</code></td>
+                    <td><span class="matrix-state matrix-state--done">已有</span></td>
+                    <td>Web 新建/编辑 Release 与 Copy，以及批量差异确认</td>
+                  </tr>
+                  <tr>
+                    <td>Apple Music 同步</td>
+                    <td><code>anni-catalog-worker/src/apple_music.rs</code> · <code>src/bin/catalog-worker.rs</code></td>
+                    <td><span class="matrix-state matrix-state--done">已有</span></td>
+                    <td>部署 supervisor、developer token 轮换、运行指标与告警</td>
+                  </tr>
+                  <tr>
+                    <td>VGMDB 同步</td>
+                    <td><code>anni-vgmdb</code>（legacy CLI）</td>
+                    <td><span class="matrix-state matrix-state--pending">受限</span></td>
+                    <td>先用 DiscoveryOnly/人工导入；获得稳定且允许的访问入口后再做 FullSnapshot</td>
+                  </tr>
+                  <tr>
+                    <td>封面获取与择优</td>
+                    <td><code>anni-cover-worker</code> · <code>annim/src/cover</code></td>
+                    <td><span class="matrix-state matrix-state--done">已有</span></td>
+                    <td>Web 候选对比、来源标注和选择操作</td>
+                  </tr>
+                  <tr>
+                    <td>灾备与可观测性</td>
+                    <td>部署层</td>
+                    <td><span class="matrix-state matrix-state--pending">待建设</span></td>
+                    <td>PITR/SQLite backup、资产清单校验、恢复演练、指标与告警</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </section>
+
+          <section class="test-contract">
+            <div>
+              <span class="eyebrow">Explainable Rust</span>
+              <h2>测试覆盖行为，不堆数量</h2>
+            </div>
+            <div class="test-grid">
+              <article>
+                <span>Unit</span>
+                <strong>规则与纯函数</strong>
+                <p>Unicode 原样保存、状态转换、URL 重写、分页与重试分类。</p>
+              </article>
+              <article>
+                <span>Integration</span>
+                <strong>真实仓储边界</strong>
+                <p>SQLite/PostgreSQL 持久化、CAS、lease、不可变 revision 与幂等。</p>
+              </article>
+              <article>
+                <span>Journey</span>
+                <strong>关键闭环</strong>
+                <p>从 staging 到发布的少量高价值流程；外部网络使用 fixture，不做脆弱 live test。</p>
+              </article>
+            </div>
+          </section>
+        </section>
+
+        <section class="view" id="intake-view" data-view="intake" hidden>
+          <header class="view-header">
+            <div>
+              <span class="eyebrow">Live control plane</span>
+              <h1>入库队列</h1>
+              <p>先定位阻塞阶段，再进入元数据证据与审批。页面不会直接执行文件操作。</p>
+            </div>
+            <button class="secondary-action" type="button" data-refresh="intake">刷新队列</button>
+          </header>
+
+          <div class="queue-summary" id="queue-summary" aria-live="polite"></div>
+          <div class="data-surface" id="intake-list">
+            <div class="empty-state">
+              <strong>连接 Annim 后读取队列</strong>
+              <p>管理令牌只保存在当前浏览器标签页的 sessionStorage 中。</p>
+            </div>
+          </div>
+
+          <aside class="detail-drawer" id="ingest-detail" hidden aria-live="polite">
+            <button class="drawer-close" type="button" data-close-drawer>关闭</button>
+            <div id="ingest-detail-content"></div>
+          </aside>
+        </section>
+
+        <section class="view" id="artists-view" data-view="artists" hidden>
+          <header class="view-header">
+            <div>
+              <span class="eyebrow">Artist collection matrix</span>
+              <h1>艺人拉表</h1>
+              <p>把官方发行列表与实际持有副本放在同一张表里，同时记录来源和音质。</p>
+            </div>
+            <div class="view-header__actions">
+              <button class="primary-action" id="create-artist-button" type="button">新建 Artist</button>
+              <button class="secondary-action" type="button" data-refresh="artists">刷新艺人</button>
+            </div>
+          </header>
+
+          <form class="search-bar" id="artist-search-form" role="search">
+            <label for="artist-search">查找艺人</label>
+            <input id="artist-search" name="search" type="search" autocomplete="off" />
+            <button type="submit">搜索</button>
+          </form>
+
+          <div class="artist-layout">
+            <div class="artist-index" id="artist-list">
+              <div class="empty-state">
+                <strong>尚未读取艺人</strong>
+                <p>建立管理会话后，这里会显示 Annim 中的 Artist。</p>
+              </div>
+            </div>
+            <div class="collection-sheet" id="collection-sheet">
+              <div class="empty-state">
+                <strong>选择一位艺人</strong>
+                <p>查看完整发行列表、缺失状态、音频来源与质量。</p>
+              </div>
+            </div>
+          </div>
+        </section>
+      </main>
+    </div>
+
+    <dialog class="session-dialog" id="session-dialog">
+      <form method="dialog" id="session-form">
+        <div class="dialog-heading">
+          <span class="eyebrow">Private admin session</span>
+          <h2>连接 Annim</h2>
+          <p>令牌不会写入 URL，也不会持久保存到 localStorage。</p>
+        </div>
+        <label for="admin-token">Bearer 管理令牌</label>
+        <input
+          id="admin-token"
+          name="token"
+          type="password"
+          autocomplete="current-password"
+          spellcheck="false"
+          required
+        />
+        <p class="form-error" id="session-error" role="alert"></p>
+        <div class="dialog-actions">
+          <button class="danger-action" id="forget-session" type="button">清除当前会话</button>
+          <button class="primary-action" value="connect" type="submit">连接</button>
+        </div>
+      </form>
+    </dialog>
+
+    <dialog class="session-dialog catalog-dialog" id="artist-dialog">
+      <form id="artist-create-form">
+        <div class="dialog-heading">
+          <span class="eyebrow">Artist ledger</span>
+          <h2>新建 Artist</h2>
+          <p>名称按来源原文保存；系统不会 trim 或做 Unicode 归一化。</p>
+        </div>
+        <label for="artist-display-name">显示名称</label>
+        <input id="artist-display-name" name="displayName" type="text" autocomplete="off" required />
+        <label for="artist-sort-name">排序名称（可选）</label>
+        <input id="artist-sort-name" name="sortName" type="text" autocomplete="off" />
+        <label for="artist-notes">备注（可选）</label>
+        <textarea id="artist-notes" name="notes" rows="3"></textarea>
+        <p class="form-error" id="artist-form-error" role="alert"></p>
+        <div class="dialog-actions">
+          <button class="secondary-action" type="button" data-close-catalog-dialog>取消</button>
+          <button class="primary-action" type="submit">创建 Artist</button>
+        </div>
+      </form>
+    </dialog>
+
+    <dialog class="session-dialog catalog-dialog" id="release-dialog">
+      <form id="release-create-form">
+        <div class="dialog-heading">
+          <span class="eyebrow">Release ledger</span>
+          <h2>登记发行</h2>
+          <p id="release-dialog-artist">发行会归入当前 Artist 的拉表。</p>
+        </div>
+        <label for="release-title">发行标题</label>
+        <input id="release-title" name="title" type="text" autocomplete="off" required />
+        <div class="dialog-field-grid">
+          <label>
+            <span>版本（可选）</span>
+            <input id="release-edition" name="edition" type="text" autocomplete="off" />
+          </label>
+          <label>
+            <span>品番（可选）</span>
+            <input id="release-catalog" name="catalog" type="text" autocomplete="off" />
+          </label>
+          <label>
+            <span>发行日期（可选）</span>
+            <input
+              id="release-date"
+              name="releaseDate"
+              type="text"
+              placeholder="YYYY / YYYY-MM / YYYY-MM-DD"
+              autocomplete="off"
+            />
+          </label>
+          <label>
+            <span>发行类型</span>
+            <select id="release-kind" name="kind">
+              <option value="ALBUM">Album</option>
+              <option value="SINGLE">Single</option>
+              <option value="EP">EP</option>
+              <option value="SOUNDTRACK">Soundtrack</option>
+              <option value="COMPILATION">Compilation</option>
+              <option value="OTHER">Other</option>
+            </select>
+          </label>
+        </div>
+        <label for="release-notes">备注（可选）</label>
+        <textarea id="release-notes" name="notes" rows="3"></textarea>
+        <p class="form-error" id="release-form-error" role="alert"></p>
+        <div class="dialog-actions">
+          <button class="secondary-action" type="button" data-close-catalog-dialog>取消</button>
+          <button class="primary-action" type="submit">登记发行</button>
+        </div>
+      </form>
+    </dialog>
+
+    <dialog class="session-dialog catalog-dialog" id="release-manage-dialog">
+      <form id="collection-copy-form">
+        <div class="dialog-heading">
+          <span class="eyebrow">Collection copy</span>
+          <h2 id="release-manage-title">管理发行</h2>
+          <p>目录状态与实际音频副本分开记录；私有定位信息不会出现在查询结果中。</p>
+        </div>
+
+        <div class="release-status-toolbar" aria-label="发行收集状态">
+          <span id="release-manage-state">Missing</span>
+          <button type="button" data-release-command="markWanted">标记想要</button>
+          <button type="button" data-release-command="markMissing">标记缺失</button>
+          <button type="button" data-release-command="markUnavailable">标记不可得</button>
+        </div>
+
+        <div class="dialog-subheading">
+          <strong>登记实际音频副本</strong>
+          <span>同一发行可以保留多个来源与音质，不会互相覆盖。</span>
+        </div>
+        <div class="dialog-field-grid">
+          <label>
+            <span>取得来源</span>
+            <select name="sourceKind">
+              <option value="OWNED_CD">自购 / 持有 CD</option>
+              <option value="ANGEL_ANIME">天使动漫</option>
+              <option value="PRIVATE_TRACKER">PT 站</option>
+              <option value="BIT_TORRENT">BT</option>
+              <option value="FRIEND_SHARE">群友分享</option>
+              <option value="STREAMING">流媒体</option>
+              <option value="OTHER">其他</option>
+            </select>
+          </label>
+          <label>
+            <span>来源名称</span>
+            <input name="sourceLabel" type="text" placeholder="例如：天使动漫（群友补档）" autocomplete="off" required />
+          </label>
+          <label>
+            <span>Codec</span>
+            <select name="codec">
+              <option value="FLAC">FLAC</option>
+              <option value="WAV">WAV</option>
+              <option value="ALAC">ALAC</option>
+              <option value="AAC">AAC</option>
+              <option value="MP3">MP3</option>
+              <option value="OPUS">Opus</option>
+              <option value="OTHER">Other</option>
+            </select>
+          </label>
+          <label>
+            <span>私有定位（可选）</span>
+            <input name="privateLocator" type="text" autocomplete="off" />
+          </label>
+          <label>
+            <span>采样率 Hz（可选）</span>
+            <input name="sampleRateHz" type="number" min="1" max="2147483647" value="44100" />
+          </label>
+          <label>
+            <span>位深（可选）</span>
+            <input name="bitDepth" type="number" min="1" max="255" value="16" />
+          </label>
+          <label>
+            <span>声道数（可选）</span>
+            <input name="channels" type="number" min="1" max="255" value="2" />
+          </label>
+          <label>
+            <span>轨道数（可选）</span>
+            <input name="trackCount" type="number" min="1" max="2147483647" />
+          </label>
+          <label>
+            <span>字节数（可选）</span>
+            <input name="byteLength" type="text" inputmode="numeric" autocomplete="off" />
+          </label>
+          <label>
+            <span>Ingest Job UUID（可选）</span>
+            <input name="ingestJobId" type="text" autocomplete="off" spellcheck="false" />
+          </label>
+        </div>
+        <label for="copy-manifest-digest">Manifest SHA-256（可选）</label>
+        <input id="copy-manifest-digest" name="manifestDigest" type="text" autocomplete="off" spellcheck="false" />
+        <label for="copy-notes">副本备注（可选）</label>
+        <textarea id="copy-notes" name="notes" rows="3"></textarea>
+        <label class="dialog-checkbox">
+          <input name="qualityVerified" type="checkbox" />
+          <span>音频属性已经人工或工具验证</span>
+        </label>
+        <p class="form-error" id="collection-copy-form-error" role="alert"></p>
+        <div class="dialog-actions">
+          <button class="secondary-action" type="button" data-close-catalog-dialog>关闭</button>
+          <button class="primary-action" type="submit" data-register-copy>登记副本</button>
+        </div>
+      </form>
+    </dialog>
+
+    <dialog class="session-dialog catalog-dialog" id="catalog-source-dialog">
+      <form id="catalog-source-form">
+        <div class="dialog-heading">
+          <span class="eyebrow">Official catalog source</span>
+          <h2>绑定 Apple Music</h2>
+          <p id="catalog-source-artist">信源会归入当前 Artist。</p>
+        </div>
+        <div class="catalog-source-contract">
+          <strong>凭据由 Annim server 托管</strong>
+          <span>此处不接收 developer token 或 secret reference；未完成服务端 provisioning 时创建会被拒绝。</span>
+        </div>
+        <label for="catalog-source-locator">Apple Music Artist ID</label>
+        <input
+          id="catalog-source-locator"
+          name="locator"
+          type="text"
+          inputmode="numeric"
+          pattern="(?!0+$)[0-9]{1,32}"
+          maxlength="32"
+          autocomplete="off"
+          spellcheck="false"
+          required
+        />
+        <div class="dialog-field-grid">
+          <label>
+            <span>Storefront</span>
+            <input name="storefront" type="text" value="jp" pattern="[a-z]{2}" maxlength="2" autocomplete="off" required />
+          </label>
+          <label>
+            <span>Locale（可选）</span>
+            <input name="locale" type="text" value="ja-JP" maxlength="35" autocomplete="off" spellcheck="false" />
+          </label>
+        </div>
+        <p class="form-error" id="catalog-source-form-error" role="alert"></p>
+        <div class="dialog-actions">
+          <button class="secondary-action" type="button" data-close-catalog-dialog>取消</button>
+          <button class="primary-action" type="submit">建立信源</button>
+        </div>
+      </form>
+    </dialog>
+
+    <div class="toast-region" id="toast-region" aria-live="polite" aria-atomic="true"></div>
+  </body>
+</html>

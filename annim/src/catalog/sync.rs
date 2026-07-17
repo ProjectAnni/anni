@@ -1,0 +1,2996 @@
+//! Durable synchronization of artist discographies from external catalogs.
+//!
+//! A sync run never treats a remote response as canonical metadata. Instead,
+//! it stores the exact response as an append-only observation. Parsed data is
+//! stored beside the response so parser changes are reviewable, while the raw
+//! SHA-256 makes accidental corruption detectable.
+//!
+//! Public snapshots deliberately omit `configuration_document` and
+//! `secret_ref`. Those values are worker-only inputs and must not leak through
+//! a future GraphQL query merely because a source was listed.
+
+use std::{fmt, str::FromStr, time::Duration};
+
+use anni_catalog::{CatalogSourceKind, SyncCoverage, SyncRunStatus};
+use anni_ingest::Digest;
+use sea_orm::{
+    prelude::{DateTimeUtc, Uuid},
+    sea_query::{Expr, Query},
+    ActiveValue::{NotSet, Set},
+    ColumnTrait, Condition, ConnectionTrait, DatabaseConnection, DbErr, EntityTrait, QueryFilter,
+    QueryOrder, QuerySelect, TransactionTrait,
+};
+use sha2::{Digest as ShaDigest, Sha256};
+use thiserror::Error;
+
+use super::CatalogRowVersion;
+use crate::{
+    config::{CatalogSecretRef, CatalogSyncProvisioningConfig},
+    entities::{
+        catalog_artist, catalog_source, catalog_source_release, catalog_source_release_revision,
+        catalog_sync_run, helper::timestamp,
+    },
+};
+
+const MAX_SYNC_ERROR_CHARS: usize = 512;
+const MAX_CLAIM_CAS_ATTEMPTS: usize = 16;
+
+#[cfg(feature = "postgres")]
+type PersistedTimestamp = chrono::NaiveDateTime;
+#[cfg(all(feature = "sqlite", not(feature = "postgres")))]
+type PersistedTimestamp = DateTimeUtc;
+
+#[cfg(feature = "postgres")]
+fn store_timestamp(value: DateTimeUtc) -> PersistedTimestamp {
+    value.naive_utc()
+}
+
+#[cfg(all(feature = "sqlite", not(feature = "postgres")))]
+fn store_timestamp(value: DateTimeUtc) -> PersistedTimestamp {
+    value
+}
+
+#[derive(Clone, PartialEq, Eq)]
+pub struct CatalogSourceSnapshot {
+    pub source_id: Uuid,
+    pub artist_id: Uuid,
+    pub kind: CatalogSourceKind,
+    pub locator: String,
+    pub storefront: Option<String>,
+    pub locale: Option<String>,
+    pub enabled: bool,
+    pub provisioning_state: CatalogSourceProvisioningState,
+    pub row_version: CatalogRowVersion,
+    pub created_at: DateTimeUtc,
+    pub updated_at: DateTimeUtc,
+}
+
+impl fmt::Debug for CatalogSourceSnapshot {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter
+            .debug_struct("CatalogSourceSnapshot")
+            .field("source_id", &self.source_id)
+            .field("artist_id", &self.artist_id)
+            .field("kind", &self.kind)
+            .field("locator", &"[REDACTED]")
+            .field("storefront", &self.storefront)
+            .field("locale", &self.locale)
+            .field("enabled", &self.enabled)
+            .field("provisioning_state", &self.provisioning_state)
+            .field("row_version", &self.row_version)
+            .field("created_at", &self.created_at)
+            .field("updated_at", &self.updated_at)
+            .finish()
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CatalogSourceProvisioningState {
+    ReadyToQueue,
+    Disabled,
+    CredentialNotConfigured,
+    CredentialBindingInvalid,
+    AdapterUnavailable,
+}
+
+impl CatalogSourceSnapshot {
+    /// Reports whether the browser-managed control plane can queue this source.
+    ///
+    /// Only the Apple Music adapter is installed in the production catalog
+    /// worker today. A configured reference means the worker can attempt to
+    /// resolve a credential; it does not claim that the token itself is valid.
+    pub const fn managed_provisioning_state(&self) -> CatalogSourceProvisioningState {
+        self.provisioning_state
+    }
+}
+
+/// Browser-safe request to register a source.
+///
+/// Adapter configuration and credential references are deliberately absent;
+/// [`CatalogSyncService`] adds trusted provisioning before persistence.
+#[derive(Clone, PartialEq, Eq)]
+pub struct NewManagedCatalogSource {
+    pub source_id: Option<Uuid>,
+    pub artist_id: Uuid,
+    pub kind: CatalogSourceKind,
+    pub locator: String,
+    pub storefront: Option<String>,
+    pub locale: Option<String>,
+}
+
+impl fmt::Debug for NewManagedCatalogSource {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter
+            .debug_struct("NewManagedCatalogSource")
+            .field("source_id", &self.source_id)
+            .field("artist_id", &self.artist_id)
+            .field("kind", &self.kind)
+            .field("locator", &"[REDACTED]")
+            .field("storefront", &self.storefront)
+            .field("locale", &self.locale)
+            .finish()
+    }
+}
+
+#[derive(Clone, PartialEq, Eq)]
+pub struct NewCatalogSource {
+    pub source_id: Option<Uuid>,
+    pub artist_id: Uuid,
+    pub kind: CatalogSourceKind,
+    pub locator: String,
+    pub storefront: Option<String>,
+    pub locale: Option<String>,
+    /// Adapter configuration. This is accepted at the command boundary but is
+    /// intentionally absent from [`CatalogSourceSnapshot`].
+    pub configuration_document: Option<String>,
+    /// Reference into the worker's secret store, never the secret itself.
+    pub secret_ref: Option<String>,
+}
+
+impl fmt::Debug for NewCatalogSource {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter
+            .debug_struct("NewCatalogSource")
+            .field("source_id", &self.source_id)
+            .field("artist_id", &self.artist_id)
+            .field("kind", &self.kind)
+            .field("locator", &"[REDACTED]")
+            .field("storefront", &self.storefront)
+            .field("locale", &self.locale)
+            .field(
+                "configuration_document",
+                &self.configuration_document.as_ref().map(|_| "[REDACTED]"),
+            )
+            .field(
+                "secret_ref",
+                &self.secret_ref.as_ref().map(|_| "[REDACTED]"),
+            )
+            .finish()
+    }
+}
+
+#[derive(Clone, PartialEq, Eq)]
+pub struct CatalogSyncRunSnapshot {
+    pub run_id: Uuid,
+    pub source_id: Uuid,
+    pub status: SyncRunStatus,
+    pub requested_cursor: Option<String>,
+    pub result_cursor: Option<String>,
+    pub observed_count: u32,
+    pub error_message: Option<String>,
+    pub coverage: SyncCoverage,
+    pub started_from_root: bool,
+    pub snapshot_complete: bool,
+    pub attempt_count: u32,
+    pub next_attempt_at: Option<DateTimeUtc>,
+    pub row_version: CatalogRowVersion,
+    pub created_at: DateTimeUtc,
+    pub started_at: Option<DateTimeUtc>,
+    pub finished_at: Option<DateTimeUtc>,
+}
+
+impl fmt::Debug for CatalogSyncRunSnapshot {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter
+            .debug_struct("CatalogSyncRunSnapshot")
+            .field("run_id", &self.run_id)
+            .field("source_id", &self.source_id)
+            .field("status", &self.status)
+            .field(
+                "requested_cursor",
+                &self.requested_cursor.as_ref().map(|_| "[REDACTED]"),
+            )
+            .field(
+                "result_cursor",
+                &self.result_cursor.as_ref().map(|_| "[REDACTED]"),
+            )
+            .field("observed_count", &self.observed_count)
+            .field(
+                "error_message",
+                &self.error_message.as_ref().map(|_| "[REDACTED]"),
+            )
+            .field("coverage", &self.coverage)
+            .field("started_from_root", &self.started_from_root)
+            .field("snapshot_complete", &self.snapshot_complete)
+            .field("attempt_count", &self.attempt_count)
+            .field("next_attempt_at", &self.next_attempt_at)
+            .field("row_version", &self.row_version)
+            .field("created_at", &self.created_at)
+            .field("started_at", &self.started_at)
+            .field("finished_at", &self.finished_at)
+            .finish()
+    }
+}
+
+#[derive(Clone, PartialEq, Eq)]
+pub struct NewCatalogSyncRun {
+    pub run_id: Option<Uuid>,
+    pub source_id: Uuid,
+    pub requested_cursor: Option<String>,
+}
+
+impl fmt::Debug for NewCatalogSyncRun {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter
+            .debug_struct("NewCatalogSyncRun")
+            .field("run_id", &self.run_id)
+            .field("source_id", &self.source_id)
+            .field(
+                "requested_cursor",
+                &self.requested_cursor.as_ref().map(|_| "[REDACTED]"),
+            )
+            .finish()
+    }
+}
+
+/// Worker-only execution envelope for a catalog run.
+///
+/// This is deliberately never inserted into the GraphQL schema. The custom
+/// Debug implementation exposes only non-secret identifiers and counters.
+#[derive(Clone, PartialEq, Eq)]
+pub struct CatalogSyncLease {
+    pub run_id: Uuid,
+    pub source_id: Uuid,
+    pub kind: CatalogSourceKind,
+    pub locator: String,
+    pub storefront: Option<String>,
+    pub locale: Option<String>,
+    pub configuration_document: Option<String>,
+    pub secret_ref: Option<String>,
+    pub requested_cursor: Option<String>,
+    pub lease_token: Uuid,
+    pub lease_expires_at: DateTimeUtc,
+    pub attempt_count: u32,
+    pub row_version: CatalogRowVersion,
+}
+
+impl fmt::Debug for CatalogSyncLease {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter
+            .debug_struct("CatalogSyncLease")
+            .field("run_id", &self.run_id)
+            .field("source_id", &self.source_id)
+            .field("kind", &self.kind)
+            .field("locator", &"[REDACTED]")
+            .field("storefront", &self.storefront)
+            .field("locale", &self.locale)
+            .field(
+                "configuration_document",
+                &self.configuration_document.as_ref().map(|_| "[REDACTED]"),
+            )
+            .field(
+                "secret_ref",
+                &self.secret_ref.as_ref().map(|_| "[REDACTED]"),
+            )
+            .field(
+                "requested_cursor",
+                &self.requested_cursor.as_ref().map(|_| "[REDACTED]"),
+            )
+            .field("lease_token", &"[REDACTED]")
+            .field("lease_expires_at", &self.lease_expires_at)
+            .field("attempt_count", &self.attempt_count)
+            .field("row_version", &self.row_version)
+            .finish()
+    }
+}
+
+/// One exact release observation produced by a source adapter.
+///
+/// No Unicode normalization or whitespace rewriting occurs here: both
+/// documents are hashed and persisted byte-for-byte as supplied.
+#[derive(Clone, PartialEq, Eq)]
+pub struct CatalogReleaseObservation {
+    pub external_release_id: String,
+    pub source_url: String,
+    pub raw_document: String,
+    pub parsed_document: String,
+}
+
+impl fmt::Debug for CatalogReleaseObservation {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter
+            .debug_struct("CatalogReleaseObservation")
+            .field("external_release_id", &self.external_release_id)
+            .field("source_url", &"[REDACTED]")
+            .field("raw_document_bytes", &self.raw_document.len())
+            .field("parsed_document_bytes", &self.parsed_document.len())
+            .finish()
+    }
+}
+
+#[derive(Clone, PartialEq, Eq)]
+pub struct CatalogObservationSnapshot {
+    pub source_release_id: Uuid,
+    pub external_release_id: String,
+    pub source_url: String,
+    pub revision: u64,
+    pub raw_sha256: Digest,
+    pub first_seen_at: DateTimeUtc,
+    pub last_seen_at: DateTimeUtc,
+    pub not_seen_since: Option<DateTimeUtc>,
+    pub row_version: CatalogRowVersion,
+}
+
+impl fmt::Debug for CatalogObservationSnapshot {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter
+            .debug_struct("CatalogObservationSnapshot")
+            .field("source_release_id", &self.source_release_id)
+            .field("external_release_id", &self.external_release_id)
+            .field("source_url", &"[REDACTED]")
+            .field("revision", &self.revision)
+            .field("raw_sha256", &self.raw_sha256)
+            .field("first_seen_at", &self.first_seen_at)
+            .field("last_seen_at", &self.last_seen_at)
+            .field("not_seen_since", &self.not_seen_since)
+            .field("row_version", &self.row_version)
+            .finish()
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RecordedCatalogObservation {
+    pub run: CatalogSyncRunSnapshot,
+    pub observation: CatalogObservationSnapshot,
+    /// False when the exact raw and parsed documents already formed the latest
+    /// revision. Seeing the same release in a later run still clears absence
+    /// and advances the run, but does not duplicate evidence.
+    pub revision_appended: bool,
+    /// False for duplicate adapter output within the same run. This prevents a
+    /// retry from inflating `observed_count`.
+    pub first_observation_in_run: bool,
+}
+
+#[derive(Clone, PartialEq, Eq)]
+pub enum FinishCatalogSyncRun {
+    Succeeded {
+        result_cursor: Option<String>,
+        coverage: SyncCoverage,
+        snapshot_complete: bool,
+    },
+    Failed {
+        error_message: String,
+    },
+    Cancelled {
+        message: Option<String>,
+    },
+}
+
+impl fmt::Debug for FinishCatalogSyncRun {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Succeeded {
+                result_cursor,
+                coverage,
+                snapshot_complete,
+            } => formatter
+                .debug_struct("Succeeded")
+                .field(
+                    "result_cursor",
+                    &result_cursor.as_ref().map(|_| "[REDACTED]"),
+                )
+                .field("coverage", coverage)
+                .field("snapshot_complete", snapshot_complete)
+                .finish(),
+            Self::Failed { .. } => formatter
+                .debug_struct("Failed")
+                .field("error_message", &"[REDACTED]")
+                .finish(),
+            Self::Cancelled { message } => formatter
+                .debug_struct("Cancelled")
+                .field("message", &message.as_ref().map(|_| "[REDACTED]"))
+                .finish(),
+        }
+    }
+}
+
+impl FinishCatalogSyncRun {
+    fn status(&self) -> SyncRunStatus {
+        match self {
+            Self::Succeeded { .. } => SyncRunStatus::Succeeded,
+            Self::Failed { .. } => SyncRunStatus::Failed,
+            Self::Cancelled { .. } => SyncRunStatus::Cancelled,
+        }
+    }
+
+    fn result_cursor(&self) -> Option<&str> {
+        match self {
+            Self::Succeeded { result_cursor, .. } => result_cursor.as_deref(),
+            Self::Failed { .. } | Self::Cancelled { .. } => None,
+        }
+    }
+
+    fn coverage(&self) -> SyncCoverage {
+        match self {
+            Self::Succeeded { coverage, .. } => *coverage,
+            Self::Failed { .. } | Self::Cancelled { .. } => SyncCoverage::DiscoveryOnly,
+        }
+    }
+
+    fn snapshot_complete(&self) -> bool {
+        matches!(
+            self,
+            Self::Succeeded {
+                snapshot_complete: true,
+                ..
+            }
+        )
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct FinishedCatalogSyncRun {
+    pub run: CatalogSyncRunSnapshot,
+    /// Number of releases whose first absence marker was set by this run.
+    /// Releases already absent retain their original `not_seen_since` date.
+    pub newly_not_seen: u32,
+}
+
+#[derive(Debug, Error)]
+pub enum CatalogSyncError {
+    #[error("catalog artist {artist_id} does not exist")]
+    ArtistNotFound { artist_id: Uuid },
+    #[error("catalog source {source_id} already exists")]
+    SourceAlreadyExists { source_id: Uuid },
+    #[error("catalog source identity already exists for artist {artist_id}: {kind}")]
+    SourceIdentityAlreadyExists {
+        artist_id: Uuid,
+        kind: CatalogSourceKind,
+    },
+    #[error("catalog source {source_id} does not exist")]
+    SourceNotFound { source_id: Uuid },
+    #[error(
+        "catalog source {source_id} changed concurrently: expected {expected}, actual {actual}"
+    )]
+    SourceConflict {
+        source_id: Uuid,
+        expected: CatalogRowVersion,
+        actual: CatalogRowVersion,
+    },
+    #[error("catalog source {source_id} is disabled")]
+    SourceDisabled { source_id: Uuid },
+    #[error("catalog source credential is not configured for {kind}")]
+    CredentialNotConfigured { kind: CatalogSourceKind },
+    #[error("catalog source credential binding is invalid for {kind}")]
+    CredentialBindingInvalid { kind: CatalogSourceKind },
+    #[error("catalog source adapter is not available for {kind}")]
+    AdapterUnavailable { kind: CatalogSourceKind },
+    #[error("catalog source {source_id} already has a running or contending sync run")]
+    SourceBusy { source_id: Uuid },
+    #[error("catalog sync run {run_id} already exists")]
+    RunAlreadyExists { run_id: Uuid },
+    #[error("catalog sync run {run_id} does not exist")]
+    RunNotFound { run_id: Uuid },
+    #[error(
+        "catalog sync run {run_id} changed concurrently: expected {expected}, actual {actual}"
+    )]
+    RunConflict {
+        run_id: Uuid,
+        expected: CatalogRowVersion,
+        actual: CatalogRowVersion,
+    },
+    #[error("catalog sync run {run_id} cannot transition from {from} to {to}")]
+    InvalidRunTransition {
+        run_id: Uuid,
+        from: SyncRunStatus,
+        to: SyncRunStatus,
+    },
+    #[error("catalog sync run {run_id} is {status}, not running")]
+    RunNotRunning { run_id: Uuid, status: SyncRunStatus },
+    #[error("catalog sync run {run_id} is not currently claimable")]
+    RunNotClaimable { run_id: Uuid },
+    #[error("catalog sync run {run_id} is not owned by this worker lease")]
+    LeaseMismatch { run_id: Uuid },
+    #[error("catalog source release {source_release_id} changed concurrently")]
+    ObservationConflict { source_release_id: Uuid },
+    #[error("invalid catalog sync {field}: {message}")]
+    InvalidInput {
+        field: &'static str,
+        message: &'static str,
+    },
+    #[error("persisted {entity} {id} contains invalid {field}: {value}")]
+    InvalidPersistedValue {
+        entity: &'static str,
+        id: Uuid,
+        field: &'static str,
+        value: String,
+    },
+    #[error("persisted source release {source_release_id} has no observation revision")]
+    MissingObservationRevision { source_release_id: Uuid },
+    #[error("persisted source release {source_release_id} revision {revision} has an invalid digest length: {actual}")]
+    InvalidObservationDigestLength {
+        source_release_id: Uuid,
+        revision: u64,
+        actual: usize,
+    },
+    #[error(
+        "persisted source release {source_release_id} revision {revision} failed its SHA-256 check"
+    )]
+    ObservationDigestMismatch {
+        source_release_id: Uuid,
+        revision: u64,
+    },
+    #[error("{entity} {id} has an out-of-range {field}")]
+    NumericOutOfRange {
+        entity: &'static str,
+        id: Uuid,
+        field: &'static str,
+    },
+    #[error(transparent)]
+    Database(#[from] DbErr),
+}
+
+#[derive(Clone)]
+pub struct CatalogSyncService {
+    database: DatabaseConnection,
+    provisioning: CatalogSyncProvisioningConfig,
+}
+
+impl CatalogSyncService {
+    pub fn new(database: DatabaseConnection) -> Self {
+        Self::with_provisioning(database, CatalogSyncProvisioningConfig::default())
+    }
+
+    pub fn with_provisioning(
+        database: DatabaseConnection,
+        provisioning: CatalogSyncProvisioningConfig,
+    ) -> Self {
+        Self {
+            database,
+            provisioning,
+        }
+    }
+
+    /// Registers a browser-managed source after binding deployment-owned
+    /// adapter provisioning. The caller cannot supply configuration documents
+    /// or secret references.
+    pub async fn create_managed_source(
+        &self,
+        input: NewManagedCatalogSource,
+    ) -> Result<CatalogSourceSnapshot, CatalogSyncError> {
+        let secret_ref = match input.kind {
+            CatalogSourceKind::AppleMusic => Some(
+                self.provisioning
+                    .apple_music_secret_ref()
+                    .ok_or(CatalogSyncError::CredentialNotConfigured { kind: input.kind })?
+                    .as_str()
+                    .to_owned(),
+            ),
+            CatalogSourceKind::RecordLabel
+            | CatalogSourceKind::ArtistWebsite
+            | CatalogSourceKind::Vgmdb
+            | CatalogSourceKind::Manual => None,
+        };
+        self.create_source(NewCatalogSource {
+            source_id: input.source_id,
+            artist_id: input.artist_id,
+            kind: input.kind,
+            locator: input.locator,
+            storefront: input.storefront,
+            locale: input.locale,
+            configuration_document: None,
+            secret_ref,
+        })
+        .await
+    }
+
+    /// Binds the configured Apple Music credential reference to legacy source
+    /// rows that predate server-side provisioning.
+    ///
+    /// Existing non-null references are never replaced. Each update uses the
+    /// source row version as a compare-and-swap guard, so this is safe to run on
+    /// every Annim startup and returns only the number of rows it changed.
+    pub async fn provision_existing_sources(&self) -> Result<u64, CatalogSyncError> {
+        let Some(secret_ref) = self.provisioning.apple_music_secret_ref() else {
+            return Ok(0);
+        };
+        let sources = catalog_source::Entity::find()
+            .filter(catalog_source::Column::Kind.eq(CatalogSourceKind::AppleMusic.as_str()))
+            .filter(catalog_source::Column::SecretRef.is_null())
+            .all(&self.database)
+            .await?;
+        let mut changed = 0_u64;
+        for source in sources {
+            let current =
+                parse_row_version("catalog source", source.source_id, source.row_version)?;
+            let next = next_row_version("catalog source", source.source_id, current)?;
+            let updated = catalog_source::Entity::update_many()
+                .col_expr(
+                    catalog_source::Column::SecretRef,
+                    Expr::value(Some(secret_ref.as_str().to_owned())),
+                )
+                .col_expr(
+                    catalog_source::Column::RowVersion,
+                    Expr::value(row_version_as_i64(
+                        "catalog source",
+                        source.source_id,
+                        next,
+                    )?),
+                )
+                .col_expr(
+                    catalog_source::Column::UpdatedAt,
+                    Expr::current_timestamp().into(),
+                )
+                .filter(catalog_source::Column::Id.eq(source.id))
+                .filter(catalog_source::Column::SecretRef.is_null())
+                .filter(catalog_source::Column::RowVersion.eq(row_version_as_i64(
+                    "catalog source",
+                    source.source_id,
+                    current,
+                )?))
+                .exec(&self.database)
+                .await?;
+            changed = changed.saturating_add(updated.rows_affected);
+        }
+        Ok(changed)
+    }
+
+    pub async fn create_source(
+        &self,
+        input: NewCatalogSource,
+    ) -> Result<CatalogSourceSnapshot, CatalogSyncError> {
+        require_non_empty("locator", &input.locator)?;
+        let artist = get_artist_model(&self.database, input.artist_id)
+            .await?
+            .ok_or(CatalogSyncError::ArtistNotFound {
+                artist_id: input.artist_id,
+            })?;
+        let source_id = input.source_id.unwrap_or_else(Uuid::new_v4);
+        let identity_locator = input.locator.clone();
+        let active_model = catalog_source::ActiveModel {
+            id: NotSet,
+            source_id: Set(source_id),
+            artist_db_id: Set(artist.id),
+            kind: Set(input.kind.as_str().to_owned()),
+            locator: Set(input.locator),
+            storefront: Set(input.storefront),
+            locale: Set(input.locale),
+            configuration_document: Set(input.configuration_document),
+            secret_ref: Set(input.secret_ref),
+            enabled: Set(true),
+            row_version: Set(1),
+            created_at: NotSet,
+            updated_at: NotSet,
+        };
+
+        if let Err(error) = catalog_source::Entity::insert(active_model)
+            .exec_without_returning(&self.database)
+            .await
+        {
+            if get_source_model(&self.database, source_id).await?.is_some() {
+                return Err(CatalogSyncError::SourceAlreadyExists { source_id });
+            }
+            if catalog_source::Entity::find()
+                .filter(catalog_source::Column::ArtistDbId.eq(artist.id))
+                .filter(catalog_source::Column::Kind.eq(input.kind.as_str()))
+                .filter(catalog_source::Column::Locator.eq(&identity_locator))
+                .one(&self.database)
+                .await?
+                .is_some()
+            {
+                return Err(CatalogSyncError::SourceIdentityAlreadyExists {
+                    artist_id: input.artist_id,
+                    kind: input.kind,
+                });
+            }
+            return Err(error.into());
+        }
+
+        self.get_source(source_id)
+            .await?
+            .ok_or(CatalogSyncError::SourceNotFound { source_id })
+    }
+
+    pub async fn get_source(
+        &self,
+        source_id: Uuid,
+    ) -> Result<Option<CatalogSourceSnapshot>, CatalogSyncError> {
+        let Some(source) = get_source_model(&self.database, source_id).await? else {
+            return Ok(None);
+        };
+        let artist = catalog_artist::Entity::find_by_id(source.artist_db_id)
+            .one(&self.database)
+            .await?
+            .ok_or_else(|| {
+                CatalogSyncError::Database(DbErr::Custom(format!(
+                    "catalog source {source_id} references a missing artist"
+                )))
+            })?;
+        source_model_to_snapshot(source, artist.artist_id).map(Some)
+    }
+
+    /// Lists the configured catalog sources for one artist in a stable order.
+    /// Adapter configuration, secret references, and observation documents
+    /// remain private because they are not part of the returned snapshot.
+    pub async fn list_sources_for_artist(
+        &self,
+        artist_id: Uuid,
+    ) -> Result<Vec<CatalogSourceSnapshot>, CatalogSyncError> {
+        let artist = get_artist_model(&self.database, artist_id)
+            .await?
+            .ok_or(CatalogSyncError::ArtistNotFound { artist_id })?;
+        catalog_source::Entity::find()
+            .filter(catalog_source::Column::ArtistDbId.eq(artist.id))
+            .order_by_asc(catalog_source::Column::Kind)
+            .order_by_asc(catalog_source::Column::CreatedAt)
+            .all(&self.database)
+            .await?
+            .into_iter()
+            .map(|source| source_model_to_snapshot(source, artist_id))
+            .collect()
+    }
+
+    /// Enables or disables a source under optimistic concurrency control.
+    /// Repeating the current value with the current row version is idempotent
+    /// and does not create a meaningless new version.
+    pub async fn set_source_enabled(
+        &self,
+        source_id: Uuid,
+        expected: CatalogRowVersion,
+        enabled: bool,
+    ) -> Result<CatalogSourceSnapshot, CatalogSyncError> {
+        let current = get_source_model(&self.database, source_id)
+            .await?
+            .ok_or(CatalogSyncError::SourceNotFound { source_id })?;
+        let actual = parse_row_version("catalog source", source_id, current.row_version)?;
+        if actual != expected {
+            return Err(CatalogSyncError::SourceConflict {
+                source_id,
+                expected,
+                actual,
+            });
+        }
+        if current.enabled == enabled {
+            return self
+                .get_source(source_id)
+                .await?
+                .ok_or(CatalogSyncError::SourceNotFound { source_id });
+        }
+        let next = next_row_version("catalog source", source_id, expected)?;
+        let updated = catalog_source::Entity::update_many()
+            .col_expr(catalog_source::Column::Enabled, Expr::value(enabled))
+            .col_expr(
+                catalog_source::Column::RowVersion,
+                Expr::value(row_version_as_i64("catalog source", source_id, next)?),
+            )
+            .col_expr(
+                catalog_source::Column::UpdatedAt,
+                Expr::current_timestamp().into(),
+            )
+            .filter(catalog_source::Column::SourceId.eq(source_id))
+            .filter(catalog_source::Column::RowVersion.eq(row_version_as_i64(
+                "catalog source",
+                source_id,
+                expected,
+            )?))
+            .exec(&self.database)
+            .await?;
+        if updated.rows_affected != 1 {
+            return source_conflict_or_not_found(&self.database, source_id, expected).await;
+        }
+        self.get_source(source_id)
+            .await?
+            .ok_or(CatalogSyncError::SourceNotFound { source_id })
+    }
+
+    /// Queue a run. A worker must subsequently claim it with the returned row
+    /// version before it may write observations.
+    pub async fn start_run(
+        &self,
+        input: NewCatalogSyncRun,
+    ) -> Result<CatalogSyncRunSnapshot, CatalogSyncError> {
+        let transaction = self.database.begin().await?;
+        let source = get_source_model(&transaction, input.source_id)
+            .await?
+            .ok_or(CatalogSyncError::SourceNotFound {
+                source_id: input.source_id,
+            })?;
+        if !source.enabled {
+            return Err(CatalogSyncError::SourceDisabled {
+                source_id: input.source_id,
+            });
+        }
+        let another_active = catalog_sync_run::Entity::find()
+            .filter(catalog_sync_run::Column::SourceDbId.eq(source.id))
+            .filter(
+                Condition::any()
+                    .add(catalog_sync_run::Column::Status.eq(SyncRunStatus::Queued.as_str()))
+                    .add(catalog_sync_run::Column::Status.eq(SyncRunStatus::Running.as_str())),
+            )
+            .one(&transaction)
+            .await?
+            .is_some();
+        if another_active {
+            return Err(CatalogSyncError::SourceBusy {
+                source_id: input.source_id,
+            });
+        }
+
+        // The source row is the per-source enqueue mutex. The active-run query
+        // gives a useful fast failure, while this CAS closes the race between
+        // concurrent server processes that both observed an empty queue.
+        let source_version =
+            parse_row_version("catalog source", source.source_id, source.row_version)?;
+        let next_source_version =
+            next_row_version("catalog source", source.source_id, source_version)?;
+        let source_claim = catalog_source::Entity::update_many()
+            .col_expr(
+                catalog_source::Column::RowVersion,
+                Expr::value(row_version_as_i64(
+                    "catalog source",
+                    source.source_id,
+                    next_source_version,
+                )?),
+            )
+            .col_expr(
+                catalog_source::Column::UpdatedAt,
+                Expr::current_timestamp().into(),
+            )
+            .filter(catalog_source::Column::Id.eq(source.id))
+            .filter(catalog_source::Column::Enabled.eq(true))
+            .filter(catalog_source::Column::RowVersion.eq(row_version_as_i64(
+                "catalog source",
+                source.source_id,
+                source_version,
+            )?))
+            .exec(&transaction)
+            .await?;
+        if source_claim.rows_affected != 1 {
+            return Err(CatalogSyncError::SourceBusy {
+                source_id: input.source_id,
+            });
+        }
+
+        let run_id = input.run_id.unwrap_or_else(Uuid::new_v4);
+        let started_from_root = input.requested_cursor.is_none();
+        let active_model = catalog_sync_run::ActiveModel {
+            id: NotSet,
+            run_id: Set(run_id),
+            source_db_id: Set(source.id),
+            status: Set(SyncRunStatus::Queued.as_str().to_owned()),
+            requested_cursor: Set(input.requested_cursor),
+            result_cursor: Set(None),
+            observed_count: Set(0),
+            error_message: Set(None),
+            coverage: Set(SyncCoverage::DiscoveryOnly.as_str().to_owned()),
+            started_from_root: Set(started_from_root),
+            snapshot_complete: Set(false),
+            lease_token: Set(None),
+            lease_expires_at: Set(None),
+            next_attempt_at: Set(None),
+            attempt_count: Set(0),
+            row_version: Set(1),
+            created_at: NotSet,
+            started_at: Set(None),
+            finished_at: Set(None),
+        };
+        if let Err(error) = catalog_sync_run::Entity::insert(active_model)
+            .exec_without_returning(&transaction)
+            .await
+        {
+            if get_run_model(&transaction, run_id).await?.is_some() {
+                return Err(CatalogSyncError::RunAlreadyExists { run_id });
+            }
+            return Err(error.into());
+        }
+        transaction.commit().await?;
+        self.get_run(run_id)
+            .await?
+            .ok_or(CatalogSyncError::RunNotFound { run_id })
+    }
+
+    /// Queues work only when the installed Web-managed adapter can run it.
+    /// Trusted internal callers may use [`Self::start_run`] directly.
+    pub async fn start_managed_run(
+        &self,
+        input: NewCatalogSyncRun,
+    ) -> Result<CatalogSyncRunSnapshot, CatalogSyncError> {
+        let source =
+            self.get_source(input.source_id)
+                .await?
+                .ok_or(CatalogSyncError::SourceNotFound {
+                    source_id: input.source_id,
+                })?;
+        match source.managed_provisioning_state() {
+            CatalogSourceProvisioningState::ReadyToQueue => self.start_run(input).await,
+            CatalogSourceProvisioningState::Disabled => Err(CatalogSyncError::SourceDisabled {
+                source_id: source.source_id,
+            }),
+            CatalogSourceProvisioningState::CredentialNotConfigured => {
+                Err(CatalogSyncError::CredentialNotConfigured { kind: source.kind })
+            }
+            CatalogSourceProvisioningState::CredentialBindingInvalid => {
+                Err(CatalogSyncError::CredentialBindingInvalid { kind: source.kind })
+            }
+            CatalogSourceProvisioningState::AdapterUnavailable => {
+                Err(CatalogSyncError::AdapterUnavailable { kind: source.kind })
+            }
+        }
+    }
+
+    pub async fn get_run(
+        &self,
+        run_id: Uuid,
+    ) -> Result<Option<CatalogSyncRunSnapshot>, CatalogSyncError> {
+        let Some(run) = get_run_model(&self.database, run_id).await? else {
+            return Ok(None);
+        };
+        let source = catalog_source::Entity::find_by_id(run.source_db_id)
+            .one(&self.database)
+            .await?
+            .ok_or_else(|| missing_run_source(run_id))?;
+        run_model_to_snapshot(run, source.source_id).map(Some)
+    }
+
+    /// Lists one source's run history newest-first with stable pagination.
+    pub async fn list_runs_for_source(
+        &self,
+        source_id: Uuid,
+        limit: u64,
+        offset: u64,
+    ) -> Result<Vec<CatalogSyncRunSnapshot>, CatalogSyncError> {
+        let source = get_source_model(&self.database, source_id)
+            .await?
+            .ok_or(CatalogSyncError::SourceNotFound { source_id })?;
+        catalog_sync_run::Entity::find()
+            .filter(catalog_sync_run::Column::SourceDbId.eq(source.id))
+            .order_by_desc(catalog_sync_run::Column::CreatedAt)
+            .order_by_desc(catalog_sync_run::Column::Id)
+            .limit(limit)
+            .offset(offset)
+            .all(&self.database)
+            .await?
+            .into_iter()
+            .map(|run| run_model_to_snapshot(run, source_id))
+            .collect()
+    }
+
+    /// Claims a specific queued run or recovers its expired worker lease.
+    pub async fn claim_run(
+        &self,
+        run_id: Uuid,
+        expected: CatalogRowVersion,
+        lease_for: Duration,
+    ) -> Result<CatalogSyncLease, CatalogSyncError> {
+        self.claim_run_at(run_id, expected, chrono::Utc::now(), lease_for)
+            .await
+    }
+
+    async fn claim_run_at(
+        &self,
+        run_id: Uuid,
+        expected: CatalogRowVersion,
+        claimed_at: DateTimeUtc,
+        lease_for: Duration,
+    ) -> Result<CatalogSyncLease, CatalogSyncError> {
+        let lease_expires_at = lease_deadline(claimed_at, lease_for)?;
+        let stored_now = store_timestamp(claimed_at);
+        let transaction = self.database.begin().await?;
+        let run = get_run_model(&transaction, run_id)
+            .await?
+            .ok_or(CatalogSyncError::RunNotFound { run_id })?;
+        let actual = parse_row_version("sync run", run_id, run.row_version)?;
+        if actual != expected {
+            return Err(CatalogSyncError::RunConflict {
+                run_id,
+                expected,
+                actual,
+            });
+        }
+        let status = parse_run_status(run_id, &run.status)?;
+        let claimable = match status {
+            SyncRunStatus::Queued => run
+                .next_attempt_at
+                .as_ref()
+                .is_none_or(|not_before| timestamp(not_before.to_owned()) <= claimed_at),
+            SyncRunStatus::Running => run
+                .lease_expires_at
+                .as_ref()
+                .is_none_or(|expires_at| timestamp(expires_at.to_owned()) <= claimed_at),
+            SyncRunStatus::Succeeded | SyncRunStatus::Failed | SyncRunStatus::Cancelled => false,
+        };
+        if !claimable {
+            return Err(CatalogSyncError::RunNotClaimable { run_id });
+        }
+        let source = catalog_source::Entity::find_by_id(run.source_db_id)
+            .one(&transaction)
+            .await?
+            .ok_or_else(|| missing_run_source(run_id))?;
+        if !source.enabled {
+            return Err(CatalogSyncError::SourceDisabled {
+                source_id: source.source_id,
+            });
+        }
+
+        // `last_seen_at >= started_at` is used to make unchanged observations
+        // idempotent within a run. That inference is only sound when runs for
+        // one source cannot overlap, so the source row is also advanced under
+        // CAS as a durable claim mutex.
+        let another_running = catalog_sync_run::Entity::find()
+            .filter(catalog_sync_run::Column::SourceDbId.eq(source.id))
+            .filter(catalog_sync_run::Column::RunId.ne(run_id))
+            .filter(catalog_sync_run::Column::Status.eq(SyncRunStatus::Running.as_str()))
+            .filter(catalog_sync_run::Column::LeaseExpiresAt.gt(stored_now))
+            .one(&transaction)
+            .await?
+            .is_some();
+        if another_running {
+            return Err(CatalogSyncError::SourceBusy {
+                source_id: source.source_id,
+            });
+        }
+        let source_version =
+            parse_row_version("catalog source", source.source_id, source.row_version)?;
+        let next_source_version =
+            next_row_version("catalog source", source.source_id, source_version)?;
+        let source_claim = catalog_source::Entity::update_many()
+            .col_expr(
+                catalog_source::Column::RowVersion,
+                Expr::value(row_version_as_i64(
+                    "catalog source",
+                    source.source_id,
+                    next_source_version,
+                )?),
+            )
+            .col_expr(
+                catalog_source::Column::UpdatedAt,
+                Expr::current_timestamp().into(),
+            )
+            .filter(catalog_source::Column::Id.eq(source.id))
+            .filter(catalog_source::Column::RowVersion.eq(row_version_as_i64(
+                "catalog source",
+                source.source_id,
+                source_version,
+            )?))
+            .exec(&transaction)
+            .await?;
+        if source_claim.rows_affected != 1 {
+            return Err(CatalogSyncError::SourceBusy {
+                source_id: source.source_id,
+            });
+        }
+
+        let next = next_row_version("sync run", run_id, expected)?;
+        let attempt_count =
+            run.attempt_count
+                .checked_add(1)
+                .ok_or(CatalogSyncError::NumericOutOfRange {
+                    entity: "sync run",
+                    id: run_id,
+                    field: "attempt_count",
+                })?;
+        let lease_token = Uuid::new_v4();
+        let started_at = run.started_at.unwrap_or(stored_now);
+        let result = catalog_sync_run::Entity::update_many()
+            .col_expr(
+                catalog_sync_run::Column::Status,
+                Expr::value(SyncRunStatus::Running.as_str()),
+            )
+            .col_expr(catalog_sync_run::Column::StartedAt, Expr::value(started_at))
+            .col_expr(
+                catalog_sync_run::Column::LeaseToken,
+                Expr::value(Some(lease_token)),
+            )
+            .col_expr(
+                catalog_sync_run::Column::LeaseExpiresAt,
+                Expr::value(Some(store_timestamp(lease_expires_at))),
+            )
+            .col_expr(
+                catalog_sync_run::Column::NextAttemptAt,
+                Expr::value(None::<PersistedTimestamp>),
+            )
+            .col_expr(
+                catalog_sync_run::Column::AttemptCount,
+                Expr::value(attempt_count),
+            )
+            .col_expr(
+                catalog_sync_run::Column::ErrorMessage,
+                Expr::value(None::<String>),
+            )
+            .col_expr(
+                catalog_sync_run::Column::RowVersion,
+                Expr::value(row_version_as_i64("sync run", run_id, next)?),
+            )
+            .filter(catalog_sync_run::Column::RunId.eq(run_id))
+            .filter(
+                catalog_sync_run::Column::RowVersion
+                    .eq(row_version_as_i64("sync run", run_id, expected)?),
+            )
+            .exec(&transaction)
+            .await?;
+        if result.rows_affected != 1 {
+            return run_conflict_or_not_found(&transaction, run_id, expected).await;
+        }
+        let updated = get_run_model(&transaction, run_id)
+            .await?
+            .ok_or(CatalogSyncError::RunNotFound { run_id })?;
+        let lease = lease_from_models(updated, source, lease_token, lease_expires_at)?;
+        transaction.commit().await?;
+        Ok(lease)
+    }
+
+    /// Claims the oldest due run. Expired leases are eligible, so a dead
+    /// worker cannot wedge catalog synchronization permanently.
+    pub async fn claim_next(
+        &self,
+        lease_for: Duration,
+    ) -> Result<Option<CatalogSyncLease>, CatalogSyncError> {
+        self.claim_next_at(chrono::Utc::now(), lease_for).await
+    }
+
+    async fn claim_next_at(
+        &self,
+        claimed_at: DateTimeUtc,
+        lease_for: Duration,
+    ) -> Result<Option<CatalogSyncLease>, CatalogSyncError> {
+        // Validate before polling so an empty queue does not hide bad worker
+        // configuration.
+        lease_deadline(claimed_at, lease_for)?;
+        let stored_now = store_timestamp(claimed_at);
+        let enabled_source_ids = Query::select()
+            .column(catalog_source::Column::Id)
+            .from(catalog_source::Entity)
+            .and_where(catalog_source::Column::Enabled.eq(true))
+            .to_owned();
+        let mut skipped_run_ids = Vec::new();
+        let mut skipped_source_db_ids = Vec::new();
+        for _ in 0..MAX_CLAIM_CAS_ATTEMPTS {
+            let queued_due = Condition::all()
+                .add(catalog_sync_run::Column::Status.eq(SyncRunStatus::Queued.as_str()))
+                .add(
+                    Condition::any()
+                        .add(catalog_sync_run::Column::NextAttemptAt.is_null())
+                        .add(catalog_sync_run::Column::NextAttemptAt.lte(stored_now)),
+                );
+            let expired_running = Condition::all()
+                .add(catalog_sync_run::Column::Status.eq(SyncRunStatus::Running.as_str()))
+                .add(
+                    Condition::any()
+                        .add(catalog_sync_run::Column::LeaseExpiresAt.is_null())
+                        .add(catalog_sync_run::Column::LeaseExpiresAt.lte(stored_now)),
+                );
+            let mut query = catalog_sync_run::Entity::find()
+                .filter(Condition::any().add(queued_due).add(expired_running))
+                .filter(
+                    catalog_sync_run::Column::SourceDbId.in_subquery(enabled_source_ids.clone()),
+                )
+                .order_by_asc(catalog_sync_run::Column::NextAttemptAt)
+                .order_by_asc(catalog_sync_run::Column::CreatedAt)
+                .order_by_asc(catalog_sync_run::Column::Id)
+                .limit(1);
+            if !skipped_run_ids.is_empty() {
+                query = query
+                    .filter(catalog_sync_run::Column::RunId.is_not_in(skipped_run_ids.clone()));
+            }
+            if !skipped_source_db_ids.is_empty() {
+                query = query.filter(
+                    catalog_sync_run::Column::SourceDbId.is_not_in(skipped_source_db_ids.clone()),
+                );
+            }
+            let Some(run) = query.one(&self.database).await? else {
+                return Ok(None);
+            };
+            let expected = parse_row_version("sync run", run.run_id, run.row_version)?;
+            match self
+                .claim_run_at(run.run_id, expected, claimed_at, lease_for)
+                .await
+            {
+                Ok(lease) => return Ok(Some(lease)),
+                Err(
+                    CatalogSyncError::SourceBusy { .. } | CatalogSyncError::SourceDisabled { .. },
+                ) => {
+                    skipped_source_db_ids.push(run.source_db_id);
+                }
+                Err(
+                    CatalogSyncError::RunConflict { .. } | CatalogSyncError::RunNotClaimable { .. },
+                ) => skipped_run_ids.push(run.run_id),
+                Err(error) => return Err(error),
+            }
+        }
+        Ok(None)
+    }
+
+    pub async fn renew_lease(
+        &self,
+        run_id: Uuid,
+        expected: CatalogRowVersion,
+        lease_token: Uuid,
+        lease_for: Duration,
+    ) -> Result<CatalogSyncLease, CatalogSyncError> {
+        self.renew_lease_at(run_id, expected, lease_token, chrono::Utc::now(), lease_for)
+            .await
+    }
+
+    async fn renew_lease_at(
+        &self,
+        run_id: Uuid,
+        expected: CatalogRowVersion,
+        lease_token: Uuid,
+        renewed_at: DateTimeUtc,
+        lease_for: Duration,
+    ) -> Result<CatalogSyncLease, CatalogSyncError> {
+        let lease_expires_at = lease_deadline(renewed_at, lease_for)?;
+        let transaction = self.database.begin().await?;
+        let run = get_run_model(&transaction, run_id)
+            .await?
+            .ok_or(CatalogSyncError::RunNotFound { run_id })?;
+        ensure_current_lease(&run, expected, lease_token, renewed_at)?;
+        let source = catalog_source::Entity::find_by_id(run.source_db_id)
+            .one(&transaction)
+            .await?
+            .ok_or_else(|| missing_run_source(run_id))?;
+        let next = next_row_version("sync run", run_id, expected)?;
+        let result = catalog_sync_run::Entity::update_many()
+            .col_expr(
+                catalog_sync_run::Column::LeaseExpiresAt,
+                Expr::value(Some(store_timestamp(lease_expires_at))),
+            )
+            .col_expr(
+                catalog_sync_run::Column::RowVersion,
+                Expr::value(row_version_as_i64("sync run", run_id, next)?),
+            )
+            .filter(catalog_sync_run::Column::RunId.eq(run_id))
+            .filter(catalog_sync_run::Column::LeaseToken.eq(lease_token))
+            .filter(catalog_sync_run::Column::Status.eq(SyncRunStatus::Running.as_str()))
+            .filter(
+                catalog_sync_run::Column::RowVersion
+                    .eq(row_version_as_i64("sync run", run_id, expected)?),
+            )
+            .exec(&transaction)
+            .await?;
+        if result.rows_affected != 1 {
+            return run_conflict_or_not_found(&transaction, run_id, expected).await;
+        }
+        let updated = get_run_model(&transaction, run_id)
+            .await?
+            .ok_or(CatalogSyncError::RunNotFound { run_id })?;
+        let lease = lease_from_models(updated, source, lease_token, lease_expires_at)?;
+        transaction.commit().await?;
+        Ok(lease)
+    }
+
+    /// Releases a current worker lease back to the queue after a recoverable
+    /// adapter failure. Progress and observations remain attached to the same
+    /// run; a later claim receives a fresh token and increments attempt_count.
+    pub async fn retry_run(
+        &self,
+        run_id: Uuid,
+        expected: CatalogRowVersion,
+        lease_token: Uuid,
+        error_message: &str,
+        resume_cursor: Option<String>,
+        not_before: DateTimeUtc,
+    ) -> Result<CatalogSyncRunSnapshot, CatalogSyncError> {
+        if error_message.is_empty() {
+            return Err(CatalogSyncError::InvalidInput {
+                field: "error_message",
+                message: "retry must include an error message",
+            });
+        }
+        let checked_at = chrono::Utc::now();
+        let transaction = self.database.begin().await?;
+        let run = get_run_model(&transaction, run_id)
+            .await?
+            .ok_or(CatalogSyncError::RunNotFound { run_id })?;
+        ensure_current_lease(&run, expected, lease_token, checked_at)?;
+        let source = catalog_source::Entity::find_by_id(run.source_db_id)
+            .one(&transaction)
+            .await?
+            .ok_or_else(|| missing_run_source(run_id))?;
+        let next = next_row_version("sync run", run_id, expected)?;
+        let stored_error = sanitize_sync_error(error_message)
+            .unwrap_or_else(|| "source adapter retry scheduled".to_owned());
+        let result = catalog_sync_run::Entity::update_many()
+            .col_expr(
+                catalog_sync_run::Column::Status,
+                Expr::value(SyncRunStatus::Queued.as_str()),
+            )
+            .col_expr(
+                catalog_sync_run::Column::ErrorMessage,
+                Expr::value(Some(stored_error)),
+            )
+            .col_expr(
+                catalog_sync_run::Column::RequestedCursor,
+                Expr::value(resume_cursor),
+            )
+            .col_expr(
+                catalog_sync_run::Column::LeaseToken,
+                Expr::value(None::<Uuid>),
+            )
+            .col_expr(
+                catalog_sync_run::Column::LeaseExpiresAt,
+                Expr::value(None::<PersistedTimestamp>),
+            )
+            .col_expr(
+                catalog_sync_run::Column::NextAttemptAt,
+                Expr::value(Some(store_timestamp(not_before))),
+            )
+            .col_expr(
+                catalog_sync_run::Column::SnapshotComplete,
+                Expr::value(false),
+            )
+            .col_expr(
+                catalog_sync_run::Column::RowVersion,
+                Expr::value(row_version_as_i64("sync run", run_id, next)?),
+            )
+            .filter(catalog_sync_run::Column::RunId.eq(run_id))
+            .filter(catalog_sync_run::Column::Status.eq(SyncRunStatus::Running.as_str()))
+            .filter(catalog_sync_run::Column::LeaseToken.eq(lease_token))
+            .filter(
+                catalog_sync_run::Column::RowVersion
+                    .eq(row_version_as_i64("sync run", run_id, expected)?),
+            )
+            .exec(&transaction)
+            .await?;
+        if result.rows_affected != 1 {
+            return run_conflict_or_not_found(&transaction, run_id, expected).await;
+        }
+        let updated = get_run_model(&transaction, run_id)
+            .await?
+            .ok_or(CatalogSyncError::RunNotFound { run_id })?;
+        let snapshot = run_model_to_snapshot(updated, source.source_id)?;
+        transaction.commit().await?;
+        Ok(snapshot)
+    }
+
+    /// Persist an observation and advance the run under one transaction.
+    ///
+    /// `expected` is the run version returned by `claim_run` or the previous
+    /// call. This serializes a worker's progress and makes retry behavior
+    /// explicit to both Web clients and background jobs.
+    pub async fn record_observation(
+        &self,
+        run_id: Uuid,
+        expected: CatalogRowVersion,
+        lease_token: Uuid,
+        input: CatalogReleaseObservation,
+    ) -> Result<RecordedCatalogObservation, CatalogSyncError> {
+        validate_observation(&input)?;
+        let raw_sha256 = sha256(input.raw_document.as_bytes());
+        let transaction = self.database.begin().await?;
+        let run = get_run_model(&transaction, run_id)
+            .await?
+            .ok_or(CatalogSyncError::RunNotFound { run_id })?;
+        let observed_at_utc = chrono::Utc::now();
+        ensure_current_lease(&run, expected, lease_token, observed_at_utc)?;
+        let started_at = run
+            .started_at
+            .ok_or_else(|| CatalogSyncError::InvalidPersistedValue {
+                entity: "sync run",
+                id: run_id,
+                field: "started_at",
+                value: "missing for running run".to_owned(),
+            })?;
+        let source = catalog_source::Entity::find_by_id(run.source_db_id)
+            .one(&transaction)
+            .await?
+            .ok_or_else(|| missing_run_source(run_id))?;
+        let observed_at = store_timestamp(observed_at_utc);
+
+        let existing =
+            get_source_release_model(&transaction, run.source_db_id, &input.external_release_id)
+                .await?;
+
+        let (release, revision, revision_appended, first_observation_in_run) =
+            if let Some(existing) = existing {
+                let latest = latest_revision(&transaction, existing.id).await?.ok_or(
+                    CatalogSyncError::MissingObservationRevision {
+                        source_release_id: existing.source_release_id,
+                    },
+                )?;
+                let latest_revision = checked_revision(&latest, existing.source_release_id)?;
+                let latest_digest = checked_revision_digest(&latest, existing.source_release_id)?;
+                let same_content = latest_digest == raw_sha256
+                    && latest.raw_document == input.raw_document
+                    && latest.parsed_document == input.parsed_document;
+                let seen_in_this_run = existing.last_seen_at >= started_at;
+
+                // A worker retry after a timeout is a read, not a new event.
+                // The expected run version is still checked above, so stale
+                // callers cannot mistake another worker's progress for theirs.
+                if seen_in_this_run
+                    && same_content
+                    && existing.source_url == input.source_url
+                    && existing.not_seen_since.is_none()
+                {
+                    let run_snapshot = run_model_to_snapshot(run, source.source_id)?;
+                    let observation =
+                        observation_snapshot(existing, latest_revision, latest_digest)?;
+                    transaction.commit().await?;
+                    return Ok(RecordedCatalogObservation {
+                        run: run_snapshot,
+                        observation,
+                        revision_appended: false,
+                        first_observation_in_run: false,
+                    });
+                }
+
+                let expected_release_version = parse_row_version(
+                    "source release",
+                    existing.source_release_id,
+                    existing.row_version,
+                )?;
+                let next_release_version = next_row_version(
+                    "source release",
+                    existing.source_release_id,
+                    expected_release_version,
+                )?;
+                let result = catalog_source_release::Entity::update_many()
+                    .col_expr(
+                        catalog_source_release::Column::SourceUrl,
+                        Expr::value(&input.source_url),
+                    )
+                    .col_expr(
+                        catalog_source_release::Column::LastSeenAt,
+                        Expr::value(observed_at),
+                    )
+                    .col_expr(
+                        catalog_source_release::Column::NotSeenSince,
+                        Expr::value(None::<DateTimeUtc>),
+                    )
+                    .col_expr(
+                        catalog_source_release::Column::RowVersion,
+                        Expr::value(row_version_as_i64(
+                            "source release",
+                            existing.source_release_id,
+                            next_release_version,
+                        )?),
+                    )
+                    .filter(catalog_source_release::Column::Id.eq(existing.id))
+                    .filter(
+                        catalog_source_release::Column::RowVersion.eq(row_version_as_i64(
+                            "source release",
+                            existing.source_release_id,
+                            expected_release_version,
+                        )?),
+                    )
+                    .exec(&transaction)
+                    .await?;
+                if result.rows_affected != 1 {
+                    return Err(CatalogSyncError::ObservationConflict {
+                        source_release_id: existing.source_release_id,
+                    });
+                }
+
+                let revision = if same_content {
+                    latest_revision
+                } else {
+                    let next_revision = next_revision(existing.source_release_id, latest_revision)?;
+                    insert_revision(
+                        &transaction,
+                        existing.id,
+                        next_revision,
+                        run_id,
+                        &input,
+                        raw_sha256,
+                        observed_at,
+                    )
+                    .await?;
+                    next_revision
+                };
+                let release = catalog_source_release::Entity::find_by_id(existing.id)
+                    .one(&transaction)
+                    .await?
+                    .ok_or(CatalogSyncError::ObservationConflict {
+                        source_release_id: existing.source_release_id,
+                    })?;
+                (release, revision, !same_content, !seen_in_this_run)
+            } else {
+                let source_release_id = Uuid::new_v4();
+                let insert =
+                    catalog_source_release::Entity::insert(catalog_source_release::ActiveModel {
+                        id: NotSet,
+                        source_release_id: Set(source_release_id),
+                        source_db_id: Set(run.source_db_id),
+                        external_release_id: Set(input.external_release_id.clone()),
+                        source_url: Set(input.source_url.clone()),
+                        linked_release_db_id: Set(None),
+                        first_seen_at: Set(observed_at),
+                        last_seen_at: Set(observed_at),
+                        not_seen_since: Set(None),
+                        row_version: Set(1),
+                    })
+                    .exec(&transaction)
+                    .await?;
+                insert_revision(
+                    &transaction,
+                    insert.last_insert_id,
+                    1,
+                    run_id,
+                    &input,
+                    raw_sha256,
+                    observed_at,
+                )
+                .await?;
+                let release = catalog_source_release::Entity::find_by_id(insert.last_insert_id)
+                    .one(&transaction)
+                    .await?
+                    .ok_or(CatalogSyncError::ObservationConflict { source_release_id })?;
+                (release, 1, true, true)
+            };
+
+        let next_run_version = next_row_version("sync run", run_id, expected)?;
+        let observed_count = checked_observed_count(run_id, run.observed_count)?;
+        let next_observed_count = if first_observation_in_run {
+            observed_count
+                .checked_add(1)
+                .filter(|value| i32::try_from(*value).is_ok())
+                .ok_or(CatalogSyncError::NumericOutOfRange {
+                    entity: "sync run",
+                    id: run_id,
+                    field: "observed_count",
+                })?
+        } else {
+            observed_count
+        };
+        let result = catalog_sync_run::Entity::update_many()
+            .col_expr(
+                catalog_sync_run::Column::ObservedCount,
+                Expr::value(i32::try_from(next_observed_count).map_err(|_| {
+                    CatalogSyncError::NumericOutOfRange {
+                        entity: "sync run",
+                        id: run_id,
+                        field: "observed_count",
+                    }
+                })?),
+            )
+            .col_expr(
+                catalog_sync_run::Column::RowVersion,
+                Expr::value(row_version_as_i64("sync run", run_id, next_run_version)?),
+            )
+            .filter(catalog_sync_run::Column::RunId.eq(run_id))
+            .filter(
+                catalog_sync_run::Column::RowVersion
+                    .eq(row_version_as_i64("sync run", run_id, expected)?),
+            )
+            .filter(catalog_sync_run::Column::Status.eq(SyncRunStatus::Running.as_str()))
+            .filter(catalog_sync_run::Column::LeaseToken.eq(lease_token))
+            .exec(&transaction)
+            .await?;
+        if result.rows_affected != 1 {
+            return run_conflict_or_not_found(&transaction, run_id, expected).await;
+        }
+
+        let updated_run = get_run_model(&transaction, run_id)
+            .await?
+            .ok_or(CatalogSyncError::RunNotFound { run_id })?;
+        let run_snapshot = run_model_to_snapshot(updated_run, source.source_id)?;
+        let observation = observation_snapshot(release, revision, raw_sha256)?;
+        transaction.commit().await?;
+        Ok(RecordedCatalogObservation {
+            run: run_snapshot,
+            observation,
+            revision_appended,
+            first_observation_in_run,
+        })
+    }
+
+    /// Finish a run. Only a successful run is allowed to infer absence; failed
+    /// or cancelled runs leave the previous collection view untouched.
+    pub async fn finish_run(
+        &self,
+        run_id: Uuid,
+        expected: CatalogRowVersion,
+        lease_token: Uuid,
+        outcome: FinishCatalogSyncRun,
+    ) -> Result<FinishedCatalogSyncRun, CatalogSyncError> {
+        if matches!(&outcome, FinishCatalogSyncRun::Failed { error_message } if error_message.is_empty())
+        {
+            return Err(CatalogSyncError::InvalidInput {
+                field: "error_message",
+                message: "failure must include an error message",
+            });
+        }
+        let transaction = self.database.begin().await?;
+        let run = get_run_model(&transaction, run_id)
+            .await?
+            .ok_or(CatalogSyncError::RunNotFound { run_id })?;
+        let actual = parse_row_version("sync run", run_id, run.row_version)?;
+        if actual != expected {
+            return Err(CatalogSyncError::RunConflict {
+                run_id,
+                expected,
+                actual,
+            });
+        }
+        let status = parse_run_status(run_id, &run.status)?;
+        let next_status = outcome.status();
+        let stored_error = match &outcome {
+            FinishCatalogSyncRun::Succeeded { .. } => None,
+            FinishCatalogSyncRun::Failed { error_message } => Some(
+                sanitize_sync_error(error_message)
+                    .unwrap_or_else(|| "source adapter failed".to_owned()),
+            ),
+            FinishCatalogSyncRun::Cancelled { message } => {
+                message.as_deref().and_then(sanitize_sync_error)
+            }
+        };
+        let source = catalog_source::Entity::find_by_id(run.source_db_id)
+            .one(&transaction)
+            .await?
+            .ok_or_else(|| missing_run_source(run_id))?;
+        let coverage = outcome.coverage();
+        let snapshot_complete = outcome.snapshot_complete();
+
+        // Retrying a completed command with the current version is a no-op.
+        if status == next_status
+            && run.result_cursor.as_deref() == outcome.result_cursor()
+            && run.error_message.as_deref() == stored_error.as_deref()
+            && run.coverage == coverage.as_str()
+            && run.snapshot_complete == snapshot_complete
+            && run.finished_at.is_some()
+        {
+            let snapshot = run_model_to_snapshot(run, source.source_id)?;
+            transaction.commit().await?;
+            return Ok(FinishedCatalogSyncRun {
+                run: snapshot,
+                newly_not_seen: 0,
+            });
+        }
+        if !status.can_transition_to(next_status) || status == next_status {
+            return Err(CatalogSyncError::InvalidRunTransition {
+                run_id,
+                from: status,
+                to: next_status,
+            });
+        }
+
+        let finished_at_utc = chrono::Utc::now();
+        ensure_current_lease(&run, expected, lease_token, finished_at_utc)?;
+        let finished_at = store_timestamp(finished_at_utc);
+        let mut newly_not_seen = 0_u32;
+        if next_status == SyncRunStatus::Succeeded
+            && coverage.may_infer_absence()
+            && run.started_from_root
+            && snapshot_complete
+        {
+            let started_at =
+                run.started_at
+                    .ok_or_else(|| CatalogSyncError::InvalidPersistedValue {
+                        entity: "sync run",
+                        id: run_id,
+                        field: "started_at",
+                        value: "missing for successful run".to_owned(),
+                    })?;
+            let absent = catalog_source_release::Entity::find()
+                .filter(catalog_source_release::Column::SourceDbId.eq(run.source_db_id))
+                .filter(catalog_source_release::Column::LastSeenAt.lt(started_at))
+                .filter(catalog_source_release::Column::NotSeenSince.is_null())
+                .all(&transaction)
+                .await?;
+            for release in absent {
+                let current = parse_row_version(
+                    "source release",
+                    release.source_release_id,
+                    release.row_version,
+                )?;
+                let next = next_row_version("source release", release.source_release_id, current)?;
+                let result = catalog_source_release::Entity::update_many()
+                    .col_expr(
+                        catalog_source_release::Column::NotSeenSince,
+                        Expr::value(finished_at),
+                    )
+                    .col_expr(
+                        catalog_source_release::Column::RowVersion,
+                        Expr::value(row_version_as_i64(
+                            "source release",
+                            release.source_release_id,
+                            next,
+                        )?),
+                    )
+                    .filter(catalog_source_release::Column::Id.eq(release.id))
+                    .filter(
+                        catalog_source_release::Column::RowVersion.eq(row_version_as_i64(
+                            "source release",
+                            release.source_release_id,
+                            current,
+                        )?),
+                    )
+                    .exec(&transaction)
+                    .await?;
+                if result.rows_affected != 1 {
+                    return Err(CatalogSyncError::ObservationConflict {
+                        source_release_id: release.source_release_id,
+                    });
+                }
+                newly_not_seen =
+                    newly_not_seen
+                        .checked_add(1)
+                        .ok_or(CatalogSyncError::NumericOutOfRange {
+                            entity: "sync run",
+                            id: run_id,
+                            field: "newly_not_seen",
+                        })?;
+            }
+        }
+
+        let next = next_row_version("sync run", run_id, expected)?;
+        let result = catalog_sync_run::Entity::update_many()
+            .col_expr(
+                catalog_sync_run::Column::Status,
+                Expr::value(next_status.as_str()),
+            )
+            .col_expr(
+                catalog_sync_run::Column::ResultCursor,
+                Expr::value(outcome.result_cursor().map(str::to_owned)),
+            )
+            .col_expr(
+                catalog_sync_run::Column::ErrorMessage,
+                Expr::value(stored_error),
+            )
+            .col_expr(
+                catalog_sync_run::Column::Coverage,
+                Expr::value(coverage.as_str()),
+            )
+            .col_expr(
+                catalog_sync_run::Column::SnapshotComplete,
+                Expr::value(snapshot_complete),
+            )
+            .col_expr(
+                catalog_sync_run::Column::FinishedAt,
+                Expr::value(finished_at),
+            )
+            .col_expr(
+                catalog_sync_run::Column::LeaseToken,
+                Expr::value(None::<Uuid>),
+            )
+            .col_expr(
+                catalog_sync_run::Column::LeaseExpiresAt,
+                Expr::value(None::<PersistedTimestamp>),
+            )
+            .col_expr(
+                catalog_sync_run::Column::NextAttemptAt,
+                Expr::value(None::<PersistedTimestamp>),
+            )
+            .col_expr(
+                catalog_sync_run::Column::RowVersion,
+                Expr::value(row_version_as_i64("sync run", run_id, next)?),
+            )
+            .filter(catalog_sync_run::Column::RunId.eq(run_id))
+            .filter(
+                catalog_sync_run::Column::RowVersion
+                    .eq(row_version_as_i64("sync run", run_id, expected)?),
+            )
+            .filter(catalog_sync_run::Column::Status.eq(status.as_str()))
+            .filter(catalog_sync_run::Column::LeaseToken.eq(lease_token))
+            .exec(&transaction)
+            .await?;
+        if result.rows_affected != 1 {
+            return run_conflict_or_not_found(&transaction, run_id, expected).await;
+        }
+
+        let updated = get_run_model(&transaction, run_id)
+            .await?
+            .ok_or(CatalogSyncError::RunNotFound { run_id })?;
+        let snapshot = run_model_to_snapshot(updated, source.source_id)?;
+        transaction.commit().await?;
+        Ok(FinishedCatalogSyncRun {
+            run: snapshot,
+            newly_not_seen,
+        })
+    }
+}
+
+async fn get_artist_model<C: ConnectionTrait>(
+    connection: &C,
+    artist_id: Uuid,
+) -> Result<Option<catalog_artist::Model>, DbErr> {
+    catalog_artist::Entity::find()
+        .filter(catalog_artist::Column::ArtistId.eq(artist_id))
+        .one(connection)
+        .await
+}
+
+async fn get_source_model<C: ConnectionTrait>(
+    connection: &C,
+    source_id: Uuid,
+) -> Result<Option<catalog_source::Model>, DbErr> {
+    catalog_source::Entity::find()
+        .filter(catalog_source::Column::SourceId.eq(source_id))
+        .one(connection)
+        .await
+}
+
+async fn get_run_model<C: ConnectionTrait>(
+    connection: &C,
+    run_id: Uuid,
+) -> Result<Option<catalog_sync_run::Model>, DbErr> {
+    catalog_sync_run::Entity::find()
+        .filter(catalog_sync_run::Column::RunId.eq(run_id))
+        .one(connection)
+        .await
+}
+
+fn lease_deadline(
+    claimed_at: DateTimeUtc,
+    lease_for: Duration,
+) -> Result<DateTimeUtc, CatalogSyncError> {
+    if lease_for.is_zero() {
+        return Err(CatalogSyncError::InvalidInput {
+            field: "lease_for",
+            message: "duration must be positive",
+        });
+    }
+    let delta =
+        chrono::Duration::from_std(lease_for).map_err(|_| CatalogSyncError::InvalidInput {
+            field: "lease_for",
+            message: "duration is too large",
+        })?;
+    claimed_at
+        .checked_add_signed(delta)
+        .ok_or(CatalogSyncError::InvalidInput {
+            field: "lease_for",
+            message: "duration overflows timestamp",
+        })
+}
+
+fn ensure_current_lease(
+    run: &catalog_sync_run::Model,
+    expected: CatalogRowVersion,
+    lease_token: Uuid,
+    checked_at: DateTimeUtc,
+) -> Result<(), CatalogSyncError> {
+    let run_id = run.run_id;
+    let actual = parse_row_version("sync run", run_id, run.row_version)?;
+    if actual != expected {
+        return Err(CatalogSyncError::RunConflict {
+            run_id,
+            expected,
+            actual,
+        });
+    }
+    let status = parse_run_status(run_id, &run.status)?;
+    if status != SyncRunStatus::Running {
+        return Err(CatalogSyncError::RunNotRunning { run_id, status });
+    }
+    let current = run.lease_token == Some(lease_token)
+        && run
+            .lease_expires_at
+            .as_ref()
+            .is_some_and(|expires_at| timestamp(expires_at.to_owned()) > checked_at);
+    if !current {
+        return Err(CatalogSyncError::LeaseMismatch { run_id });
+    }
+    Ok(())
+}
+
+fn lease_from_models(
+    run: catalog_sync_run::Model,
+    source: catalog_source::Model,
+    lease_token: Uuid,
+    lease_expires_at: DateTimeUtc,
+) -> Result<CatalogSyncLease, CatalogSyncError> {
+    let run_id = run.run_id;
+    let source_id = source.source_id;
+    let kind = CatalogSourceKind::from_str(&source.kind).map_err(|_| {
+        CatalogSyncError::InvalidPersistedValue {
+            entity: "catalog source",
+            id: source_id,
+            field: "kind",
+            value: source.kind.clone(),
+        }
+    })?;
+    Ok(CatalogSyncLease {
+        run_id,
+        source_id,
+        kind,
+        locator: source.locator,
+        storefront: source.storefront,
+        locale: source.locale,
+        configuration_document: source.configuration_document,
+        secret_ref: source.secret_ref,
+        requested_cursor: run.requested_cursor,
+        lease_token,
+        lease_expires_at,
+        attempt_count: checked_attempt_count(run_id, run.attempt_count)?,
+        row_version: parse_row_version("sync run", run_id, run.row_version)?,
+    })
+}
+
+async fn get_source_release_model<C: ConnectionTrait>(
+    connection: &C,
+    source_db_id: i32,
+    external_release_id: &str,
+) -> Result<Option<catalog_source_release::Model>, DbErr> {
+    catalog_source_release::Entity::find()
+        .filter(catalog_source_release::Column::SourceDbId.eq(source_db_id))
+        .filter(catalog_source_release::Column::ExternalReleaseId.eq(external_release_id))
+        .one(connection)
+        .await
+}
+
+async fn latest_revision<C: ConnectionTrait>(
+    connection: &C,
+    source_release_db_id: i32,
+) -> Result<Option<catalog_source_release_revision::Model>, DbErr> {
+    catalog_source_release_revision::Entity::find()
+        .filter(catalog_source_release_revision::Column::SourceReleaseDbId.eq(source_release_db_id))
+        .order_by_desc(catalog_source_release_revision::Column::Revision)
+        .one(connection)
+        .await
+}
+
+#[allow(clippy::too_many_arguments)]
+async fn insert_revision<C: ConnectionTrait>(
+    connection: &C,
+    source_release_db_id: i32,
+    revision: u64,
+    run_id: Uuid,
+    input: &CatalogReleaseObservation,
+    raw_sha256: Digest,
+    observed_at: PersistedTimestamp,
+) -> Result<(), CatalogSyncError> {
+    let persisted_revision =
+        i64::try_from(revision).map_err(|_| CatalogSyncError::NumericOutOfRange {
+            entity: "source release revision",
+            id: run_id,
+            field: "revision",
+        })?;
+    catalog_source_release_revision::Entity::insert(catalog_source_release_revision::ActiveModel {
+        id: NotSet,
+        source_release_db_id: Set(source_release_db_id),
+        revision: Set(persisted_revision),
+        sync_run_id: Set(run_id),
+        raw_document: Set(input.raw_document.clone()),
+        parsed_document: Set(input.parsed_document.clone()),
+        raw_sha256: Set(raw_sha256.as_bytes().to_vec()),
+        observed_at: Set(observed_at),
+    })
+    .exec_without_returning(connection)
+    .await?;
+    Ok(())
+}
+
+async fn run_conflict_or_not_found<C: ConnectionTrait, T>(
+    connection: &C,
+    run_id: Uuid,
+    expected: CatalogRowVersion,
+) -> Result<T, CatalogSyncError> {
+    match get_run_model(connection, run_id).await? {
+        Some(actual) => Err(CatalogSyncError::RunConflict {
+            run_id,
+            expected,
+            actual: parse_row_version("sync run", run_id, actual.row_version)?,
+        }),
+        None => Err(CatalogSyncError::RunNotFound { run_id }),
+    }
+}
+
+async fn source_conflict_or_not_found<C: ConnectionTrait, T>(
+    connection: &C,
+    source_id: Uuid,
+    expected: CatalogRowVersion,
+) -> Result<T, CatalogSyncError> {
+    match get_source_model(connection, source_id).await? {
+        Some(actual) => Err(CatalogSyncError::SourceConflict {
+            source_id,
+            expected,
+            actual: parse_row_version("catalog source", source_id, actual.row_version)?,
+        }),
+        None => Err(CatalogSyncError::SourceNotFound { source_id }),
+    }
+}
+
+fn source_model_to_snapshot(
+    model: catalog_source::Model,
+    artist_id: Uuid,
+) -> Result<CatalogSourceSnapshot, CatalogSyncError> {
+    let source_id = model.source_id;
+    let kind = CatalogSourceKind::from_str(&model.kind).map_err(|_| {
+        CatalogSyncError::InvalidPersistedValue {
+            entity: "catalog source",
+            id: source_id,
+            field: "kind",
+            value: model.kind.clone(),
+        }
+    })?;
+    let provisioning_state =
+        source_provisioning_state(kind, model.enabled, model.secret_ref.as_deref());
+    Ok(CatalogSourceSnapshot {
+        source_id,
+        artist_id,
+        kind,
+        locator: model.locator,
+        storefront: model.storefront,
+        locale: model.locale,
+        enabled: model.enabled,
+        provisioning_state,
+        row_version: parse_row_version("catalog source", source_id, model.row_version)?,
+        created_at: timestamp(model.created_at),
+        updated_at: timestamp(model.updated_at),
+    })
+}
+
+fn source_provisioning_state(
+    kind: CatalogSourceKind,
+    enabled: bool,
+    secret_ref: Option<&str>,
+) -> CatalogSourceProvisioningState {
+    if !enabled {
+        return CatalogSourceProvisioningState::Disabled;
+    }
+    match kind {
+        CatalogSourceKind::AppleMusic => match secret_ref {
+            None => CatalogSourceProvisioningState::CredentialNotConfigured,
+            Some(value)
+                if CatalogSecretRef::parse("catalog_source.secret_ref", value.to_owned())
+                    .is_ok() =>
+            {
+                CatalogSourceProvisioningState::ReadyToQueue
+            }
+            Some(_) => CatalogSourceProvisioningState::CredentialBindingInvalid,
+        },
+        CatalogSourceKind::RecordLabel
+        | CatalogSourceKind::ArtistWebsite
+        | CatalogSourceKind::Vgmdb
+        | CatalogSourceKind::Manual => CatalogSourceProvisioningState::AdapterUnavailable,
+    }
+}
+
+fn run_model_to_snapshot(
+    model: catalog_sync_run::Model,
+    source_id: Uuid,
+) -> Result<CatalogSyncRunSnapshot, CatalogSyncError> {
+    let run_id = model.run_id;
+    let coverage = parse_sync_coverage(run_id, &model.coverage)?;
+    Ok(CatalogSyncRunSnapshot {
+        run_id,
+        source_id,
+        status: parse_run_status(run_id, &model.status)?,
+        requested_cursor: model.requested_cursor,
+        result_cursor: model.result_cursor,
+        observed_count: checked_observed_count(run_id, model.observed_count)?,
+        error_message: model.error_message,
+        coverage,
+        started_from_root: model.started_from_root,
+        snapshot_complete: model.snapshot_complete,
+        attempt_count: checked_attempt_count(run_id, model.attempt_count)?,
+        next_attempt_at: model.next_attempt_at.map(timestamp),
+        row_version: parse_row_version("sync run", run_id, model.row_version)?,
+        created_at: timestamp(model.created_at),
+        started_at: model.started_at.map(timestamp),
+        finished_at: model.finished_at.map(timestamp),
+    })
+}
+
+fn observation_snapshot(
+    model: catalog_source_release::Model,
+    revision: u64,
+    raw_sha256: Digest,
+) -> Result<CatalogObservationSnapshot, CatalogSyncError> {
+    let source_release_id = model.source_release_id;
+    Ok(CatalogObservationSnapshot {
+        source_release_id,
+        external_release_id: model.external_release_id,
+        source_url: model.source_url,
+        revision,
+        raw_sha256,
+        first_seen_at: timestamp(model.first_seen_at),
+        last_seen_at: timestamp(model.last_seen_at),
+        not_seen_since: model.not_seen_since.map(timestamp),
+        row_version: parse_row_version("source release", source_release_id, model.row_version)?,
+    })
+}
+
+fn checked_revision(
+    model: &catalog_source_release_revision::Model,
+    source_release_id: Uuid,
+) -> Result<u64, CatalogSyncError> {
+    u64::try_from(model.revision)
+        .ok()
+        .filter(|revision| *revision > 0)
+        .ok_or_else(|| CatalogSyncError::InvalidPersistedValue {
+            entity: "source release",
+            id: source_release_id,
+            field: "revision",
+            value: model.revision.to_string(),
+        })
+}
+
+fn checked_revision_digest(
+    model: &catalog_source_release_revision::Model,
+    source_release_id: Uuid,
+) -> Result<Digest, CatalogSyncError> {
+    let revision = checked_revision(model, source_release_id)?;
+    let actual = model.raw_sha256.len();
+    let stored = <[u8; Digest::LENGTH]>::try_from(model.raw_sha256.as_slice())
+        .map(Digest::new)
+        .map_err(|_| CatalogSyncError::InvalidObservationDigestLength {
+            source_release_id,
+            revision,
+            actual,
+        })?;
+    if sha256(model.raw_document.as_bytes()) != stored {
+        return Err(CatalogSyncError::ObservationDigestMismatch {
+            source_release_id,
+            revision,
+        });
+    }
+    Ok(stored)
+}
+
+fn validate_observation(input: &CatalogReleaseObservation) -> Result<(), CatalogSyncError> {
+    require_non_empty("external_release_id", &input.external_release_id)?;
+    require_non_empty("source_url", &input.source_url)?;
+    require_non_empty("raw_document", &input.raw_document)?;
+    require_non_empty("parsed_document", &input.parsed_document)
+}
+
+fn require_non_empty(field: &'static str, value: &str) -> Result<(), CatalogSyncError> {
+    if value.is_empty() {
+        Err(CatalogSyncError::InvalidInput {
+            field,
+            message: "value must not be empty",
+        })
+    } else {
+        Ok(())
+    }
+}
+
+/// Keep operator-facing failures useful without persisting credentials or
+/// signed endpoints returned by a source adapter. Detailed adapter errors
+/// belong in a worker-local, access-controlled log.
+fn sanitize_sync_error(message: &str) -> Option<String> {
+    let lowercase = message.to_ascii_lowercase();
+    let sensitive = message.contains("://")
+        || message.contains('?')
+        || [
+            "authorization",
+            "credential",
+            "password",
+            "secret",
+            "signature",
+            "token",
+        ]
+        .iter()
+        .any(|needle| lowercase.contains(needle));
+    if sensitive {
+        return None;
+    }
+
+    let sanitized: String = message
+        .chars()
+        .filter(|character| !character.is_control())
+        .take(MAX_SYNC_ERROR_CHARS)
+        .collect();
+    (!sanitized.is_empty()).then_some(sanitized)
+}
+
+fn parse_run_status(run_id: Uuid, value: &str) -> Result<SyncRunStatus, CatalogSyncError> {
+    SyncRunStatus::from_str(value).map_err(|_| CatalogSyncError::InvalidPersistedValue {
+        entity: "sync run",
+        id: run_id,
+        field: "status",
+        value: value.to_owned(),
+    })
+}
+
+fn parse_sync_coverage(run_id: Uuid, value: &str) -> Result<SyncCoverage, CatalogSyncError> {
+    SyncCoverage::from_str(value).map_err(|_| CatalogSyncError::InvalidPersistedValue {
+        entity: "sync run",
+        id: run_id,
+        field: "coverage",
+        value: value.to_owned(),
+    })
+}
+
+fn checked_observed_count(run_id: Uuid, value: i32) -> Result<u32, CatalogSyncError> {
+    u32::try_from(value).map_err(|_| CatalogSyncError::InvalidPersistedValue {
+        entity: "sync run",
+        id: run_id,
+        field: "observed_count",
+        value: value.to_string(),
+    })
+}
+
+fn checked_attempt_count(run_id: Uuid, value: i32) -> Result<u32, CatalogSyncError> {
+    u32::try_from(value).map_err(|_| CatalogSyncError::InvalidPersistedValue {
+        entity: "sync run",
+        id: run_id,
+        field: "attempt_count",
+        value: value.to_string(),
+    })
+}
+
+fn parse_row_version(
+    entity: &'static str,
+    id: Uuid,
+    value: i64,
+) -> Result<CatalogRowVersion, CatalogSyncError> {
+    u64::try_from(value)
+        .ok()
+        .and_then(CatalogRowVersion::new)
+        .ok_or_else(|| CatalogSyncError::InvalidPersistedValue {
+            entity,
+            id,
+            field: "row_version",
+            value: value.to_string(),
+        })
+}
+
+fn row_version_as_i64(
+    entity: &'static str,
+    id: Uuid,
+    version: CatalogRowVersion,
+) -> Result<i64, CatalogSyncError> {
+    i64::try_from(version.get()).map_err(|_| CatalogSyncError::NumericOutOfRange {
+        entity,
+        id,
+        field: "row_version",
+    })
+}
+
+fn next_row_version(
+    entity: &'static str,
+    id: Uuid,
+    version: CatalogRowVersion,
+) -> Result<CatalogRowVersion, CatalogSyncError> {
+    version
+        .get()
+        .checked_add(1)
+        .filter(|value| i64::try_from(*value).is_ok())
+        .and_then(CatalogRowVersion::new)
+        .ok_or(CatalogSyncError::NumericOutOfRange {
+            entity,
+            id,
+            field: "row_version",
+        })
+}
+
+fn next_revision(source_release_id: Uuid, revision: u64) -> Result<u64, CatalogSyncError> {
+    revision
+        .checked_add(1)
+        .filter(|value| i64::try_from(*value).is_ok())
+        .ok_or(CatalogSyncError::NumericOutOfRange {
+            entity: "source release",
+            id: source_release_id,
+            field: "revision",
+        })
+}
+
+fn sha256(value: &[u8]) -> Digest {
+    let mut hasher = Sha256::new();
+    hasher.update(value);
+    Digest::new(hasher.finalize().into())
+}
+
+fn missing_run_source(run_id: Uuid) -> CatalogSyncError {
+    CatalogSyncError::Database(DbErr::Custom(format!(
+        "catalog sync run {run_id} references a missing source"
+    )))
+}
+
+#[cfg(all(test, feature = "sqlite"))]
+mod tests {
+    use sea_orm::{ConnectOptions, Database};
+    use sea_orm_migration::MigratorTrait;
+
+    use super::*;
+    use crate::migrator::Migrator;
+
+    async fn migrated_database() -> DatabaseConnection {
+        let mut options = ConnectOptions::new("sqlite::memory:");
+        options.max_connections(1);
+        let database = Database::connect(options).await.unwrap();
+        Migrator::up(&database, None).await.unwrap();
+        database
+    }
+
+    async fn insert_artist(database: &DatabaseConnection, artist_id: Uuid) {
+        catalog_artist::Entity::insert(catalog_artist::ActiveModel {
+            id: NotSet,
+            artist_id: Set(artist_id),
+            display_name: Set("Artist（公式）".to_owned()),
+            sort_name: Set(None),
+            notes: Set(None),
+            row_version: Set(1),
+            created_at: NotSet,
+            updated_at: NotSet,
+        })
+        .exec_without_returning(database)
+        .await
+        .unwrap();
+    }
+
+    #[tokio::test]
+    async fn managed_apple_sources_bind_and_backfill_only_trusted_secret_references() {
+        let database = migrated_database().await;
+        let artist_id = Uuid::new_v4();
+        insert_artist(&database, artist_id).await;
+        let secret_ref = "apple/developer-token.jwt";
+        let provisioning = CatalogSyncProvisioningConfig::from_lookup(|name| {
+            (name == crate::config::APPLE_MUSIC_SECRET_REF_ENV).then(|| secret_ref.to_owned())
+        })
+        .unwrap();
+        let service = CatalogSyncService::with_provisioning(database.clone(), provisioning);
+
+        let managed = service
+            .create_managed_source(NewManagedCatalogSource {
+                source_id: None,
+                artist_id,
+                kind: CatalogSourceKind::AppleMusic,
+                locator: "1370700".to_owned(),
+                storefront: Some("jp".to_owned()),
+                locale: Some("ja-JP".to_owned()),
+            })
+            .await
+            .unwrap();
+        assert_eq!(
+            managed.provisioning_state,
+            CatalogSourceProvisioningState::ReadyToQueue
+        );
+
+        let legacy = service
+            .create_source(NewCatalogSource {
+                source_id: None,
+                artist_id,
+                kind: CatalogSourceKind::AppleMusic,
+                locator: "1370701".to_owned(),
+                storefront: Some("jp".to_owned()),
+                locale: None,
+                configuration_document: None,
+                secret_ref: None,
+            })
+            .await
+            .unwrap();
+        assert_eq!(
+            legacy.provisioning_state,
+            CatalogSourceProvisioningState::CredentialNotConfigured
+        );
+
+        let invalid = service
+            .create_source(NewCatalogSource {
+                source_id: None,
+                artist_id,
+                kind: CatalogSourceKind::AppleMusic,
+                locator: "1370702".to_owned(),
+                storefront: Some("jp".to_owned()),
+                locale: None,
+                configuration_document: None,
+                secret_ref: Some("../legacy-token".to_owned()),
+            })
+            .await
+            .unwrap();
+        assert_eq!(
+            invalid.provisioning_state,
+            CatalogSourceProvisioningState::CredentialBindingInvalid
+        );
+
+        assert_eq!(service.provision_existing_sources().await.unwrap(), 1);
+        assert_eq!(service.provision_existing_sources().await.unwrap(), 0);
+        let managed_model = get_source_model(&database, managed.source_id)
+            .await
+            .unwrap()
+            .unwrap();
+        let legacy_model = get_source_model(&database, legacy.source_id)
+            .await
+            .unwrap()
+            .unwrap();
+        let invalid_model = get_source_model(&database, invalid.source_id)
+            .await
+            .unwrap()
+            .unwrap();
+        assert_eq!(managed_model.secret_ref.as_deref(), Some(secret_ref));
+        assert_eq!(legacy_model.secret_ref.as_deref(), Some(secret_ref));
+        assert_eq!(legacy_model.row_version, 2);
+        assert_eq!(invalid_model.secret_ref.as_deref(), Some("../legacy-token"));
+        assert_eq!(invalid_model.row_version, 1);
+        assert_eq!(
+            service
+                .get_source(legacy.source_id)
+                .await
+                .unwrap()
+                .unwrap()
+                .provisioning_state,
+            CatalogSourceProvisioningState::ReadyToQueue
+        );
+        assert!(matches!(
+            service
+                .start_managed_run(NewCatalogSyncRun {
+                    run_id: None,
+                    source_id: invalid.source_id,
+                    requested_cursor: None,
+                })
+                .await,
+            Err(CatalogSyncError::CredentialBindingInvalid { .. })
+        ));
+    }
+
+    #[tokio::test]
+    async fn sync_lifecycle_deduplicates_active_runs_and_pauses_disabled_sources() {
+        let database = migrated_database().await;
+        let artist_id = Uuid::new_v4();
+        insert_artist(&database, artist_id).await;
+        let service = CatalogSyncService::new(database);
+        let source = service
+            .create_source(NewCatalogSource {
+                source_id: None,
+                artist_id,
+                kind: CatalogSourceKind::Vgmdb,
+                locator: "https://vgmdb.net/artist/1234".to_owned(),
+                storefront: None,
+                locale: None,
+                configuration_document: None,
+                secret_ref: None,
+            })
+            .await
+            .unwrap();
+
+        let queued = service
+            .start_run(NewCatalogSyncRun {
+                run_id: None,
+                source_id: source.source_id,
+                requested_cursor: None,
+            })
+            .await
+            .unwrap();
+        assert!(matches!(
+            service
+                .start_run(NewCatalogSyncRun {
+                    run_id: None,
+                    source_id: source.source_id,
+                    requested_cursor: None,
+                })
+                .await,
+            Err(CatalogSyncError::SourceBusy { .. })
+        ));
+        assert_eq!(
+            service
+                .list_runs_for_source(source.source_id, 10, 0)
+                .await
+                .unwrap()
+                .iter()
+                .map(|run| run.run_id)
+                .collect::<Vec<_>>(),
+            [queued.run_id]
+        );
+
+        let after_enqueue = service.get_source(source.source_id).await.unwrap().unwrap();
+        assert_eq!(after_enqueue.row_version.get(), 2);
+        assert!(matches!(
+            service
+                .set_source_enabled(source.source_id, source.row_version, false)
+                .await,
+            Err(CatalogSyncError::SourceConflict { .. })
+        ));
+        let disabled = service
+            .set_source_enabled(source.source_id, after_enqueue.row_version, false)
+            .await
+            .unwrap();
+        assert_eq!(disabled.row_version.get(), 3);
+        assert_eq!(
+            disabled.provisioning_state,
+            CatalogSourceProvisioningState::Disabled
+        );
+        let other_source = service
+            .create_source(NewCatalogSource {
+                source_id: None,
+                artist_id,
+                kind: CatalogSourceKind::Manual,
+                locator: "manual://artist/1234".to_owned(),
+                storefront: None,
+                locale: None,
+                configuration_document: None,
+                secret_ref: None,
+            })
+            .await
+            .unwrap();
+        let other_queued = service
+            .start_run(NewCatalogSyncRun {
+                run_id: None,
+                source_id: other_source.source_id,
+                requested_cursor: None,
+            })
+            .await
+            .unwrap();
+        let other_running = service
+            .claim_next(Duration::from_secs(60))
+            .await
+            .unwrap()
+            .unwrap();
+        assert_eq!(other_running.run_id, other_queued.run_id);
+        service
+            .finish_run(
+                other_running.run_id,
+                other_running.row_version,
+                other_running.lease_token,
+                FinishCatalogSyncRun::Cancelled { message: None },
+            )
+            .await
+            .unwrap();
+        assert!(service
+            .claim_next(Duration::from_secs(60))
+            .await
+            .unwrap()
+            .is_none());
+
+        let enabled = service
+            .set_source_enabled(source.source_id, disabled.row_version, true)
+            .await
+            .unwrap();
+        assert_eq!(enabled.row_version.get(), 4);
+        let idempotent = service
+            .set_source_enabled(source.source_id, enabled.row_version, true)
+            .await
+            .unwrap();
+        assert_eq!(idempotent.row_version, enabled.row_version);
+        let running = service
+            .claim_next(Duration::from_secs(60))
+            .await
+            .unwrap()
+            .unwrap();
+        assert_eq!(running.run_id, queued.run_id);
+        let finished = service
+            .finish_run(
+                running.run_id,
+                running.row_version,
+                running.lease_token,
+                FinishCatalogSyncRun::Cancelled { message: None },
+            )
+            .await
+            .unwrap();
+        assert_eq!(finished.run.status, SyncRunStatus::Cancelled);
+
+        let next = service
+            .start_run(NewCatalogSyncRun {
+                run_id: None,
+                source_id: source.source_id,
+                requested_cursor: None,
+            })
+            .await
+            .unwrap();
+        let history = service
+            .list_runs_for_source(source.source_id, 10, 0)
+            .await
+            .unwrap();
+        assert_eq!(history.len(), 2);
+        assert_eq!(history[0].run_id, next.run_id);
+        assert_eq!(history[1].run_id, queued.run_id);
+    }
+
+    #[tokio::test]
+    async fn observations_are_idempotent_versioned_and_never_deleted_when_absent() {
+        let database = migrated_database().await;
+        let artist_id = Uuid::new_v4();
+        insert_artist(&database, artist_id).await;
+        let service = CatalogSyncService::new(database.clone());
+        let lease_for = Duration::from_secs(60);
+
+        let source = service
+            .create_source(NewCatalogSource {
+                source_id: None,
+                artist_id,
+                kind: CatalogSourceKind::Vgmdb,
+                locator: "https://vgmdb.net/artist/1234".to_owned(),
+                storefront: None,
+                locale: Some("ja-JP".to_owned()),
+                configuration_document: Some(r#"{"page_size":50}"#.to_owned()),
+                secret_ref: Some("secret/catalog/vgmdb".to_owned()),
+            })
+            .await
+            .unwrap();
+        let listed = service.list_sources_for_artist(artist_id).await.unwrap();
+        assert_eq!(listed.len(), 1);
+        assert_eq!(listed[0].source_id, source.source_id);
+        assert_eq!(listed[0].locator, "https://vgmdb.net/artist/1234");
+
+        let first = CatalogReleaseObservation {
+            external_release_id: "album/作品・A〜B～C".to_owned(),
+            source_url: "https://vgmdb.net/album/100".to_owned(),
+            raw_document: r#"{"title":"作品・A〜B～C (初回)"}"#.to_owned(),
+            parsed_document: r#"{"title":"作品・A〜B～C (初回)","kind":"album"}"#.to_owned(),
+        };
+        let second = CatalogReleaseObservation {
+            external_release_id: "album/別作品".to_owned(),
+            source_url: "https://vgmdb.net/album/200".to_owned(),
+            raw_document: r#"{"title":"別作品"}"#.to_owned(),
+            parsed_document: r#"{"title":"別作品","kind":"album"}"#.to_owned(),
+        };
+
+        let queued = service
+            .start_run(NewCatalogSyncRun {
+                run_id: None,
+                source_id: source.source_id,
+                requested_cursor: None,
+            })
+            .await
+            .unwrap();
+        let running = service
+            .claim_run(queued.run_id, queued.row_version, lease_for)
+            .await
+            .unwrap();
+        assert!(matches!(
+            service
+                .start_run(NewCatalogSyncRun {
+                    run_id: None,
+                    source_id: source.source_id,
+                    requested_cursor: None,
+                })
+                .await,
+            Err(CatalogSyncError::SourceBusy { .. })
+        ));
+        let recorded = service
+            .record_observation(
+                running.run_id,
+                running.row_version,
+                running.lease_token,
+                first.clone(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(recorded.run.observed_count, 1);
+        assert_eq!(recorded.observation.revision, 1);
+        assert!(recorded.revision_appended);
+        assert!(recorded.first_observation_in_run);
+
+        let replayed = service
+            .record_observation(
+                recorded.run.run_id,
+                recorded.run.row_version,
+                running.lease_token,
+                first.clone(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(replayed.run.row_version, recorded.run.row_version);
+        assert_eq!(replayed.run.observed_count, 1);
+        assert!(!replayed.revision_appended);
+        assert!(!replayed.first_observation_in_run);
+
+        let recorded_second = service
+            .record_observation(
+                replayed.run.run_id,
+                replayed.run.row_version,
+                running.lease_token,
+                second.clone(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(recorded_second.run.observed_count, 2);
+        let finished = service
+            .finish_run(
+                recorded_second.run.run_id,
+                recorded_second.run.row_version,
+                running.lease_token,
+                FinishCatalogSyncRun::Succeeded {
+                    result_cursor: None,
+                    coverage: SyncCoverage::FullSnapshot,
+                    snapshot_complete: true,
+                },
+            )
+            .await
+            .unwrap();
+        assert_eq!(finished.newly_not_seen, 0);
+
+        // A successful incremental run sees only the first release. It is
+        // useful evidence, but it must not infer that the second release
+        // disappeared.
+        let queued = service
+            .start_run(NewCatalogSyncRun {
+                run_id: None,
+                source_id: source.source_id,
+                requested_cursor: Some("incremental:page:2".to_owned()),
+            })
+            .await
+            .unwrap();
+        let running = service
+            .claim_run(queued.run_id, queued.row_version, lease_for)
+            .await
+            .unwrap();
+        let recorded = service
+            .record_observation(
+                running.run_id,
+                running.row_version,
+                running.lease_token,
+                first.clone(),
+            )
+            .await
+            .unwrap();
+        assert!(!recorded.revision_appended);
+        assert!(recorded.first_observation_in_run);
+        let finished = service
+            .finish_run(
+                recorded.run.run_id,
+                recorded.run.row_version,
+                running.lease_token,
+                FinishCatalogSyncRun::Succeeded {
+                    result_cursor: None,
+                    coverage: SyncCoverage::Incremental,
+                    snapshot_complete: true,
+                },
+            )
+            .await
+            .unwrap();
+        assert_eq!(finished.newly_not_seen, 0);
+        let still_present = get_source_release_model(
+            &database,
+            catalog_source::Entity::find()
+                .filter(catalog_source::Column::SourceId.eq(source.source_id))
+                .one(&database)
+                .await
+                .unwrap()
+                .unwrap()
+                .id,
+            &second.external_release_id,
+        )
+        .await
+        .unwrap()
+        .unwrap();
+        assert!(still_present.not_seen_since.is_none());
+
+        // Only a complete full snapshot from the root may infer absence.
+        let queued = service
+            .start_run(NewCatalogSyncRun {
+                run_id: None,
+                source_id: source.source_id,
+                requested_cursor: None,
+            })
+            .await
+            .unwrap();
+        let running = service
+            .claim_run(queued.run_id, queued.row_version, lease_for)
+            .await
+            .unwrap();
+        let recorded = service
+            .record_observation(
+                running.run_id,
+                running.row_version,
+                running.lease_token,
+                first.clone(),
+            )
+            .await
+            .unwrap();
+        let finished = service
+            .finish_run(
+                recorded.run.run_id,
+                recorded.run.row_version,
+                running.lease_token,
+                FinishCatalogSyncRun::Succeeded {
+                    result_cursor: None,
+                    coverage: SyncCoverage::FullSnapshot,
+                    snapshot_complete: true,
+                },
+            )
+            .await
+            .unwrap();
+        assert_eq!(finished.newly_not_seen, 1);
+        let absent = get_source_release_model(
+            &database,
+            catalog_source::Entity::find()
+                .filter(catalog_source::Column::SourceId.eq(source.source_id))
+                .one(&database)
+                .await
+                .unwrap()
+                .unwrap()
+                .id,
+            &second.external_release_id,
+        )
+        .await
+        .unwrap()
+        .unwrap();
+        assert!(absent.not_seen_since.is_some());
+
+        // Re-parsing the same raw document differently is new reviewable
+        // evidence even though its raw SHA-256 is unchanged.
+        let queued = service
+            .start_run(NewCatalogSyncRun {
+                run_id: None,
+                source_id: source.source_id,
+                requested_cursor: None,
+            })
+            .await
+            .unwrap();
+        let running = service
+            .claim_run(queued.run_id, queued.row_version, lease_for)
+            .await
+            .unwrap();
+        let mut reparsed = first;
+        reparsed.parsed_document =
+            r#"{"title":"作品・A〜B～C (初回)","kind":"album","parser":2}"#.to_owned();
+        let recorded = service
+            .record_observation(
+                running.run_id,
+                running.row_version,
+                running.lease_token,
+                reparsed,
+            )
+            .await
+            .unwrap();
+        assert!(recorded.revision_appended);
+        assert_eq!(recorded.observation.revision, 2);
+    }
+
+    #[tokio::test]
+    async fn catalog_leases_expire_recover_and_redact_worker_configuration() {
+        let database = migrated_database().await;
+        let artist_id = Uuid::new_v4();
+        insert_artist(&database, artist_id).await;
+        let service = CatalogSyncService::new(database);
+        let locator = "https://artist.example/discography?token=source-secret";
+        let source = service
+            .create_source(NewCatalogSource {
+                source_id: None,
+                artist_id,
+                kind: CatalogSourceKind::ArtistWebsite,
+                locator: locator.to_owned(),
+                storefront: None,
+                locale: Some("ja-JP".to_owned()),
+                configuration_document: Some("{\"authorization\":\"config-secret\"}".to_owned()),
+                secret_ref: Some("secret/catalog/artist".to_owned()),
+            })
+            .await
+            .unwrap();
+        let queued = service
+            .start_run(NewCatalogSyncRun {
+                run_id: None,
+                source_id: source.source_id,
+                requested_cursor: Some("cursor-secret".to_owned()),
+            })
+            .await
+            .unwrap();
+        let now = chrono::Utc::now();
+        let first = service
+            .claim_run_at(
+                queued.run_id,
+                queued.row_version,
+                now - chrono::Duration::minutes(2),
+                Duration::from_secs(30),
+            )
+            .await
+            .unwrap();
+        assert_eq!(first.attempt_count, 1);
+        let debug = format!("{first:?}");
+        for secret in [
+            locator,
+            "source-secret",
+            "config-secret",
+            "secret/catalog/artist",
+            "cursor-secret",
+            &first.lease_token.to_string(),
+        ] {
+            assert!(!debug.contains(secret));
+        }
+
+        assert!(matches!(
+            service
+                .record_observation(
+                    first.run_id,
+                    first.row_version,
+                    first.lease_token,
+                    CatalogReleaseObservation {
+                        external_release_id: "album/not-written".to_owned(),
+                        source_url: "https://artist.example/album/not-written".to_owned(),
+                        raw_document: "{}".to_owned(),
+                        parsed_document: "{}".to_owned(),
+                    },
+                )
+                .await,
+            Err(CatalogSyncError::LeaseMismatch { .. })
+        ));
+
+        let recovered = service
+            .claim_next_at(now, Duration::from_secs(60))
+            .await
+            .unwrap()
+            .expect("expired run is recoverable");
+        assert_eq!(recovered.run_id, first.run_id);
+        assert_eq!(recovered.attempt_count, 2);
+        assert_ne!(recovered.lease_token, first.lease_token);
+
+        let renewed = service
+            .renew_lease_at(
+                recovered.run_id,
+                recovered.row_version,
+                recovered.lease_token,
+                now,
+                Duration::from_secs(120),
+            )
+            .await
+            .unwrap();
+        assert_eq!(renewed.lease_token, recovered.lease_token);
+        assert!(renewed.lease_expires_at > recovered.lease_expires_at);
+        assert!(renewed.row_version > recovered.row_version);
+        assert!(matches!(
+            service
+                .renew_lease(
+                    renewed.run_id,
+                    renewed.row_version,
+                    first.lease_token,
+                    Duration::from_secs(60),
+                )
+                .await,
+            Err(CatalogSyncError::LeaseMismatch { .. })
+        ));
+
+        let not_before = now + chrono::Duration::seconds(30);
+        let retried = service
+            .retry_run(
+                renewed.run_id,
+                renewed.row_version,
+                renewed.lease_token,
+                "GET https://artist.example?token=must-not-persist failed",
+                Some("resume-cursor-secret".to_owned()),
+                not_before,
+            )
+            .await
+            .unwrap();
+        assert_eq!(retried.status, SyncRunStatus::Queued);
+        assert_eq!(retried.next_attempt_at, Some(not_before));
+        assert_eq!(
+            retried.error_message.as_deref(),
+            Some("source adapter retry scheduled")
+        );
+        assert!(service
+            .claim_next_at(now + chrono::Duration::seconds(20), Duration::from_secs(60))
+            .await
+            .unwrap()
+            .is_none());
+        let third = service
+            .claim_next_at(now + chrono::Duration::seconds(31), Duration::from_secs(60))
+            .await
+            .unwrap()
+            .expect("scheduled retry becomes claimable");
+        assert_eq!(third.run_id, renewed.run_id);
+        assert_eq!(third.attempt_count, 3);
+        assert_eq!(
+            third.requested_cursor.as_deref(),
+            Some("resume-cursor-secret")
+        );
+        assert!(!format!("{third:?}").contains("resume-cursor-secret"));
+    }
+
+    #[test]
+    fn commands_and_failures_do_not_expose_source_secrets() {
+        let source = NewCatalogSource {
+            source_id: None,
+            artist_id: Uuid::new_v4(),
+            kind: CatalogSourceKind::ArtistWebsite,
+            locator: "https://artist.example/discography?token=visible".to_owned(),
+            storefront: None,
+            locale: None,
+            configuration_document: Some("{\"authorization\":\"secret-value\"}".to_owned()),
+            secret_ref: Some("secret/catalog/artist".to_owned()),
+        };
+        let debug = format!("{source:?}");
+        assert!(!debug.contains("artist.example"));
+        assert!(!debug.contains("secret-value"));
+        assert!(!debug.contains("secret/catalog/artist"));
+
+        assert_eq!(
+            sanitize_sync_error("upstream returned 503"),
+            Some("upstream returned 503".to_owned())
+        );
+        assert_eq!(
+            sanitize_sync_error("GET https://artist.example/a?token=secret failed"),
+            None
+        );
+        assert_eq!(sanitize_sync_error("token expired"), None);
+        assert_eq!(
+            sanitize_sync_error(&"x".repeat(MAX_SYNC_ERROR_CHARS + 20))
+                .expect("plain message is retained")
+                .chars()
+                .count(),
+            MAX_SYNC_ERROR_CHARS
+        );
+    }
+}

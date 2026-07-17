@@ -11,6 +11,11 @@ members = [
     "anni-workspace",
     "anni-playback",
     "anni-metadata",
+    "anni-catalog",
+    "anni-catalog-worker",
+    "anni-cover-worker",
+    "anni-ingest",
+    "anni-ingest-worker",
     "third_party/google-drive3",
 ]
 resolver = "3"
@@ -23,7 +28,12 @@ license = "Apache-2.0"
 
 [workspace.dependencies]
 anni-common = { version = "0.2.0", path = "./anni-common" }
+anni-catalog = { path = "./anni-catalog" }
+anni-catalog-worker = { path = "./anni-catalog-worker" }
+anni-cover-worker = { path = "./anni-cover-worker" }
+anni-ingest = { path = "./anni-ingest" }
 anni-metadata = { path = "./anni-metadata" }
+anni-split = { path = "./anni-split" }
 
 log = "0.4"
 uuid = { version = "1", features = ["v4"] }

@@ -271,6 +271,7 @@ where
     }
 
     match rename(from.as_ref(), to.as_ref()) {
+        Ok(()) => Ok(()),
         Err(e) if is_cross_device_error(&e) => {
             debug!("Failed to rename across filesystems. Copying instead.");
 
@@ -279,11 +280,10 @@ where
 
             fs::remove_dir_all(from.as_ref())?;
             debug!("Source directory removed.");
+            Ok(())
         }
-        _ => {}
-    };
-
-    Ok(())
+        Err(error) => Err(error),
+    }
 }
 
 /// Checks raw os error code of `error`.
@@ -304,5 +304,25 @@ fn is_cross_device_error(error: &io::Error) -> bool {
     {
         // unsupported platform
         false
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn move_dir_keeps_source_when_rename_fails() {
+        let root = tempfile::tempdir().unwrap();
+        let source = root.path().join("source");
+        let source_file = source.join("track.flac");
+        create_dir(&source).unwrap();
+        write(&source_file, b"audio data").unwrap();
+
+        let destination = root.path().join("missing-parent").join("destination");
+        let error = move_dir(&source, destination).unwrap_err();
+
+        assert_eq!(error.kind(), io::ErrorKind::NotFound);
+        assert_eq!(read(source_file).unwrap(), b"audio data");
     }
 }

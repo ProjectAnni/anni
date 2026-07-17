@@ -1,4 +1,9 @@
+mod catalog;
+mod catalog_sync;
+mod cover;
 mod cursor;
+mod ingest;
+mod ingest_metadata;
 mod input;
 pub mod types;
 
@@ -7,7 +12,7 @@ use std::{i64, str::FromStr};
 use anyhow::Ok;
 use async_graphql::{
     connection::{Connection, Edge},
-    Context, EmptySubscription, Object, Schema, ID,
+    Context, Object, Schema, SchemaBuilder, Subscription, ID,
 };
 use cursor::Cursor;
 use input::{AlbumsBy, MetadataIDInput};
@@ -28,22 +33,120 @@ use types::{
 
 use crate::{
     auth::AdminGuard,
+    catalog::{CatalogRepository, CatalogService, CatalogSyncService},
+    cover::{CoverRepository, CoverService},
     entities::{album, album_tag_relation, disc, helper::now, tag_info, tag_relation, track},
+    ingest::{IngestJobRepository, IngestService},
     search::RepositorySearchManager,
 };
 
-pub type MetadataSchema = Schema<MetadataQuery, MetadataMutation, EmptySubscription>;
+pub type MetadataSchema = Schema<MetadataQuery, MetadataMutation, MetadataSubscription>;
+
+pub fn schema_builder(
+    db: DatabaseConnection,
+) -> SchemaBuilder<MetadataQuery, MetadataMutation, MetadataSubscription> {
+    let catalog_sync_service = CatalogSyncService::new(db.clone());
+    schema_builder_with_catalog_sync_service(db, catalog_sync_service)
+}
+
+pub fn schema_builder_with_catalog_sync_service(
+    db: DatabaseConnection,
+    catalog_sync_service: CatalogSyncService,
+) -> SchemaBuilder<MetadataQuery, MetadataMutation, MetadataSubscription> {
+    let ingest_service = IngestService::new(IngestJobRepository::new(db.clone()));
+    let catalog_service = CatalogService::new(CatalogRepository::new(db.clone()));
+    let cover_service = CoverService::new(CoverRepository::new(db.clone()));
+    Schema::build(MetadataQuery, MetadataMutation, MetadataSubscription)
+        .data(db)
+        .data(ingest_service)
+        .data(catalog_service)
+        .data(catalog_sync_service)
+        .data(cover_service)
+}
 
 pub fn build_schema(db: DatabaseConnection) -> MetadataSchema {
-    Schema::build(MetadataQuery, MetadataMutation, EmptySubscription)
-        .data(db)
-        .finish()
+    schema_builder(db).finish()
 }
 
 pub struct MetadataQuery;
 
-#[Object]
+#[Object(guard = "AdminGuard")]
 impl MetadataQuery {
+    async fn catalog_sync_sources(
+        &self,
+        ctx: &Context<'_>,
+        artist_id: Uuid,
+    ) -> async_graphql::Result<Vec<catalog_sync::CatalogSyncSourceInfo>> {
+        catalog_sync::query_sources(ctx, artist_id).await
+    }
+
+    async fn catalog_sync_source(
+        &self,
+        ctx: &Context<'_>,
+        source_id: Uuid,
+    ) -> async_graphql::Result<Option<catalog_sync::CatalogSyncSourceInfo>> {
+        catalog_sync::query_source(ctx, source_id).await
+    }
+
+    async fn catalog_sync_run(
+        &self,
+        ctx: &Context<'_>,
+        run_id: Uuid,
+    ) -> async_graphql::Result<Option<catalog_sync::CatalogSyncRunInfo>> {
+        catalog_sync::query_run(ctx, run_id).await
+    }
+
+    async fn catalog_sync_runs(
+        &self,
+        ctx: &Context<'_>,
+        source_id: Uuid,
+        #[graphql(default = 50)] limit: i32,
+        #[graphql(default = 0)] offset: i32,
+    ) -> async_graphql::Result<Vec<catalog_sync::CatalogSyncRunInfo>> {
+        catalog_sync::query_runs(ctx, source_id, limit, offset).await
+    }
+
+    async fn cover_candidates(
+        &self,
+        ctx: &Context<'_>,
+        release_id: Uuid,
+        disc_number: Option<i32>,
+    ) -> async_graphql::Result<Vec<cover::CoverCandidateInfo>> {
+        cover::query_candidates(ctx, release_id, disc_number).await
+    }
+
+    async fn cover_selection(
+        &self,
+        ctx: &Context<'_>,
+        release_id: Uuid,
+        disc_number: i32,
+    ) -> async_graphql::Result<Option<cover::CoverSelectionInfo>> {
+        cover::query_selection(ctx, release_id, disc_number).await
+    }
+
+    #[graphql(guard = "AdminGuard")]
+    async fn catalog_artists(
+        &self,
+        ctx: &Context<'_>,
+        search: Option<String>,
+        #[graphql(default = 50)] limit: i32,
+        #[graphql(default = 0)] offset: i32,
+    ) -> async_graphql::Result<Vec<catalog::CatalogArtistInfo>> {
+        catalog::query_artists(ctx, search, limit, offset).await
+    }
+
+    #[graphql(guard = "AdminGuard")]
+    async fn catalog_artist_collection(
+        &self,
+        ctx: &Context<'_>,
+        artist_id: Uuid,
+        state: Option<catalog::CatalogCollectionState>,
+        #[graphql(default = 500)] limit: i32,
+        #[graphql(default = 0)] offset: i32,
+    ) -> async_graphql::Result<Option<catalog::CatalogArtistCollectionInfo>> {
+        catalog::query_artist_collection(ctx, artist_id, state, limit, offset).await
+    }
+
     async fn album<'ctx>(
         &self,
         ctx: &Context<'ctx>,
@@ -217,12 +320,204 @@ impl MetadataQuery {
             .await?;
         Ok(model.into_iter().map(|model| TagInfo(model)).collect())
     }
+
+    #[graphql(guard = "AdminGuard")]
+    async fn ingest_job(
+        &self,
+        ctx: &Context<'_>,
+        job_id: Uuid,
+    ) -> async_graphql::Result<Option<ingest::IngestJobInfo>> {
+        ingest::query_job(ctx, job_id).await
+    }
+
+    #[graphql(guard = "AdminGuard")]
+    async fn ingest_jobs(
+        &self,
+        ctx: &Context<'_>,
+        state: Option<ingest::IngestJobState>,
+        #[graphql(default = 50)] limit: i32,
+        #[graphql(default = 0)] offset: i32,
+    ) -> async_graphql::Result<Vec<ingest::IngestJobInfo>> {
+        ingest::query_jobs(ctx, state, limit, offset).await
+    }
+
+    #[graphql(guard = "AdminGuard")]
+    async fn ingest_metadata_draft(
+        &self,
+        ctx: &Context<'_>,
+        job_id: Uuid,
+        revision: Option<String>,
+    ) -> async_graphql::Result<Option<ingest_metadata::IngestMetadataReviewPayload>> {
+        ingest_metadata::query_draft(ctx, job_id, revision).await
+    }
+
+    #[graphql(guard = "AdminGuard")]
+    async fn ingest_metadata_revisions(
+        &self,
+        ctx: &Context<'_>,
+        job_id: Uuid,
+    ) -> async_graphql::Result<Vec<ingest_metadata::IngestMetadataDraftInfo>> {
+        ingest_metadata::query_revisions(ctx, job_id).await
+    }
 }
 
 pub struct MetadataMutation;
 
+pub struct MetadataSubscription;
+
+#[Subscription(guard = "AdminGuard")]
+impl MetadataSubscription {
+    #[graphql(guard = "AdminGuard")]
+    async fn ingest_job_changed(
+        &self,
+        ctx: &Context<'_>,
+        job_id: Option<Uuid>,
+        after_row_version: Option<String>,
+    ) -> async_graphql::Result<
+        impl tokio_stream::Stream<Item = async_graphql::Result<ingest::IngestJobInfo>> + use<>,
+    > {
+        ingest::subscribe_jobs(ctx, job_id, after_row_version)
+    }
+}
+
 #[Object(guard = "AdminGuard")]
 impl MetadataMutation {
+    async fn create_catalog_sync_source(
+        &self,
+        ctx: &Context<'_>,
+        input: catalog_sync::CreateCatalogSyncSourceInput,
+    ) -> async_graphql::Result<catalog_sync::CatalogSyncSourceInfo> {
+        catalog_sync::create_source(ctx, input).await
+    }
+
+    async fn start_catalog_sync_run(
+        &self,
+        ctx: &Context<'_>,
+        input: catalog_sync::StartCatalogSyncRunInput,
+    ) -> async_graphql::Result<catalog_sync::CatalogSyncRunInfo> {
+        catalog_sync::start_run(ctx, input).await
+    }
+
+    async fn set_catalog_sync_source_enabled(
+        &self,
+        ctx: &Context<'_>,
+        input: catalog_sync::SetCatalogSyncSourceEnabledInput,
+    ) -> async_graphql::Result<catalog_sync::CatalogSyncSourceInfo> {
+        catalog_sync::set_source_enabled(ctx, input).await
+    }
+
+    async fn add_cover_candidate(
+        &self,
+        ctx: &Context<'_>,
+        input: cover::AddCoverCandidateInput,
+    ) -> async_graphql::Result<cover::CoverCandidateInfo> {
+        cover::add_candidate(ctx, input).await
+    }
+
+    async fn queue_cover_candidate(
+        &self,
+        ctx: &Context<'_>,
+        input: cover::QueueCoverCandidateInput,
+    ) -> async_graphql::Result<cover::CoverCandidateInfo> {
+        cover::queue_candidate(ctx, input).await
+    }
+
+    async fn reject_cover_candidate(
+        &self,
+        ctx: &Context<'_>,
+        input: cover::RejectCoverCandidateInput,
+    ) -> async_graphql::Result<cover::CoverCandidateInfo> {
+        cover::reject_candidate(ctx, input).await
+    }
+
+    async fn select_cover(
+        &self,
+        ctx: &Context<'_>,
+        input: cover::SelectCoverInput,
+    ) -> async_graphql::Result<cover::CoverSelectionInfo> {
+        cover::select_cover(ctx, input).await
+    }
+
+    async fn create_catalog_artist(
+        &self,
+        ctx: &Context<'_>,
+        input: catalog::CreateCatalogArtistInput,
+    ) -> async_graphql::Result<catalog::CatalogArtistInfo> {
+        catalog::create_artist(ctx, input).await
+    }
+
+    async fn update_catalog_artist(
+        &self,
+        ctx: &Context<'_>,
+        input: catalog::UpdateCatalogArtistInput,
+    ) -> async_graphql::Result<catalog::CatalogArtistInfo> {
+        catalog::update_artist(ctx, input).await
+    }
+
+    async fn create_catalog_release(
+        &self,
+        ctx: &Context<'_>,
+        input: catalog::CreateCatalogReleaseInput,
+    ) -> async_graphql::Result<catalog::CatalogReleaseInfo> {
+        catalog::create_release(ctx, input).await
+    }
+
+    async fn update_catalog_release(
+        &self,
+        ctx: &Context<'_>,
+        input: catalog::UpdateCatalogReleaseInput,
+    ) -> async_graphql::Result<catalog::CatalogReleaseInfo> {
+        catalog::update_release(ctx, input).await
+    }
+
+    async fn execute_catalog_release_command(
+        &self,
+        ctx: &Context<'_>,
+        input: catalog::ExecuteCatalogReleaseCommandInput,
+    ) -> async_graphql::Result<catalog::CatalogReleaseInfo> {
+        catalog::execute_release_command(ctx, input).await
+    }
+
+    async fn create_ingest_job(
+        &self,
+        ctx: &Context<'_>,
+        job_id: Option<Uuid>,
+    ) -> async_graphql::Result<ingest::IngestJobInfo> {
+        ingest::create_job(ctx, job_id).await
+    }
+
+    async fn execute_ingest_job_command(
+        &self,
+        ctx: &Context<'_>,
+        input: ingest::ExecuteIngestJobCommandInput,
+    ) -> async_graphql::Result<ingest::IngestJobInfo> {
+        ingest::execute_command(ctx, input).await
+    }
+
+    async fn edit_ingest_metadata(
+        &self,
+        ctx: &Context<'_>,
+        input: ingest_metadata::EditIngestMetadataInput,
+    ) -> async_graphql::Result<ingest_metadata::IngestMetadataReviewPayload> {
+        ingest_metadata::edit_metadata(ctx, input).await
+    }
+
+    async fn approve_ingest_metadata(
+        &self,
+        ctx: &Context<'_>,
+        input: ingest_metadata::IngestMetadataRevisionActionInput,
+    ) -> async_graphql::Result<ingest_metadata::IngestMetadataReviewPayload> {
+        ingest_metadata::approve_metadata(ctx, input).await
+    }
+
+    async fn revise_ingest_metadata(
+        &self,
+        ctx: &Context<'_>,
+        input: ingest_metadata::IngestMetadataRevisionActionInput,
+    ) -> async_graphql::Result<ingest_metadata::IngestMetadataReviewPayload> {
+        ingest_metadata::revise_metadata(ctx, input).await
+    }
+
     /// Add the metatada of a full album to annim.
     async fn add_album<'ctx>(
         &self,
